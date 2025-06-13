@@ -1,0 +1,16 @@
+{
+	"info": {
+		"id": "en.weebcentral",
+		"name": "Weeb Central",
+		"version": 5,
+		"url": "https://weebcentral.com",
+		"contentRating": 1,
+		"languages": ["en"]
+	},
+	"listings": [
+		{
+			"id": "hot",
+			"name": "Hot Updates"
+		}
+	]
+}

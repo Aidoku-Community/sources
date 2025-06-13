@@ -1,0 +1,100 @@
+[
+	{
+		"type": "text",
+		"id": "author",
+		"title": "Author",
+		"placeholder": "Author name"
+	},
+	{
+		"type": "sort",
+		"name": "Sort",
+		"canAscend": true,
+		"options": [
+			"Best Match",
+			"Alphabet",
+			"Popularity",
+			"Subscribers",
+			"Recently Added",
+			"Latest Updates"
+		],
+		"default": {
+			"index": 0,
+			"ascending": false
+		}
+	},
+	{
+		"type": "multi-select",
+		"title": "Series Status",
+		"options": ["Ongoing", "Complete", "Hiatus", "Canceled"],
+		"ids": [
+			"&included_status=Ongoing",
+			"&included_status=Complete",
+			"&included_status=Hiatus",
+			"&included_status=Canceled"
+		]
+	},
+	{
+		"type": "multi-select",
+		"title": "Series Type",
+		"options": ["Manga", "Manhwa", "Manhua", "OEL"],
+		"ids": [
+			"&included_type=Manga",
+			"&included_type=Manhwa",
+			"&included_type=Manhua",
+			"&included_type=OEL"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "genre",
+		"title": "Tags",
+		"isGenre": true,
+		"canExclude": true,
+		"options": [
+			"Action",
+			"Adult",
+			"Adventure",
+			"Comedy",
+			"Doujinshi",
+			"Drama",
+			"Ecchi",
+			"Fantasy",
+			"Gender Bender",
+			"Harem",
+			"Hentai",
+			"Historical",
+			"Horror",
+			"Isekai",
+			"Josei",
+			"Lolicon",
+			"Martial Arts",
+			"Mature",
+			"Mecha",
+			"Mystery",
+			"Psychological",
+			"Romance",
+			"School Life",
+			"Sci-fi",
+			"Seinen",
+			"Shotacon",
+			"Shoujo",
+			"Shoujo Ai",
+			"Shounen",
+			"Shounen Ai",
+			"Slice of Life",
+			"Smut",
+			"Sports",
+			"Supernatural",
+			"Tragedy",
+			"Yaoi",
+			"Yuri",
+			"Other"
+		]
+	},
+	{
+		"type": "check",
+		"title": "Other options",
+		"name": "Official Translation",
+		"canExclude": true
+	}
+]
