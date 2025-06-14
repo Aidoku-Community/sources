@@ -119,9 +119,12 @@ pub trait Impl {
 			let target_endpoint = {
 				let aggregate_id = html
 					.select_first("script.js-valve")
-					.unwrap()
-					.attr("data-giga_series")
-					.unwrap_or_default();
+					.and_then(|el| el.attr("data-giga_series"))
+					.unwrap_or_else(|| {
+						html.select_first(".readable-products-pagination")
+							.and_then(|el| el.attr("data-aggregate-id"))
+							.unwrap_or_default()
+					});
 
 				let mut qs = QueryParameters::new();
 				qs.push("aggregate_id", Some(&aggregate_id));
@@ -276,11 +279,9 @@ pub trait Impl {
 	}
 
 	fn handle_deep_link(&self, params: &Params, url: String) -> Result<Option<DeepLinkResult>> {
-		if !url.starts_with(params.base_url.as_ref()) {
+		let Some(path) = url.strip_prefix(params.base_url.as_ref()) else {
 			return Ok(None);
-		}
-
-		let path = &url[params.base_url.len()..]; // remove "https://mangadex.org/"
+		};
 
 		const EPISODE_PATH: &str = "episode/";
 
