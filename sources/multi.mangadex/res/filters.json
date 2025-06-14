@@ -255,7 +255,7 @@
 		"id": "excludedTagsMode",
 		"title": "Excluded tags mode",
 		"options": ["AND", "OR"],
-		"default": 1,
+		"default": "OR",
 		"hideFromHeader": true
 	},
 	{

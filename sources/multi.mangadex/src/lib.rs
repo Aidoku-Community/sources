@@ -169,14 +169,7 @@ impl Source for MangaDex {
 				},
 				// includedTagsMode and excludedTagsMode
 				FilterValue::Select { id, value } => {
-					qs.push(
-						&id,
-						Some(match value {
-							0 => "AND",
-							1 => "OR",
-							_ => "AND",
-						}),
-					);
+					qs.push(&id, Some(&value));
 				}
 			}
 		}
