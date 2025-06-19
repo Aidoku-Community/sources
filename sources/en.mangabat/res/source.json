@@ -1,0 +1,32 @@
+{
+	"info": {
+		"id": "en.mangabat",
+		"name": "MangaBat",
+		"version": 5,
+		"url": "https://www.mangabats.com",
+		"contentRating": 1,
+		"languages": ["en"]
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "Latest Manga"
+		},
+		{
+			"id": "hot",
+			"name": "Hot Manga"
+		},
+		{
+			"id": "new",
+			"name": "New Manga"
+		},
+		{
+			"id": "completed",
+			"name": "Completed Manga"
+		}
+	],
+	"config": {
+		"supportsAuthorSearch": true,
+		"supportsTagSearch": true
+	}
+}

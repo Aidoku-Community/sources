@@ -1,0 +1,63 @@
+[
+	{
+		"type": "sort",
+		"title": "Sort",
+		"canAscend": false,
+		"options": ["Newest", "Latest", "Top read"]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": ["All", "Completed", "Ongoing"]
+	},
+	{
+		"type": "select",
+		"id": "genre",
+		"title": "Genre",
+		"isGenre": true,
+		"options": [
+			"All",
+			"Action",
+			"Adult",
+			"Adventure",
+			"Comedy",
+			"Cooking",
+			"Doujinshi",
+			"Drama",
+			"Ecchi",
+			"Fantasy",
+			"Gender bender",
+			"Harem",
+			"Historical",
+			"Horror",
+			"Isekai",
+			"Josei",
+			"Manhua",
+			"Manhwa",
+			"Martial arts",
+			"Mature",
+			"Mecha",
+			"Medical",
+			"Mystery",
+			"One shot",
+			"Psychological",
+			"Romance",
+			"School life",
+			"Sci fi",
+			"Seinen",
+			"Shoujo",
+			"Shoujo ai",
+			"Shounen",
+			"Shounen ai",
+			"Slice of life",
+			"Smut",
+			"Sports",
+			"Supernatural",
+			"Tragedy",
+			"Webtoons",
+			"Yaoi",
+			"Yuri"
+		]
+	}
+]

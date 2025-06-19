@@ -1,0 +1,24 @@
+[package]
+name = "mangakakalot"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", branch = "next", version = "0.3.0" }
+mangabox = { path = "../../templates/mangabox" }
+
+[dev-dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", branch = "next", features = ["test"] }
+aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git", branch = "next" }
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+strip = true
+lto = true

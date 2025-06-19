@@ -1,0 +1,32 @@
+{
+	"info": {
+		"id": "en.mangakakalot",
+		"name": "MangaKakalot",
+		"version": 1,
+		"urls": ["www.mangakakalot.gg", "www.mangakakalove.com"],
+		"contentRating": 1,
+		"languages": ["en"]
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "Latest Manga"
+		},
+		{
+			"id": "hot",
+			"name": "Hot Manga"
+		},
+		{
+			"id": "new",
+			"name": "New Manga"
+		},
+		{
+			"id": "completed",
+			"name": "Completed Manga"
+		}
+	],
+	"config": {
+		"supportsAuthorSearch": true,
+		"supportsTagSearch": true
+	}
+}
