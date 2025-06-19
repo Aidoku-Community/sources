@@ -281,20 +281,16 @@ impl Home for WeebCentral {
 		fn parse_manga_with_chapter(el: &Element) -> Option<MangaWithChapter> {
 			let mut links = el.select("a")?;
 			let manga_key = links.first()?.attr("href")?.strip_prefix(BASE_URL)?.into();
-			let chapter_key = links
-				.next_back()?
-				.attr("href")?
-				.strip_prefix(BASE_URL)?
-				.into();
+			let chapter_link = links.next_back()?;
+			let chapter_key = chapter_link.attr("href")?.strip_prefix(BASE_URL)?.into();
 			let cover = el.select_first("img")?.attr("src");
 			let title = el.select_first(".text-lg")?.text()?;
-			let chapter_number = el
-				.select("span:contains(Chapter)")?
-				.first()?
-				.text()?
-				.strip_prefix("Chapter ")?
-				.parse::<f32>()
-				.ok();
+			let chapter_number = chapter_link
+				.select_first("div.flex")?
+				.text()
+				.as_ref()
+				.and_then(|t| t.rsplit(' ').next())
+				.and_then(|num| num.parse::<f32>().ok());
 			let date_uploaded = el
 				.select_first("time[datetime]")
 				.and_then(|el| el.attr("datetime"))
@@ -359,7 +355,7 @@ impl Home for WeebCentral {
 					title: Some("Hot Updates".into()),
 					subtitle: None,
 					value: aidoku::HomeComponentValue::MangaChapterList {
-						page_size: Some(3),
+						page_size: Some(6),
 						entries: hot_updates,
 						listing: Some(Listing {
 							id: "hot".into(),
@@ -372,7 +368,7 @@ impl Home for WeebCentral {
 					title: Some("Latest Updates".into()),
 					subtitle: None,
 					value: aidoku::HomeComponentValue::MangaChapterList {
-						page_size: Some(3),
+						page_size: Some(16),
 						entries: latest_updates,
 						listing: None,
 					},
