@@ -4,8 +4,8 @@ use aidoku::{
 	imports::{html::Element, net::Request, std::send_partial_result},
 	prelude::*,
 	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home,
-	HomeComponent, HomeLayout, ImageRequestProvider, Listing, Manga, MangaPageResult, MangaStatus,
-	MangaWithChapter, Page, PageContent, Result, Source, Viewer,
+	HomeComponent, HomeLayout, ImageRequestProvider, Listing, ListingProvider, Manga,
+	MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source, Viewer,
 };
 
 mod filter;
@@ -21,41 +21,6 @@ struct WeebCentral;
 impl Source for WeebCentral {
 	fn new() -> Self {
 		Self
-	}
-
-	fn get_manga_list(&self, listing: Listing, _page: i32) -> Result<MangaPageResult> {
-		if listing.id == "hot" {
-			let html = Request::get(format!("{BASE_URL}/hot-updates"))?.html()?;
-
-			let entries = html
-				.select("article:not(.hidden)")
-				.map(|els| {
-					els.filter_map(|el| {
-						let manga_key = el
-							.select_first("a")?
-							.attr("href")?
-							.strip_prefix(BASE_URL)?
-							.into();
-						let cover = el.select_first("img")?.attr("src");
-						let title = el.select_first(".text-lg")?.text()?;
-						Some(Manga {
-							key: manga_key,
-							title,
-							cover,
-							..Default::default()
-						})
-					})
-					.collect::<Vec<_>>()
-				})
-				.unwrap_or_default();
-
-			Ok(MangaPageResult {
-				entries,
-				has_next_page: false,
-			})
-		} else {
-			bail!("Invalid listing");
-		}
 	}
 
 	fn get_search_manga_list(
@@ -274,6 +239,43 @@ impl Source for WeebCentral {
 	}
 }
 
+impl ListingProvider for WeebCentral {
+	fn get_manga_list(&self, listing: Listing, _page: i32) -> Result<MangaPageResult> {
+		if listing.id == "hot" {
+			let html = Request::get(format!("{BASE_URL}/hot-updates"))?.html()?;
+
+			let entries = html
+				.select("article:not(.hidden)")
+				.map(|els| {
+					els.filter_map(|el| {
+						let manga_key = el
+							.select_first("a")?
+							.attr("href")?
+							.strip_prefix(BASE_URL)?
+							.into();
+						let cover = el.select_first("img")?.attr("src");
+						let title = el.select_first(".text-lg")?.text()?;
+						Some(Manga {
+							key: manga_key,
+							title,
+							cover,
+							..Default::default()
+						})
+					})
+					.collect::<Vec<_>>()
+				})
+				.unwrap_or_default();
+
+			Ok(MangaPageResult {
+				entries,
+				has_next_page: false,
+			})
+		} else {
+			bail!("Invalid listing");
+		}
+	}
+}
+
 impl Home for WeebCentral {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let html = Request::get(BASE_URL)?.html()?;
@@ -429,4 +431,4 @@ impl DeepLinkHandler for WeebCentral {
 	}
 }
 
-register_source!(WeebCentral, Home, DeepLinkHandler);
+register_source!(WeebCentral, ListingProvider, Home, DeepLinkHandler);

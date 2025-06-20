@@ -9,8 +9,8 @@ use aidoku::{
 		std::send_partial_result,
 	},
 	prelude::*,
-	Chapter, DeepLinkResult, FilterValue, HomeLayout, Listing, Manga, MangaPageResult, Page,
-	PageContent, PageContext, Response, Result, Viewer,
+	Chapter, DeepLinkResult, FilterValue, HomeLayout, ImageResponse, Listing, Manga,
+	MangaPageResult, Page, PageContent, PageContext, Result, Viewer,
 };
 
 pub trait Impl {
@@ -139,7 +139,7 @@ pub trait Impl {
 			let mut json = Request::get(target_endpoint)?
 				.header("Referer", &url)
 				.authed()
-				.json::<GigaReadMoreResponse>();
+				.json_owned::<GigaReadMoreResponse>();
 			let mut chapters: Vec<Chapter> = Vec::new();
 
 			while let Ok(ok_json) = json {
@@ -154,7 +154,7 @@ pub trait Impl {
 				json = Request::get(ok_json.next_url)?
 					.header("Referer", &url)
 					.authed()
-					.json::<GigaReadMoreResponse>();
+					.json_owned::<GigaReadMoreResponse>();
 			}
 
 			new_manga.chapters = Some(chapters);
@@ -207,7 +207,7 @@ pub trait Impl {
 	fn process_page_image(
 		&self,
 		_params: &Params,
-		response: Response,
+		response: ImageResponse,
 		context: Option<PageContext>,
 	) -> Result<ImageRef> {
 		let Some(context) = context else {
@@ -249,8 +249,7 @@ pub trait Impl {
 			canvas.copy_image(&response.image, cell_src, cell_dst);
 		}
 
-		let result = canvas.get_image();
-		Ok(result)
+		Ok(canvas.get_image())
 	}
 
 	fn get_home(&self, _params: &Params) -> Result<HomeLayout> {

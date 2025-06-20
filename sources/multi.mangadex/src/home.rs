@@ -1,6 +1,7 @@
 use crate::MangaDex;
 use crate::{models::*, settings};
 use crate::{API_URL, CUSTOM_LISTS};
+use aidoku::imports::net::Response;
 use aidoku::Link;
 use aidoku::{
 	alloc::{vec, String, Vec},
@@ -32,7 +33,12 @@ impl Home for MangaDex {
 		);
 		let custom_lists = &mut custom_list_requests
 			.iter_mut()
-			.filter_map(|req| req.as_mut().ok()?.json::<DexResponse<DexCustomList>>().ok())
+			.filter_map(|req| {
+				req.as_mut()
+					.ok()?
+					.get_json::<DexResponse<DexCustomList>>()
+					.ok()
+			})
 			.map(|res| CustomList {
 				id: res.data.id,
 				name: res.data.attributes.name,
@@ -83,7 +89,7 @@ impl Home for MangaDex {
 		let languages = settings::get_languages_with_key("translatedLanguage")?;
 		let content_ratings = settings::get_content_ratings()?;
 
-		let requests: [core::result::Result<Request, RequestError>; 3] = Request::send_all([
+		let responses: [core::result::Result<Response, RequestError>; 3] = Request::send_all([
 			// popular
 			Request::get(format!(
 				"{API_URL}/manga\
@@ -120,12 +126,12 @@ impl Home for MangaDex {
 		.try_into()
 		.expect("requests vec length should be 3");
 
-		let [popular_req, recent_req, chapters_req] = requests;
+		let [popular_res, recent_res, chapters_res] = responses;
 
 		// popular scroller
 		{
-			let popular_manga = popular_req?
-				.json::<DexResponse<Vec<DexManga>>>()
+			let popular_manga = popular_res?
+				.get_json::<DexResponse<Vec<DexManga>>>()
 				.map_err(|_| AidokuError::message("Failed to parse popular manga"))?
 				.data
 				.iter()
@@ -151,8 +157,8 @@ impl Home for MangaDex {
 
 		// recently added scroller
 		{
-			let added_manga = recent_req?
-				.json::<DexResponse<Vec<DexManga>>>()
+			let added_manga = recent_res?
+				.get_json::<DexResponse<Vec<DexManga>>>()
 				.map_err(|_| AidokuError::message("Failed to parse recent manga"))?
 				.data
 				.into_iter()
@@ -175,7 +181,7 @@ impl Home for MangaDex {
 
 		// latest chapters list
 		{
-			let chapters_data = chapters_req?
+			let chapters_data = chapters_res?
 				.get_data()
 				.map_err(|_| AidokuError::message("Failed to fetch latest chapters"))?;
 			// get one chapter per unique manga
@@ -206,7 +212,8 @@ impl Home for MangaDex {
 					{manga_ids}"
 			);
 			let latest_manga = Request::get(latest_manga_url)?
-				.json::<DexResponse<Vec<DexManga>>>()?
+				.send()?
+				.get_json::<DexResponse<Vec<DexManga>>>()?
 				.data
 				.into_iter()
 				.map(|value| value.into_basic_manga())
@@ -241,7 +248,7 @@ impl Home for MangaDex {
 
 		// custom lists components
 		{
-			let custom_list_requests = Request::send_all(custom_lists.iter().map(|list| {
+			let custom_list_responses = Request::send_all(custom_lists.iter().map(|list| {
 				Request::get(format!(
 					"{API_URL}/manga\
 						?limit=32\
@@ -254,13 +261,13 @@ impl Home for MangaDex {
 			}));
 			let custom_lists = custom_lists
 				.iter_mut()
-				.zip(custom_list_requests)
-				.filter_map(|(list, req)| {
+				.zip(custom_list_responses)
+				.filter_map(|(list, res)| {
 					Some((
 						list.id,
 						list.name.clone(),
-						req.ok()?
-							.json::<DexResponse<Vec<DexManga>>>()
+						res.ok()?
+							.get_json::<DexResponse<Vec<DexManga>>>()
 							.map(|response| {
 								response
 									.data

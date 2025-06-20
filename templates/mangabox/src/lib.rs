@@ -3,7 +3,7 @@ use aidoku::{
 	alloc::{borrow::Cow, String, Vec},
 	imports::net::Request,
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeLayout, ImageRequestProvider,
-	Listing, Manga, MangaPageResult, Page, PageContext, Result, Source,
+	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContext, Result, Source,
 };
 
 mod helper;
@@ -41,10 +41,6 @@ impl<T: Impl> Source for MangaBox<T> {
 		Self { inner, params }
 	}
 
-	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		self.inner.get_manga_list(&self.params, listing, page)
-	}
-
 	fn get_search_manga_list(
 		&self,
 		query: Option<String>,
@@ -67,6 +63,12 @@ impl<T: Impl> Source for MangaBox<T> {
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		self.inner.get_page_list(&self.params, manga, chapter)
+	}
+}
+
+impl<T: Impl> ListingProvider for MangaBox<T> {
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		self.inner.get_manga_list(&self.params, listing, page)
 	}
 }
 

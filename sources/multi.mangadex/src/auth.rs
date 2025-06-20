@@ -2,7 +2,10 @@ use crate::models::TokenResponse;
 use crate::settings;
 use aidoku::{
 	alloc::String,
-	imports::{error::AidokuError, net::Request},
+	imports::{
+		error::AidokuError,
+		net::{Request, Response},
+	},
 	prelude::*,
 	Result,
 };
@@ -50,42 +53,76 @@ fn refresh_access_token() -> Result<TokenResponse> {
 	Ok(token_response)
 }
 
-pub fn auth_request<'a, T>(request: &'a mut Request) -> Result<T>
-where
-	T: serde::de::Deserialize<'a>,
-{
-	let token_response = settings::get_token()?;
+// pub fn auth_request<'a, T>(request: &'a mut Request) -> Result<T>
+// where
+// 	T: serde::de::Deserialize<'a>,
+// {
+// 	let token_response = settings::get_token()?;
 
-	auth_request_inner(request, token_response, true)
+// 	auth_request_inner(request, token_response, true)
+// }
+
+// fn auth_request_inner<'a, T>(
+// 	request: &'a mut Request,
+// 	token_response: TokenResponse,
+// 	allow_retry: bool,
+// ) -> Result<T>
+// where
+// 	T: serde::de::Deserialize<'a>,
+// {
+// 	let Some(access_token) = token_response.access_token else {
+// 		settings::clear_token();
+// 		return Err(AidokuError::Message("Missing access token".into()));
+// 	};
+
+// 	request.set_header("Authorization", &format!("Bearer {}", access_token));
+
+// 	let response = request.send()?;
+
+// 	let status = response.status_code();
+
+// 	if status == 401 && allow_retry {
+// 		let token_response = refresh_access_token()?;
+// 		let mut new_request = response.into_request();
+// 		return auth_request_inner(new_request, token_response, false);
+// 	}
+
+// 	let value = response.get_json()?;
+
+// 	// let value = serde_json::from_slice(request.data.as_ref().unwrap())
+// 	// 	.map_err(|_| AidokuError::JsonParseError)?;
+// 	Ok(value)
+// }
+
+pub trait AuthedRequest {
+	fn authed_send(self) -> Result<Response>;
 }
 
-fn auth_request_inner<'a, T>(
-	request: &'a mut Request,
-	token_response: TokenResponse,
-	allow_retry: bool,
-) -> Result<T>
-where
-	T: serde::de::Deserialize<'a>,
-{
-	let Some(access_token) = token_response.access_token else {
-		settings::clear_token();
-		return Err(AidokuError::Message("Missing access token".into()));
-	};
+impl AuthedRequest for Request {
+	fn authed_send(mut self) -> Result<Response> {
+		let token_response = settings::get_token()?;
+		let Some(access_token) = token_response.access_token else {
+			settings::clear_token();
+			return Err(AidokuError::Message("Missing access token".into()));
+		};
 
-	request.set_header("Authorization", &format!("Bearer {}", access_token));
+		self.set_header("Authorization", &format!("Bearer {}", access_token));
 
-	let data = request.get_data()?;
-	request.data = Some(data);
+		let mut response = self.send()?;
+		let status = response.status_code();
 
-	let status = request.status_code();
+		if status == 401 {
+			let token_response = refresh_access_token()?;
+			let Some(access_token) = token_response.access_token else {
+				settings::clear_token();
+				return Err(AidokuError::Message("Missing access token".into()));
+			};
+			response = response
+				.into_request()
+				.header("Authorization", &format!("Bearer {}", access_token))
+				.send()?;
+		}
 
-	if status == 401 && allow_retry {
-		let token_response = refresh_access_token()?;
-		request.reset();
-		return auth_request_inner(request, token_response, false);
+		Ok(response)
 	}
-
-	let value = serde_json::from_slice(request.data.as_ref().unwrap())
-		.map_err(|_| AidokuError::JsonParseError)?;
-	Ok(value)
 }

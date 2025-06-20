@@ -3,8 +3,8 @@ use aidoku::{
 	alloc::{borrow::Cow, String, Vec},
 	imports::canvas::ImageRef,
 	BasicLoginHandler, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeLayout,
-	Listing, Manga, MangaPageResult, NotificationHandler, Page, PageContext, PageImageProcessor,
-	Response, Result, Source,
+	ImageResponse, Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler, Page,
+	PageContext, PageImageProcessor, Result, Source,
 };
 
 mod auth;
@@ -43,10 +43,6 @@ impl<T: Impl> Source for GigaViewer<T> {
 		Self { inner, params }
 	}
 
-	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		self.inner.get_manga_list(&self.params, listing, page)
-	}
-
 	fn get_search_manga_list(
 		&self,
 		query: Option<String>,
@@ -72,10 +68,16 @@ impl<T: Impl> Source for GigaViewer<T> {
 	}
 }
 
+impl<T: Impl> ListingProvider for GigaViewer<T> {
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		self.inner.get_manga_list(&self.params, listing, page)
+	}
+}
+
 impl<T: Impl> PageImageProcessor for GigaViewer<T> {
 	fn process_page_image(
 		&self,
-		response: Response,
+		response: ImageResponse,
 		context: Option<PageContext>,
 	) -> Result<ImageRef> {
 		self.inner

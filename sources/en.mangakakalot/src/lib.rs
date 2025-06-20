@@ -1,5 +1,5 @@
 #![no_std]
-use aidoku::{prelude::*, DeepLinkHandler, Home, ImageRequestProvider, Source};
+use aidoku::{prelude::*, DeepLinkHandler, Home, ImageRequestProvider, ListingProvider, Source};
 use mangabox::{Impl, MangaBox, Params};
 
 const BASE_URL: &str = "https://www.mangakakalot.gg";
@@ -21,6 +21,7 @@ impl Impl for MangaKakalot {
 
 register_source!(
 	MangaBox<MangaKakalot>,
+	ListingProvider,
 	Home,
 	ImageRequestProvider,
 	DeepLinkHandler

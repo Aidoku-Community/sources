@@ -4,7 +4,7 @@ use aidoku::{
 	imports::{html::Document, net::Request},
 	prelude::*,
 	BasicLoginHandler, DeepLinkHandler, Home, HomeComponent, HomeLayout, Link, Listing,
-	MangaPageResult, NotificationHandler, Result, Source,
+	ListingProvider, MangaPageResult, NotificationHandler, Result, Source,
 };
 use gigaviewer::{GigaViewer, Impl, Params};
 
@@ -148,6 +148,7 @@ impl Impl for ShonenJumpPlus {
 
 register_source!(
 	GigaViewer<ShonenJumpPlus>,
+	ListingProvider,
 	Home,
 	PageImageProcessor,
 	BasicLoginHandler,

@@ -20,14 +20,14 @@ pub fn login(base_url: &str, email: &str, password: &str) -> Result<bool> {
 		encode_uri_component(email),
 		encode_uri_component(password)
 	);
-	let mut req = Request::post(&url)?
+	let req = Request::post(&url)?
 		.header("x-requested-with", "XMLHttpRequest")
 		.body(&body);
-	req.send()?;
+	let res = req.send()?;
 
-	let status_code = req.status_code();
+	let status_code = res.status_code();
 	if status_code == 200 {
-		let cookie = req.get_header("Set-Cookie");
+		let cookie = res.get_header("Set-Cookie");
 		if let Some(cookie) = cookie {
 			defaults_set(COOKIE_KEY, DefaultValue::String(cookie));
 			Ok(true)
