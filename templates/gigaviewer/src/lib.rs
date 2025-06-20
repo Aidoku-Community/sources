@@ -17,6 +17,7 @@ pub use imp::Impl;
 
 pub struct Params {
 	pub base_url: Cow<'static, str>,
+	pub cdn_url: Cow<'static, str>,
 	pub popular_item_selector: Cow<'static, str>,
 	pub chapter_list_selector: Cow<'static, str>,
 }
@@ -25,6 +26,7 @@ impl Default for Params {
 	fn default() -> Self {
 		Self {
 			base_url: "".into(),
+			cdn_url: "".into(),
 			popular_item_selector: "ul.series-list li a".into(),
 			chapter_list_selector: "li.episode".into(),
 		}

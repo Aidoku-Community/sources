@@ -206,13 +206,22 @@ pub trait Impl {
 
 	fn process_page_image(
 		&self,
-		_params: &Params,
+		params: &Params,
 		response: ImageResponse,
 		context: Option<PageContext>,
 	) -> Result<ImageRef> {
 		let Some(context) = context else {
 			return Err(AidokuError::message("Missing page context"));
 		};
+
+		// if the image is not from the specified CDN, return the original image without trying to descramble
+		if response
+			.request
+			.url
+			.is_none_or(|url| !url.starts_with(params.cdn_url.as_ref()))
+		{
+			return Ok(response.image);
+		}
 
 		let width = context
 			.get("width")

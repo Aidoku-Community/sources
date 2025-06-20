@@ -9,6 +9,7 @@ use aidoku::{
 use gigaviewer::{GigaViewer, Impl, Params};
 
 const BASE_URL: &str = "https://comic-days.com";
+const CDN_URL: &str = "https://cdn-img.comic-days.com/public/page";
 
 struct ComicDays;
 
@@ -20,6 +21,7 @@ impl Impl for ComicDays {
 	fn params(&self) -> Params {
 		Params {
 			base_url: BASE_URL.into(),
+			cdn_url: CDN_URL.into(),
 			..Default::default()
 		}
 	}

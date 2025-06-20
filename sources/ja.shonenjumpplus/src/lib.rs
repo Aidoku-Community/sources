@@ -9,6 +9,7 @@ use aidoku::{
 use gigaviewer::{GigaViewer, Impl, Params};
 
 const BASE_URL: &str = "https://shonenjumpplus.com";
+const CDN_URL: &str = "https://cdn-ak-img.shonenjumpplus.com";
 
 struct ShonenJumpPlus;
 
@@ -20,6 +21,7 @@ impl Impl for ShonenJumpPlus {
 	fn params(&self) -> Params {
 		Params {
 			base_url: BASE_URL.into(),
+			cdn_url: CDN_URL.into(),
 			..Default::default()
 		}
 	}
