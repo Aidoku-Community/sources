@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.mangabat",
 		"name": "MangaBat",
-		"version": 5,
+		"version": 6,
 		"url": "https://www.mangabats.com",
 		"contentRating": 1,
 		"languages": ["en"]
@@ -27,6 +27,7 @@
 	],
 	"config": {
 		"supportsAuthorSearch": true,
-		"supportsTagSearch": true
+		"supportsTagSearch": true,
+		"hidesFiltersWhileSearching": true
 	}
 }

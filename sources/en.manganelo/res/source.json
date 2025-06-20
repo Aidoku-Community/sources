@@ -27,6 +27,7 @@
 	],
 	"config": {
 		"supportsAuthorSearch": true,
-		"supportsTagSearch": true
+		"supportsTagSearch": true,
+		"hidesFiltersWhileSearching": true
 	}
 }
