@@ -109,7 +109,7 @@ pub trait Impl {
 		}
 
 		if needs_chapters {
-			manga.chapters = parser::parse_manga_chapters(&html, &params)
+			manga.chapters = parser::parse_manga_chapters(&html, params)
 		}
 
 		Ok(manga)
