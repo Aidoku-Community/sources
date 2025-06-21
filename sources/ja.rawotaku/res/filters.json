@@ -1,0 +1,37 @@
+[
+	{
+		"id": "sort",
+		"title": "選別",
+		"type": "sort",
+		"canAscend": false,
+		"options": [
+			"デフォルト",
+			"最新の更新",
+			"最も見られました",
+			"Title [A-Z]",
+			"Title [Z-A]"
+		]
+	},
+	{
+		"id": "type",
+		"title": "タイプ",
+		"type": "select",
+		"options": [
+			"全て",
+			"Raw Manga",
+			"BLコミック",
+			"TLコミック",
+			"オトナコミック",
+			"女性マンガ",
+			"少女マンガ",
+			"少年マンガ",
+			"青年マンガ"
+		]
+	},
+	{
+		"id": "status",
+		"title": "地位",
+		"type": "select",
+		"options": ["全て", "Publishing", "Finished"]
+	}
+]

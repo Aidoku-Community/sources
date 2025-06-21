@@ -1,0 +1,27 @@
+{
+	"info": {
+		"id": "ja.mangamura",
+		"name": "Manga Mura",
+		"version": 1,
+		"url": "https://mangamura.net",
+		"contentRating": 1,
+		"languages": ["ja"]
+	},
+	"listings": [
+		{
+			"id": "latest-updated",
+			"name": "最新の更新"
+		},
+		{
+			"id": "new-release",
+			"name": "新作リリース"
+		},
+		{
+			"id": "most-viewed",
+			"name": "最も見られました"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}

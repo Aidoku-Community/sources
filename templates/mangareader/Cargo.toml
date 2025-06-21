@@ -1,0 +1,13 @@
+[package]
+name = "mangareader"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", branch = "next", version = "0.3.0", features = ["json"]}
+serde = { version = "1.0.188", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0.105", default-features = false, features = ["alloc"] }
+
+[dev-dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", branch = "next", features = ["test", "json"] }
+aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git", branch = "next" }
