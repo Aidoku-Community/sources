@@ -1,11 +1,5 @@
 #![no_std]
-use aidoku::{
-	alloc::{borrow::Cow, String},
-	helpers::uri::QueryParameters,
-	imports::html::Element,
-	prelude::*,
-	Source,
-};
+use aidoku::{alloc::borrow::Cow, prelude::*, Source};
 use mangareader::{Impl, MangaReader, Params};
 
 const BASE_URL: &str = "https://mangamura.net";
@@ -23,27 +17,17 @@ impl Impl for MangaMura {
 			search_path: "".into(),
 			search_param: "q".into(),
 			page_param: "p".into(),
+			get_chapter_selector: || "#ja-chaps > li".into(),
+			get_chapter_language: |_| "ja".into(),
+			get_page_url_path: |chapter_id| format!("/json/chapter?id={chapter_id}&mode=vertical"),
+			set_default_filters: |query_params| {
+				query_params.set("type", Some("all"));
+				query_params.set("status", Some("all"));
+				query_params.set("language", Some("all"));
+				query_params.set("sort", Some("default"));
+			},
 			..Default::default()
 		}
-	}
-
-	fn get_chapter_selector(&self) -> Cow<'static, str> {
-		"#ja-chaps > li".into()
-	}
-
-	fn get_chapter_language(&self, _element: &Element) -> String {
-		"ja".into()
-	}
-
-	fn get_page_url_path(&self, chapter_id: &str) -> String {
-		format!("/json/chapter?id={chapter_id}&mode=vertical")
-	}
-
-	fn set_default_filters(&self, query_params: &mut QueryParameters) {
-		query_params.set("type", Some("all"));
-		query_params.set("status", Some("all"));
-		query_params.set("language", Some("all"));
-		query_params.set("sort", Some("default"));
 	}
 
 	fn get_sort_id(&self, index: i32) -> Cow<'static, str> {

@@ -1,7 +1,9 @@
 #![no_std]
 use aidoku::{
 	alloc::{borrow::Cow, String, Vec},
-	imports::{canvas::ImageRef, net::Request},
+	helpers::uri::QueryParameters,
+	imports::{canvas::ImageRef, html::Element, net::Request},
+	prelude::*,
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeLayout, ImageRequestProvider,
 	ImageResponse, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContext,
 	PageImageProcessor, Result, Source,
@@ -19,6 +21,13 @@ pub struct Params {
 	pub search_param: Cow<'static, str>,
 	pub page_param: Cow<'static, str>,
 	pub page_selector: Cow<'static, str>,
+	// css selector for chapter list items (typically contained in #{lang}-chapters or #{lang}-chaps)
+	pub get_chapter_selector: fn() -> Cow<'static, str>,
+	// the language of a chapter
+	pub get_chapter_language: fn(&Element) -> String,
+	// path added to base url for page list ajax request
+	pub get_page_url_path: fn(&str) -> String,
+	pub set_default_filters: fn(&mut QueryParameters) -> (),
 }
 
 impl Default for Params {
@@ -29,6 +38,10 @@ impl Default for Params {
 			search_param: "keyword".into(),
 			page_param: "page".into(),
 			page_selector: ".container-reader-chapter > div > img".into(),
+			get_chapter_selector: || "#en-chapters > li".into(),
+			get_chapter_language: |_| "en".into(),
+			get_page_url_path: |chapter_id| format!("//ajax/image/list/{chapter_id}?mode=vertical"),
+			set_default_filters: |_| {},
 		}
 	}
 }

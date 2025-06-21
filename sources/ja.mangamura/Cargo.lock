@@ -17,7 +17,7 @@ dependencies = [
 [[package]]
 name = "aidoku"
 version = "0.3.0"
-source = "git+https://github.com/Aidoku/aidoku-rs.git?branch=next#695f557c3c25a34ac5cf37804b7ec6f166eba198"
+source = "git+https://github.com/Aidoku/aidoku-rs.git?branch=next#99eeb7e5906160f7c0d21003dd5a7a0b7c6be507"
 dependencies = [
  "chrono",
  "euclid",
@@ -32,7 +32,7 @@ dependencies = [
 [[package]]
 name = "aidoku-test"
 version = "1.0.0"
-source = "git+https://github.com/Aidoku/aidoku-rs.git?branch=next#695f557c3c25a34ac5cf37804b7ec6f166eba198"
+source = "git+https://github.com/Aidoku/aidoku-rs.git?branch=next#99eeb7e5906160f7c0d21003dd5a7a0b7c6be507"
 dependencies = [
  "quote",
  "syn",

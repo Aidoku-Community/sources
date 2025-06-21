@@ -1,9 +1,6 @@
 use super::{helper::ElementImageAttr, parser, Params};
 use aidoku::{
-	alloc::{
-		borrow::{Cow, ToOwned},
-		String, Vec,
-	},
+	alloc::{borrow::Cow, String, Vec},
 	helpers::uri::{encode_uri_component, QueryParameters},
 	imports::{
 		canvas::ImageRef,
@@ -13,32 +10,15 @@ use aidoku::{
 		std::send_partial_result,
 	},
 	prelude::*,
-	Chapter, ContentRating, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue,
-	HomeLayout, ImageResponse, Listing, Manga, MangaPageResult, MangaStatus, MangaWithChapter,
-	Page, PageContent, PageContext, Result, Viewer,
+	Chapter, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue, HomeLayout,
+	ImageResponse, Listing, Manga, MangaPageResult, MangaWithChapter, Page, PageContent,
+	PageContext, Result,
 };
 
 pub trait Impl {
 	fn new() -> Self;
 
 	fn params(&self) -> Params;
-
-	// css selector for chapter list items (typically contained in #{lang}-chapters or #{lang}-chaps)
-	fn get_chapter_selector(&self) -> Cow<'static, str> {
-		"#en-chapters > li".into()
-	}
-
-	// the language of a chapter
-	fn get_chapter_language(&self, _element: &Element) -> String {
-		"en".into()
-	}
-
-	// path added to base url for page list ajax request
-	fn get_page_url_path(&self, chapter_id: &str) -> String {
-		format!("//ajax/image/list/{chapter_id}?mode=vertical")
-	}
-
-	fn set_default_filters(&self, _query_params: &mut QueryParameters) {}
 
 	fn get_sort_id(&self, index: i32) -> Cow<'static, str> {
 		match index {
@@ -71,7 +51,7 @@ pub trait Impl {
 			)
 		} else {
 			let mut qs = QueryParameters::new();
-			self.set_default_filters(&mut qs);
+			(params.set_default_filters)(&mut qs);
 			for filter in filters {
 				match filter {
 					FilterValue::Sort { index, .. } => {
@@ -123,140 +103,13 @@ pub trait Impl {
 		let html = Request::get(&url)?.html()?;
 
 		if needs_details {
-			let element = html
-				.select_first("#ani_detail")
-				.ok_or(AidokuError::message("Unable to find manga details"))?;
-
-			manga.title = element
-				.select_first(".manga_name")
-				.and_then(|e| e.own_text())
-				.unwrap_or(manga.title.clone());
-			manga.cover = element.select_first("img").and_then(|img| img.img_attr());
-
-			let (authors, artists) = element
-				.select(".anisc-info > .item:contains(Author), .anisc-info > .item:contains(著者)")
-				.and_then(|authors_element| {
-					let text = authors_element.text()?;
-					let author_names = authors_element.select("a")?.filter_map(|el| el.own_text());
-
-					let mut authors = Vec::new();
-					let mut artists = Vec::new();
-					for author in author_names {
-						let is_artist = text.contains(&format!("{author} (Art)"));
-						let name = author.replace(",", "");
-						if is_artist {
-							artists.push(name);
-						} else {
-							authors.push(name);
-						}
-					}
-					Some((Some(authors), Some(artists)))
-				})
-				.unwrap_or((None, None));
-			manga.authors = authors;
-			manga.artists = artists;
-
-			manga.description = element
-				.select_first(".description")
-				.and_then(|e| e.own_text());
 			manga.url = Some(url);
-			manga.tags = element
-				.select(".genres > a")
-				.map(|els| els.filter_map(|el| el.own_text()).collect());
-			manga.status = element
-				.select_first(".anisc-info > .item:contains(Status) .name, .anisc-info > .item:contains(地位) .name")
-				.and_then(|el| el.text())
-				.map(|status| match status.to_lowercase().as_str() {
-					"ongoing" | "publishing" | "releasing" => MangaStatus::Ongoing,
-					"completed" | "finished" => MangaStatus::Completed,
-					"on-hiatus" | "on hiatus" => MangaStatus::Hiatus,
-					"canceled" | "discontinued" => MangaStatus::Cancelled,
-					_ => MangaStatus::Unknown,
-				})
-				.unwrap_or_default();
-
-			let tags = manga.tags.as_deref().unwrap_or(&[]);
-			manga.content_rating = if tags.iter().any(|e| e == "Hentai" || e == "エロい") {
-				ContentRating::NSFW
-			} else if tags.iter().any(|e| e == "Ecchi") {
-				ContentRating::Suggestive
-			} else if element
-				.select_first(".anisc-info > .item:contains(タイプ) .name")
-				.and_then(|el| el.text())
-				.is_some_and(|t| t == "オトナコミック")
-			{
-				ContentRating::NSFW
-			} else {
-				ContentRating::Safe
-			};
-
-			manga.viewer = element
-				.select_first(".anisc-info > .item:contains(Type) .name")
-				.and_then(|el| el.text())
-				.map(|status| match status.to_lowercase().as_str() {
-					"manhwa" | "manhua" => Viewer::Webtoon,
-					"comic" => Viewer::LeftToRight,
-					_ => Viewer::RightToLeft,
-				})
-				.unwrap_or(Viewer::RightToLeft);
-
+			parser::parse_manga_details(&mut manga, &html)?;
 			send_partial_result(&manga);
 		}
 
 		if needs_chapters {
-			manga.chapters = html.select(self.get_chapter_selector()).map(|els| {
-				let mut c = els
-					.filter_map(|el| {
-						let link = el.select_first("a")?;
-						let url = link.attr("abs:href")?;
-						let mut key: String = url.strip_prefix(params.base_url.as_ref())?.into();
-						if let Some(id) = el.attr("data-id") {
-							key.push_str(&format!("#{id}"));
-						}
-						let mut title = link.select_first(".name").and_then(|el| el.text());
-						let chapter_number = title
-							.as_ref()
-							.and_then(|title| title.find(':'))
-							.and_then(|colon| {
-								let chapter_num_text = &title.as_ref().unwrap()[..colon].to_owned();
-								title = Some(title.as_ref().unwrap()[colon + 1..].trim().into());
-								chapter_num_text
-									.chars()
-									.filter(|c| c.is_ascii_digit() || *c == '.')
-									.collect::<String>()
-									.parse::<f32>()
-									.ok()
-							});
-						if title.as_ref().is_some_and(|t| {
-							*t == format!("Chapter {}", chapter_number.unwrap_or_default())
-								|| *t == format!("第{}話", chapter_number.unwrap_or_default())
-								|| *t == format!("第 {} 話", chapter_number.unwrap_or_default())
-								|| *t == format!("【第 {} 話】", chapter_number.unwrap_or_default())
-						}) {
-							title = None;
-						}
-						let language = self.get_chapter_language(&el);
-						Some(Chapter {
-							key,
-							title,
-							chapter_number,
-							url: Some(url),
-							language: language.into(),
-							..Default::default()
-						})
-					})
-					.collect::<Vec<_>>();
-				// sort combined chapters by chapter number
-				// since separate languages are grouped together by default
-				c.sort_by(|a, b| {
-					let a_num = a.chapter_number.unwrap_or(-1.0);
-					let b_num = b.chapter_number.unwrap_or(-1.0);
-					b_num
-						.partial_cmp(&a_num)
-						.unwrap_or(core::cmp::Ordering::Equal)
-				});
-				c
-			});
+			manga.chapters = parser::parse_manga_chapters(&html, &params)
 		}
 
 		Ok(manga)
@@ -282,7 +135,7 @@ pub trait Impl {
 			.map(|pos| (&chapter.key[..pos]).into())
 			.unwrap_or(chapter.key);
 
-		let url = format!("{}{}", params.base_url, self.get_page_url_path(&id));
+		let url = format!("{}{}", params.base_url, (params.get_page_url_path)(&id));
 		let json = Request::get(url)?
 			.header("Accept", "application/json, text/javascript, */*; q=0.01")
 			.header(
@@ -292,7 +145,7 @@ pub trait Impl {
 			.header("X-Requested-With", "XMLHttpRequest")
 			.json_owned::<serde_json::Value>()?;
 		let html_text = json["html"].as_str().unwrap_or_default();
-		let html = Html::parse_fragment(html_text).expect("what");
+		let html = Html::parse_fragment(html_text)?;
 
 		Ok(html
 			.select(&params.page_selector)
@@ -328,24 +181,7 @@ pub trait Impl {
 			params.base_url, listing.id, params.page_param
 		);
 		let html = Request::get(url)?.html()?;
-		let entries = html
-			.select(".item")
-			.map(|els| {
-				els.filter_map(|e| {
-					let link_href = e.select_first("a.manga-poster")?.attr("href")?;
-					Some(Manga {
-						key: link_href
-							.strip_prefix(params.base_url.as_ref())
-							.map(|s| s.into())
-							.unwrap_or(link_href),
-						title: e.select_first(".manga-name")?.text()?,
-						cover: e.select_first(".manga-poster img")?.attr("src"),
-						..Default::default()
-					})
-				})
-				.collect()
-			})
-			.unwrap_or_default();
+		let entries = parser::parse_manga_list(&html, &params.base_url);
 
 		Ok(MangaPageResult {
 			entries,
