@@ -1,0 +1,184 @@
+{
+  "name": "Aidoku Community Sources",
+  "sources": [
+    {
+      "id": "en.mangabat",
+      "name": "MangaBat",
+      "version": 6,
+      "iconURL": "icons/en.mangabat-v6.png",
+      "downloadURL": "sources/en.mangabat-v6.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.mangabats.com"
+    },
+    {
+      "id": "en.mangakakalot",
+      "name": "MangaKakalot",
+      "version": 1,
+      "iconURL": "icons/en.mangakakalot-v1.png",
+      "downloadURL": "sources/en.mangakakalot-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "www.mangakakalot.gg"
+    },
+    {
+      "id": "en.manganato",
+      "name": "MangaNato",
+      "version": 5,
+      "iconURL": "icons/en.manganato-v5.png",
+      "downloadURL": "sources/en.manganato-v5.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.manganato.gg"
+    },
+    {
+      "id": "en.manganelo",
+      "name": "MangaNelo",
+      "version": 1,
+      "iconURL": "icons/en.manganelo-v1.png",
+      "downloadURL": "sources/en.manganelo-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.nelomanga.net"
+    },
+    {
+      "id": "en.weebcentral",
+      "name": "Weeb Central",
+      "version": 6,
+      "iconURL": "icons/en.weebcentral-v6.png",
+      "downloadURL": "sources/en.weebcentral-v6.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://weebcentral.com"
+    },
+    {
+      "id": "ja.comicdays",
+      "name": "コミックDAYS",
+      "version": 1,
+      "iconURL": "icons/ja.comicdays-v1.png",
+      "downloadURL": "sources/ja.comicdays-v1.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 0,
+      "altNames": [
+        "Comic Days"
+      ],
+      "baseURL": "https://comic-days.com"
+    },
+    {
+      "id": "ja.mangamura",
+      "name": "Manga Mura",
+      "version": 1,
+      "iconURL": "icons/ja.mangamura-v1.png",
+      "downloadURL": "sources/ja.mangamura-v1.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangamura.net"
+    },
+    {
+      "id": "ja.rawotaku",
+      "name": "Raw Otaku",
+      "version": 1,
+      "iconURL": "icons/ja.rawotaku-v1.png",
+      "downloadURL": "sources/ja.rawotaku-v1.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://rawotaku.com"
+    },
+    {
+      "id": "ja.shonenjumpplus",
+      "name": "少年ジャンプ＋",
+      "version": 1,
+      "iconURL": "icons/ja.shonenjumpplus-v1.png",
+      "downloadURL": "sources/ja.shonenjumpplus-v1.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 1,
+      "altNames": [
+        "Shonen Jump+"
+      ],
+      "baseURL": "https://shonenjumpplus.com"
+    },
+    {
+      "id": "multi.mangadex",
+      "name": "MangaDex",
+      "version": 9,
+      "iconURL": "icons/multi.mangadex-v9.png",
+      "downloadURL": "sources/multi.mangadex-v9.aix",
+      "languages": [
+        "en",
+        "sq",
+        "ar",
+        "az",
+        "bn",
+        "bg",
+        "my",
+        "ca",
+        "zh-Hans",
+        "zh-Hant",
+        "hr",
+        "cs",
+        "da",
+        "nl",
+        "eo",
+        "et",
+        "fil",
+        "fi",
+        "fr",
+        "ka",
+        "de",
+        "el",
+        "he",
+        "hi",
+        "hu",
+        "id",
+        "it",
+        "ja",
+        "kk",
+        "ko",
+        "la",
+        "lt",
+        "ms",
+        "mn",
+        "ne",
+        "no",
+        "fa",
+        "pl",
+        "pt",
+        "pt-BR",
+        "ro",
+        "ru",
+        "sr",
+        "sk",
+        "sl",
+        "es",
+        "es-419",
+        "sv",
+        "ta",
+        "te",
+        "th",
+        "tr",
+        "uk",
+        "vi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangadex.org"
+    }
+  ]
+}
