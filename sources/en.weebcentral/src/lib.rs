@@ -222,7 +222,7 @@ impl Source for WeebCentral {
 		let html = Request::get(url)?.html()?;
 
 		let pages = html
-			.select("section[x-data~=scroll] > img")
+			.select("section[x-data*=scroll] > img")
 			.map(|els| {
 				els.filter_map(|el| {
 					let page_url = el.attr("abs:src")?;
