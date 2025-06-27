@@ -1,5 +1,5 @@
 #![no_std]
-use aidoku::{prelude::*, DeepLinkHandler, Home, ImageRequestProvider, ListingProvider, Source};
+use aidoku::{prelude::*, Source};
 use mangabox::{Impl, MangaBox, Params};
 
 const BASE_URL: &str = "https://www.nelomanga.net";

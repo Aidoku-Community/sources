@@ -9,7 +9,7 @@ use aidoku::{
 	},
 	prelude::*,
 	AlternateCoverProvider, Chapter, DeepLinkHandler, DeepLinkResult, DynamicListings, FilterValue,
-	Home, Listing, ListingKind, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result,
+	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result,
 	Source,
 };
 use core::fmt::Write;

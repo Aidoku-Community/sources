@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", branch = "next", version = "0.3.0" }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
 mangareader = { path = "../../templates/mangareader" }
 
 [dev-dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", branch = "next", features = ["test"] }
-aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git", branch = "next" }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
+aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }
 
 [lib]
 crate-type = ["cdylib"]
