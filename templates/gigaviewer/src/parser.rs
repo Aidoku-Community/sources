@@ -64,7 +64,7 @@ pub fn parse_chapter_elements(
 	let document = Html::parse(html).ok()?;
 	let skip_locked = !defaults_get::<bool>("showLocked").unwrap_or(true);
 	document
-		.select(format!("ul.series-episode-list {}", chapter_list_selector))
+		.select(format!("ul.series-episode-list {chapter_list_selector}"))
 		.map(|episodes| {
 			let mut chapters = episodes
 				.filter_map(|e| {

@@ -309,7 +309,7 @@ impl Source for MangaDex {
 					.map(|data| {
 						data.iter()
 							.map(|value| Page {
-								content: PageContent::url(format!("{base_url}/{}", value)),
+								content: PageContent::url(format!("{base_url}/{value}")),
 								..Default::default()
 							})
 							.collect::<Vec<Page>>()

@@ -202,7 +202,7 @@ impl Home for MangaDex {
 
 			let manga_ids = chapters
 				.iter()
-				.filter_map(|value| value.manga_id().map(|m| format!("&ids[]={}", m)))
+				.filter_map(|value| value.manga_id().map(|m| format!("&ids[]={m}")))
 				.collect::<String>();
 
 			let latest_manga_url = format!(

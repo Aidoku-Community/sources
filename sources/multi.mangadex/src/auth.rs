@@ -53,47 +53,6 @@ fn refresh_access_token() -> Result<TokenResponse> {
 	Ok(token_response)
 }
 
-// pub fn auth_request<'a, T>(request: &'a mut Request) -> Result<T>
-// where
-// 	T: serde::de::Deserialize<'a>,
-// {
-// 	let token_response = settings::get_token()?;
-
-// 	auth_request_inner(request, token_response, true)
-// }
-
-// fn auth_request_inner<'a, T>(
-// 	request: &'a mut Request,
-// 	token_response: TokenResponse,
-// 	allow_retry: bool,
-// ) -> Result<T>
-// where
-// 	T: serde::de::Deserialize<'a>,
-// {
-// 	let Some(access_token) = token_response.access_token else {
-// 		settings::clear_token();
-// 		return Err(AidokuError::Message("Missing access token".into()));
-// 	};
-
-// 	request.set_header("Authorization", &format!("Bearer {}", access_token));
-
-// 	let response = request.send()?;
-
-// 	let status = response.status_code();
-
-// 	if status == 401 && allow_retry {
-// 		let token_response = refresh_access_token()?;
-// 		let mut new_request = response.into_request();
-// 		return auth_request_inner(new_request, token_response, false);
-// 	}
-
-// 	let value = response.get_json()?;
-
-// 	// let value = serde_json::from_slice(request.data.as_ref().unwrap())
-// 	// 	.map_err(|_| AidokuError::JsonParseError)?;
-// 	Ok(value)
-// }
-
 pub trait AuthedRequest {
 	fn authed_send(self) -> Result<Response>;
 }
@@ -106,7 +65,7 @@ impl AuthedRequest for Request {
 			return Err(AidokuError::Message("Missing access token".into()));
 		};
 
-		self.set_header("Authorization", &format!("Bearer {}", access_token));
+		self.set_header("Authorization", &format!("Bearer {access_token}"));
 
 		let mut response = self.send()?;
 		let status = response.status_code();
@@ -119,7 +78,7 @@ impl AuthedRequest for Request {
 			};
 			response = response
 				.into_request()
-				.header("Authorization", &format!("Bearer {}", access_token))
+				.header("Authorization", &format!("Bearer {access_token}"))
 				.send()?;
 		}
 
