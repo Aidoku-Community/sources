@@ -1,8 +1,8 @@
 {
 	"info": {
-		"id": "en.tcb-scans",
+		"id": "en.tcbscans",
 		"name": "TCB Scans",
-		"version": 1,
+		"version": 6,
 		"url": "https://tcbonepiecechapters.com",
 		"contentRating": 0,
 		"languages": ["en"]

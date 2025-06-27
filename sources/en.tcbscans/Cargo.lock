@@ -289,7 +289,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "tcb-scans"
+name = "tcbscans"
 version = "0.1.0"
 dependencies = [
  "aidoku",
