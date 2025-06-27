@@ -49,10 +49,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y sccache
           if ! command -v aidoku >/dev/null 2>&1; then
-            cargo install --git https://github.com/Aidoku/aidoku-rs --branch next aidoku-cli
+            cargo install --git https://github.com/Aidoku/aidoku-rs aidoku-cli
           fi
       - name: Build sources
-        id: build
         run: |
           readarray -t TEMP <<< "$(jq -r '.[]' <<<'${{ steps.files.outputs.added_modified }}')"
 
