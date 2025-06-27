@@ -5,10 +5,12 @@ edition = "2024"
 
 [dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
+strum = { version = "0.27.1", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
 aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }
+paste = "1.0.15"
 
 [lib]
 crate-type = ["cdylib"]

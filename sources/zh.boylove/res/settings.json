@@ -1,0 +1,15 @@
+[
+	{
+		"type": "group",
+		"title": "更改語系",
+		"items": [
+			{
+				"type": "segment",
+				"key": "isTraditionalChinese",
+				"title": "選擇語系",
+				"options": ["简体字", "繁體字"],
+				"notification": "updatedCharset"
+			}
+		]
+	}
+]
