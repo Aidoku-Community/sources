@@ -11,5 +11,17 @@
 				"notification": "updatedCharset"
 			}
 		]
+	},
+	{
+		"type": "group",
+		"items": [
+			{
+				"type": "login",
+				"method": "web",
+				"key": "login",
+				"title": "登入",
+				"url": "https://boylove.cc/home/auth/login/type/login.html"
+			}
+		]
 	}
 ]

@@ -4,9 +4,10 @@ mod net;
 mod setting;
 
 use aidoku::{
-	Chapter, FilterValue, Manga, MangaPageResult, NotificationHandler, Page, Result, Source,
+	Chapter, FilterValue, HashMap, Manga, MangaPageResult, NotificationHandler, Page, Result,
+	Source, WebLoginHandler,
 	alloc::{String, Vec},
-	register_source,
+	bail, register_source,
 };
 use setting::change_charset;
 
@@ -48,4 +49,15 @@ impl NotificationHandler for Boylove {
 	}
 }
 
-register_source!(Boylove, NotificationHandler);
+impl WebLoginHandler for Boylove {
+	fn handle_web_login(&self, key: String, cookies: HashMap<String, String>) -> Result<bool> {
+		if key != "login" {
+			bail!("Invalid login key: `{key}`");
+		}
+
+		let is_logged_in = cookies.get("rfv").is_some();
+		Ok(is_logged_in)
+	}
+}
+
+register_source!(Boylove, NotificationHandler, WebLoginHandler);
