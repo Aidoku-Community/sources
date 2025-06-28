@@ -88,7 +88,7 @@ impl ListingProvider for Boylove {
 					.into()
 			}
 
-			"無碼專區" => Url::uncensored(page)
+			id @ ("無碼專區" | "排行榜") => Url::listing(id, page)?
 				.request()?
 				.json_owned::<manga_page_result::Root>()?
 				.into(),

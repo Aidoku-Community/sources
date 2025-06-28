@@ -243,8 +243,16 @@ daily_update!(
 #[aidoku_test]
 fn uncensored() {
 	assert_eq!(
-		Url::uncensored(1),
+		Url::listing("無碼專區", 1).unwrap(),
 		"https://boylove.cc/home/api/getpage/tp/1-recommend-0"
+	);
+}
+
+#[aidoku_test]
+fn ranking() {
+	assert_eq!(
+		Url::listing("排行榜", 1).unwrap(),
+		"https://boylove.cc/home/api/getpage/tp/1-topestmh-0"
 	);
 }
 

@@ -40,8 +40,8 @@ pub enum Url<'a> {
 	Chapter { key: &'a str },
 	#[strum(to_string = "/home/Api/getDailyUpdate.html?{0}")]
 	DailyUpdate(DailyUpdateQuery),
-	#[strum(to_string = "/home/api/getpage/tp/1-recommend-{0}")]
-	Uncensored(OffsetPage),
+	#[strum(to_string = "/home/api/getpage/tp/1-{0}-{1}")]
+	Listing(Listing, OffsetPage),
 }
 
 impl Url<'_> {
@@ -60,9 +60,11 @@ impl Url<'_> {
 		Ok(Self::DailyUpdate(query))
 	}
 
-	pub fn uncensored(page: i32) -> Self {
+	pub fn listing(id: &str, page: i32) -> Result<Self> {
+		let listing = Listing::from_str(id).map_err(|err| error!("{err:?}"))?;
 		let offset_page = OffsetPage::new(page);
-		Self::Uncensored(offset_page)
+
+		Ok(Self::Listing(listing, offset_page))
 	}
 }
 
@@ -222,6 +224,14 @@ pub enum ViewPermission {
 	Basic,
 	#[strum(to_string = "1", serialize = "VIP")]
 	Vip,
+}
+
+#[derive(Display, EnumString)]
+pub enum Listing {
+	#[strum(to_string = "recommend", serialize = "無碼專區")]
+	Uncensored,
+	#[strum(to_string = "topestmh", serialize = "排行榜")]
+	Ranking,
 }
 
 #[derive(Default)]
