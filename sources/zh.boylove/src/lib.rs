@@ -1,14 +1,17 @@
 #![no_std]
 
+mod html;
 mod net;
 mod setting;
 
 use aidoku::{
-	Chapter, FilterValue, HashMap, Manga, MangaPageResult, NotificationHandler, Page, Result,
-	Source, WebLoginHandler,
+	Chapter, DynamicFilters, Filter, FilterValue, HashMap, Manga, MangaPageResult,
+	NotificationHandler, Page, Result, Source, WebLoginHandler,
 	alloc::{String, Vec},
 	bail, register_source,
 };
+use html::FiltersPage as _;
+use net::Url;
 use setting::change_charset;
 
 struct Boylove;
@@ -41,6 +44,15 @@ impl Source for Boylove {
 	}
 }
 
+impl DynamicFilters for Boylove {
+	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
+		let tags = Url::FiltersPage.request()?.html()?.tags_filter()?;
+
+		let filters = [tags].into();
+		Ok(filters)
+	}
+}
+
 impl NotificationHandler for Boylove {
 	fn handle_notification(&self, notification: String) {
 		if notification == "updatedCharset" {
@@ -60,4 +72,9 @@ impl WebLoginHandler for Boylove {
 	}
 }
 
-register_source!(Boylove, NotificationHandler, WebLoginHandler);
+register_source!(
+	Boylove,
+	DynamicFilters,
+	NotificationHandler,
+	WebLoginHandler
+);

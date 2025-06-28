@@ -1,0 +1,16 @@
+[
+	{
+		"type": "sort",
+		"title": "排序方式",
+		"options": ["按人氣", "按最新"],
+		"canAscend": false,
+		"default": { "index": 1 }
+	},
+	{ "type": "select", "title": "閱覽權限", "options": ["全部", "一般", "VIP"] },
+	{
+		"type": "select",
+		"title": "連載狀態",
+		"options": ["全部", "連載中", "已完結"]
+	},
+	{ "type": "select", "title": "內容分級", "options": ["全部", "清水", "有肉"] }
+]

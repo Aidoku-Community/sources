@@ -1,5 +1,5 @@
 use super::*;
-use net::{Charset, Url};
+use net::Charset;
 
 pub fn change_charset() -> Result<()> {
 	let charset = Charset::from_settings()?;
