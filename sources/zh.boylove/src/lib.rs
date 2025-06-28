@@ -6,10 +6,11 @@ mod net;
 mod setting;
 
 use aidoku::{
-	Chapter, DynamicFilters, Filter, FilterValue, HashMap, Listing, ListingProvider, Manga,
-	MangaPageResult, NotificationHandler, Page, Result, Source, WebLoginHandler,
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, HashMap,
+	Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler, Page, Result, Source,
+	WebLoginHandler,
 	alloc::{String, Vec},
-	bail, register_source,
+	bail, error, register_source,
 };
 use html::{FiltersPage as _, MangaPage as _};
 use json::{daily_update, manga_page_result, random};
@@ -69,6 +70,115 @@ impl Source for Boylove {
 	}
 }
 
+impl DeepLinkHandler for Boylove {
+	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
+		let mut splits = url.split('/').skip(3);
+		let deep_link_result = match (
+			splits.next(),
+			splits.next(),
+			splits.next(),
+			splits.next(),
+			splits.next(),
+		) {
+			(Some("home"), Some("book"), Some("index"), Some("id"), Some(key)) => {
+				Some(DeepLinkResult::Manga { key: key.into() })
+			}
+
+			(Some("home"), Some("book"), Some("capter"), Some("id"), Some(key)) => {
+				let path = Url::chapter(key)
+					.request()?
+					.html()?
+					.select_first("a.back")
+					.ok_or_else(|| error!("No element found for selector: `a.back`"))?
+					.attr("href")
+					.ok_or_else(|| error!("Attribute not found: `href`"))?;
+				let manga_key = path
+					.rsplit_once('/')
+					.ok_or_else(|| error!("Character not found: `/`"))?
+					.1;
+
+				Some(DeepLinkResult::Chapter {
+					manga_key: manga_key.into(),
+					key: key.into(),
+				})
+			}
+
+			(Some("home"), Some("index"), Some("dailyupdate1"), None, None) => {
+				let id = Url::DailyUpdatePage
+					.request()?
+					.html()?
+					.select_first("ul.stui-list > li.active")
+					.ok_or_else(|| {
+						error!("No element found for selector: `ul.stui-list > li.active`",)
+					})?
+					.text()
+					.ok_or_else(|| {
+						error!("No text content for selector: `ul.stui-list > li.active`",)
+					})?;
+
+				Some(DeepLinkResult::Listing(Listing {
+					id: id.clone(),
+					name: id,
+					..Default::default()
+				}))
+			}
+
+			(
+				Some("home"),
+				Some("index"),
+				Some("dailyupdate1"),
+				Some("weekday"),
+				Some(week_of_day),
+			) => {
+				let id = match week_of_day {
+					"11" => "最新",
+					"0" => "周一",
+					"1" => "周二",
+					"2" => "周三",
+					"3" => "周四",
+					"4" => "周五",
+					"5" => "周六",
+					"6" => "周日",
+					_ => return Ok(None),
+				};
+
+				Some(DeepLinkResult::Listing(Listing {
+					id: id.into(),
+					name: id.into(),
+					..Default::default()
+				}))
+			}
+
+			(
+				Some("home"),
+				Some("index"),
+				Some("pages"),
+				Some("w"),
+				Some("recommend.html" | "recommend"),
+			) => Some(DeepLinkResult::Listing(Listing {
+				id: "無碼專區".into(),
+				name: "無碼專區".into(),
+				..Default::default()
+			})),
+
+			(
+				Some("home"),
+				Some("index"),
+				Some("pages"),
+				Some("w"),
+				Some("topestmh.html" | "topestmh"),
+			) => Some(DeepLinkResult::Listing(Listing {
+				id: "排行榜".into(),
+				name: "排行榜".into(),
+				..Default::default()
+			})),
+
+			_ => None,
+		};
+		Ok(deep_link_result)
+	}
+}
+
 impl DynamicFilters for Boylove {
 	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
 		let tags = Url::FiltersPage.request()?.html()?.tags_filter()?;
@@ -125,6 +235,7 @@ impl WebLoginHandler for Boylove {
 
 register_source!(
 	Boylove,
+	DeepLinkHandler,
 	DynamicFilters,
 	ListingProvider,
 	NotificationHandler,

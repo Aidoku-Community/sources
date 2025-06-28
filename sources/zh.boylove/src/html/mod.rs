@@ -1,7 +1,5 @@
 use super::*;
-use aidoku::{
-	AidokuError, ContentRating, MangaStatus, MultiSelectFilter, error, imports::html::Document,
-};
+use aidoku::{AidokuError, ContentRating, MangaStatus, MultiSelectFilter, imports::html::Document};
 use json::chapter_list;
 
 pub trait FiltersPage {

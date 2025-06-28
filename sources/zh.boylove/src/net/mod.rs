@@ -2,7 +2,6 @@ use super::*;
 use aidoku::{
 	AidokuError,
 	alloc::{format, string::ToString as _},
-	error,
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{defaults::defaults_get, net::Request},
 };
@@ -44,6 +43,8 @@ pub enum Url<'a> {
 	Listing(Listing, OffsetPage),
 	#[strum(to_string = "/home/Api/getCnxh.html?{0}")]
 	Random(RandomQuery),
+	#[strum(to_string = "/home/index/dailyupdate1")]
+	DailyUpdatePage,
 }
 
 impl Url<'_> {

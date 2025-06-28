@@ -264,6 +264,14 @@ fn random() {
 	);
 }
 
+#[aidoku_test]
+fn daily_update_page() {
+	assert_eq!(
+		Url::DailyUpdatePage,
+		"https://boylove.cc/home/index/dailyupdate1"
+	);
+}
+
 impl Debug for Url<'_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{self}")
