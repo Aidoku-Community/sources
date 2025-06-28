@@ -78,8 +78,16 @@ impl<'a> Url<'a> {
 		);
 
 		for filter in filters {
-			#[expect(clippy::wildcard_enum_match_arm)]
+			#[expect(clippy::match_wildcard_for_single_variants)]
 			match filter {
+				FilterValue::Text { id, value } => match id.as_str() {
+					"author" => {
+						let search_query = SearchQuery::new(value, page);
+						return Ok(Self::Search(search_query));
+					}
+					_ => bail!("Invalid text filter ID: `{id}`"),
+				},
+
 				FilterValue::Sort { id, index, .. } => match id.as_str() {
 					"排序方式" => {
 						let discriminant = (*index).try_into().map_err(AidokuError::message)?;

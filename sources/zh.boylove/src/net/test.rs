@@ -39,14 +39,14 @@ fn filters_page() {
 }
 
 macro_rules! from_filters {
-	($name:ident, ($page:literal$(, $filter:expr)*), $expected_url:literal) => {
+	($name:ident, ($page:literal$(, $filter:expr)*), $expected_url:literal, $code:literal) => {
 		paste! {
 			#[aidoku_test]
 			fn [<from_filters_ $name>]() {
 				let filters = [$($filter,)*];
 				let url = Url::from_query_or_filters(None, $page, &filters).unwrap();
 				assert_eq!(url, $expected_url);
-				assert!(url.request().unwrap().string().unwrap().starts_with(r#"{"code":1"#));
+				assert!(url.request().unwrap().string().unwrap().starts_with(&format!(r#"{{"code":{}"#, $code)));
 			}
 		}
 	};
@@ -54,7 +54,8 @@ macro_rules! from_filters {
 from_filters!(
 	default,
 	(1),
-	"https://boylove.cc/home/api/cate/tp/1-0-2-1-1-0-1-2"
+	"https://boylove.cc/home/api/cate/tp/1-0-2-1-1-0-1-2",
+	1
 );
 from_filters!(
 	basic_ongoing_safe_manga_2,
@@ -78,7 +79,8 @@ from_filters!(
 			excluded: [].into()
 		}
 	),
-	"https://boylove.cc/home/api/cate/tp/1-%E6%97%A5%E6%BC%AB-0-1-2-1-1-0"
+	"https://boylove.cc/home/api/cate/tp/1-%E6%97%A5%E6%BC%AB-0-1-2-1-1-0",
+	1
 );
 from_filters!(
 	vip_completed_nsfw_manhwa_h_3,
@@ -102,7 +104,20 @@ from_filters!(
 			excluded: [].into()
 		}
 	),
-	"https://boylove.cc/home/api/cate/tp/1-%E9%9F%A9%E6%BC%AB+%E9%AB%98H-1-1-3-2-1-1"
+	"https://boylove.cc/home/api/cate/tp/1-%E9%9F%A9%E6%BC%AB+%E9%AB%98H-1-1-3-2-1-1",
+	1
+);
+from_filters!(
+	author,
+	(
+		1,
+		FilterValue::Text {
+			id: "author".into(),
+			value: "소조금".into()
+		}
+	),
+	"https://boylove.cc/home/api/searchk?keyword=%EC%86%8C%EC%A1%B0%EA%B8%88&type=1&pageNo=1",
+	0
 );
 
 macro_rules! from_query {
