@@ -240,6 +240,14 @@ daily_update!(
 	"https://boylove.cc/home/Api/getDailyUpdate.html?widx=6&limit=18&page=7&lastpage=0"
 );
 
+#[aidoku_test]
+fn uncensored() {
+	assert_eq!(
+		Url::uncensored(1),
+		"https://boylove.cc/home/api/getpage/tp/1-recommend-0"
+	);
+}
+
 impl Debug for Url<'_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{self}")

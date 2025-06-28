@@ -40,6 +40,8 @@ pub enum Url<'a> {
 	Chapter { key: &'a str },
 	#[strum(to_string = "/home/Api/getDailyUpdate.html?{0}")]
 	DailyUpdate(DailyUpdateQuery),
+	#[strum(to_string = "/home/api/getpage/tp/1-recommend-{0}")]
+	Uncensored(OffsetPage),
 }
 
 impl Url<'_> {
@@ -56,6 +58,11 @@ impl Url<'_> {
 		let day_of_week = DayOfWeek::from_str(id).map_err(|err| error!("{err:?}"))?;
 		let query = DailyUpdateQuery::new(day_of_week, page);
 		Ok(Self::DailyUpdate(query))
+	}
+
+	pub fn uncensored(page: i32) -> Self {
+		let offset_page = OffsetPage::new(page);
+		Self::Uncensored(offset_page)
 	}
 }
 
@@ -262,11 +269,7 @@ impl DailyUpdateQuery {
 		query.push_encoded("widx", Some(day_of_week.as_ref()));
 		query.push_encoded("limit", Some("18"));
 
-		let offset_page = page
-			.checked_sub(1)
-			.filter(|offset_page| *offset_page >= 0)
-			.unwrap_or(0)
-			.to_string();
+		let offset_page = OffsetPage::new(page).to_string();
 		query.push_encoded("page", Some(&offset_page));
 
 		query.push_encoded("lastpage", Some("0"));
@@ -276,6 +279,24 @@ impl DailyUpdateQuery {
 }
 
 impl Display for DailyUpdateQuery {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(f, "{}", self.0)
+	}
+}
+
+pub struct OffsetPage(i32);
+
+impl OffsetPage {
+	fn new(page: i32) -> Self {
+		let offset_page = page
+			.checked_sub(1)
+			.filter(|offset_page| *offset_page >= 0)
+			.unwrap_or(0);
+		Self(offset_page)
+	}
+}
+
+impl Display for OffsetPage {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{}", self.0)
 	}

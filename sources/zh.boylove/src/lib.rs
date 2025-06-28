@@ -80,17 +80,22 @@ impl DynamicFilters for Boylove {
 
 impl ListingProvider for Boylove {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		match listing.id.as_str() {
-			id @ ("最新" | "周一" | "周二" | "周三" | "周四" | "周五" | "周六" | "周日") =>
-			{
-				let manga_page_result = Url::daily_update(id, page)?
+		let manga_page_result = match listing.id.as_str() {
+			id @ ("最新" | "周一" | "周二" | "周三" | "周四" | "周五" | "周六" | "周日") => {
+				Url::daily_update(id, page)?
 					.request()?
 					.json_owned::<daily_update::Root>()?
-					.into();
-				Ok(manga_page_result)
+					.into()
 			}
+
+			"無碼專區" => Url::uncensored(page)
+				.request()?
+				.json_owned::<manga_page_result::Root>()?
+				.into(),
+
 			id => bail!("Invalid listing ID: `{id}`"),
-		}
+		};
+		Ok(manga_page_result)
 	}
 }
 
