@@ -173,6 +173,14 @@ fn manga() {
 	);
 }
 
+#[aidoku_test]
+fn chapter() {
+	assert_eq!(
+		Url::chapter("2633991"),
+		"https://boylove.cc/home/book/capter/id/2633991"
+	);
+}
+
 impl Debug for Url<'_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{self}")

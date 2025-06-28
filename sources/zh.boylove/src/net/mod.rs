@@ -36,6 +36,8 @@ pub enum Url<'a> {
 	Search(SearchQuery),
 	#[strum(to_string = "/home/book/index/id/{key}")]
 	Manga { key: &'a str },
+	#[strum(to_string = "/home/book/capter/id/{key}")]
+	Chapter { key: &'a str },
 }
 
 impl Url<'_> {
@@ -52,6 +54,10 @@ impl Url<'_> {
 impl<'a> Url<'a> {
 	pub const fn manga(key: &'a str) -> Self {
 		Self::Manga { key }
+	}
+
+	pub const fn chapter(key: &'a str) -> Self {
+		Self::Chapter { key }
 	}
 
 	pub fn from_query_or_filters(

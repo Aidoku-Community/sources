@@ -46,13 +46,19 @@ impl Source for Boylove {
 			return Ok(manga);
 		}
 
+		let manga_page = Url::manga(&manga.key).request()?.html()?;
+
 		if needs_details {
-			let updated_details = Url::manga(&manga.key).request()?.html()?.manga_details()?;
+			let updated_details = manga_page.manga_details()?;
 
 			manga = Manga {
 				chapters: manga.chapters,
 				..updated_details
 			};
+		}
+
+		if needs_chapters {
+			manga.chapters = manga_page.chapters()?;
 		}
 
 		Ok(manga)
