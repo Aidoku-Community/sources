@@ -130,6 +130,22 @@ from_query!(
 	"https://boylove.cc/home/api/searchk?keyword=%E8%9B%87&type=1&pageNo=2"
 );
 
+#[aidoku_test]
+fn abs() {
+	assert_eq!(
+		Url::Abs("/bookimages/img/20240605/7d14a38ef25968d00999dcc1999a97dd.webp"),
+		"https://boylove.cc/bookimages/img/20240605/7d14a38ef25968d00999dcc1999a97dd.webp"
+	);
+}
+
+#[aidoku_test]
+fn manga() {
+	assert_eq!(
+		Url::manga("16904"),
+		"https://boylove.cc/home/book/index/id/16904"
+	);
+}
+
 impl Debug for Url<'_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{self}")

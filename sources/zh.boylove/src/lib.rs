@@ -1,6 +1,7 @@
 #![no_std]
 
 mod html;
+mod json;
 mod net;
 mod setting;
 
@@ -11,6 +12,7 @@ use aidoku::{
 	bail, register_source,
 };
 use html::FiltersPage as _;
+use json::manga_page_result;
 use net::Url;
 use setting::change_charset;
 
@@ -27,7 +29,11 @@ impl Source for Boylove {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		todo!()
+		let manga_page_result = Url::from_query_or_filters(query.as_deref(), page, &filters)?
+			.request()?
+			.json_owned::<manga_page_result::Root>()?
+			.into();
+		Ok(manga_page_result)
 	}
 
 	fn get_manga_update(

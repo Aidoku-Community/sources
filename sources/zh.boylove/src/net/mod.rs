@@ -15,6 +15,8 @@ use strum::{Display, EnumString, FromRepr};
 #[derive(Display)]
 #[strum(prefix = "https://boylove.cc")]
 pub enum Url<'a> {
+	#[strum(to_string = "{0}")]
+	Abs(&'a str),
 	#[strum(to_string = "/home/user/to{0}.html")]
 	ChangeCharset(Charset),
 	#[strum(to_string = "/home/book/cate.html")]
@@ -32,6 +34,8 @@ pub enum Url<'a> {
 	},
 	#[strum(to_string = "/home/api/searchk?{0}")]
 	Search(SearchQuery),
+	#[strum(to_string = "/home/book/index/id/{key}")]
+	Manga { key: &'a str },
 }
 
 impl Url<'_> {
@@ -46,6 +50,10 @@ impl Url<'_> {
 }
 
 impl<'a> Url<'a> {
+	pub const fn manga(key: &'a str) -> Self {
+		Self::Manga { key }
+	}
+
 	pub fn from_query_or_filters(
 		query: Option<&str>,
 		page: i32,
@@ -111,6 +119,12 @@ impl<'a> Url<'a> {
 			content_rating,
 			view_permission,
 		})
+	}
+}
+
+impl From<Url<'_>> for String {
+	fn from(url: Url<'_>) -> Self {
+		url.to_string()
 	}
 }
 
