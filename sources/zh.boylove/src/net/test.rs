@@ -181,6 +181,65 @@ fn chapter() {
 	);
 }
 
+macro_rules! daily_update {
+	($name:ident, $day_of_week:literal, $page:literal, $expected_url:literal) => {
+		paste! {
+			#[aidoku_test]
+			fn [<daily_update_ $name>]() {
+				assert_eq!(Url::daily_update($day_of_week, $page).unwrap(), $expected_url);
+			}
+		}
+	};
+}
+daily_update!(
+	last_updated,
+	"最新",
+	1,
+	"https://boylove.cc/home/Api/getDailyUpdate.html?widx=11&limit=18&page=0&lastpage=0"
+);
+daily_update!(
+	mon,
+	"周一",
+	2,
+	"https://boylove.cc/home/Api/getDailyUpdate.html?widx=0&limit=18&page=1&lastpage=0"
+);
+daily_update!(
+	tue,
+	"周二",
+	3,
+	"https://boylove.cc/home/Api/getDailyUpdate.html?widx=1&limit=18&page=2&lastpage=0"
+);
+daily_update!(
+	wed,
+	"周三",
+	4,
+	"https://boylove.cc/home/Api/getDailyUpdate.html?widx=2&limit=18&page=3&lastpage=0"
+);
+daily_update!(
+	thu,
+	"周四",
+	5,
+	"https://boylove.cc/home/Api/getDailyUpdate.html?widx=3&limit=18&page=4&lastpage=0"
+);
+daily_update!(
+	fri,
+	"周五",
+	6,
+	"https://boylove.cc/home/Api/getDailyUpdate.html?widx=4&limit=18&page=5&lastpage=0"
+);
+daily_update!(
+	sat,
+	"周六",
+	7,
+	"https://boylove.cc/home/Api/getDailyUpdate.html?widx=5&limit=18&page=6&lastpage=0"
+);
+daily_update!(
+	sun,
+	"周日",
+	8,
+	"https://boylove.cc/home/Api/getDailyUpdate.html?widx=6&limit=18&page=7&lastpage=0"
+);
+
 impl Debug for Url<'_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{self}")

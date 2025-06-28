@@ -10,7 +10,7 @@ use core::{
 	fmt::{Display, Formatter, Result as FmtResult},
 	str::FromStr as _,
 };
-use strum::{Display, EnumString, FromRepr};
+use strum::{AsRefStr, Display, EnumString, FromRepr};
 
 #[derive(Display)]
 #[strum(prefix = "https://boylove.cc")]
@@ -38,6 +38,8 @@ pub enum Url<'a> {
 	Manga { key: &'a str },
 	#[strum(to_string = "/home/book/capter/id/{key}")]
 	Chapter { key: &'a str },
+	#[strum(to_string = "/home/Api/getDailyUpdate.html?{0}")]
+	DailyUpdate(DailyUpdateQuery),
 }
 
 impl Url<'_> {
@@ -48,6 +50,12 @@ impl Url<'_> {
 			 AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15",
 		);
 		Ok(request)
+	}
+
+	pub fn daily_update(id: &str, page: i32) -> Result<Self> {
+		let day_of_week = DayOfWeek::from_str(id).map_err(|err| error!("{err:?}"))?;
+		let query = DailyUpdateQuery::new(day_of_week, page);
+		Ok(Self::DailyUpdate(query))
 	}
 }
 
@@ -244,6 +252,53 @@ impl Display for SearchQuery {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{}", self.0)
 	}
+}
+
+pub struct DailyUpdateQuery(QueryParameters);
+
+impl DailyUpdateQuery {
+	fn new(day_of_week: DayOfWeek, page: i32) -> Self {
+		let mut query = QueryParameters::new();
+		query.push_encoded("widx", Some(day_of_week.as_ref()));
+		query.push_encoded("limit", Some("18"));
+
+		let offset_page = page
+			.checked_sub(1)
+			.filter(|offset_page| *offset_page >= 0)
+			.unwrap_or(0)
+			.to_string();
+		query.push_encoded("page", Some(&offset_page));
+
+		query.push_encoded("lastpage", Some("0"));
+
+		Self(query)
+	}
+}
+
+impl Display for DailyUpdateQuery {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(f, "{}", self.0)
+	}
+}
+
+#[derive(AsRefStr, EnumString, Clone, Copy)]
+enum DayOfWeek {
+	#[strum(to_string = "11", serialize = "最新")]
+	LastUpdated,
+	#[strum(to_string = "0", serialize = "周一")]
+	Monday,
+	#[strum(to_string = "1", serialize = "周二")]
+	Tuesday,
+	#[strum(to_string = "2", serialize = "周三")]
+	Wednesday,
+	#[strum(to_string = "3", serialize = "周四")]
+	Thursday,
+	#[strum(to_string = "4", serialize = "周五")]
+	Friday,
+	#[strum(to_string = "5", serialize = "周六")]
+	Saturday,
+	#[strum(to_string = "6", serialize = "周日")]
+	Sunday,
 }
 
 #[cfg(test)]

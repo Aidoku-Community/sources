@@ -6,13 +6,13 @@ mod net;
 mod setting;
 
 use aidoku::{
-	Chapter, DynamicFilters, Filter, FilterValue, HashMap, Manga, MangaPageResult,
-	NotificationHandler, Page, Result, Source, WebLoginHandler,
+	Chapter, DynamicFilters, Filter, FilterValue, HashMap, Listing, ListingProvider, Manga,
+	MangaPageResult, NotificationHandler, Page, Result, Source, WebLoginHandler,
 	alloc::{String, Vec},
 	bail, register_source,
 };
 use html::{FiltersPage as _, MangaPage as _};
-use json::manga_page_result;
+use json::{daily_update, manga_page_result};
 use net::Url;
 use setting::change_charset;
 
@@ -78,6 +78,22 @@ impl DynamicFilters for Boylove {
 	}
 }
 
+impl ListingProvider for Boylove {
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		match listing.id.as_str() {
+			id @ ("最新" | "周一" | "周二" | "周三" | "周四" | "周五" | "周六" | "周日") =>
+			{
+				let manga_page_result = Url::daily_update(id, page)?
+					.request()?
+					.json_owned::<daily_update::Root>()?
+					.into();
+				Ok(manga_page_result)
+			}
+			id => bail!("Invalid listing ID: `{id}`"),
+		}
+	}
+}
+
 impl NotificationHandler for Boylove {
 	fn handle_notification(&self, notification: String) {
 		if notification == "updatedCharset" {
@@ -100,6 +116,7 @@ impl WebLoginHandler for Boylove {
 register_source!(
 	Boylove,
 	DynamicFilters,
+	ListingProvider,
 	NotificationHandler,
 	WebLoginHandler
 );

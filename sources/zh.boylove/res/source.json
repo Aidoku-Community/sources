@@ -7,6 +7,16 @@
 		"contentRating": 2,
 		"languages": ["zh"]
 	},
+	"listings": [
+		{ "id": "最新" },
+		{ "id": "周一" },
+		{ "id": "周二" },
+		{ "id": "周三" },
+		{ "id": "周四" },
+		{ "id": "周五" },
+		{ "id": "周六" },
+		{ "id": "周日" }
+	],
 	"config": {
 		"hidesFiltersWhileSearching": true,
 		"supportsAuthorSearch": true,

@@ -1,10 +1,5 @@
 use super::*;
-use aidoku::{
-	AidokuError,
-	alloc::{borrow::ToOwned as _, string::ToString as _},
-	helpers::date::parse_date,
-	serde::Deserialize,
-};
+use aidoku::{AidokuError, alloc::borrow::ToOwned as _, helpers::date::parse_date};
 use chinese_number::{ChineseCountMethod, ChineseToNumber as _};
 use regex::Regex;
 
