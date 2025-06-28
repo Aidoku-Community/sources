@@ -44,7 +44,7 @@ macro_rules! from_filters {
 			#[aidoku_test]
 			fn [<from_filters_ $name>]() {
 				let filters = [$($filter,)*];
-				let url = Url::from_filters($page, &filters).unwrap();
+				let url = Url::from_query_or_filters(None, $page, &filters).unwrap();
 				assert_eq!(url, $expected_url);
 				assert!(url.request().unwrap().string().unwrap().starts_with(r#"{"code":1"#));
 			}
@@ -103,6 +103,31 @@ from_filters!(
 		}
 	),
 	"https://boylove.cc/home/api/cate/tp/1-%E9%9F%A9%E6%BC%AB+%E9%AB%98H-1-1-3-2-1-1"
+);
+
+macro_rules! from_query {
+	($name:ident, $keyword:literal, $page:literal, $expected_url:literal) => {
+		paste! {
+			#[aidoku_test]
+			fn [<from_filters_ $name>]() {
+				let url = Url::from_query_or_filters(Some($keyword), $page, &[]).unwrap();
+				assert_eq!(url, $expected_url);
+				assert!(url.request().unwrap().string().unwrap().starts_with(r#"{"code":0"#));
+			}
+		}
+	};
+}
+from_query!(
+	red_1,
+	"紅",
+	1,
+	"https://boylove.cc/home/api/searchk?keyword=%E7%B4%85&type=1&pageNo=1"
+);
+from_query!(
+	snake_2,
+	"蛇",
+	2,
+	"https://boylove.cc/home/api/searchk?keyword=%E8%9B%87&type=1&pageNo=2"
 );
 
 impl Debug for Url<'_> {

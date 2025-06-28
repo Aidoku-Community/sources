@@ -6,5 +6,6 @@
 		"url": "https://boylove.cc",
 		"contentRating": 2,
 		"languages": ["zh"]
-	}
+	},
+	"config": { "hidesFiltersWhileSearching": true }
 }

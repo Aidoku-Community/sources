@@ -3,7 +3,7 @@ use aidoku::{
 	AidokuError,
 	alloc::{format, string::ToString as _},
 	error,
-	helpers::uri::encode_uri_component,
+	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{defaults::defaults_get, net::Request},
 };
 use core::{
@@ -30,6 +30,8 @@ pub enum Url<'a> {
 		content_rating: ContentRating,
 		view_permission: ViewPermission,
 	},
+	#[strum(to_string = "/home/api/searchk?{0}")]
+	Search(SearchQuery),
 }
 
 impl Url<'_> {
@@ -44,7 +46,16 @@ impl Url<'_> {
 }
 
 impl<'a> Url<'a> {
-	pub fn from_filters(page: i32, filters: &'a [FilterValue]) -> Result<Self> {
+	pub fn from_query_or_filters(
+		query: Option<&str>,
+		page: i32,
+		filters: &'a [FilterValue],
+	) -> Result<Self> {
+		if let Some(keyword) = query {
+			let search_query = SearchQuery::new(keyword, page);
+			return Ok(Self::Search(search_query));
+		}
+
 		macro_rules! init {
 			($($filter:ident: $Filter:ident),+) => {
 				$(let mut $filter = $Filter::default();)+
@@ -181,6 +192,25 @@ impl Display for Tags<'_> {
 				.join("+")
 		};
 		write!(f, "{tags}")
+	}
+}
+
+pub struct SearchQuery(QueryParameters);
+
+impl SearchQuery {
+	fn new(keyword: &str, page: i32) -> Self {
+		let mut query = QueryParameters::new();
+		query.push("keyword", Some(keyword));
+		query.push_encoded("type", Some("1"));
+		query.push_encoded("pageNo", Some(&page.to_string()));
+
+		Self(query)
+	}
+}
+
+impl Display for SearchQuery {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(f, "{}", self.0)
 	}
 }
 
