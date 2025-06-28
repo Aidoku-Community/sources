@@ -1,5 +1,8 @@
 use super::*;
-use aidoku::{AidokuError, ContentRating, MangaStatus, MultiSelectFilter, imports::html::Document};
+use aidoku::{
+	AidokuError, ContentRating, MangaStatus, MultiSelectFilter, PageContent,
+	imports::html::Document,
+};
 use json::{chapter_list, home};
 
 pub trait FiltersPage {
@@ -211,6 +214,29 @@ impl HomePage for Document {
 			.map_err(AidokuError::message)?
 			.into();
 		Ok(home_layout)
+	}
+}
+
+pub trait ChapterPage {
+	fn pages(&self) -> Result<Vec<Page>>;
+}
+
+impl ChapterPage for Document {
+	fn pages(&self) -> Result<Vec<Page>> {
+		self.select("img.lazy")
+			.ok_or_else(|| error!("No element found for selector: `img.lazy`"))?
+			.map(|element| {
+				let url = element
+					.attr("abs:data-original")
+					.ok_or_else(|| error!("Attribute not found: `data-original`"))?;
+				let content = PageContent::Url(url, None);
+
+				Ok(Page {
+					content,
+					..Default::default()
+				})
+			})
+			.collect()
 	}
 }
 

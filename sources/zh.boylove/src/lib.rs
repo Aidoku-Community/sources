@@ -12,9 +12,9 @@ use aidoku::{
 	alloc::{String, Vec},
 	bail, error, register_source,
 };
-use html::{FiltersPage as _, HomePage as _, MangaPage as _};
+use html::{ChapterPage as _, FiltersPage as _, HomePage as _, MangaPage as _};
 use json::{daily_update, manga_page_result, random};
-use net::Url;
+use net::{Api, Url};
 use setting::change_charset;
 
 struct Boylove;
@@ -65,8 +65,8 @@ impl Source for Boylove {
 		Ok(manga)
 	}
 
-	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		todo!()
+	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+		Api::chapter(&chapter.key).request()?.html()?.pages()
 	}
 }
 

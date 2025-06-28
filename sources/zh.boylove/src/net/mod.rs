@@ -3,7 +3,7 @@ use aidoku::{
 	AidokuError,
 	alloc::{format, string::ToString as _},
 	helpers::uri::{QueryParameters, encode_uri_component},
-	imports::{defaults::defaults_get, net::Request},
+	imports::{defaults::defaults_get, net::Request, std::current_date},
 };
 use core::{
 	fmt::{Display, Formatter, Result as FmtResult},
@@ -244,6 +244,44 @@ pub enum Listing {
 	Ranking,
 }
 
+#[derive(Display)]
+#[strum(prefix = "https://xxblapingpong.cc")]
+pub enum Api {
+	#[strum(to_string = "/chapter_view_template?{0}")]
+	Chapter(ChapterQuery),
+}
+
+impl Api {
+	pub fn chapter(key: &str) -> Self {
+		let query = ChapterQuery::new(key);
+		Self::Chapter(query)
+	}
+
+	pub fn request(&self) -> Result<Request> {
+		#[expect(
+			clippy::cast_sign_loss,
+			clippy::cast_possible_truncation,
+			clippy::as_conversions
+		)]
+		let now = current_date() as u64;
+		let token_parameter = format!("{now},1.1.0");
+
+		let token = format!("{now}18comicAPPContent");
+		let token_digest = md5::compute(token);
+		let token_hash = format!("{token_digest:x}");
+
+		let request = Request::get(self.to_string())?
+			.header(
+				"User-Agent",
+				"Mozilla/5.0 (iPad; CPU OS 18_2 like Mac OS X) \
+				 AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+			)
+			.header("Tokenparam", &token_parameter)
+			.header("Token", &token_hash);
+		Ok(request)
+	}
+}
+
 #[derive(Default)]
 pub struct Tags<'a>(&'a [String]);
 
@@ -335,6 +373,27 @@ impl RandomQuery {
 }
 
 impl Display for RandomQuery {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(f, "{}", self.0)
+	}
+}
+
+pub struct ChapterQuery(QueryParameters);
+
+impl ChapterQuery {
+	fn new(key: &str) -> Self {
+		let mut query = QueryParameters::new();
+		query.push_encoded("id", Some(key));
+		query.push_encoded("sw_page", Some("null"));
+		query.push_encoded("mode", Some("vertical"));
+		query.push_encoded("page", Some("0"));
+		query.push_encoded("app_img_shunt", Some("NaN"));
+
+		Self(query)
+	}
+}
+
+impl Display for ChapterQuery {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{}", self.0)
 	}
