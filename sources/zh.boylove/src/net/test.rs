@@ -119,6 +119,18 @@ from_filters!(
 	"https://boylove.cc/home/api/searchk?keyword=%EC%86%8C%EC%A1%B0%EA%B8%88&type=1&pageNo=1",
 	0
 );
+from_filters!(
+	tag,
+	(
+		1,
+		FilterValue::Select {
+			id: "genre".into(),
+			value: "韩漫".into()
+		}
+	),
+	"https://boylove.cc/home/api/searchk?keyword=%E9%9F%A9%E6%BC%AB&type=1&pageNo=1",
+	0
+);
 
 macro_rules! from_query {
 	($name:ident, $keyword:literal, $page:literal, $expected_url:literal) => {

@@ -106,6 +106,10 @@ impl<'a> Url<'a> {
 						"閱覽權限" => view_permission = get_filter!(ViewPermission),
 						"連載狀態" => status = get_filter!(Status),
 						"內容分級" => content_rating = get_filter!(ContentRating),
+						"genre" => {
+							let search_query = SearchQuery::new(value, page);
+							return Ok(Self::Search(search_query));
+						}
 						_ => bail!("Invalid select filter ID: `{id}`"),
 					}
 				}
