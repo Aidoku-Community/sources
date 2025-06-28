@@ -256,6 +256,14 @@ fn ranking() {
 	);
 }
 
+#[aidoku_test]
+fn random() {
+	assert_eq!(
+		Url::random(),
+		"https://boylove.cc/home/Api/getCnxh.html?limit=5&type=1"
+	);
+}
+
 impl Debug for Url<'_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{self}")

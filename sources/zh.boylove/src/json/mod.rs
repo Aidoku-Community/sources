@@ -1,6 +1,7 @@
 pub mod chapter_list;
 pub mod daily_update;
 pub mod manga_page_result;
+pub mod random;
 
 use super::*;
 use aidoku::{ContentRating, MangaStatus, alloc::string::ToString as _, serde::Deserialize};

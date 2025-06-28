@@ -12,7 +12,7 @@ use aidoku::{
 	bail, register_source,
 };
 use html::{FiltersPage as _, MangaPage as _};
-use json::{daily_update, manga_page_result};
+use json::{daily_update, manga_page_result, random};
 use net::Url;
 use setting::change_charset;
 
@@ -91,6 +91,11 @@ impl ListingProvider for Boylove {
 			id @ ("無碼專區" | "排行榜") => Url::listing(id, page)?
 				.request()?
 				.json_owned::<manga_page_result::Root>()?
+				.into(),
+
+			"猜你喜歡" => Url::random()
+				.request()?
+				.json_owned::<random::Root>()?
 				.into(),
 
 			id => bail!("Invalid listing ID: `{id}`"),

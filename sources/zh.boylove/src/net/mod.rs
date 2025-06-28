@@ -42,6 +42,8 @@ pub enum Url<'a> {
 	DailyUpdate(DailyUpdateQuery),
 	#[strum(to_string = "/home/api/getpage/tp/1-{0}-{1}")]
 	Listing(Listing, OffsetPage),
+	#[strum(to_string = "/home/Api/getCnxh.html?{0}")]
+	Random(RandomQuery),
 }
 
 impl Url<'_> {
@@ -65,6 +67,11 @@ impl Url<'_> {
 		let offset_page = OffsetPage::new(page);
 
 		Ok(Self::Listing(listing, offset_page))
+	}
+
+	pub fn random() -> Self {
+		let query = RandomQuery::new();
+		Self::Random(query)
 	}
 }
 
@@ -307,6 +314,24 @@ impl OffsetPage {
 }
 
 impl Display for OffsetPage {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(f, "{}", self.0)
+	}
+}
+
+pub struct RandomQuery(QueryParameters);
+
+impl RandomQuery {
+	fn new() -> Self {
+		let mut query = QueryParameters::new();
+		query.push_encoded("limit", Some("5"));
+		query.push_encoded("type", Some("1"));
+
+		Self(query)
+	}
+}
+
+impl Display for RandomQuery {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{}", self.0)
 	}
