@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "en.hivescans",
+		"name": "Hive Scans",
+		"version": 1,
+		"url": "https://hivetoons.org",
+		"contentRating": 0,
+		"languages": ["en"]
+	}
+}

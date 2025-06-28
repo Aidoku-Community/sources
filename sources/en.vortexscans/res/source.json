@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "en.vortexscans",
+		"name": "Vortex Scans",
+		"version": 1,
+		"url": "https://vortexscans.org",
+		"contentRating": 0,
+		"languages": ["en"]
+	}
+}

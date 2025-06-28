@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "en.nyxscans",
+		"name": "Nyx Scans",
+		"version": 1,
+		"url": "https://nyxscans.com",
+		"contentRating": 0,
+		"languages": ["en"]
+	}
+}

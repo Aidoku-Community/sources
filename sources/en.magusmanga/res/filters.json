@@ -1,0 +1,94 @@
+[
+	{
+		"type": "select",
+		"id": "seriesStatus",
+		"title": "Status",
+		"options": [
+			"All",
+			"Ongoing",
+			"Completed",
+			"Cancelled",
+			"Dropped",
+			"Mass Released",
+			"Coming Soon",
+			"Hiatus"
+		],
+		"ids": [
+			"",
+			"ONGOING",
+			"COMPLETED",
+			"CANCELLED",
+			"DROPPED",
+			"MASS_RELEASED",
+			"COMING_SOON",
+			"HIATUS"
+		]
+	},
+	{
+		"type": "select",
+		"id": "seriesType",
+		"title": "Type",
+		"options": [
+			"All",
+			"Webtoon",
+			"Manhwa",
+			"Manhua",
+			"Manga",
+			"Spanish",
+			"Novel"
+		],
+		"ids": ["", "WEBTOON", "MANHWA", "MANHUA", "MANGA", "SPANISH", "NOVEL"]
+	},
+	{
+		"type": "multi-select",
+		"title": "Genres",
+		"isGenre": true,
+		"canExclude": false,
+		"options": [
+			"shojo",
+			"Romance",
+			"Drama",
+			"Fantasy",
+			"Josei",
+			"Shoujo",
+			"Slice of Life",
+			"manhwa",
+			"Historical",
+			"Revenge",
+			"Reincarnation",
+			"Suspense",
+			"villainess",
+			"supernatural",
+			"adventure",
+			"comedy",
+			"Game world",
+			"Harem",
+			"Action",
+			"Shounen",
+			"Psychological"
+		],
+		"ids": [
+			"1",
+			"2",
+			"3",
+			"4",
+			"5",
+			"6",
+			"7",
+			"8",
+			"9",
+			"10",
+			"11",
+			"12",
+			"13",
+			"14",
+			"15",
+			"16",
+			"17",
+			"18",
+			"19",
+			"20",
+			"21"
+		]
+	}
+]

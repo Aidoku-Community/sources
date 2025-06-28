@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "ar.promanga",
+		"name": "Pro Manga",
+		"version": 1,
+		"url": "https://promanga.net",
+		"contentRating": 1,
+		"languages": ["ar"]
+	}
+}

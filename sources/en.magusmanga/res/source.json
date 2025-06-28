@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "en.magusmanga",
+		"name": "Magus Manga",
+		"version": 1,
+		"url": "https://magustoon.org",
+		"contentRating": 0,
+		"languages": ["en"]
+	}
+}
