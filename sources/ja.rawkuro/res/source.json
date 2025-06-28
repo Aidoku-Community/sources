@@ -1,0 +1,31 @@
+{
+	"info": {
+		"id": "ja.rawkuro",
+		"name": "RawKuro",
+		"version": 1,
+		"url": "https://rawkuro.net",
+		"contentRating": 1,
+		"languages": ["ja"]
+	},
+	"listings": [
+		{
+			"id": "ranking/day",
+			"name": "今日のランキング"
+		},
+		{
+			"id": "ranking/week",
+			"name": "今週のランキング"
+		},
+		{
+			"id": "ranking/month",
+			"name": "今月のランキング"
+		},
+		{
+			"id": "ranking/love",
+			"name": "お気に入り"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}

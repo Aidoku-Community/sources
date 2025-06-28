@@ -1,0 +1,31 @@
+{
+	"info": {
+		"id": "ja.doctruyen5s",
+		"name": "DocTruyen5s",
+		"version": 1,
+		"url": "https://dongmoe.com",
+		"contentRating": 1,
+		"languages": ["vi"]
+	},
+	"listings": [
+		{
+			"id": "ranking/day",
+			"name": "Top ngày"
+		},
+		{
+			"id": "ranking/week",
+			"name": "Top tuần"
+		},
+		{
+			"id": "ranking/month",
+			"name": "Top tháng"
+		},
+		{
+			"id": "ranking/love",
+			"name": "Được yêu thích"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}

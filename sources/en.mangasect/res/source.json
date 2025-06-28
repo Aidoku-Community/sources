@@ -1,0 +1,31 @@
+{
+	"info": {
+		"id": "en.mangasect",
+		"name": "Manga Sect",
+		"version": 1,
+		"url": "https://mangasect.net",
+		"contentRating": 1,
+		"languages": ["en"]
+	},
+	"listings": [
+		{
+			"id": "ranking/day",
+			"name": "Top Day"
+		},
+		{
+			"id": "ranking/week",
+			"name": "Top Week"
+		},
+		{
+			"id": "ranking/month",
+			"name": "Top Month"
+		},
+		{
+			"id": "ranking/love",
+			"name": "Favorite"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}
