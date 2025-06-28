@@ -84,8 +84,6 @@ pub trait Impl {
 			format!("{api_url}/api/post?postId={}", manga.key)
 		};
 
-		println!("url: {url}");
-
 		let mut response = Request::get(url)?
 			.header("Referer", &format!("{}/", params.base_url))
 			.send()?;
