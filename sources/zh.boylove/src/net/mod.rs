@@ -14,6 +14,8 @@ use strum::{AsRefStr, Display, EnumString, FromRepr};
 #[derive(Display)]
 #[strum(prefix = "https://boylove.cc")]
 pub enum Url<'a> {
+	#[strum(to_string = "/")]
+	Home,
 	#[strum(to_string = "{0}")]
 	Abs(&'a str),
 	#[strum(to_string = "/home/user/to{0}.html")]

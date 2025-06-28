@@ -272,6 +272,11 @@ fn daily_update_page() {
 	);
 }
 
+#[aidoku_test]
+fn home() {
+	assert_eq!(Url::Home, "https://boylove.cc/");
+}
+
 impl Debug for Url<'_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{self}")

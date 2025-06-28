@@ -9,6 +9,7 @@ chinese-number = { version = "0.7.7", default-features = false, features = ["chi
 regex = { version = "1.11.1", default-features = false, features = ["unicode"] }
 serde = { version = "1.0.219", default-features = false }
 serde_json = { version = "1.0.140", default-features = false }
+spin = "0.10.0"
 strum = { version = "0.27.1", default-features = false, features = ["derive"] }
 
 [dev-dependencies]

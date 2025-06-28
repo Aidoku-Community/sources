@@ -1,28 +1,17 @@
 use super::*;
-use aidoku::{AidokuError, alloc::borrow::ToOwned as _, helpers::date::parse_date};
+use aidoku::{alloc::borrow::ToOwned as _, helpers::date::parse_date};
 use chinese_number::{ChineseCountMethod, ChineseToNumber as _};
 use regex::Regex;
+use spin::Lazy;
 
 #[derive(Deserialize)]
 pub struct Root {
 	list: Vec<ListItem>,
 }
 
-impl TryFrom<Root> for Vec<Chapter> {
-	type Error = AidokuError;
-
-	fn try_from(root: Root) -> Result<Self> {
-		let re = Regex::new(
-			r"^(?<volume>第?(?<volume_num>[\d零一二三四五六七八九十百千]+(\.\d+)?)[卷部季冊册] ?)?(?<chapter>第?(?<chapter_num>[\d零一二三四五六七八九十百千]+(\.\d+)?)(?<more_chapters>-(\d+(\.\d+)?))?[话話回]?)?([ +]|$)",
-		)
-		.map_err(AidokuError::message)?;
-		let chapters = root
-			.list
-			.into_iter()
-			.map(|list_item| list_item.into_chapter(&re))
-			.rev()
-			.collect();
-		Ok(chapters)
+impl From<Root> for Vec<Chapter> {
+	fn from(root: Root) -> Self {
+		root.list.into_iter().map(Into::into).rev().collect()
 	}
 }
 
@@ -33,17 +22,17 @@ struct ListItem {
 	create_time: String,
 }
 
-impl ListItem {
-	fn into_chapter(self, re: &Regex) -> Chapter {
-		let key = self.id.to_string();
+impl From<ListItem> for Chapter {
+	fn from(list_item: ListItem) -> Self {
+		let key = list_item.id.to_string();
 
-		let (volume_number, chapter_number, title) = parse(self.title.trim(), re);
+		let (volume_number, chapter_number, title) = parse(list_item.title.trim());
 
-		let date_uploaded = parse_date(self.create_time, "%F %T");
+		let date_uploaded = parse_date(list_item.create_time, "%F %T");
 
 		let url = Url::chapter(&key).into();
 
-		Chapter {
+		Self {
 			key,
 			title,
 			chapter_number,
@@ -55,7 +44,7 @@ impl ListItem {
 	}
 }
 
-fn parse(title: &str, re: &Regex) -> (Option<f32>, Option<f32>, Option<String>) {
+pub fn parse(title: &str) -> (Option<f32>, Option<f32>, Option<String>) {
 	let mut chars = title.chars();
 	if chars.next() == Some('全') && matches!(chars.next(), Some('一' | '1')) {
 		match chars.next() {
@@ -65,7 +54,7 @@ fn parse(title: &str, re: &Regex) -> (Option<f32>, Option<f32>, Option<String>) 
 		}
 	}
 
-	let Some(caps) = re.captures(title) else {
+	let Some(caps) = RE.captures(title) else {
 		return (None, None, Some(title.into()));
 	};
 
@@ -98,6 +87,14 @@ fn parse(title: &str, re: &Regex) -> (Option<f32>, Option<f32>, Option<String>) 
 		(!real_title.is_empty()).then_some(real_title),
 	)
 }
+
+static RE: Lazy<Regex> = Lazy::new(|| {
+	#[expect(clippy::unwrap_used)]
+	Regex::new(
+		r"^(?<volume>第?(?<volume_num>[\d零一二三四五六七八九十百千]+(\.\d+)?)[卷部季冊册] ?)?(?<chapter>第?(?<chapter_num>[\d零一二三四五六七八九十百千]+(\.\d+)?)(?<more_chapters>-(\d+(\.\d+)?))?[话話回]?)?([ +]|$)",
+	)
+	.unwrap()
+});
 
 #[cfg(test)]
 mod test;

@@ -6,13 +6,13 @@ mod net;
 mod setting;
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, HashMap,
-	Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler, Page, Result, Source,
-	WebLoginHandler,
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, HashMap, Home,
+	HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler, Page,
+	Result, Source, WebLoginHandler,
 	alloc::{String, Vec},
 	bail, error, register_source,
 };
-use html::{FiltersPage as _, MangaPage as _};
+use html::{FiltersPage as _, HomePage as _, MangaPage as _};
 use json::{daily_update, manga_page_result, random};
 use net::Url;
 use setting::change_charset;
@@ -188,6 +188,12 @@ impl DynamicFilters for Boylove {
 	}
 }
 
+impl Home for Boylove {
+	fn get_home(&self) -> Result<HomeLayout> {
+		Url::Home.request()?.html()?.home_layout()
+	}
+}
+
 impl ListingProvider for Boylove {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let manga_page_result = match listing.id.as_str() {
@@ -237,6 +243,7 @@ register_source!(
 	Boylove,
 	DeepLinkHandler,
 	DynamicFilters,
+	Home,
 	ListingProvider,
 	NotificationHandler,
 	WebLoginHandler

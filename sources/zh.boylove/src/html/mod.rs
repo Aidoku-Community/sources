@@ -1,6 +1,6 @@
 use super::*;
 use aidoku::{AidokuError, ContentRating, MangaStatus, MultiSelectFilter, imports::html::Document};
-use json::chapter_list;
+use json::{chapter_list, home};
 
 pub trait FiltersPage {
 	fn tags_filter(&self) -> Result<Filter>;
@@ -181,8 +181,36 @@ impl MangaPage for Document {
 		};
 		let chapters = serde_json::from_str::<chapter_list::Root>(&json)
 			.map_err(AidokuError::message)?
-			.try_into()?;
+			.into();
 		Ok(Some(chapters))
+	}
+}
+
+pub trait HomePage {
+	fn home_layout(&self) -> Result<HomeLayout>;
+}
+
+impl HomePage for Document {
+	fn home_layout(&self) -> Result<HomeLayout> {
+		let json = &self
+			.select("script")
+			.ok_or_else(|| error!("No element found for selector: `script`"))?
+			.filter_map(|element| element.data())
+			.find(|script| script.contains("let data = JSON.parse"))
+			.ok_or_else(|| error!("No script contains `let data = JSON.parse`"))?
+			.split_once(r#"JSON.parse(""#)
+			.ok_or_else(|| error!(r#"String not found: `JSON.parse("`"#))?
+			.1
+			.split_once(r#"");"#)
+			.ok_or_else(|| error!(r#"String not found: `");"#))?
+			.0
+			.replace(r#"\""#, r#"""#)
+			.replace(r"\\", r"\")
+			.replace(r"\'", "'");
+		let home_layout = serde_json::from_str::<home::Root>(json)
+			.map_err(AidokuError::message)?
+			.into();
+		Ok(home_layout)
 	}
 }
 
