@@ -11,7 +11,7 @@ use aidoku::{
 	alloc::{String, Vec},
 	bail, register_source,
 };
-use html::FiltersPage as _;
+use html::{FiltersPage as _, MangaPage as _};
 use json::manga_page_result;
 use net::Url;
 use setting::change_charset;
@@ -38,11 +38,24 @@ impl Source for Boylove {
 
 	fn get_manga_update(
 		&self,
-		manga: Manga,
+		mut manga: Manga,
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		todo!()
+		if !needs_details && !needs_chapters {
+			return Ok(manga);
+		}
+
+		if needs_details {
+			let updated_details = Url::manga(&manga.key).request()?.html()?.manga_details()?;
+
+			manga = Manga {
+				chapters: manga.chapters,
+				..updated_details
+			};
+		}
+
+		Ok(manga)
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {

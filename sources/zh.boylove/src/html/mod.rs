@@ -1,5 +1,5 @@
 use super::*;
-use aidoku::{MultiSelectFilter, error, imports::html::Document};
+use aidoku::{ContentRating, MangaStatus, MultiSelectFilter, error, imports::html::Document};
 
 pub trait FiltersPage {
 	fn tags_filter(&self) -> Result<Filter>;
@@ -38,6 +38,126 @@ impl FiltersPage for Document {
 		}
 		.into();
 		Ok(filter)
+	}
+}
+
+pub trait MangaPage {
+	fn manga_details(&self) -> Result<Manga>;
+	fn url(&self) -> Result<String>;
+	fn title(&self, url: &str) -> Result<String>;
+	fn cover(&self) -> Option<String>;
+	fn authors(&self) -> Option<Vec<String>>;
+	fn description(&self) -> Option<String>;
+	fn tags(&self) -> Option<Vec<String>>;
+	fn status(&self) -> MangaStatus;
+}
+
+impl MangaPage for Document {
+	fn manga_details(&self) -> Result<Manga> {
+		let url = self.url()?;
+
+		let key = url
+			.rsplit_once('/')
+			.ok_or_else(|| error!("No character `/` found in URL: `{url}`"))?
+			.1
+			.into();
+
+		let title = self.title(&url)?;
+
+		let cover = self.cover();
+
+		let authors = self.authors();
+
+		let description = self.description();
+
+		let tags = self.tags();
+
+		let status = self.status();
+
+		let content_rating = tags
+			.as_deref()
+			.and_then(|tags_slice| {
+				tags_slice
+					.iter()
+					.any(|tag| tag == "清水")
+					.then_some(ContentRating::Safe)
+			})
+			.unwrap_or(ContentRating::NSFW);
+
+		Ok(Manga {
+			key,
+			title,
+			cover,
+			authors,
+			description,
+			url: Some(url),
+			tags,
+			status,
+			content_rating,
+			..Default::default()
+		})
+	}
+
+	fn url(&self) -> Result<String> {
+		self.select_first("link[rel=canonical]")
+			.ok_or_else(|| error!("No element found for selector: `link[rel=canonical]`"))?
+			.attr("abs:href")
+			.ok_or_else(|| error!("Attribute not found: `href`"))
+	}
+
+	fn title(&self, url: &str) -> Result<String> {
+		self.select_first("div.title > h1")
+			.ok_or_else(|| error!("No element found for selector: `div.title > h1`"))?
+			.text()
+			.ok_or_else(|| error!("No title found for URL: {url}"))
+	}
+
+	fn cover(&self) -> Option<String> {
+		self.select_first("a.play")?.attr("abs:data-original")
+	}
+
+	fn authors(&self) -> Option<Vec<String>> {
+		let authors = self
+			.select("p.data:contains(作者) > a")?
+			.filter_map(|element| element.text())
+			.collect();
+		Some(authors)
+	}
+
+	fn description(&self) -> Option<String> {
+		let html = self.select_first("span.detail-text")?.html()?;
+		let description = html
+			.split_once("</")
+			.map(|(description, _)| description.into())
+			.unwrap_or(html)
+			.split("<br />")
+			.map(str::trim)
+			.collect::<Vec<_>>()
+			.join("  \n")
+			.trim()
+			.into();
+		Some(description)
+	}
+
+	fn tags(&self) -> Option<Vec<String>> {
+		let tags = self
+			.select("p.data:contains(标签) > a.tag span")?
+			.filter_map(|element| element.text())
+			.filter(|tag| !tag.is_empty())
+			.collect();
+		Some(tags)
+	}
+
+	fn status(&self) -> MangaStatus {
+		match self
+			.select_first("p.data:not(:has(*))")
+			.and_then(|element| element.text())
+			.as_deref()
+		{
+			Some("连载中" | "連載中") => MangaStatus::Ongoing,
+			Some("完结" | "完結") => MangaStatus::Completed,
+			_ => MangaStatus::Unknown,
+		}
 	}
 }
 
