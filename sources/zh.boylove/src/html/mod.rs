@@ -1,7 +1,7 @@
 use super::*;
 use aidoku::{
 	AidokuError, ContentRating, MangaStatus, MultiSelectFilter, PageContent,
-	imports::html::Document,
+	imports::html::{Document, Element, ElementList},
 };
 use json::{chapter_list, home};
 
@@ -20,10 +20,7 @@ impl FiltersPage for Document {
 		let uses_tag_style = true;
 
 		let options = self
-			.select("li.tagBtnClass > a.cate-option")
-			.ok_or_else(|| {
-				error!("No element found for selector: `li.tagBtnClass > a.cate-option`")
-			})?
+			.try_select("li.tagBtnClass > a.cate-option")?
 			.filter_map(|element| {
 				element
 					.attr("data-value")
@@ -104,15 +101,12 @@ impl MangaPage for Document {
 	}
 
 	fn url(&self) -> Result<String> {
-		self.select_first("link[rel=canonical]")
-			.ok_or_else(|| error!("No element found for selector: `link[rel=canonical]`"))?
-			.attr("abs:href")
-			.ok_or_else(|| error!("Attribute not found: `href`"))
+		self.try_select_first("link[rel=canonical]")?
+			.try_attr("abs:href")
 	}
 
 	fn title(&self, url: &str) -> Result<String> {
-		self.select_first("div.title > h1")
-			.ok_or_else(|| error!("No element found for selector: `div.title > h1`"))?
+		self.try_select_first("div.title > h1")?
 			.text()
 			.ok_or_else(|| error!("No title found for URL: {url}"))
 	}
@@ -196,8 +190,7 @@ pub trait HomePage {
 impl HomePage for Document {
 	fn home_layout(&self) -> Result<HomeLayout> {
 		let json = &self
-			.select("script")
-			.ok_or_else(|| error!("No element found for selector: `script`"))?
+			.try_select("script")?
 			.filter_map(|element| element.data())
 			.find(|script| script.contains("let data = JSON.parse"))
 			.ok_or_else(|| error!("No script contains `let data = JSON.parse`"))?
@@ -223,12 +216,9 @@ pub trait ChapterPage {
 
 impl ChapterPage for Document {
 	fn pages(&self) -> Result<Vec<Page>> {
-		self.select("img.lazy")
-			.ok_or_else(|| error!("No element found for selector: `img.lazy`"))?
+		self.try_select("img.lazy")?
 			.map(|element| {
-				let url = element
-					.attr("abs:data-original")
-					.ok_or_else(|| error!("Attribute not found: `data-original`"))?;
+				let url = element.try_attr("abs:data-original")?;
 				let content = PageContent::Url(url, None);
 
 				Ok(Page {
@@ -237,6 +227,34 @@ impl ChapterPage for Document {
 				})
 			})
 			.collect()
+	}
+}
+
+pub trait TrySelector {
+	fn try_select<T: AsRef<str>>(&self, css_query: T) -> Result<ElementList>;
+	fn try_select_first<T: AsRef<str>>(&self, css_query: T) -> Result<Element>;
+}
+
+impl TrySelector for Document {
+	fn try_select<T: AsRef<str>>(&self, css_query: T) -> Result<ElementList> {
+		self.select(&css_query)
+			.ok_or_else(|| error!("No element found for selector: `{}`", css_query.as_ref()))
+	}
+
+	fn try_select_first<T: AsRef<str>>(&self, css_query: T) -> Result<Element> {
+		self.select_first(&css_query)
+			.ok_or_else(|| error!("No element found for selector: `{}`", css_query.as_ref()))
+	}
+}
+
+pub trait TryElement {
+	fn try_attr<T: AsRef<str>>(&self, attr_name: T) -> Result<String>;
+}
+
+impl TryElement for Element {
+	fn try_attr<T: AsRef<str>>(&self, attr_name: T) -> Result<String> {
+		self.attr(&attr_name)
+			.ok_or_else(|| error!("Attribute not found: `{}`", attr_name.as_ref()))
 	}
 }
 

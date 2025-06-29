@@ -12,7 +12,10 @@ use aidoku::{
 	alloc::{String, Vec},
 	bail, error, register_source,
 };
-use html::{ChapterPage as _, FiltersPage as _, HomePage as _, MangaPage as _};
+use html::{
+	ChapterPage as _, FiltersPage as _, HomePage as _, MangaPage as _, TryElement as _,
+	TrySelector as _,
+};
 use json::{daily_update, manga_page_result, random};
 use net::{Api, Url};
 use setting::change_charset;
@@ -88,10 +91,8 @@ impl DeepLinkHandler for Boylove {
 				let path = Url::chapter(key)
 					.request()?
 					.html()?
-					.select_first("a.back")
-					.ok_or_else(|| error!("No element found for selector: `a.back`"))?
-					.attr("href")
-					.ok_or_else(|| error!("Attribute not found: `href`"))?;
+					.try_select_first("a.back")?
+					.try_attr("href")?;
 				let manga_key = path
 					.rsplit_once('/')
 					.ok_or_else(|| error!("Character not found: `/`"))?
@@ -107,10 +108,7 @@ impl DeepLinkHandler for Boylove {
 				let id = Url::DailyUpdatePage
 					.request()?
 					.html()?
-					.select_first("ul.stui-list > li.active")
-					.ok_or_else(|| {
-						error!("No element found for selector: `ul.stui-list > li.active`",)
-					})?
+					.try_select_first("ul.stui-list > li.active")?
 					.text()
 					.ok_or_else(|| {
 						error!("No text content for selector: `ul.stui-list > li.active`",)
