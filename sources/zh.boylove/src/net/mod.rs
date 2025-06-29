@@ -403,20 +403,20 @@ impl Display for ChapterQuery {
 enum DayOfWeek {
 	#[strum(to_string = "11", serialize = "最新")]
 	LastUpdated,
-	#[strum(to_string = "0", serialize = "周一")]
-	Monday,
-	#[strum(to_string = "1", serialize = "周二")]
-	Tuesday,
-	#[strum(to_string = "2", serialize = "周三")]
-	Wednesday,
-	#[strum(to_string = "3", serialize = "周四")]
-	Thursday,
-	#[strum(to_string = "4", serialize = "周五")]
-	Friday,
-	#[strum(to_string = "5", serialize = "周六")]
-	Saturday,
-	#[strum(to_string = "6", serialize = "周日")]
+	#[strum(to_string = "6", serialize = "週日")]
 	Sunday,
+	#[strum(to_string = "0", serialize = "週一")]
+	Monday,
+	#[strum(to_string = "1", serialize = "週二")]
+	Tuesday,
+	#[strum(to_string = "2", serialize = "週三")]
+	Wednesday,
+	#[strum(to_string = "3", serialize = "週四")]
+	Thursday,
+	#[strum(to_string = "4", serialize = "週五")]
+	Friday,
+	#[strum(to_string = "5", serialize = "週六")]
+	Saturday,
 }
 
 #[cfg(test)]

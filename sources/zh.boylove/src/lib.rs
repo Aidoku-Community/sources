@@ -132,13 +132,13 @@ impl DeepLinkHandler for Boylove {
 			) => {
 				let id = match week_of_day {
 					"11" => "最新",
-					"0" => "周一",
-					"1" => "周二",
-					"2" => "周三",
-					"3" => "周四",
-					"4" => "周五",
-					"5" => "周六",
-					"6" => "周日",
+					"6" => "週日",
+					"0" => "週一",
+					"1" => "週二",
+					"2" => "週三",
+					"3" => "週四",
+					"4" => "週五",
+					"5" => "週六",
 					_ => return Ok(None),
 				};
 
@@ -197,7 +197,7 @@ impl Home for Boylove {
 impl ListingProvider for Boylove {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let manga_page_result = match listing.id.as_str() {
-			id @ ("最新" | "周一" | "周二" | "周三" | "周四" | "周五" | "周六" | "周日") => {
+			id @ ("最新" | "週日" | "週一" | "週二" | "週三" | "週四" | "週五" | "週六") => {
 				Url::daily_update(id, page)?
 					.request()?
 					.json_owned::<daily_update::Root>()?
