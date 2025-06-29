@@ -46,10 +46,6 @@ impl Source for Boylove {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		if !needs_details && !needs_chapters {
-			return Ok(manga);
-		}
-
 		let manga_page = Url::manga(&manga.key).request()?.html()?;
 
 		if needs_details {
