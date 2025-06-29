@@ -10,7 +10,9 @@ use aidoku::{
 	HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler, Page,
 	Result, Source, WebLoginHandler,
 	alloc::{String, Vec},
-	bail, error, register_source,
+	bail, error,
+	imports::std::send_partial_result,
+	register_source,
 };
 use html::{
 	ChapterPage as _, FiltersPage as _, HomePage as _, MangaPage as _, TryElement as _,
@@ -55,11 +57,15 @@ impl Source for Boylove {
 				chapters: manga.chapters,
 				..updated_details
 			};
+
+			if needs_chapters {
+				send_partial_result(&manga);
+			} else {
+				return Ok(manga);
+			}
 		}
 
-		if needs_chapters {
-			manga.chapters = manga_page.chapters()?;
-		}
+		manga.chapters = manga_page.chapters()?;
 
 		Ok(manga)
 	}
