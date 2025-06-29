@@ -4,8 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", features = ["json"]}
-chinese-number = { version = "0.7.7", default-features = false, features = ["chinese-to-number"] }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", features = [
+    "json",
+] }
+chinese-number = { version = "0.7.7", default-features = false, features = [
+    "chinese-to-number",
+] }
 md5 = { version = "0.8.0", default-features = false }
 regex = { version = "1.11.1", default-features = false, features = ["unicode"] }
 serde = { version = "1.0.219", default-features = false }
@@ -14,7 +18,9 @@ spin = "0.10.0"
 strum = { version = "0.27.1", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = [
+    "test",
+] }
 aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }
 paste = "1.0.15"
 
