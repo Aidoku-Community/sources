@@ -4,7 +4,7 @@ This repository hosts unofficial sources maintained by community members that ar
 
 ## Usage
 
-On a device with Aidoku (0.7+) installed, you can open [this link](https://aidoku.app/add-source-list/?url=https://aidoku-community.github.io/sources/index.min.json) to add the source list directly to the app.
+On a device with Aidoku (0.7+) installed, you can open [https://aidoku-community.github.io/sources/](https://aidoku-community.github.io/sources/) and click the "Add Repository" button to add the source list directly to the app.
 
 Otherwise, navigate to the settings tab, and under the source lists page add `https://aidoku-community.github.io/sources/index.min.json`.
 
