@@ -33,7 +33,7 @@ pub trait Impl {
 	) -> Result<MangaPageResult> {
 		if params.uses_post_search {
 			if let Some(query) = query {
-				let body = format!("search={}", encode_uri_component(query),);
+				let body = format!("search={}", encode_uri_component(query));
 				let json = Request::post(format!("{}/ajax/search", params.base_url))?
 					.header("Accept", "application/json, text/javascript, *//*; q=0.01")
 					.header("Host", helpers::url_host(&params.base_url))
@@ -53,7 +53,11 @@ pub trait Impl {
 		}
 
 		let url = if let Some(query) = query {
-			format!("{}/search/{page}/?keyword={query}", params.base_url)
+			format!(
+				"{}/search/{page}/?keyword={}",
+				params.base_url,
+				encode_uri_component(query)
+			)
 		} else {
 			let mut qs = QueryParameters::new();
 			for filter in filters {
