@@ -258,12 +258,7 @@ impl Api {
 	}
 
 	pub fn request(&self) -> Result<Request> {
-		#[expect(
-			clippy::cast_sign_loss,
-			clippy::cast_possible_truncation,
-			clippy::as_conversions
-		)]
-		let now = current_date() as u64;
+		let now = current_date();
 		let token_parameter = format!("{now},1.1.0");
 
 		let token = format!("{now}18comicAPPContent");
