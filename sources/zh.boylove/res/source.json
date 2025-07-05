@@ -8,17 +8,17 @@
 		"languages": ["zh"]
 	},
 	"listings": [
-		{ "id": "最新" },
-		{ "id": "無碼專區" },
-		{ "id": "排行榜" },
+		{ "id": "11", "name": "最新" },
+		{ "id": "recommend", "name": "無碼專區" },
+		{ "id": "topestmh", "name": "排行榜" },
 		{ "id": "猜你喜歡" },
-		{ "id": "週日" },
-		{ "id": "週一" },
-		{ "id": "週二" },
-		{ "id": "週三" },
-		{ "id": "週四" },
-		{ "id": "週五" },
-		{ "id": "週六" }
+		{ "id": "0", "name": "週一" },
+		{ "id": "1", "name": "週二" },
+		{ "id": "2", "name": "週三" },
+		{ "id": "3", "name": "週四" },
+		{ "id": "4", "name": "週五" },
+		{ "id": "5", "name": "週六" },
+		{ "id": "6", "name": "週日" }
 	],
 	"config": {
 		"hidesFiltersWhileSearching": true,

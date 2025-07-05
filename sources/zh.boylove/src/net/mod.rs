@@ -5,11 +5,8 @@ use aidoku::{
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{defaults::defaults_get, net::Request, std::current_date},
 };
-use core::{
-	fmt::{Display, Formatter, Result as FmtResult},
-	str::FromStr as _,
-};
-use strum::{AsRefStr, Display, EnumString, FromRepr};
+use core::fmt::{Display, Formatter, Result as FmtResult};
+use strum::{Display, FromRepr};
 
 #[derive(Display)]
 #[strum(prefix = "https://boylove.cc")]
@@ -27,11 +24,11 @@ pub enum Url<'a> {
 	)]
 	Filters {
 		tags: Tags<'a>,
-		status: Status,
+		status: &'a str,
 		sort_by: Sort,
 		page: i32,
-		content_rating: ContentRating,
-		view_permission: ViewPermission,
+		content_rating: &'a str,
+		view_permission: &'a str,
 	},
 	#[strum(to_string = "/home/api/searchk?{0}")]
 	Search(SearchQuery),
@@ -42,7 +39,7 @@ pub enum Url<'a> {
 	#[strum(to_string = "/home/Api/getDailyUpdate.html?{0}")]
 	DailyUpdate(DailyUpdateQuery),
 	#[strum(to_string = "/home/api/getpage/tp/1-{0}-{1}")]
-	Listing(Listing, OffsetPage),
+	Listing(&'a str, OffsetPage),
 	#[strum(to_string = "/home/Api/getCnxh.html?{0}")]
 	Random(RandomQuery),
 	#[strum(to_string = "/home/index/dailyupdate1")]
@@ -59,17 +56,9 @@ impl Url<'_> {
 		Ok(request)
 	}
 
-	pub fn daily_update(id: &str, page: i32) -> Result<Self> {
-		let day_of_week = DayOfWeek::from_str(id).map_err(|err| error!("{err:?}"))?;
+	pub fn daily_update(day_of_week: &str, page: i32) -> Self {
 		let query = DailyUpdateQuery::new(day_of_week, page);
-		Ok(Self::DailyUpdate(query))
-	}
-
-	pub fn listing(id: &str, page: i32) -> Result<Self> {
-		let listing = Listing::from_str(id).map_err(|err| error!("{err:?}"))?;
-		let offset_page = OffsetPage::new(page);
-
-		Ok(Self::Listing(listing, offset_page))
+		Self::DailyUpdate(query)
 	}
 
 	pub fn random() -> Self {
@@ -97,18 +86,11 @@ impl<'a> Url<'a> {
 			return Ok(Self::Search(search_query));
 		}
 
-		macro_rules! init {
-			($($filter:ident: $Filter:ident),+) => {
-				$(let mut $filter = $Filter::default();)+
-			};
-		}
-		init!(
-			tags: Tags,
-			status: Status,
-			sort_by: Sort,
-			content_rating: ContentRating,
-			view_permission: ViewPermission
-		);
+		let mut tags = Tags::default();
+		let mut status = "2";
+		let mut sort_by = Sort::default();
+		let mut content_rating = "0";
+		let mut view_permission = "2";
 
 		for filter in filters {
 			#[expect(clippy::match_wildcard_for_single_variants)]
@@ -129,23 +111,16 @@ impl<'a> Url<'a> {
 					_ => bail!("Invalid sort filter ID: `{id}`"),
 				},
 
-				FilterValue::Select { id, value } => {
-					macro_rules! get_filter {
-						($Filter:ident) => {
-							$Filter::from_str(value).map_err(|err| error!("{err:?}"))?
-						};
+				FilterValue::Select { id, value } => match id.as_str() {
+					"閱覽權限" => view_permission = value,
+					"連載狀態" => status = value,
+					"內容分級" => content_rating = value,
+					"genre" => {
+						let search_query = SearchQuery::new(value, page);
+						return Ok(Self::Search(search_query));
 					}
-					match id.as_str() {
-						"閱覽權限" => view_permission = get_filter!(ViewPermission),
-						"連載狀態" => status = get_filter!(Status),
-						"內容分級" => content_rating = get_filter!(ContentRating),
-						"genre" => {
-							let search_query = SearchQuery::new(value, page);
-							return Ok(Self::Search(search_query));
-						}
-						_ => bail!("Invalid select filter ID: `{id}`"),
-					}
-				}
+					_ => bail!("Invalid select filter ID: `{id}`"),
+				},
 
 				FilterValue::MultiSelect { id, included, .. } => match id.as_str() {
 					"標籤" => tags.0 = included,
@@ -164,6 +139,11 @@ impl<'a> Url<'a> {
 			content_rating,
 			view_permission,
 		})
+	}
+
+	pub fn listing(listing: &'a str, page: i32) -> Self {
+		let offset_page = OffsetPage::new(page);
+		Self::Listing(listing, offset_page)
 	}
 }
 
@@ -194,17 +174,6 @@ impl Charset {
 	}
 }
 
-#[derive(Display, Default, EnumString)]
-pub enum Status {
-	#[default]
-	#[strum(to_string = "2", serialize = "全部")]
-	All,
-	#[strum(to_string = "0", serialize = "連載中")]
-	Ongoing,
-	#[strum(to_string = "1", serialize = "已完結")]
-	Completed,
-}
-
 #[derive(Display, Default, FromRepr)]
 pub enum Sort {
 	#[strum(to_string = "0")]
@@ -212,36 +181,6 @@ pub enum Sort {
 	#[default]
 	#[strum(to_string = "1")]
 	LastUpdated,
-}
-
-#[derive(Display, Default, EnumString)]
-pub enum ContentRating {
-	#[default]
-	#[strum(to_string = "0", serialize = "全部")]
-	All,
-	#[strum(to_string = "1", serialize = "清水")]
-	Safe,
-	#[strum(to_string = "2", serialize = "有肉")]
-	Nsfw,
-}
-
-#[derive(Display, Default, EnumString)]
-pub enum ViewPermission {
-	#[default]
-	#[strum(to_string = "2", serialize = "全部")]
-	All,
-	#[strum(to_string = "0", serialize = "一般")]
-	Basic,
-	#[strum(to_string = "1", serialize = "VIP")]
-	Vip,
-}
-
-#[derive(Display, EnumString)]
-pub enum Listing {
-	#[strum(to_string = "recommend", serialize = "無碼專區")]
-	Uncensored,
-	#[strum(to_string = "topestmh", serialize = "排行榜")]
-	Ranking,
 }
 
 #[derive(Display)]
@@ -317,9 +256,9 @@ impl Display for SearchQuery {
 pub struct DailyUpdateQuery(QueryParameters);
 
 impl DailyUpdateQuery {
-	fn new(day_of_week: DayOfWeek, page: i32) -> Self {
+	fn new(day_of_week: &str, page: i32) -> Self {
 		let mut query = QueryParameters::new();
-		query.push_encoded("widx", Some(day_of_week.as_ref()));
+		query.push_encoded("widx", Some(day_of_week));
 		query.push_encoded("limit", Some("18"));
 
 		let offset_page = OffsetPage::new(page).to_string();
@@ -392,26 +331,6 @@ impl Display for ChapterQuery {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{}", self.0)
 	}
-}
-
-#[derive(AsRefStr, EnumString, Clone, Copy)]
-enum DayOfWeek {
-	#[strum(to_string = "11", serialize = "最新")]
-	LastUpdated,
-	#[strum(to_string = "6", serialize = "週日")]
-	Sunday,
-	#[strum(to_string = "0", serialize = "週一")]
-	Monday,
-	#[strum(to_string = "1", serialize = "週二")]
-	Tuesday,
-	#[strum(to_string = "2", serialize = "週三")]
-	Wednesday,
-	#[strum(to_string = "3", serialize = "週四")]
-	Thursday,
-	#[strum(to_string = "4", serialize = "週五")]
-	Friday,
-	#[strum(to_string = "5", serialize = "週六")]
-	Saturday,
 }
 
 #[cfg(test)]

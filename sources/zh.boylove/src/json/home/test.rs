@@ -6,7 +6,7 @@ use paste::paste;
 use spin::Lazy;
 
 macro_rules! listing {
-	($name:ident, $index:literal, $title:literal, $first_manga:expr, $last_chapter:expr, $id:literal) => {
+	($name:ident, $index:literal, $title:literal, $first_manga:expr, $last_chapter:expr, $id:literal, $listing_name:literal) => {
 		paste! {
 			#[aidoku_test]
 			fn [<listing_ $name>]() {
@@ -30,7 +30,7 @@ macro_rules! listing {
 					*listing.as_ref().unwrap(),
 					Listing {
 						id: $id.into(),
-						name: $id.into(),
+						name: $listing_name.into(),
 						..Default::default()
 					}
 				);
@@ -94,6 +94,7 @@ listing!(
 		chapter_number: Some(101.0),
 		..Default::default()
 	},
+	"11",
 	"最新"
 );
 listing!(
@@ -134,6 +135,7 @@ listing!(
 		chapter_number: Some(60.0),
 		..Default::default()
 	},
+	"recommend",
 	"無碼專區"
 );
 listing!(
@@ -195,6 +197,7 @@ listing!(
 		chapter_number: Some(105.0),
 		..Default::default()
 	},
+	"topestmh",
 	"排行榜"
 );
 listing!(
@@ -235,6 +238,7 @@ listing!(
 		chapter_number: Some(60.0),
 		..Default::default()
 	},
+	"",
 	"猜你喜歡"
 );
 
