@@ -1,6 +1,5 @@
 use super::*;
 use aidoku::{
-	AidokuError,
 	alloc::{format, string::ToString as _},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{defaults::defaults_get, net::Request, std::current_date},
@@ -104,10 +103,7 @@ impl<'a> Url<'a> {
 				},
 
 				FilterValue::Sort { id, index, .. } => match id.as_str() {
-					"排序方式" => {
-						let discriminant = (*index).try_into().map_err(AidokuError::message)?;
-						sort_by = Sort::from_repr(discriminant).unwrap_or_default();
-					}
+					"排序方式" => sort_by = Sort::from_repr(*index).unwrap_or_default(),
 					_ => bail!("Invalid sort filter ID: `{id}`"),
 				},
 
@@ -175,6 +171,7 @@ impl Charset {
 }
 
 #[derive(Display, Default, FromRepr)]
+#[repr(i32)]
 pub enum Sort {
 	#[strum(to_string = "0")]
 	Popularity,
