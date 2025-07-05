@@ -76,6 +76,7 @@ impl Source for Boylove {
 }
 
 impl DeepLinkHandler for Boylove {
+	#[expect(clippy::too_many_lines)]
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		let mut splits = url.split('/').skip(3);
 		let deep_link_result = match (
@@ -107,18 +108,29 @@ impl DeepLinkHandler for Boylove {
 			}
 
 			(Some("home"), Some("index"), Some("dailyupdate1"), None, None) => {
-				let id = Url::DailyUpdatePage
+				let (id, name) = match Url::DailyUpdatePage
 					.request()?
 					.html()?
 					.try_select_first("ul.stui-list > li.active")?
 					.text()
 					.ok_or_else(|| {
 						error!("No text content for selector: `ul.stui-list > li.active`",)
-					})?;
+					})?
+					.as_str()
+				{
+					"周一" => ("0", "週一"),
+					"周二" => ("1", "週二"),
+					"周三" => ("2", "週三"),
+					"周四" => ("3", "週四"),
+					"周五" => ("4", "週五"),
+					"周六" => ("5", "週六"),
+					"周日" => ("6", "週日"),
+					day_of_week => bail!("Invalid day of week: `{day_of_week}`"),
+				};
 
 				Some(DeepLinkResult::Listing(Listing {
-					id: id.clone(),
-					name: id,
+					id: id.into(),
+					name: name.into(),
 					..Default::default()
 				}))
 			}
@@ -130,21 +142,24 @@ impl DeepLinkHandler for Boylove {
 				Some("weekday"),
 				Some(week_of_day),
 			) => {
-				let id = match week_of_day {
+				let id = week_of_day.into();
+
+				let name = match week_of_day {
 					"11" => "最新",
-					"6" => "週日",
 					"0" => "週一",
 					"1" => "週二",
 					"2" => "週三",
 					"3" => "週四",
 					"4" => "週五",
 					"5" => "週六",
+					"6" => "週日",
 					_ => return Ok(None),
-				};
+				}
+				.into();
 
 				Some(DeepLinkResult::Listing(Listing {
-					id: id.into(),
-					name: id.into(),
+					id,
+					name,
 					..Default::default()
 				}))
 			}
@@ -156,7 +171,7 @@ impl DeepLinkHandler for Boylove {
 				Some("w"),
 				Some("recommend.html" | "recommend"),
 			) => Some(DeepLinkResult::Listing(Listing {
-				id: "無碼專區".into(),
+				id: "recommend".into(),
 				name: "無碼專區".into(),
 				..Default::default()
 			})),
@@ -168,7 +183,7 @@ impl DeepLinkHandler for Boylove {
 				Some("w"),
 				Some("topestmh.html" | "topestmh"),
 			) => Some(DeepLinkResult::Listing(Listing {
-				id: "排行榜".into(),
+				id: "topestmh".into(),
 				name: "排行榜".into(),
 				..Default::default()
 			})),
@@ -196,15 +211,15 @@ impl Home for Boylove {
 
 impl ListingProvider for Boylove {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		let manga_page_result = match listing.id.as_str() {
-			id @ ("最新" | "週日" | "週一" | "週二" | "週三" | "週四" | "週五" | "週六") => {
-				Url::daily_update(id, page)?
+		let manga_page_result = match listing.name.as_str() {
+			"最新" | "週一" | "週二" | "週三" | "週四" | "週五" | "週六" | "週日" => {
+				Url::daily_update(&listing.id, page)
 					.request()?
 					.json_owned::<daily_update::Root>()?
 					.into()
 			}
 
-			id @ ("無碼專區" | "排行榜") => Url::listing(id, page)?
+			"無碼專區" | "排行榜" => Url::listing(&listing.id, page)
 				.request()?
 				.json_owned::<manga_page_result::Root>()?
 				.into(),
@@ -214,7 +229,7 @@ impl ListingProvider for Boylove {
 				.json_owned::<random::Root>()?
 				.into(),
 
-			id => bail!("Invalid listing ID: `{id}`"),
+			name => bail!("Invalid listing name: `{name}`"),
 		};
 		Ok(manga_page_result)
 	}

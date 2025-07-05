@@ -16,7 +16,7 @@ fn manga_31164() {
 		Chapter {
 			key: "2639178".into(),
 			chapter_number: Some(12.0),
-			date_uploaded: Some(1_750_550_400),
+			date_uploaded: Some(1_750_567_096),
 			url: Some("https://boylove.cc/home/book/capter/id/2639178".into()),
 			..Default::default()
 		}
@@ -27,7 +27,7 @@ fn manga_31164() {
 			key: "2637675".into(),
 			title: Some("第01-02话".into()),
 			chapter_number: Some(1.0),
-			date_uploaded: Some(1_749_254_400),
+			date_uploaded: Some(1_749_272_587),
 			url: Some("https://boylove.cc/home/book/capter/id/2637675".into()),
 			..Default::default()
 		}

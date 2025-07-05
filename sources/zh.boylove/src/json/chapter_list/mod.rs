@@ -1,5 +1,5 @@
 use super::*;
-use aidoku::{alloc::borrow::ToOwned as _, helpers::date::parse_date};
+use aidoku::{alloc::borrow::ToOwned as _, imports::std::parse_date_with_options};
 use chinese_number::{ChineseCountMethod, ChineseToNumber as _};
 use regex::Regex;
 use spin::Lazy;
@@ -28,7 +28,12 @@ impl From<ListItem> for Chapter {
 
 		let (volume_number, chapter_number, title) = parse(list_item.title.trim());
 
-		let date_uploaded = parse_date(list_item.create_time, "%F %T");
+		let date_uploaded = parse_date_with_options(
+			list_item.create_time,
+			"yyyy-MM-dd HH:mm:ss",
+			"en_US_POSIX",
+			"Asia/Taipei",
+		);
 
 		let url = Url::chapter(&key).into();
 

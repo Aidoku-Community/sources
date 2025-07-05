@@ -34,22 +34,21 @@ impl From<Data> for HomeComponent {
 
 		let listing = match data.name.as_str() {
 			"newest" => Some(Listing {
-				id: "最新".into(),
+				id: "11".into(),
 				name: "最新".into(),
 				..Default::default()
 			}),
 			"recommend" => Some(Listing {
-				id: "無碼專區".into(),
+				id: "recommend".into(),
 				name: "無碼專區".into(),
 				..Default::default()
 			}),
 			"topestmh" => Some(Listing {
-				id: "排行榜".into(),
+				id: "topestmh".into(),
 				name: "排行榜".into(),
 				..Default::default()
 			}),
 			"cnxh" => Some(Listing {
-				id: "猜你喜歡".into(),
 				name: "猜你喜歡".into(),
 				..Default::default()
 			}),
