@@ -142,11 +142,11 @@ impl DeepLinkHandler for Boylove {
 				Some("index"),
 				Some("dailyupdate1"),
 				Some("weekday"),
-				Some(week_of_day),
+				Some(day_of_week),
 			) => {
-				let id = week_of_day.into();
+				let id = day_of_week.into();
 
-				let name = match week_of_day {
+				let name = match day_of_week {
 					"11" => "最新",
 					"0" => "週一",
 					"1" => "週二",
