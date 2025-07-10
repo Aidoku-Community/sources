@@ -10,6 +10,7 @@ aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", f
 chinese-number = { version = "0.7.7", default-features = false, features = [
     "chinese-to-number",
 ] }
+chrono = { version = "0.4.41", default-features = false }
 md5 = { version = "0.8.0", default-features = false }
 regex = { version = "1.11.1", default-features = false, features = ["unicode"] }
 serde = { version = "1.0.219", default-features = false }

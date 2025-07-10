@@ -272,14 +272,6 @@ fn random() {
 }
 
 #[aidoku_test]
-fn daily_update_page() {
-	assert_eq!(
-		Url::DailyUpdatePage.to_string(),
-		"https://boylove.cc/home/index/dailyupdate1"
-	);
-}
-
-#[aidoku_test]
 fn home() {
 	assert_eq!(Url::Home.to_string(), "https://boylove.cc/");
 }

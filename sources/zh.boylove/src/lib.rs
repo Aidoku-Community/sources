@@ -4,6 +4,7 @@ mod html;
 mod json;
 mod net;
 mod setting;
+mod time;
 
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, HashMap, Home,
@@ -21,6 +22,7 @@ use html::{
 use json::{chapter_list, daily_update, manga_page_result, random};
 use net::{Api, Url};
 use setting::change_charset;
+use time::DayOfWeek;
 
 struct Boylove;
 
@@ -78,7 +80,6 @@ impl Source for Boylove {
 }
 
 impl DeepLinkHandler for Boylove {
-	#[expect(clippy::too_many_lines)]
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		let mut splits = url.split('/').skip(3);
 		let deep_link_result = match (
@@ -110,29 +111,14 @@ impl DeepLinkHandler for Boylove {
 			}
 
 			(Some("home"), Some("index"), Some("dailyupdate1"), None, None) => {
-				let (id, name) = match Url::DailyUpdatePage
-					.request()?
-					.html()?
-					.try_select_first("ul.stui-list > li.active")?
-					.text()
-					.ok_or_else(|| {
-						error!("No text content for selector: `ul.stui-list > li.active`",)
-					})?
-					.as_str()
-				{
-					"周一" => ("0", "週一"),
-					"周二" => ("1", "週二"),
-					"周三" => ("2", "週三"),
-					"周四" => ("3", "週四"),
-					"周五" => ("4", "週五"),
-					"周六" => ("5", "週六"),
-					"周日" => ("6", "週日"),
-					day_of_week => bail!("Invalid day of week: `{day_of_week}`"),
-				};
+				let day_of_week = DayOfWeek::today()?;
+				let id = day_of_week.as_id().into();
+
+				let name = day_of_week.as_name().into();
 
 				Some(DeepLinkResult::Listing(Listing {
-					id: id.into(),
-					name: name.into(),
+					id,
+					name,
 					..Default::default()
 				}))
 			}

@@ -43,8 +43,6 @@ pub enum Url<'a> {
 	Listing(&'a str, OffsetPage),
 	#[strum(to_string = "/home/Api/getCnxh.html?{0}")]
 	Random(RandomQuery),
-	#[strum(to_string = "/home/index/dailyupdate1")]
-	DailyUpdatePage,
 }
 
 impl Url<'_> {
