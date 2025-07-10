@@ -173,6 +173,14 @@ fn manga() {
 }
 
 #[aidoku_test]
+fn chapter_list() {
+	assert_eq!(
+		Url::chapter_list("2633991").to_string(),
+		"https://boylove.cc/home/api/getChapterListInChapter/tp/2633991-0-1-1000"
+	);
+}
+
+#[aidoku_test]
 fn chapter() {
 	assert_eq!(
 		Url::chapter("2633991").to_string(),

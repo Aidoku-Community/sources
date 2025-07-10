@@ -6,7 +6,7 @@ use aidoku_test::aidoku_test;
 #[aidoku_test]
 fn manga_31164() {
 	let chapters: Vec<Chapter> = serde_json::from_str::<Root>(
-		r#"{"list":[{"id":2637675,"isvip":"0","title":"\u7b2c01-02\u8bdd","score":0,"create_time":"2025-06-07 13:03:07"},{"id":2637676,"isvip":"0","title":"\u7b2c03-05\u8bdd","score":0,"create_time":"2025-06-07 13:03:16"},{"id":2637677,"isvip":"0","title":"\u7b2c06\u8bdd","score":0,"create_time":"2025-06-07 13:03:24"},{"id":2637904,"isvip":"0","title":"\u7b2c07\u8bdd","score":0,"create_time":"2025-06-10 14:42:30"},{"id":2637978,"isvip":"0","title":"\u7b2c08\u8bdd","score":0,"create_time":"2025-06-11 14:03:50"},{"id":2638571,"isvip":"0","title":"\u7b2c09\u8bdd","score":0,"create_time":"2025-06-17 14:30:26"},{"id":2638572,"isvip":"0","title":"\u7b2c10\u8bdd","score":0,"create_time":"2025-06-17 14:31:10"},{"id":2638676,"isvip":"0","title":"\u7b2c11\u8bdd","score":0,"create_time":"2025-06-18 13:40:51"},{"id":2639178,"isvip":"0","title":"\u7b2c12\u8bdd","score":0,"create_time":"2025-06-22 12:38:16"}],"history":[]}"#,
+		r#"{"code":1,"result":{"lastPage":true,"pageNumber":1,"pageSize":1000,"totalRow":9,"totalPage":1,"list":[{"id":2639178,"title":"第12話","sort":9,"score":0,"create_time":1750567096},{"id":2638676,"title":"第11話","sort":8,"score":0,"create_time":1750225251},{"id":2638572,"title":"第10話","sort":7,"score":0,"create_time":1750141870},{"id":2638571,"title":"第09話","sort":6,"score":0,"create_time":1750141826},{"id":2637978,"title":"第08話","sort":5,"score":0,"create_time":1749621830},{"id":2637904,"title":"第07話","sort":4,"score":0,"create_time":1749537750},{"id":2637677,"title":"第06話","sort":3,"score":0,"create_time":1749272604},{"id":2637676,"title":"第03-05話","sort":2,"score":0,"create_time":1749272596},{"id":2637675,"title":"第01-02話","sort":1,"score":0,"create_time":1749272587}],"history":[]},"msg":"ok","succ":true}"#,
 	)
 	.unwrap()
 	.into();
@@ -16,7 +16,7 @@ fn manga_31164() {
 		Chapter {
 			key: "2639178".into(),
 			chapter_number: Some(12.0),
-			date_uploaded: Some(1_750_550_400),
+			date_uploaded: Some(1_750_567_096),
 			url: Some("https://boylove.cc/home/book/capter/id/2639178".into()),
 			..Default::default()
 		}
@@ -25,9 +25,9 @@ fn manga_31164() {
 		*chapters.last().unwrap(),
 		Chapter {
 			key: "2637675".into(),
-			title: Some("第01-02话".into()),
+			title: Some("第01-02話".into()),
 			chapter_number: Some(1.0),
-			date_uploaded: Some(1_749_254_400),
+			date_uploaded: Some(1_749_272_587),
 			url: Some("https://boylove.cc/home/book/capter/id/2637675".into()),
 			..Default::default()
 		}

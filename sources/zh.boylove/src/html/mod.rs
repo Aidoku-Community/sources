@@ -3,7 +3,7 @@ use aidoku::{
 	AidokuError, ContentRating, MangaStatus, MultiSelectFilter, PageContent,
 	imports::html::{Document, Element, ElementList},
 };
-use json::{chapter_list, home};
+use json::home;
 
 pub trait FiltersPage {
 	fn tags_filter(&self) -> Result<Filter>;
@@ -51,7 +51,6 @@ pub trait MangaPage {
 	fn description(&self) -> Option<String>;
 	fn tags(&self) -> Option<Vec<String>>;
 	fn status(&self) -> MangaStatus;
-	fn chapters(&self) -> Result<Option<Vec<Chapter>>>;
 }
 
 impl MangaPage for Document {
@@ -157,29 +156,6 @@ impl MangaPage for Document {
 			Some("完结" | "完結") => MangaStatus::Completed,
 			_ => MangaStatus::Unknown,
 		}
-	}
-
-	fn chapters(&self) -> Result<Option<Vec<Chapter>>> {
-		let Some(json) = self.select("script").and_then(|elements| {
-			let json = elements
-				.filter_map(|element| element.data())
-				.find(|script| script.contains("function getChapterList"))?
-				.split_once("function getChapterList")?
-				.1
-				.split_once('"')?
-				.1
-				.split_once(r#"");"#)?
-				.0
-				.replace(r#"\""#, r#"""#)
-				.replace(r"\\", r"\");
-			Some(json)
-		}) else {
-			return Ok(None);
-		};
-		let chapters = serde_json::from_str::<chapter_list::Root>(&json)
-			.map_err(AidokuError::message)?
-			.into();
-		Ok(Some(chapters))
 	}
 }
 

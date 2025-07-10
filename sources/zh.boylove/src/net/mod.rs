@@ -33,6 +33,8 @@ pub enum Url<'a> {
 	Search(SearchQuery),
 	#[strum(to_string = "/home/book/index/id/{key}")]
 	Manga { key: &'a str },
+	#[strum(to_string = "/home/api/getChapterListInChapter/tp/{manga_key}-0-1-1000")]
+	ChapterList { manga_key: &'a str },
 	#[strum(to_string = "/home/book/capter/id/{key}")]
 	Chapter { key: &'a str },
 	#[strum(to_string = "/home/Api/getDailyUpdate.html?{0}")]
@@ -69,6 +71,10 @@ impl Url<'_> {
 impl<'a> Url<'a> {
 	pub const fn manga(key: &'a str) -> Self {
 		Self::Manga { key }
+	}
+
+	pub const fn chapter_list(manga_key: &'a str) -> Self {
+		Self::ChapterList { manga_key }
 	}
 
 	pub const fn chapter(key: &'a str) -> Self {

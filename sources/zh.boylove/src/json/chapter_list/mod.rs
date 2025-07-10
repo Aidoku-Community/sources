@@ -1,17 +1,28 @@
 use super::*;
-use aidoku::{alloc::borrow::ToOwned as _, helpers::date::parse_date};
+use aidoku::alloc::borrow::ToOwned as _;
 use chinese_number::{ChineseCountMethod, ChineseToNumber as _};
 use regex::Regex;
 use spin::Lazy;
 
 #[derive(Deserialize)]
 pub struct Root {
-	list: Vec<ListItem>,
+	result: Result,
 }
 
 impl From<Root> for Vec<Chapter> {
 	fn from(root: Root) -> Self {
-		root.list.into_iter().map(Into::into).rev().collect()
+		root.result.into()
+	}
+}
+
+#[derive(Deserialize)]
+struct Result {
+	list: Vec<ListItem>,
+}
+
+impl From<Result> for Vec<Chapter> {
+	fn from(result: Result) -> Self {
+		result.list.into_iter().map(Into::into).collect()
 	}
 }
 
@@ -19,7 +30,7 @@ impl From<Root> for Vec<Chapter> {
 struct ListItem {
 	id: u32,
 	title: String,
-	create_time: String,
+	create_time: i64,
 }
 
 impl From<ListItem> for Chapter {
@@ -28,7 +39,7 @@ impl From<ListItem> for Chapter {
 
 		let (volume_number, chapter_number, title) = parse(list_item.title.trim());
 
-		let date_uploaded = parse_date(list_item.create_time, "%F %T");
+		let date_uploaded = list_item.create_time;
 
 		let url = Url::chapter(&key).into();
 
@@ -37,7 +48,7 @@ impl From<ListItem> for Chapter {
 			title,
 			chapter_number,
 			volume_number,
-			date_uploaded,
+			date_uploaded: Some(date_uploaded),
 			url: Some(url),
 			..Default::default()
 		}

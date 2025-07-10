@@ -18,7 +18,7 @@ use html::{
 	ChapterPage as _, FiltersPage as _, HomePage as _, MangaPage as _, TryElement as _,
 	TrySelector as _,
 };
-use json::{daily_update, manga_page_result, random};
+use json::{chapter_list, daily_update, manga_page_result, random};
 use net::{Api, Url};
 use setting::change_charset;
 
@@ -48,10 +48,8 @@ impl Source for Boylove {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let manga_page = Url::manga(&manga.key).request()?.html()?;
-
 		if needs_details {
-			let updated_details = manga_page.manga_details()?;
+			let updated_details = Url::manga(&manga.key).request()?.html()?.manga_details()?;
 
 			manga = Manga {
 				chapters: manga.chapters,
@@ -65,7 +63,11 @@ impl Source for Boylove {
 			}
 		}
 
-		manga.chapters = manga_page.chapters()?;
+		let chapters = Url::chapter_list(&manga.key)
+			.request()?
+			.json_owned::<chapter_list::Root>()?
+			.into();
+		manga.chapters = Some(chapters);
 
 		Ok(manga)
 	}
