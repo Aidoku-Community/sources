@@ -53,6 +53,15 @@ impl Url<'_> {
 		for filter in filters {
 			#[expect(clippy::wildcard_enum_match_arm)]
 			match filter {
+				FilterValue::Text { id, value } => match id.as_str() {
+					"author" => {
+						let search_query = SearchQuery::new(page, value, SearchType::Author);
+						let url = Self::search(search_query)?;
+						return Ok(url);
+					}
+					_ => bail!("Invalid text filter ID: `{id}`"),
+				},
+
 				FilterValue::Sort {
 					id,
 					index,
@@ -185,8 +194,8 @@ enum SearchType {
 	All,
 	// #[strum(to_string = "name")]
 	// Title,
-	// #[strum(to_string = "author")]
-	// Author,
+	#[strum(to_string = "author")]
+	Author,
 	// #[strum(to_string = "local")]
 	// TranslationTeam,
 }

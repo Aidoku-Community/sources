@@ -46,6 +46,30 @@ fn filters_romance_manga_ongoing_popularity_ascending_2() {
 }
 
 // #[aidoku_test]
+// fn filters_author() {
+// 	let url = Url::from_query_or_filters(
+// 		None,
+// 		1,
+// 		&[FilterValue::Text {
+// 			id: "author".into(),
+// 			value: "アシダカヲズ".into(),
+// 		}],
+// 	)
+// 	.unwrap();
+// 	assert_eq!(
+// 		url.to_string(),
+// 		"https://www.2025copy.com/api/kb/web/searchbh/comics?offset=0&platform=2&limit=12&q=%E3%82%A2%E3%82%B7%E3%83%80%E3%82%AB%E3%83%B2%E3%82%BA&q_type=author"
+// 	);
+// 	assert!(
+// 		url.request()
+// 			.unwrap()
+// 			.string()
+// 			.unwrap()
+// 			.starts_with(r#"{"code":200"#)
+// 	);
+// }
+
+// #[aidoku_test]
 // fn query_red_1() {
 // 	let url = Url::from_query_or_filters(Some("紅"), 1, &[]).unwrap();
 // 	assert_eq!(
