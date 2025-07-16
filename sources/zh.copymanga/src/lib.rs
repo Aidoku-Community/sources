@@ -7,9 +7,10 @@ mod net;
 use aidoku::{
 	Chapter, DynamicFilters, Filter, FilterValue, Manga, MangaPageResult, Page, Result, Source,
 	alloc::{String, Vec},
+	imports::std::send_partial_result,
 	register_source,
 };
-use html::{FiltersPage as _, GenresPage as _};
+use html::{FiltersPage as _, GenresPage as _, MangaPage as _};
 use json::search;
 use net::Url;
 
@@ -38,11 +39,24 @@ impl Source for Copymanga {
 
 	fn get_manga_update(
 		&self,
-		manga: Manga,
+		mut manga: Manga,
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		todo!()
+		if needs_details {
+			Url::manga(&manga.key)
+				.request()?
+				.html()?
+				.update_details(&mut manga)?;
+
+			if needs_chapters {
+				send_partial_result(&manga);
+			} else {
+				return Ok(manga);
+			}
+		}
+
+		Ok(manga)
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {

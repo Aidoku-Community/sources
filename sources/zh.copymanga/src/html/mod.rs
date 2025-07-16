@@ -1,6 +1,6 @@
 use super::*;
 use aidoku::{
-	AidokuError, SelectFilter,
+	AidokuError, MangaStatus, SelectFilter,
 	alloc::{borrow::ToOwned as _, format},
 	error,
 	imports::{
@@ -67,6 +67,56 @@ impl FiltersPage for Document {
 			entries,
 			has_next_page,
 		})
+	}
+}
+
+pub trait MangaPage {
+	fn update_details(&self, manga: &mut Manga) -> Result<()>;
+}
+
+impl MangaPage for Document {
+	fn update_details(&self, manga: &mut Manga) -> Result<()> {
+		manga.title = self
+			.try_select_first("h6")?
+			.text()
+			.ok_or_else(|| error!("Text not found"))?;
+
+		manga.cover = self
+			.try_select_first("img[data-src]")?
+			.attr("data-src")
+			.map(|resized| resized.replace(".328x422.jpg", ""));
+
+		let authors = self
+			.try_select("span.comicParticulars-right-txt > a")?
+			.filter_map(|element| element.text())
+			.collect();
+		manga.authors = Some(authors);
+
+		manga.description = self.try_select_first("p.intro")?.text();
+
+		let url = Url::manga(&manga.key).into();
+		manga.url = Some(url);
+
+		let tags = self
+			.try_select("span.comicParticulars-tag > a")?
+			.filter_map(|element| {
+				let tag = element.text()?.strip_prefix('#')?.into();
+				Some(tag)
+			})
+			.collect();
+		manga.tags = Some(tags);
+
+		manga.status = match self
+			.try_select_first("li:contains(狀態：) > span.comicParticulars-right-txt")?
+			.text()
+			.as_deref()
+		{
+			Some("連載中") => MangaStatus::Ongoing,
+			Some("已完結" | "短篇") => MangaStatus::Completed,
+			_ => MangaStatus::Unknown,
+		};
+
+		Ok(())
 	}
 }
 
