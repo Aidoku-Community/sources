@@ -44,7 +44,7 @@ impl Url<'_> {
 			return Ok(url);
 		}
 
-		let mut genre = "";
+		let mut genre = String::new();
 		let mut status = "";
 		let mut r#type = "";
 		let mut is_asc = false;
@@ -78,7 +78,17 @@ impl Url<'_> {
 				FilterValue::Select { id, value } => match id.as_str() {
 					"地區" => r#type = value,
 					"狀態" => status = value,
-					"題材" => genre = value,
+					"題材" => genre = value.into(),
+					"genre" => {
+						let genres = Self::GenresPage.request()?.html()?.filter()?;
+						let genre_id = genres
+							.options
+							.iter()
+							.position(|option| option == value)
+							.and_then(|index| genres.ids?.into_iter().nth(index))
+							.ok_or_else(|| error!("Genre ID not found for option: `{value}`"))?;
+						genre = genre_id.into();
+					}
 					_ => bail!("Invalid select filter ID: `{id}`"),
 				},
 
@@ -86,7 +96,7 @@ impl Url<'_> {
 			}
 		}
 
-		let filters_query = FiltersQuery::new(genre, status, r#type, is_asc, sort, page);
+		let filters_query = FiltersQuery::new(&genre, status, r#type, is_asc, sort, page);
 		Ok(Self::Filters(filters_query))
 	}
 

@@ -14,5 +14,9 @@
 		"contentRating": 1,
 		"languages": ["zh"]
 	},
-	"config": { "hidesFiltersWhileSearching": true, "supportsAuthorSearch": true }
+	"config": {
+		"hidesFiltersWhileSearching": true,
+		"supportsAuthorSearch": true,
+		"supportsTagSearch": true
+	}
 }
