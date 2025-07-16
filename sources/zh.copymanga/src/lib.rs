@@ -1,6 +1,7 @@
 #![no_std]
 
 mod html;
+mod json;
 mod net;
 
 use aidoku::{
@@ -8,7 +9,8 @@ use aidoku::{
 	alloc::{String, Vec},
 	register_source,
 };
-use html::GenresPage as _;
+use html::{FiltersPage as _, GenresPage as _};
+use json::search;
 use net::Url;
 
 struct Copymanga;
@@ -24,7 +26,14 @@ impl Source for Copymanga {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		todo!()
+		let url = Url::from_query_or_filters(query.as_deref(), page, &filters)?;
+		let request = url.request()?;
+		let manga_page_result = if url.is_filters() {
+			request.html()?.manga_page_result()?
+		} else {
+			request.json_owned::<search::Root>()?.into()
+		};
+		Ok(manga_page_result)
 	}
 
 	fn get_manga_update(

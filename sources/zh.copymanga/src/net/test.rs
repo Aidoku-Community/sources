@@ -76,3 +76,11 @@ fn filters_romance_manga_ongoing_popularity_ascending_2() {
 // 			.starts_with(r#"{"code":200"#)
 // 	);
 // }
+
+#[aidoku_test]
+fn manga() {
+	assert_eq!(
+		Url::manga("heishoudangbaomu").to_string(),
+		"https://www.2025copy.com/comic/heishoudangbaomu"
+	);
+}

@@ -6,11 +6,11 @@ use aidoku::{
 	imports::net::Request,
 };
 use core::fmt::{Display, Formatter, Result as FmtResult};
-use strum::{AsRefStr, Display, FromRepr};
+use strum::{AsRefStr, Display, EnumIs, FromRepr};
 
-#[derive(Display)]
+#[derive(Display, EnumIs)]
 #[strum(prefix = "https://www.2025copy.com")]
-pub enum Url {
+pub enum Url<'a> {
 	#[strum(to_string = "/filter")]
 	GenresPage,
 	#[strum(to_string = "/comics?{0}")]
@@ -19,9 +19,11 @@ pub enum Url {
 	SearchPage,
 	#[strum(to_string = "{api}?{query}")]
 	Search { api: String, query: SearchQuery },
+	#[strum(to_string = "/comic/{key}")]
+	Manga { key: &'a str },
 }
 
-impl Url {
+impl Url<'_> {
 	pub fn request(&self) -> Result<Request> {
 		let request = Request::get(self.to_string())?.header(
 			"User-Agent",
@@ -91,6 +93,18 @@ impl Url {
 			.0
 			.into();
 		Ok(Self::Search { api, query })
+	}
+}
+
+impl<'a> Url<'a> {
+	pub const fn manga(key: &'a str) -> Self {
+		Self::Manga { key }
+	}
+}
+
+impl From<Url<'_>> for String {
+	fn from(url: Url<'_>) -> Self {
+		url.to_string()
 	}
 }
 

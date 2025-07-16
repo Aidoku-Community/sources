@@ -1,10 +1,14 @@
 use super::*;
 use aidoku::{
-	SelectFilter,
-	alloc::borrow::ToOwned as _,
+	AidokuError, SelectFilter,
+	alloc::{borrow::ToOwned as _, format},
 	error,
-	imports::html::{Document, ElementList},
+	imports::{
+		html::{Document, Element, ElementList},
+		js::JsContext,
+	},
 };
+use json::MangaItem;
 
 pub trait GenresPage {
 	fn filter(&self) -> Result<SelectFilter>;
@@ -36,13 +40,49 @@ impl GenresPage for Document {
 	}
 }
 
+pub trait FiltersPage {
+	fn manga_page_result(&self) -> Result<MangaPageResult>;
+}
+
+impl FiltersPage for Document {
+	fn manga_page_result(&self) -> Result<MangaPageResult> {
+		let single_quoted_json = self
+			.try_select_first("div.exemptComic-box")?
+			.attr("list")
+			.ok_or_else(|| error!("Attribute not found: `list`"))?;
+		let json = JsContext::new().eval(&format!("JSON.stringify({single_quoted_json})"))?;
+		let entries = serde_json::from_str::<Vec<MangaItem>>(&json)
+			.map_err(AidokuError::message)?
+			.into_iter()
+			.map(Into::into)
+			.collect();
+
+		let has_next_page = !self
+			.try_select("li.page-all-item")?
+			.next_back()
+			.ok_or_else(|| error!("No element found for selector: `li.page-all-item`"))?
+			.has_class("active");
+
+		Ok(MangaPageResult {
+			entries,
+			has_next_page,
+		})
+	}
+}
+
 trait TrySelect {
 	fn try_select<S: AsRef<str>>(&self, css_query: S) -> Result<ElementList>;
+	fn try_select_first<S: AsRef<str>>(&self, css_query: S) -> Result<Element>;
 }
 
 impl TrySelect for Document {
 	fn try_select<S: AsRef<str>>(&self, css_query: S) -> Result<ElementList> {
 		self.select(&css_query)
+			.ok_or_else(|| error!("No element found for selector: `{}`", css_query.as_ref()))
+	}
+
+	fn try_select_first<S: AsRef<str>>(&self, css_query: S) -> Result<Element> {
+		self.select_first(&css_query)
 			.ok_or_else(|| error!("No element found for selector: `{}`", css_query.as_ref()))
 	}
 }
