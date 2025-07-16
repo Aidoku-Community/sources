@@ -1,16 +1,21 @@
 #![no_std]
 
+mod html;
+mod net;
+
 use aidoku::{
-	Chapter, FilterValue, Manga, MangaPageResult, Page, Result, Source,
+	Chapter, DynamicFilters, Filter, FilterValue, Manga, MangaPageResult, Page, Result, Source,
 	alloc::{String, Vec},
 	register_source,
 };
+use html::GenresPage as _;
+use net::Url;
 
 struct Copymanga;
 
 impl Source for Copymanga {
 	fn new() -> Self {
-		todo!()
+		Self
 	}
 
 	fn get_search_manga_list(
@@ -36,4 +41,11 @@ impl Source for Copymanga {
 	}
 }
 
-register_source!(Copymanga);
+impl DynamicFilters for Copymanga {
+	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
+		let genre = Url::GenresPage.request()?.html()?.filter()?.into();
+		Ok([genre].into())
+	}
+}
+
+register_source!(Copymanga, DynamicFilters);

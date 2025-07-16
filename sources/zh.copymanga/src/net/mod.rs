@@ -1,0 +1,121 @@
+use super::*;
+use aidoku::{
+	alloc::{format, string::ToString as _},
+	bail, error,
+	helpers::uri::QueryParameters,
+	imports::net::Request,
+};
+use core::fmt::{Display, Formatter, Result as FmtResult};
+use strum::{Display, FromRepr};
+
+#[derive(Display)]
+#[strum(prefix = "https://www.2025copy.com")]
+pub enum Url {
+	#[strum(to_string = "/filter")]
+	GenresPage,
+	#[strum(to_string = "/comics?{0}")]
+	Filters(FiltersQuery),
+}
+
+impl Url {
+	pub fn request(&self) -> Result<Request> {
+		let request = Request::get(self.to_string())?.header(
+			"User-Agent",
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
+			 AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15",
+		);
+		Ok(request)
+	}
+
+	pub fn from_filters(page: i32, filters: &[FilterValue]) -> Result<Self> {
+		let mut genre = "";
+		let mut status = "";
+		let mut r#type = "";
+		let mut is_asc = false;
+		let mut sort = Sort::LastUpdated;
+
+		for filter in filters {
+			#[expect(clippy::wildcard_enum_match_arm)]
+			match filter {
+				FilterValue::Sort {
+					id,
+					index,
+					ascending,
+				} => match id.as_str() {
+					"排序" => {
+						is_asc = *ascending;
+						sort = Sort::from_repr(*index)
+							.ok_or_else(|| error!("Invalid `排序` index: `{index}`"))?;
+					}
+					_ => bail!("Invalid sort filter ID: `{id}`"),
+				},
+
+				FilterValue::Select { id, value } => match id.as_str() {
+					"地區" => r#type = value,
+					"狀態" => status = value,
+					"題材" => genre = value,
+					_ => bail!("Invalid select filter ID: `{id}`"),
+				},
+
+				_ => bail!("Invalid filter: `{filter:?}`"),
+			}
+		}
+
+		let query = FiltersQuery::new(genre, status, r#type, is_asc, sort, page);
+		Ok(Self::Filters(query))
+	}
+}
+
+pub struct FiltersQuery(QueryParameters);
+
+impl FiltersQuery {
+	fn new(genre: &str, status: &str, r#type: &str, is_asc: bool, sort: Sort, page: i32) -> Self {
+		let mut query = QueryParameters::new();
+
+		if !genre.is_empty() {
+			query.push_encoded("theme", Some(genre));
+		}
+
+		if !status.is_empty() {
+			query.push_encoded("status", Some(status));
+		}
+
+		if !r#type.is_empty() {
+			query.push_encoded("region", Some(r#type));
+		}
+
+		let order = if is_asc { "" } else { "-" };
+		let sort_by = format!("{order}{sort}");
+		query.push_encoded("ordering", Some(&sort_by));
+
+		let limit = 50;
+		let offset = page
+			.checked_sub(1)
+			.filter(|index| *index >= 0)
+			.unwrap_or(0)
+			.saturating_mul(limit)
+			.to_string();
+		query.push_encoded("offset", Some(&offset));
+		query.push_encoded("limit", Some(&limit.to_string()));
+
+		Self(query)
+	}
+}
+
+impl Display for FiltersQuery {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(f, "{}", self.0)
+	}
+}
+
+#[derive(Display, Clone, Copy, FromRepr)]
+#[repr(i32)]
+enum Sort {
+	#[strum(to_string = "datetime_updated")]
+	LastUpdated,
+	#[strum(to_string = "popular")]
+	Popularity,
+}
+
+#[cfg(test)]
+mod test;
