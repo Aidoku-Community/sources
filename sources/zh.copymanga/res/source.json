@@ -13,5 +13,6 @@
 		],
 		"contentRating": 1,
 		"languages": ["zh"]
-	}
+	},
+	"config": { "hidesFiltersWhileSearching": true }
 }

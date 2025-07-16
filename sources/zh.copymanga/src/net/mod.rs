@@ -6,7 +6,7 @@ use aidoku::{
 	imports::net::Request,
 };
 use core::fmt::{Display, Formatter, Result as FmtResult};
-use strum::{Display, FromRepr};
+use strum::{AsRefStr, Display, FromRepr};
 
 #[derive(Display)]
 #[strum(prefix = "https://www.2025copy.com")]
@@ -15,6 +15,10 @@ pub enum Url {
 	GenresPage,
 	#[strum(to_string = "/comics?{0}")]
 	Filters(FiltersQuery),
+	#[strum(to_string = "/search")]
+	SearchPage,
+	#[strum(to_string = "{api}?{query}")]
+	Search { api: String, query: SearchQuery },
 }
 
 impl Url {
@@ -27,7 +31,17 @@ impl Url {
 		Ok(request)
 	}
 
-	pub fn from_filters(page: i32, filters: &[FilterValue]) -> Result<Self> {
+	pub fn from_query_or_filters(
+		query: Option<&str>,
+		page: i32,
+		filters: &[FilterValue],
+	) -> Result<Self> {
+		if let Some(keyword) = query {
+			let search_query = SearchQuery::new(page, keyword, SearchType::All);
+			let url = Self::search(search_query)?;
+			return Ok(url);
+		}
+
 		let mut genre = "";
 		let mut status = "";
 		let mut r#type = "";
@@ -61,8 +75,22 @@ impl Url {
 			}
 		}
 
-		let query = FiltersQuery::new(genre, status, r#type, is_asc, sort, page);
-		Ok(Self::Filters(query))
+		let filters_query = FiltersQuery::new(genre, status, r#type, is_asc, sort, page);
+		Ok(Self::Filters(filters_query))
+	}
+
+	fn search(query: SearchQuery) -> Result<Self> {
+		let api = Self::SearchPage
+			.request()?
+			.string()?
+			.split_once(r#"const countApi = ""#)
+			.ok_or_else(|| error!(r#"String not found: `const countApi = "`"#))?
+			.1
+			.split_once('"')
+			.ok_or_else(|| error!(r#"Character not found: `"`"#))?
+			.0
+			.into();
+		Ok(Self::Search { api, query })
 	}
 }
 
@@ -89,12 +117,7 @@ impl FiltersQuery {
 		query.push_encoded("ordering", Some(&sort_by));
 
 		let limit = 50;
-		let offset = page
-			.checked_sub(1)
-			.filter(|index| *index >= 0)
-			.unwrap_or(0)
-			.saturating_mul(limit)
-			.to_string();
+		let offset = Offset::new(page, limit).to_string();
 		query.push_encoded("offset", Some(&offset));
 		query.push_encoded("limit", Some(&limit.to_string()));
 
@@ -108,6 +131,31 @@ impl Display for FiltersQuery {
 	}
 }
 
+pub struct SearchQuery(QueryParameters);
+
+impl SearchQuery {
+	fn new(page: i32, keyword: &str, r#type: SearchType) -> Self {
+		let mut query = QueryParameters::new();
+
+		let limit = 12;
+		let offset = Offset::new(page, limit).to_string();
+		query.push_encoded("offset", Some(&offset));
+
+		query.push_encoded("platform", Some("2"));
+		query.push_encoded("limit", Some(&limit.to_string()));
+		query.push("q", Some(keyword));
+		query.push_encoded("q_type", Some(r#type.as_ref()));
+
+		Self(query)
+	}
+}
+
+impl Display for SearchQuery {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(f, "{}", self.0)
+	}
+}
+
 #[derive(Display, Clone, Copy, FromRepr)]
 #[repr(i32)]
 enum Sort {
@@ -115,6 +163,37 @@ enum Sort {
 	LastUpdated,
 	#[strum(to_string = "popular")]
 	Popularity,
+}
+
+#[derive(AsRefStr, Clone, Copy)]
+enum SearchType {
+	#[strum(to_string = "")]
+	All,
+	// #[strum(to_string = "name")]
+	// Title,
+	// #[strum(to_string = "author")]
+	// Author,
+	// #[strum(to_string = "local")]
+	// TranslationTeam,
+}
+
+struct Offset(i32);
+
+impl Offset {
+	fn new(page: i32, limit: i32) -> Self {
+		let offset = page
+			.checked_sub(1)
+			.filter(|index| *index >= 0)
+			.unwrap_or(0)
+			.saturating_mul(limit);
+		Self(offset)
+	}
+}
+
+impl Display for Offset {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(f, "{}", self.0)
+	}
 }
 
 #[cfg(test)]

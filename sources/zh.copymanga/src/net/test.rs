@@ -6,7 +6,9 @@ use aidoku_test::aidoku_test;
 #[aidoku_test]
 fn filters_default() {
 	assert_eq!(
-		Url::from_filters(1, &[]).unwrap().to_string(),
+		Url::from_query_or_filters(None, 1, &[])
+			.unwrap()
+			.to_string(),
 		"https://www.2025copy.com/comics?ordering=-datetime_updated&offset=0&limit=50"
 	);
 }
@@ -14,7 +16,8 @@ fn filters_default() {
 #[aidoku_test]
 fn filters_romance_manga_ongoing_popularity_ascending_2() {
 	assert_eq!(
-		Url::from_filters(
+		Url::from_query_or_filters(
+			None,
 			2,
 			&[
 				FilterValue::Select {
@@ -41,3 +44,35 @@ fn filters_romance_manga_ongoing_popularity_ascending_2() {
 		"https://www.2025copy.com/comics?theme=aiqing&status=0&region=0&ordering=popular&offset=50&limit=50"
 	);
 }
+
+// #[aidoku_test]
+// fn query_red_1() {
+// 	let url = Url::from_query_or_filters(Some("紅"), 1, &[]).unwrap();
+// 	assert_eq!(
+// 		url.to_string(),
+// 		"https://www.2025copy.com/api/kb/web/searchbh/comics?offset=0&platform=2&limit=12&q=%E7%B4%85&q_type="
+// 	);
+// 	assert!(
+// 		url.request()
+// 			.unwrap()
+// 			.string()
+// 			.unwrap()
+// 			.starts_with(r#"{"code":200"#)
+// 	);
+// }
+
+// #[aidoku_test]
+// fn query_blue_2() {
+// 	let url = Url::from_query_or_filters(Some("藍"), 2, &[]).unwrap();
+// 	assert_eq!(
+// 		url.to_string(),
+// 		"https://www.2025copy.com/api/kb/web/searchbh/comics?offset=12&platform=2&limit=12&q=%E8%97%8D&q_type="
+// 	);
+// 	assert!(
+// 		url.request()
+// 			.unwrap()
+// 			.string()
+// 			.unwrap()
+// 			.starts_with(r#"{"code":200"#)
+// 	);
+// }
