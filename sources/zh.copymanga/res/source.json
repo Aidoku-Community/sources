@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "zh.copymanga",
+		"name": "Copymanga",
+		"version": 1,
+		"url": "https://www.2025copy.com",
+		"contentRating": 1,
+		"languages": ["zh"]
+	}
+}
