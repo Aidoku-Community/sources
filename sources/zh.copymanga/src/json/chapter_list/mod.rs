@@ -1,12 +1,7 @@
 use super::*;
-use aes::{
-	Aes128,
-	cipher::{BlockDecryptMut as _, KeyIvInit as _, block_padding::Pkcs7},
-};
 use aidoku::{
-	AidokuError, HashMap,
+	HashMap,
 	alloc::{borrow::ToOwned as _, string::ToString as _},
-	error,
 };
 use chinese_number::{ChineseCountMethod, ChineseToNumber as _};
 use regex::Regex;
@@ -20,20 +15,8 @@ pub struct Root {
 
 impl Root {
 	pub fn chapters(self, key: &str) -> Result<Option<Vec<Chapter>>> {
-		let results = self.results.as_bytes();
-		let iv = results
-			.get(..16)
-			.ok_or_else(|| error!("Expected 16 bytes for IV"))?;
-
-		let encoded_cipher_text = results
-			.get(16..)
-			.ok_or_else(|| error!("No data found after IV"))?;
-		let mut cipher_text = hex::decode(encoded_cipher_text).map_err(AidokuError::message)?;
-
-		let plain_text = cbc::Decryptor::<Aes128>::new(key.as_bytes().into(), iv.into())
-			.decrypt_padded_mut::<Pkcs7>(&mut cipher_text)
-			.map_err(AidokuError::message)?;
-		let chapters = serde_json::from_slice::<Results>(plain_text)
+		let plain_text = self.results.decrypt(key)?;
+		let chapters = serde_json::from_slice::<Results>(&plain_text)
 			.map_err(AidokuError::message)?
 			.into();
 		Ok(chapters)

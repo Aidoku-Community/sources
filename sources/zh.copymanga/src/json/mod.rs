@@ -1,8 +1,13 @@
 pub mod chapter_list;
+pub mod page_list;
 pub mod search;
 
 use super::*;
-use aidoku::{MangaStatus, serde::Deserialize};
+use aes::{
+	Aes128,
+	cipher::{BlockDecryptMut as _, KeyIvInit as _, block_padding::Pkcs7},
+};
+use aidoku::{AidokuError, MangaStatus, error, serde::Deserialize};
 
 #[derive(Deserialize)]
 pub struct MangaItem {
@@ -46,4 +51,29 @@ impl From<MangaItem> for Manga {
 #[derive(Deserialize)]
 struct Author {
 	name: String,
+}
+
+pub trait EncryptedJson {
+	fn decrypt(&self, key: &str) -> Result<Vec<u8>>;
+}
+
+impl EncryptedJson for String {
+	fn decrypt(&self, key: &str) -> Result<Vec<u8>> {
+		let iv = self
+			.get(..16)
+			.ok_or_else(|| error!("Expected 16 bytes for IV"))?
+			.as_bytes()
+			.into();
+
+		let encoded_cipher_text = self
+			.get(16..)
+			.ok_or_else(|| error!("No data found after IV"))?;
+		let mut cipher_text = hex::decode(encoded_cipher_text).map_err(AidokuError::message)?;
+
+		let plain_text = cbc::Decryptor::<Aes128>::new(key.as_bytes().into(), iv)
+			.decrypt_padded_mut::<Pkcs7>(&mut cipher_text)
+			.map_err(AidokuError::message)?
+			.into();
+		Ok(plain_text)
+	}
 }

@@ -8,7 +8,7 @@ use aidoku::{
 		js::JsContext,
 	},
 };
-use json::MangaItem;
+use json::{EncryptedJson as _, MangaItem, page_list};
 
 pub trait GenresPage {
 	fn filter(&self) -> Result<SelectFilter>;
@@ -72,7 +72,6 @@ impl FiltersPage for Document {
 
 pub trait MangaPage {
 	fn update_details(&self, manga: &mut Manga) -> Result<()>;
-	fn key(&self) -> Result<String>;
 }
 
 impl MangaPage for Document {
@@ -119,7 +118,13 @@ impl MangaPage for Document {
 
 		Ok(())
 	}
+}
 
+pub trait KeyPage {
+	fn key(&self) -> Result<String>;
+}
+
+impl KeyPage for Document {
 	fn key(&self) -> Result<String> {
 		let key = self
 			.try_select("script:not([*])")?
@@ -133,6 +138,26 @@ impl MangaPage for Document {
 			.ok_or_else(|| error!("Key not found"))?
 			.into();
 		Ok(key)
+	}
+}
+
+pub trait ChapterPage {
+	fn pages(&self) -> Result<Vec<Page>>;
+}
+
+impl ChapterPage for Document {
+	fn pages(&self) -> Result<Vec<Page>> {
+		let key = self.key()?;
+		let json = self
+			.try_select_first("div.imageData")?
+			.attr("contentKey")
+			.ok_or_else(|| error!("Attribute not found: `contentKey`"))?
+			.decrypt(&key)?;
+		serde_json::from_slice::<Vec<page_list::Item>>(&json)
+			.map_err(AidokuError::message)?
+			.into_iter()
+			.map(TryInto::try_into)
+			.collect()
 	}
 }
 

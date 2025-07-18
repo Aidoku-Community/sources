@@ -11,7 +11,7 @@ use aidoku::{
 	imports::std::send_partial_result,
 	register_source,
 };
-use html::{FiltersPage as _, GenresPage as _, MangaPage as _};
+use html::{ChapterPage as _, FiltersPage as _, GenresPage as _, KeyPage as _, MangaPage as _};
 use json::{chapter_list, search};
 use net::Url;
 
@@ -65,7 +65,10 @@ impl Source for Copymanga {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		todo!()
+		Url::chapter(&manga.key, &chapter.key)
+			.request()?
+			.html()?
+			.pages()
 	}
 }
 
