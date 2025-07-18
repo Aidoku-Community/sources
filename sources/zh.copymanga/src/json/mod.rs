@@ -1,3 +1,4 @@
+pub mod chapter_list;
 pub mod search;
 
 use super::*;

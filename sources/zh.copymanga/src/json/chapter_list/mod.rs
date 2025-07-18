@@ -1,0 +1,192 @@
+use super::*;
+use aes::{
+	Aes128,
+	cipher::{BlockDecryptMut as _, KeyIvInit as _, block_padding::Pkcs7},
+};
+use aidoku::{
+	AidokuError, HashMap,
+	alloc::{borrow::ToOwned as _, string::ToString as _},
+	error,
+};
+use chinese_number::{ChineseCountMethod, ChineseToNumber as _};
+use regex::Regex;
+use spin::Lazy;
+use uuid::Uuid;
+
+#[derive(Deserialize)]
+pub struct Root {
+	results: String,
+}
+
+impl Root {
+	pub fn chapters(self, key: &str) -> Result<Option<Vec<Chapter>>> {
+		let results = self.results.as_bytes();
+		let iv = results
+			.get(..16)
+			.ok_or_else(|| error!("Expected 16 bytes for IV"))?;
+
+		let encoded_cipher_text = results
+			.get(16..)
+			.ok_or_else(|| error!("No data found after IV"))?;
+		let mut cipher_text = hex::decode(encoded_cipher_text).map_err(AidokuError::message)?;
+
+		let plain_text = cbc::Decryptor::<Aes128>::new(key.as_bytes().into(), iv.into())
+			.decrypt_padded_mut::<Pkcs7>(&mut cipher_text)
+			.map_err(AidokuError::message)?;
+		let chapters = serde_json::from_slice::<Results>(plain_text)
+			.map_err(AidokuError::message)?
+			.into();
+		Ok(chapters)
+	}
+}
+
+static RE: Lazy<Regex> = Lazy::new(|| {
+	#[expect(clippy::unwrap_used)]
+	Regex::new(
+		r"^(?<volume>第?(?<volume_num>[\d零一二三四五六七八九十百千]+(\.\d)?)[卷部季冊册]完?)?(?<chapter>(第|连载|CH)?(?<chapter_num>[\d零一二三四五六七八九十百千]+(\.\d+)?)(?<more_chapters>-(\d+(\.\d+)?))?[話话回]?)?([ +]|$)",
+	)
+	.unwrap()
+});
+
+#[derive(Deserialize)]
+struct Results {
+	build: Build,
+	groups: HashMap<String, Group>,
+}
+
+impl From<Results> for Option<Vec<Chapter>> {
+	fn from(results: Results) -> Self {
+		let mut groups = results
+			.groups
+			.into_values()
+			.map(|group| group.into_chapters(&results.build.path_word));
+		let mut chapters = groups.next()?;
+		chapters.reverse();
+
+		#[expect(clippy::arithmetic_side_effects)]
+		for mut group in groups {
+			let mut index = 0;
+
+			while let Some(chapter) = group.pop() {
+				while chapters.get(index).is_some_and(|sorted_chapter| {
+					sorted_chapter.date_uploaded.unwrap_or_default()
+						>= chapter.date_uploaded.unwrap_or_default()
+				}) {
+					index += 1;
+				}
+
+				chapters.insert(index, chapter);
+
+				index += 1;
+			}
+		}
+
+		Some(chapters)
+	}
+}
+
+#[derive(Deserialize)]
+struct Build {
+	path_word: String,
+}
+
+#[derive(Deserialize)]
+struct Group {
+	name: String,
+	chapters: Vec<ChapterItem>,
+}
+
+impl Group {
+	fn into_chapters(self, manga_key: &str) -> Vec<Chapter> {
+		self.chapters
+			.into_iter()
+			.map(|chapter_item| chapter_item.into_chapter(manga_key, &self.name))
+			.collect()
+	}
+}
+
+#[derive(Deserialize)]
+struct ChapterItem {
+	r#type: u8,
+	name: String,
+	id: Uuid,
+}
+
+impl ChapterItem {
+	fn into_chapter(self, manga_key: &str, group: &str) -> Chapter {
+		let key = self.id.to_string();
+
+		let (volume_number, chapter_number, title) = parse(self.r#type, self.name.trim());
+
+		let date_uploaded = self
+			.id
+			.get_timestamp()
+			.and_then(|timestamp| timestamp.to_unix().0.try_into().ok());
+
+		let scanlators = [group.into()].into();
+
+		let url = Url::chapter(manga_key, &key).into();
+
+		Chapter {
+			key,
+			title,
+			chapter_number,
+			volume_number,
+			date_uploaded,
+			scanlators: Some(scanlators),
+			url: Some(url),
+			..Default::default()
+		}
+	}
+}
+
+fn parse(r#type: u8, title: &str) -> (Option<f32>, Option<f32>, Option<String>) {
+	if r#type == 3 {
+		return (None, None, Some(title.into()));
+	}
+
+	let mut chars = title.chars();
+	if chars.next() == Some('全') && matches!(chars.next(), Some('一' | '1')) {
+		match chars.next() {
+			Some('卷' | '冊' | '册') => return (Some(1.0), None, Some(title.into())),
+			Some('話' | '话' | '回') => return (None, Some(1.0), Some(title.into())),
+			_ => (),
+		}
+	}
+
+	let Some(caps) = RE.captures(title) else {
+		return (None, None, Some(title.into()));
+	};
+
+	let parse_number = |group| {
+		let str = caps.name(group)?.as_str();
+		if let Ok(num) = str.parse() {
+			return Some(num);
+		}
+
+		str.to_number(ChineseCountMethod::TenThousand).ok()
+	};
+	let volume_num = parse_number("volume_num");
+	let chapter_num = parse_number("chapter_num");
+
+	let mut real_title = title.to_owned();
+	let mut remove_group = |name| {
+		if let Some(group) = caps.name(name) {
+			real_title = real_title.replace(group.as_str(), "");
+		}
+	};
+	remove_group("volume");
+	if caps.name("more_chapters").is_none() {
+		remove_group("chapter");
+	}
+	real_title = real_title.trim().into();
+
+	(
+		volume_num,
+		chapter_num,
+		(!real_title.is_empty()).then_some(real_title),
+	)
+}
+
+#[cfg(test)]
+mod test;

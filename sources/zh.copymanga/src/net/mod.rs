@@ -21,6 +21,10 @@ pub enum Url<'a> {
 	Search { api: String, query: SearchQuery },
 	#[strum(to_string = "/comic/{key}")]
 	Manga { key: &'a str },
+	#[strum(to_string = "/comicdetail/{manga_key}/chapters")]
+	ChapterList { manga_key: &'a str },
+	#[strum(to_string = "/comic/{manga_key}/chapter/{key}")]
+	Chapter { manga_key: &'a str, key: &'a str },
 }
 
 impl Url<'_> {
@@ -118,6 +122,14 @@ impl Url<'_> {
 impl<'a> Url<'a> {
 	pub const fn manga(key: &'a str) -> Self {
 		Self::Manga { key }
+	}
+
+	pub const fn chapter_list(manga_key: &'a str) -> Self {
+		Self::ChapterList { manga_key }
+	}
+
+	pub const fn chapter(manga_key: &'a str, key: &'a str) -> Self {
+		Self::Chapter { manga_key, key }
 	}
 }
 

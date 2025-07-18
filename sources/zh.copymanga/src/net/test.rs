@@ -108,3 +108,27 @@ fn manga() {
 		"https://www.2025copy.com/comic/heishoudangbaomu"
 	);
 }
+
+#[aidoku_test]
+fn chapter_list() {
+	let url = Url::chapter_list("wodelinjuzhongshidingzhewo");
+	assert_eq!(
+		url.to_string(),
+		"https://www.2025copy.com/comicdetail/wodelinjuzhongshidingzhewo/chapters"
+	);
+	assert!(
+		url.request()
+			.unwrap()
+			.string()
+			.unwrap()
+			.starts_with(r#"{"code":200"#)
+	);
+}
+
+#[aidoku_test]
+fn chapter() {
+	assert_eq!(
+		Url::chapter("jiandieguojiajia", "555d889e-98ab-11ea-ad89-00163e0ca5bd").to_string(),
+		"https://www.2025copy.com/comic/jiandieguojiajia/chapter/555d889e-98ab-11ea-ad89-00163e0ca5bd"
+	);
+}

@@ -11,7 +11,7 @@ use aidoku::{
 	register_source,
 };
 use html::{FiltersPage as _, GenresPage as _, MangaPage as _};
-use json::search;
+use json::{chapter_list, search};
 use net::Url;
 
 struct Copymanga;
@@ -43,11 +43,9 @@ impl Source for Copymanga {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
+		let manga_page = Url::manga(&manga.key).request()?.html()?;
 		if needs_details {
-			Url::manga(&manga.key)
-				.request()?
-				.html()?
-				.update_details(&mut manga)?;
+			manga_page.update_details(&mut manga)?;
 
 			if needs_chapters {
 				send_partial_result(&manga);
@@ -55,6 +53,12 @@ impl Source for Copymanga {
 				return Ok(manga);
 			}
 		}
+
+		let key = manga_page.key()?;
+		manga.chapters = Url::chapter_list(&manga.key)
+			.request()?
+			.json_owned::<chapter_list::Root>()?
+			.chapters(&key)?;
 
 		Ok(manga)
 	}
