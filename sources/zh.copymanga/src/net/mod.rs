@@ -1,0 +1,245 @@
+use super::*;
+use aidoku::{
+	alloc::{format, string::ToString as _},
+	bail, error,
+	helpers::uri::QueryParameters,
+	imports::net::Request,
+};
+use core::fmt::{Display, Formatter, Result as FmtResult};
+use strum::{AsRefStr, Display, EnumIs, FromRepr};
+
+#[derive(Display, EnumIs)]
+#[strum(prefix = "https://www.2025copy.com")]
+pub enum Url<'a> {
+	#[strum(to_string = "/filter")]
+	GenresPage,
+	#[strum(to_string = "/comics?{0}")]
+	Filters(FiltersQuery),
+	#[strum(to_string = "/search")]
+	SearchPage,
+	#[strum(to_string = "{api}?{query}")]
+	Search { api: String, query: SearchQuery },
+	#[strum(to_string = "/comic/{key}")]
+	Manga { key: &'a str },
+	#[strum(to_string = "/comicdetail/{manga_key}/chapters")]
+	ChapterList { manga_key: &'a str },
+	#[strum(to_string = "/comic/{manga_key}/chapter/{key}")]
+	Chapter { manga_key: &'a str, key: &'a str },
+}
+
+impl Url<'_> {
+	pub fn request(&self) -> Result<Request> {
+		let request = Request::get(self.to_string())?.header(
+			"User-Agent",
+			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
+			 AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15",
+		);
+		Ok(request)
+	}
+
+	pub fn from_query_or_filters(
+		query: Option<&str>,
+		page: i32,
+		filters: &[FilterValue],
+	) -> Result<Self> {
+		if let Some(keyword) = query {
+			let search_query = SearchQuery::new(page, keyword, SearchType::All);
+			let url = Self::search(search_query)?;
+			return Ok(url);
+		}
+
+		let mut genre = String::new();
+		let mut status = "";
+		let mut r#type = "";
+		let mut is_asc = false;
+		let mut sort = Sort::LastUpdated;
+
+		for filter in filters {
+			#[expect(clippy::wildcard_enum_match_arm)]
+			match filter {
+				FilterValue::Text { id, value } => match id.as_str() {
+					"author" => {
+						let search_query = SearchQuery::new(page, value, SearchType::Author);
+						let url = Self::search(search_query)?;
+						return Ok(url);
+					}
+					_ => bail!("Invalid text filter ID: `{id}`"),
+				},
+
+				FilterValue::Sort {
+					id,
+					index,
+					ascending,
+				} => match id.as_str() {
+					"排序" => {
+						is_asc = *ascending;
+						sort = Sort::from_repr(*index)
+							.ok_or_else(|| error!("Invalid `排序` index: `{index}`"))?;
+					}
+					_ => bail!("Invalid sort filter ID: `{id}`"),
+				},
+
+				FilterValue::Select { id, value } => match id.as_str() {
+					"地區" => r#type = value,
+					"狀態" => status = value,
+					"題材" => genre = value.into(),
+					"genre" => {
+						let genres = Self::GenresPage.request()?.html()?.filter()?;
+						let genre_id = genres
+							.options
+							.iter()
+							.position(|option| option == value)
+							.and_then(|index| genres.ids?.into_iter().nth(index))
+							.ok_or_else(|| error!("Genre ID not found for option: `{value}`"))?;
+						genre = genre_id.into();
+					}
+					_ => bail!("Invalid select filter ID: `{id}`"),
+				},
+
+				_ => bail!("Invalid filter: `{filter:?}`"),
+			}
+		}
+
+		let filters_query = FiltersQuery::new(&genre, status, r#type, is_asc, sort, page);
+		Ok(Self::Filters(filters_query))
+	}
+
+	fn search(query: SearchQuery) -> Result<Self> {
+		let api = Self::SearchPage
+			.request()?
+			.string()?
+			.split_once(r#"const countApi = ""#)
+			.ok_or_else(|| error!(r#"String not found: `const countApi = "`"#))?
+			.1
+			.split_once('"')
+			.ok_or_else(|| error!(r#"Character not found: `"`"#))?
+			.0
+			.into();
+		Ok(Self::Search { api, query })
+	}
+}
+
+impl<'a> Url<'a> {
+	pub const fn manga(key: &'a str) -> Self {
+		Self::Manga { key }
+	}
+
+	pub const fn chapter_list(manga_key: &'a str) -> Self {
+		Self::ChapterList { manga_key }
+	}
+
+	pub const fn chapter(manga_key: &'a str, key: &'a str) -> Self {
+		Self::Chapter { manga_key, key }
+	}
+}
+
+impl From<Url<'_>> for String {
+	fn from(url: Url<'_>) -> Self {
+		url.to_string()
+	}
+}
+
+pub struct FiltersQuery(QueryParameters);
+
+impl FiltersQuery {
+	fn new(genre: &str, status: &str, r#type: &str, is_asc: bool, sort: Sort, page: i32) -> Self {
+		let mut query = QueryParameters::new();
+
+		if !genre.is_empty() {
+			query.push_encoded("theme", Some(genre));
+		}
+
+		if !status.is_empty() {
+			query.push_encoded("status", Some(status));
+		}
+
+		if !r#type.is_empty() {
+			query.push_encoded("region", Some(r#type));
+		}
+
+		let order = if is_asc { "" } else { "-" };
+		let sort_by = format!("{order}{sort}");
+		query.push_encoded("ordering", Some(&sort_by));
+
+		let limit = 50;
+		let offset = Offset::new(page, limit).to_string();
+		query.push_encoded("offset", Some(&offset));
+		query.push_encoded("limit", Some(&limit.to_string()));
+
+		Self(query)
+	}
+}
+
+impl Display for FiltersQuery {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(f, "{}", self.0)
+	}
+}
+
+pub struct SearchQuery(QueryParameters);
+
+impl SearchQuery {
+	fn new(page: i32, keyword: &str, r#type: SearchType) -> Self {
+		let mut query = QueryParameters::new();
+
+		let limit = 12;
+		let offset = Offset::new(page, limit).to_string();
+		query.push_encoded("offset", Some(&offset));
+
+		query.push_encoded("platform", Some("2"));
+		query.push_encoded("limit", Some(&limit.to_string()));
+		query.push("q", Some(keyword));
+		query.push_encoded("q_type", Some(r#type.as_ref()));
+
+		Self(query)
+	}
+}
+
+impl Display for SearchQuery {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(f, "{}", self.0)
+	}
+}
+
+#[derive(Display, Clone, Copy, FromRepr)]
+#[repr(i32)]
+enum Sort {
+	#[strum(to_string = "datetime_updated")]
+	LastUpdated,
+	#[strum(to_string = "popular")]
+	Popularity,
+}
+
+#[derive(AsRefStr, Clone, Copy)]
+enum SearchType {
+	#[strum(to_string = "")]
+	All,
+	// #[strum(to_string = "name")]
+	// Title,
+	#[strum(to_string = "author")]
+	Author,
+	// #[strum(to_string = "local")]
+	// TranslationTeam,
+}
+
+struct Offset(i32);
+
+impl Offset {
+	fn new(page: i32, limit: i32) -> Self {
+		let offset = page
+			.checked_sub(1)
+			.filter(|index| *index >= 0)
+			.unwrap_or(0)
+			.saturating_mul(limit);
+		Self(offset)
+	}
+}
+
+impl Display for Offset {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(f, "{}", self.0)
+	}
+}
+
+#[cfg(test)]
+mod test;
