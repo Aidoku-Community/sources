@@ -1,6 +1,7 @@
-use super::*;
+use crate::html::GenresPage as _;
 use aidoku::{
-	alloc::{format, string::ToString as _},
+	FilterValue, Result,
+	alloc::{String, format, string::ToString as _},
 	bail, error,
 	helpers::uri::QueryParameters,
 	imports::net::Request,

@@ -1,14 +1,16 @@
-use super::*;
+use crate::{
+	json::{EncryptedJson as _, MangaItem, page_list},
+	net::Url,
+};
 use aidoku::{
-	AidokuError, MangaStatus, SelectFilter,
-	alloc::{borrow::ToOwned as _, format},
+	AidokuError, Manga, MangaPageResult, MangaStatus, Page, Result, SelectFilter,
+	alloc::{String, Vec, borrow::ToOwned as _, format},
 	error,
 	imports::{
 		html::{Document, Element, ElementList},
 		js::JsContext,
 	},
 };
-use json::{EncryptedJson as _, MangaItem, page_list};
 
 pub trait GenresPage {
 	fn filter(&self) -> Result<SelectFilter>;

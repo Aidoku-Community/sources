@@ -1,4 +1,5 @@
-use super::*;
+use super::MangaItem;
+use aidoku::{MangaPageResult, alloc::Vec, serde::Deserialize};
 
 #[derive(Deserialize)]
 pub struct Root {

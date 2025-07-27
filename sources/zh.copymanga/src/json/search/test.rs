@@ -1,6 +1,7 @@
 #![expect(clippy::unwrap_used)]
 
 use super::*;
+use aidoku::Manga;
 use aidoku_test::aidoku_test;
 
 #[aidoku_test]

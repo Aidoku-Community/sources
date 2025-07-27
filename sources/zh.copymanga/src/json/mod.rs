@@ -2,12 +2,17 @@ pub mod chapter_list;
 pub mod page_list;
 pub mod search;
 
-use super::*;
+use crate::net::Url;
 use aes::{
 	Aes128,
 	cipher::{BlockDecryptMut as _, KeyIvInit as _, block_padding::Pkcs7},
 };
-use aidoku::{AidokuError, MangaStatus, error, serde::Deserialize};
+use aidoku::{
+	AidokuError, Manga, MangaStatus, Result,
+	alloc::{String, Vec},
+	error,
+	serde::Deserialize,
+};
 
 #[derive(Deserialize)]
 pub struct MangaItem {
