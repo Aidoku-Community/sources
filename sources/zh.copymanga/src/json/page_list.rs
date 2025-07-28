@@ -17,12 +17,11 @@ impl TryFrom<Item> for Page {
 	fn try_from(page_item: Item) -> Result<Self> {
 		let quality = defaults_get_string("image.quality")?;
 		let format = defaults_get_string("image.format")?;
-		let image = page_item
+		let url = page_item
 			.url
-			.rsplitn(3, '.')
-			.last()
-			.ok_or_else(|| error!("Character `.` not found in URL: `{}`", page_item.url))?;
-		let url = format!("{image}.{quality}.{format}");
+			.rsplit_once('c')
+			.map(|(url, _)| format!("{url}{quality}.{format}"))
+			.unwrap_or(page_item.url);
 		let content = PageContent::Url(url, None);
 		Ok(Self {
 			content,
