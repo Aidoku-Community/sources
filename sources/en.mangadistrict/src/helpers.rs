@@ -25,12 +25,10 @@ pub fn parse_chapter_title(chapter_str: Option<String>) -> Result<(Option<f32>, 
 	if let Some(ref s) = chapter_str {
 		// Expect format "Chapter X" or "Chapter X - Some title"
 		let prefix = "Chapter ";
-		if s.starts_with(prefix) {
-			let rest = &s[prefix.len()..];
+		if let Some(rest) = s.strip_prefix(prefix) {
 			let parts: Vec<&str> = rest.splitn(2, " - ").collect();
 
-			let chapter_number = parts
-				.get(0)
+			let chapter_number = parts.first()
 				.and_then(|num_str| num_str.trim().parse::<f32>().ok());
 
 			let title = if parts.len() > 1 {
@@ -55,9 +53,7 @@ pub fn parse_date_to_timestamp(date_str: &str, now_str: Option<&str>) -> Option<
 		);
 	}
 
-	if now_str.is_none() {
-		return None;
-	}
+	now_str?;
 
 	// Try relative date: "5 minutes ago", "2 days ago"
 	let lowered = date_str.to_ascii_lowercase();

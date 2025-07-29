@@ -1,10 +1,10 @@
 #![no_std]
 use aidoku::{
-	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home,
-	HomeComponent, HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus,
-	MangaWithChapter, Page, Result, Source, Viewer,
+	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
+	HomeLayout, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page, Result, Source,
+	Viewer,
 	alloc::{String, Vec, string::ToString, vec},
-	imports::{html::Element, net::Request},
+	imports::{html::Element, net::Request, std::send_partial_result},
 	prelude::*,
 };
 
@@ -66,9 +66,9 @@ impl Source for MangaDistrict {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let manga_url = format!("{BASE_URL}{}", manga.key);
+		let (html, now_str) = helpers::fetch_html(&manga_url)?;
 
 		if needs_details {
-			let (html, now_str) = helpers::fetch_html(&manga_url)?;
 			manga.title = html
 				.select_first("h1")
 				.and_then(|el| el.text())
@@ -82,18 +82,6 @@ impl Source for MangaDistrict {
 			manga.authors = html
 				.select(".author-content a")
 				.map(|els| els.filter_map(|el| el.text()).collect());
-
-			// let mut combined: Vec<String> = Vec::new();
-			// for name in authors
-			// 	.into_iter()
-			// 	.chain(manga.artists.clone().into_iter())
-			// 	.flatten()
-			// {
-			// 	if !combined.iter().any(|n| n.eq_ignore_ascii_case(&name)) {
-			// 		combined.push(name);
-			// 	}
-			// }
-			// manga.authors = Some(combined);
 
 			manga.description = html
 				.select_first(".summary__content > p:nth-child(2)")
@@ -130,32 +118,34 @@ impl Source for MangaDistrict {
 			manga.viewer = Viewer::Webtoon;
 
 			if needs_chapters {
-				manga.chapters = html.select(".version-chap .wp-manga-chapter").map(|els| {
-					els.filter_map(|el| {
-						let url = el.select_first("a").and_then(|a| a.attr("href"))?;
-						let key = url.strip_prefix(BASE_URL)?.into();
-						let (chapter_number, title) =
-							helpers::parse_chapter_title(el.select_first("a")?.text()).ok()?;
-						Some(Chapter {
-							key,
-							title,
-							url: Some(url),
-							chapter_number,
-							date_uploaded: el
-								.select_first(".timediff i")
-								.and_then(|i| i.text())
-								.or_else(|| {
-									el.select_first(".timediff a").and_then(|a| a.attr("title"))
-								})
-								.and_then(|s| {
-									helpers::parse_date_to_timestamp(&s, now_str.as_deref())
-								}),
-							..Default::default()
-						})
-					})
-					.collect::<Vec<_>>()
-				})
+				send_partial_result(&manga);
 			}
+		}
+
+		if needs_chapters {
+			manga.chapters = html.select(".version-chap .wp-manga-chapter").map(|els| {
+				els.filter_map(|el| {
+					let url = el.select_first("a").and_then(|a| a.attr("href"))?;
+					let key = url.strip_prefix(BASE_URL)?.into();
+					let (chapter_number, title) =
+						helpers::parse_chapter_title(el.select_first("a")?.text()).ok()?;
+					Some(Chapter {
+						key,
+						title,
+						url: Some(url),
+						chapter_number,
+						date_uploaded: el
+							.select_first(".timediff i")
+							.and_then(|i| i.text())
+							.or_else(|| {
+								el.select_first(".timediff a").and_then(|a| a.attr("title"))
+							})
+							.and_then(|s| helpers::parse_date_to_timestamp(&s, now_str.as_deref())),
+						..Default::default()
+					})
+				})
+				.collect::<Vec<_>>()
+			})
 		}
 
 		Ok(manga)
@@ -179,12 +169,6 @@ impl Source for MangaDistrict {
 			.unwrap_or_default();
 
 		Ok(pages)
-	}
-}
-
-impl ListingProvider for MangaDistrict {
-	fn get_manga_list(&self, _listing: Listing, _page: i32) -> Result<MangaPageResult> {
-		Err(AidokuError::Unimplemented)
 	}
 }
 
@@ -294,7 +278,7 @@ impl DeepLinkHandler for MangaDistrict {
 				return Ok(None);
 			}
 			let manga_key = format!("/{}/{}", parts[1], parts[2]);
-			return Ok(Some(DeepLinkResult::Chapter { manga_key, key }));
+			Ok(Some(DeepLinkResult::Chapter { manga_key, key }))
 		} else if key.starts_with("/title") {
 			return Ok(Some(DeepLinkResult::Manga { key }));
 		} else {
@@ -303,7 +287,7 @@ impl DeepLinkHandler for MangaDistrict {
 	}
 }
 
-register_source!(MangaDistrict, ListingProvider, Home, DeepLinkHandler);
+register_source!(MangaDistrict, Home, DeepLinkHandler);
 
 #[cfg(test)]
 mod test {
