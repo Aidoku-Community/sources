@@ -38,7 +38,9 @@ impl Source for MangaDistrict {
 					.filter_map(|item| {
 						let url = item.select_first("a")?.attr("href");
 						let title = item.select_first(".post-title")?.text()?;
-						let cover = item.select_first("img")?.attr("abs:src");
+						let cover = item
+							.select_first("img")
+							.and_then(|img| img.attr("abs:src").or_else(|| img.attr("data-cfsrc")));
 						Some(Manga {
 							key: url.clone()?.strip_prefix(BASE_URL)?.into(),
 							title,
@@ -73,7 +75,7 @@ impl Source for MangaDistrict {
 				.unwrap_or(manga.title);
 			manga.cover = html
 				.select_first(".summary_image img")
-				.and_then(|img| img.attr("abs:src"));
+				.and_then(|img| img.attr("abs:src").or_else(|| img.attr("data-cfsrc")));
 			manga.artists = html
 				.select(".artist-content a")
 				.map(|els| els.filter_map(|el| el.text()).collect());
@@ -196,7 +198,9 @@ impl Home for MangaDistrict {
 			let manga = Manga {
 				key: manga_link.attr("href")?.strip_prefix(BASE_URL)?.into(),
 				title: manga_link.text()?,
-				cover: el.select_first("img")?.attr("abs:src"),
+				cover: el
+					.select_first("img")
+					.and_then(|img| img.attr("abs:src").or_else(|| img.attr("data-cfsrc"))),
 				url: manga_link.attr("href"),
 				..Default::default()
 			};
