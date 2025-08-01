@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "pt.flowermanga",
+		"name": "Flower Manga",
+		"version": 3,
+		"url": "https://flowermanga.net",
+		"contentRating": 1,
+		"languages": ["pt-br"]
+	},
+	"config": {
+		"breakingChangeVersion": 3
+	}
+}

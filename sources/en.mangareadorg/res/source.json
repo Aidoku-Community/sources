@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.mangareadorg",
+		"name": "MangaRead.org",
+		"version": 2,
+		"url": "https://www.mangaread.org",
+		"contentRating": 1,
+		"languages": ["en"]
+	},
+	"config": {
+		"breakingChangeVersion": 2
+	}
+}
