@@ -1,0 +1,20 @@
+[package]
+name = "madara"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aes = "0.8.4"
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", features = ["json"] }
+base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
+block-padding = "0.3.3"
+cbc = { version = "0.1.2", features = ["alloc"] }
+chrono = { version = "0.4.30", default-features = false, features = ["alloc"] }
+digest = { version = "0.10.7", default-features = false, features = ["alloc"] }
+md-5 = { version = "0.10.6", default-features = false }
+serde = { version = "1.0.188", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0.105", default-features = false, features = ["alloc"] }
+
+[dev-dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
+aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }
