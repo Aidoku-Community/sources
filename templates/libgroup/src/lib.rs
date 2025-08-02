@@ -6,8 +6,9 @@ use aidoku::{
 	imports::net::Request,
 };
 
+mod cdn;
 mod endpoints;
-mod image_servers;
+mod filters;
 mod imp;
 mod models;
 mod settings;

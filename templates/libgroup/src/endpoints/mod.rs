@@ -9,9 +9,6 @@ pub enum Url<'a> {
 	#[strum(serialize = "/api/manga")]
 	MangaSearch,
 
-	#[strum(serialize = "/api/manga/search")]
-	MangaSearchQuery { query: &'a str },
-
 	#[strum(serialize = "/api/manga/{slug}")]
 	MangaDetails { slug: &'a str },
 
@@ -36,12 +33,11 @@ impl<'a> Url<'a> {
 		let base = base_url.trim_end_matches('/');
 
 		match self {
-			Self::MangaSearch => format!("{}/api/manga", base),
-			Self::MangaSearchQuery { query } => format!("{}/api/manga?q={}", base, query),
-			Self::MangaDetails { slug } => format!("{}/api/manga/{}", base, slug),
-			Self::MangaChapters { slug } => format!("{}/api/manga/{}/chapters", base, slug),
-			Self::ChapterPages { slug, .. } => format!("{}/api/manga/{}/chapter", base, slug),
-			Self::Constants => format!("{}/api/constants", base),
+			Self::MangaSearch => format!("{base}/api/manga"),
+			Self::MangaDetails { slug } => format!("{base}/api/manga/{slug}"),
+			Self::MangaChapters { slug } => format!("{base}/api/manga/{slug}/chapters"),
+			Self::ChapterPages { slug, .. } => format!("{base}/api/manga/{slug}/chapter"),
+			Self::Constants => format!("{base}/api/constants"),
 		}
 	}
 
@@ -54,31 +50,11 @@ impl<'a> Url<'a> {
 
 		let query_string = params
 			.iter()
-			.map(|(key, value)| format!("{}={}", key, value))
+			.map(|(key, value)| format!("{key}={value}"))
 			.collect::<Vec<_>>()
 			.join("&");
 
-		format!("{}?{}", base, query_string)
-	}
-
-	/// Create manga search query URL with additional parameters
-	pub fn manga_search_query_with_params(
-		base_url: &str,
-		query: &'a str,
-		params: &[(&str, &str)],
-	) -> String {
-		let base = Self::MangaSearchQuery { query }.build(base_url);
-		if params.is_empty() {
-			return base;
-		}
-
-		let query_string = params
-			.iter()
-			.map(|(key, value)| format!("{}={}", key, value))
-			.collect::<Vec<_>>()
-			.join("&");
-
-		format!("{}&{}", base, query_string)
+		format!("{base}?{query_string}")
 	}
 
 	/// Create manga details URL with fields
@@ -90,11 +66,11 @@ impl<'a> Url<'a> {
 
 		let query_string = fields
 			.iter()
-			.map(|field| format!("fields[]={}", field))
+			.map(|field| format!("fields[]={field}"))
 			.collect::<Vec<_>>()
 			.join("&");
 
-		format!("{}?{}", base, query_string)
+		format!("{base}?{query_string}")
 	}
 
 	/// Create chapter pages URL with parameters
@@ -115,7 +91,7 @@ impl<'a> Url<'a> {
 		let mut params = vec![format!("number={}", number), format!("volume={}", volume)];
 
 		if let Some(branch) = branch_id {
-			params.push(format!("branch_id={}", branch));
+			params.push(format!("branch_id={branch}"));
 		}
 
 		format!("{}?{}", base, params.join("&"))
@@ -130,11 +106,11 @@ impl<'a> Url<'a> {
 
 		let query_string = fields
 			.iter()
-			.map(|field| format!("fields[]={}", field))
+			.map(|field| format!("fields[]={field}"))
 			.collect::<Vec<_>>()
 			.join("&");
 
-		format!("{}?{}", base, query_string)
+		format!("{base}?{query_string}")
 	}
 }
 

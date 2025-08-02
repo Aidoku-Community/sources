@@ -8,6 +8,7 @@ use aidoku::{
 
 use crate::{
 	endpoints::Url,
+	filters::FilterProcessor,
 	models::{
 		chapter::LibGroupChapterListItem,
 		responses::{ChapterResponse, ChaptersResponse, MangaDetailResponse, MangaListResponse},
@@ -16,6 +17,8 @@ use crate::{
 };
 
 use super::Params;
+
+static USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
 pub trait Impl {
 	fn new() -> Self;
@@ -33,27 +36,24 @@ pub trait Impl {
 		let site_id = &params.site_id;
 		let base_url = &params.base_url;
 
-		let search_url = if let Some(q) = query {
-			Url::manga_search_query_with_params(
-				&api_url,
-				&q,
-				&[
-					("site_id[]", &site_id.to_string()),
-					("page", &page.to_string()),
-				],
-			)
-		} else {
-			let filter_params: Vec<(&str, &str)> = filters
-				.iter()
-				.filter_map(|filter| match filter {
-					FilterValue::Select { id, value } => Some((id.as_str(), value.as_str())),
-					FilterValue::Text { id, value } => Some((id.as_str(), value.as_str())),
-					_ => None,
-				})
-				.collect();
+		let mut query_params = Vec::new();
 
-			Url::manga_search_with_params(&api_url, &filter_params)
-		};
+		if let Some(q) = query
+			&& !q.trim().is_empty()
+		{
+			query_params.push(("q", q));
+		}
+
+		query_params.push(("page", page.to_string()));
+		query_params.push(("site_id[]", site_id.to_string()));
+
+		let filter_processor = FilterProcessor::new();
+		query_params.extend(filter_processor.process_filters(filters));
+
+		let params_for_url: Vec<(&str, &str)> =
+			query_params.iter().map(|(k, v)| (*k, v.as_str())).collect();
+
+		let search_url = Url::manga_search_with_params(&api_url, &params_for_url);
 
 		let response = Request::get(search_url)?
 			.send()?
@@ -111,7 +111,7 @@ pub trait Impl {
 					.send()?
 					.get_json::<ChaptersResponse>()?
 					.data,
-				&base_url,
+				base_url,
 				&manga_slug,
 			);
 
@@ -122,7 +122,7 @@ pub trait Impl {
 	}
 
 	fn get_page_list(&self, params: &Params, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let api_url = &get_api_url();
+		let api_url = get_api_url();
 		let manga_slug = manga.key.as_str();
 
 		let chapter_number = chapter.chapter_number.unwrap_or_default();
@@ -130,7 +130,7 @@ pub trait Impl {
 		let branch_id = None;
 
 		let pages_url =
-			Url::chapter_pages_with_params(api_url, manga_slug, branch_id, chapter_number, volume);
+			Url::chapter_pages_with_params(&api_url, manga_slug, branch_id, chapter_number, volume);
 
 		let pages = Request::get(pages_url)?
 			.send()?
@@ -230,7 +230,9 @@ pub trait Impl {
 	) -> Result<Request> {
 		let api_url = get_api_url();
 
-		Ok(Request::get(url)?.header("Referer", &api_url))
+		Ok(Request::get(url)?
+			.header("Referer", &api_url)
+			.header("User-Agent", USER_AGENT))
 	}
 
 	fn handle_deep_link(&self, _params: &Params, _url: String) -> Result<Option<DeepLinkResult>> {

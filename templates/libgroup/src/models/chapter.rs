@@ -9,11 +9,12 @@ use aidoku::{
 use chrono::DateTime;
 use serde::Deserialize;
 
-use crate::image_servers::get_selected_image_server_url;
+use crate::cdn::get_selected_image_server_url;
 
 use super::common::{LibGroupRestrictedView, LibGroupTeam};
 
 #[derive(Default, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct LibGroupChapterBranch {
 	pub id: i32,
 	pub branch_id: Option<i32>,
@@ -23,6 +24,7 @@ pub struct LibGroupChapterBranch {
 }
 
 #[derive(Default, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct LibGroupChapterListItem {
 	pub volume: String,
 	pub number: String,
@@ -31,11 +33,13 @@ pub struct LibGroupChapterListItem {
 }
 
 #[derive(Default, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct LibGroupPage {
 	pub url: String,
 }
 
 #[derive(Default, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct LibGroupChapter {
 	pub pages: Vec<LibGroupPage>,
 }

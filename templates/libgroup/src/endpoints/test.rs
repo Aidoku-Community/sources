@@ -11,11 +11,6 @@ fn basic_urls() {
 	);
 
 	assert_eq!(
-		Url::MangaSearchQuery { query: "naruto" }.build(TEST_BASE_URL),
-		"https://api.cdnlibs.org/api/manga?q=naruto"
-	);
-
-	assert_eq!(
 		Url::MangaDetails { slug: "test-manga" }.build(TEST_BASE_URL),
 		"https://api.cdnlibs.org/api/manga/test-manga"
 	);
@@ -49,6 +44,7 @@ fn manga_search_with_params() {
 	let url = Url::manga_search_with_params(
 		TEST_BASE_URL,
 		&[
+			("q", "naruto"),
 			("bookmarks_exclude[]", "2"),
 			("buy", "1"),
 			("caution[]", "3"),
@@ -62,34 +58,10 @@ fn manga_search_with_params() {
 	);
 
 	assert!(url.starts_with("https://api.cdnlibs.org/api/manga?"));
+	assert!(url.contains("q=naruto"));
 	assert!(url.contains("buy=1"));
 	assert!(url.contains("licensed=1"));
 	assert!(url.contains("bookmarks_exclude[]=2"));
-}
-
-#[aidoku_test]
-fn manga_search_query_with_params() {
-	let url = Url::manga_search_query_with_params(
-		TEST_BASE_URL,
-		"one piece",
-		&[
-			("page", "2"),
-			("limit", "20"),
-			("sort", "popularity"),
-			("status[]", "1"),
-			("genres[]", "action"),
-		],
-	);
-
-	assert!(url.starts_with("https://api.cdnlibs.org/api/manga?q=one piece"));
-	assert!(url.contains("page=2"));
-	assert!(url.contains("limit=20"));
-	assert!(url.contains("sort=popularity"));
-	assert!(url.contains("status[]=1"));
-	assert!(url.contains("genres[]=action"));
-
-	let url_simple = Url::manga_search_query_with_params(TEST_BASE_URL, "naruto", &[]);
-	assert_eq!(url_simple, "https://api.cdnlibs.org/api/manga?q=naruto");
 }
 
 #[aidoku_test]

@@ -10,6 +10,7 @@ use super::common::{
 };
 
 #[derive(Default, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct LibGroupManga {
 	pub rus_name: String,
 	pub slug_url: String,
@@ -26,6 +27,7 @@ pub struct LibGroupManga {
 }
 
 #[derive(Default, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct LibGroupAuthor {
 	pub name: String,
 	pub rus_name: Option<String>,
