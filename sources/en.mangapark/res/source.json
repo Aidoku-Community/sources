@@ -5,8 +5,6 @@
 		"version": 1,
 		"url": "https://mangapark.com",
 		"contentRating": 1,
-		"languages": [
-			"en"
-		]
+		"languages": ["en"]
 	}
 }
