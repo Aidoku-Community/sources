@@ -1,0 +1,29 @@
+{
+	"info": {
+		"id": "ru.mangalib",
+		"name": "MangaLib",
+		"version": 5,
+		"url": "https://mangalib.me",
+		"contentRating": 1,
+		"languages": [
+			"ru"
+		]
+	},
+	"listings": [
+        {
+			"id": "popular",
+			"name": "Популярное"
+		},
+		{
+			"id": "currently_reading",
+			"name": "Сейчас читают"
+		},
+		{
+			"id": "latest",
+			"name": "Последние обновления"
+		}
+	],
+	"config": {
+		"breakingChangeVersion": 5
+	}
+}

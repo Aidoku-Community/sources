@@ -1,0 +1,74 @@
+[
+	{
+		"type": "group",
+		"title": "Настройки",
+		"items": [
+			{
+				"type": "text",
+				"key": "baseUrl",
+				"title": "Веб домен",
+				"placeholder": "https://mangalib.me",
+				"keyboardType": 3,
+				"returnKeyType": 9,
+				"autocorrectionDisabled": true,
+				"default": "https://mangalib.me",
+				"refreshes": ["listings", "content"]
+			},
+			{
+				"type": "select",
+				"key": "apiUrl",
+				"title": "Домен API",
+				"values": [
+					"https://api.imglib.info",
+					"https://api.lib.social",
+					"https://api.mangalib.me",
+					"https://api2.mangalib.me"
+				],
+				"titles": [
+					"Официальное приложение (api.imglib.info)",
+					"Основной (api.lib.social)",
+					"Резервный (api.mangalib.me)",
+					"Резервный 2 (api2.mangalib.me)"
+				],
+				"default": "https://api.imglib.info",
+				"refreshes": ["listings", "content"]
+			},
+			{
+				"type": "select",
+				"key": "imageServerUrl",
+				"title": "Сервер изображений",
+				"values": ["compress", "main", "secondary"],
+				"titles": ["Сжатия", "Первый", "Второй"],
+				"default": "compress",
+				"refreshes": ["content"]
+			},
+			{
+				"type": "select",
+				"key": "coverQuality",
+				"title": "Качество обложки",
+				"values": ["thumbnail", "default", "md", "orig"],
+				"titles": ["Миниатюра", "Стандартное", "Среднее", "Оригинал"],
+				"default": "default",
+				"refreshes": ["content"]
+			}
+		]
+    },
+    {
+		"type": "group",
+		"title": "Аккаунт",
+		"footer": "Войдите в SocialLib, чтобы получить полный доступ ко всем функциям.",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"method": "oauth",
+				"url": "https://auth.lib.social/auth/oauth/authorize?scope=&client_id=3&response_type=code&redirect_uri=ru.libapp.oauth://type/callback&code_challenge_method=S256&prompt=consent",
+				"tokenUrl": "https://api.imglib.info/api/auth/oauth/token",
+				"pkce": true,
+				"callbackScheme": "ru.libapp.oauth",
+				"title": "Войти через SocialLib",
+				"refreshes": ["listings"]
+			}
+		]
+	}
+]
