@@ -2,9 +2,12 @@
 use aidoku::{
 	alloc::{string::ToString, vec, String, Vec},
 	imports::{html::*, net::Request},
-	prelude::*, 
-	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, MangaWithChapter, Page, Result, Source
+	prelude::*,
+	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, 
+	Home, HomeComponent, HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus,
+	MangaWithChapter, Page, PageContent, Result, Source
 };
+
 
 // mod filter;
 /** Build w/ aidoku pkg
@@ -14,7 +17,7 @@ use aidoku::{
 
 const BASE_URL: &str = "https://mangapark.com";
 
-const PAGE_SIZE: i32 = 16;
+const PAGE_SIZE: i32 = 20;
 
 struct MangaPark;
 
@@ -73,6 +76,8 @@ impl Source for MangaPark {
 				.collect::<Vec<Manga>>()
 		})
 		.unwrap_or_default();		
+		// aidoku::prelude::println!("HTML: {}", html.select_first(MANGA_SELECTOR).);
+		// aidoku::println!("First few chars: {}", &html.read()[..100.min(html.read().len())]);
 		Ok(MangaPageResult {
 			entries: Vec::new(),
 			has_next_page: false,
@@ -149,11 +154,11 @@ impl Source for MangaPark {
 		// what is the page component suppose to be?
 		// let url = format!("{}/search/{}-", BASE_URL,page,);
 // 
-		// let manga_url = format!("{BASE_URL}{}", manga.key);
-		// println!("{}",manga_url);
-		// if needs_details{
-		// 	let html = Request::get(&manga_url)?.html()?;
-		// }
+		let manga_url = format!("{BASE_URL}{}", manga.key);
+		println!("{}",manga_url);
+		if needs_details{
+			let html = Request::get(&manga_url)?.html()?;
+		}
 
 		if needs_chapters{
 
@@ -173,65 +178,112 @@ impl ListingProvider for MangaPark {
 	}
 }
 
-// This is the home page, which can contain various components like scrollers, manga lists, etc.
 impl Home for MangaPark {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let html = Request::get(BASE_URL)?.html()?;
-		//parent: er_0
-		const MEMBER_UPLOADS_SELECTOR: &str = r#"div[q\:key="er_0"]"#;
-		//parent: Xs_4
-		const LATEST_UPDATES_SELECTOR: &str = r#"div[q\:key="MY_0"]"#;
 
-		const CHAPTER_SELECTOR: &str = r#"div[q\:key="R7_8"]"#;
+		const POPULAR_UPDATES_SELECT: & str = "[q:key=\"FN_0\"]"; //todo
+		//parent: er_0, alternatively each element = QJ_7
+		//if I wanted to use parent I would need to select on (MEMBER_UPLOADS_SELECTOR div) which basically selects child div elements.
+		const MEMBER_UPLOADS_SELECTOR: &str = "[q:key=\"QJ_7\"]";
+
+		const MANGA_TAGS_SELECTOR: &str = "[q:key=\"kd_0\"]";
+		//parent: Xs_4
+		//
+		const LATEST_RELEASES_SELECTOR: &str = "[q:key=\"Di_7\"]";
+
+		const CHAPTER_SELECTOR: &str = "[q:key=\"R7_8\"]";
+
+		//Example URL: https://mangapark.com/title/425080-en-the-fake-master-who-accidentally-became-the-strongest/9807869-chapter-9
+		const KEY_INDEX: usize = 0; 
+		const MANGA_PATH_SEGMENT_INDEX: usize = 4;
+		const CHAPTER_PATH_SEGMENT_INDEX: usize = 5;
 
 		fn parse_manga_with_chapter(element: &Element)-> Option<MangaWithChapter>{
+
+			//Example URL: https://mangapark.com/title/425080-en-the-fake-master-who-accidentally-became-the-strongest/9807869-chapter-9
+			println!("Parse Manga with Chapter");
 			let links = element.select_first("a")?;
 			let manga_title = element.select("h3 span")?.text()?;
 			let cover = element.select_first("img")?.attr("abs:src"); 
-			let manga_url = links.attr("abs:href");
-			println!("{}", links.attr("abs:href").unwrap_or_default());
-			let manga_key = links.attr("abs:href")?.strip_prefix("/title")?.strip_suffix("/en")?.into();
+			let manga_url = links.attr("abs:href").unwrap_or_default();
+			
+			let parts:Vec<&str> = manga_url.split("/").collect();
+			let manga_key_and_title = parts[MANGA_PATH_SEGMENT_INDEX].to_string(); 
+			let split_key_and_title:Vec<&str> = manga_key_and_title.split("-").collect();
+			let manga_key = split_key_and_title[KEY_INDEX].to_string();
 
+			let manga_tags_str = element.select(MANGA_TAGS_SELECTOR)?.text()?;
+			let tags:Vec<&str> = manga_tags_str.split(" ").collect();
+			let manga_tags:Vec<String> = tags.
+											iter()
+											.map(|s| s.to_string())
+											.collect();
 
-			// let chapter_key = 
+			//Chapter Tags PARENT SELECTOR: R7_8
+			let chapter_element = element.select(CHAPTER_SELECTOR)?;
+			let chapter_url = chapter_element.select_first("a")?.attr("abs:href").unwrap_or_default();
+
+			let parts:Vec<&str> = chapter_url.split("/").collect();
+			let chapter_key_and_title = parts[CHAPTER_PATH_SEGMENT_INDEX].to_string(); 
+			let split_key_and_title:Vec<&str> = chapter_key_and_title.split("-").collect();
+			//
+			let chapter_key = split_key_and_title[KEY_INDEX].to_string();
+			let chapter_number = split_key_and_title[2].to_string().parse::<f32>().unwrap_or_default();
+			
+			let date_uploaded = element
+				.select_first("time")
+				.and_then(|el| el.attr("data-time"))?
+				.parse::<i64>()
+				.ok()
+				.and_then(|dt| chrono::DateTime::from_timestamp_millis(dt))
+				.map(|d| d.timestamp())
+				.unwrap_or_default();
+
 			Some(MangaWithChapter 
 				{ 
 					manga: Manga{ 
 						key: manga_key,
 						title: manga_title,
 						cover,
-						url: manga_url,
+						url: Some(manga_url),
+						tags: Some(manga_tags),
 						// content_rating: , // NSFW if Doujinshi... 
 						..Default::default()
 					}, 
 					chapter: Chapter{
-						// key: ,
-						//title: ,
-						//chapter_number: ,
-						//date_uploaded: ,
-
+						key: chapter_key,
+						chapter_number: Some(chapter_number),
+						date_uploaded: Some(date_uploaded),
+						url: Some(chapter_url),
 						..Default::default()
 					}
 				})
 		}
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-		let member_uploads = html
-		.select(MEMBER_UPLOADS_SELECTOR)
-		.map(|elment_list| {
-			elment_list.filter_map(|element| parse_manga_with_chapter(&element))
-				.collect::<Vec<_>>()
-		})
-		.unwrap_or_default();
-
-		// let latest_updates = html
-		// 	.select("section:has(h2:contains(Latest Updates)) article")
+		
+		// let popular_updates = html
+		// 	.select(CHAPTER_SELECTOR)
 		// 	.map(|els| {
 		// 		els.filter_map(|el| parse_manga_with_chapter(&el))
 		// 			.collect::<Vec<_>>()
 		// 	})
 		// 	.unwrap_or_default();
 
+		let member_uploads = html
+		.select(MEMBER_UPLOADS_SELECTOR)
+		.map(|element_list| {
+			element_list.filter_map(|element| parse_manga_with_chapter(&element))
+				.collect::<Vec<_>>()
+		})
+		.unwrap_or_default();
+
+		let latest_releases = html
+			.select(LATEST_RELEASES_SELECTOR)
+			.map(|els| {
+				els.filter_map(|el| parse_manga_with_chapter(&el))
+					.collect::<Vec<_>>()
+			})
+			.unwrap_or_default();
 
 		Ok(HomeLayout {
 			components: vec![
@@ -241,9 +293,9 @@ impl Home for MangaPark {
 					value: aidoku::HomeComponentValue::MangaChapterList 
 					{ 
 						page_size: Some(PAGE_SIZE),
-						entries: member_uploads, 
+						entries: member_uploads,
 						listing: None
-					} 
+					},
 				},
 				HomeComponent {
 					title: Some(("Latest Releases").into()),
@@ -251,12 +303,13 @@ impl Home for MangaPark {
 					value: aidoku::HomeComponentValue::MangaChapterList 
 					{ 
 						page_size: Some(PAGE_SIZE),
-						entries: Vec::new(), 
-						listing: Some(Listing { 
-							id: "latest".into(),
-							name: "Latest Releases".into(),
-							..Default::default()
-						}) 
+						entries: latest_releases, 
+						listing: None,
+						// listing: Some(Listing { 
+						// 	id: "latest".into(),
+						// 	name: "Latest Releases".into(),
+						// 	..Default::default()
+						// }) 
 					},
 				},
 			],
