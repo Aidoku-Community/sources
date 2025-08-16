@@ -62,15 +62,16 @@ pub trait EncryptedJson {
 	fn decrypt(&self, key: &str) -> Result<Vec<u8>>;
 }
 
-impl EncryptedJson for String {
+impl<S: AsRef<str>> EncryptedJson for S {
 	fn decrypt(&self, key: &str) -> Result<Vec<u8>> {
-		let iv = self
+		let data = self.as_ref();
+		let iv = data
 			.get(..16)
 			.ok_or_else(|| error!("Expected 16 bytes for IV"))?
 			.as_bytes()
 			.into();
 
-		let encoded_cipher_text = self
+		let encoded_cipher_text = data
 			.get(16..)
 			.ok_or_else(|| error!("No data found after IV"))?;
 		let mut cipher_text = hex::decode(encoded_cipher_text).map_err(AidokuError::message)?;

@@ -151,9 +151,18 @@ impl ChapterPage for Document {
 	fn pages(&self) -> Result<Vec<Page>> {
 		let key = self.key()?;
 		let json = self
-			.try_select_first("div.imageData")?
-			.attr("contentKey")
-			.ok_or_else(|| error!("Attribute not found: `contentKey`"))?
+			.try_select("script:not([*])")?
+			.find_map(|element| {
+				let data = element.data()?;
+				data.contains("var").then_some(data)
+			})
+			.ok_or_else(|| error!("No script content contains `var`"))?
+			.split_once("var contentKey = '")
+			.ok_or_else(|| error!("String not fount: `var contentKey = '`"))?
+			.1
+			.split_once("';")
+			.ok_or_else(|| error!("String not found: `';`"))?
+			.0
 			.decrypt(&key)?;
 		serde_json::from_slice::<Vec<page_list::Item>>(&json)
 			.map_err(AidokuError::message)?
