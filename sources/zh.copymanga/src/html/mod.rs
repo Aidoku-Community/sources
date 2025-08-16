@@ -132,9 +132,9 @@ impl KeyPage for Document {
 			.try_select("script:not([*])")?
 			.find_map(|element| {
 				let data = element.data()?;
-				data.contains("key").then_some(data)
+				data.contains("var").then_some(data)
 			})
-			.ok_or_else(|| error!("No script content contains key"))?
+			.ok_or_else(|| error!("No script content contains `var`"))?
 			.split('\'')
 			.nth(1)
 			.ok_or_else(|| error!("Key not found"))?
