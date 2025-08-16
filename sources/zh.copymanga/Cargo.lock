@@ -28,7 +28,7 @@ dependencies = [
 [[package]]
 name = "aidoku"
 version = "0.3.0"
-source = "git+https://github.com/Aidoku/aidoku-rs.git#7c0848165e04904aa3d5c8d7467c5c7f04a25a37"
+source = "git+https://github.com/Aidoku/aidoku-rs.git#d450b97f026e3279c58e49122f0e149c0ac0a3b6"
 dependencies = [
  "euclid",
  "hashbrown",
@@ -42,7 +42,7 @@ dependencies = [
 [[package]]
 name = "aidoku-test"
 version = "1.0.0"
-source = "git+https://github.com/Aidoku/aidoku-rs.git#7c0848165e04904aa3d5c8d7467c5c7f04a25a37"
+source = "git+https://github.com/Aidoku/aidoku-rs.git#d450b97f026e3279c58e49122f0e149c0ac0a3b6"
 dependencies = [
  "quote",
  "syn",
@@ -293,9 +293,9 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "libc"
-version = "0.2.174"
+version = "0.2.175"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1171693293099992e19cddea4e8b849964e9846f4acee11b3948bcc337be8776"
+checksum = "6a82ae493e598baaea5209805c49bbf2ea7de956d50d7da0da1164f9c6d28543"
 
 [[package]]
 name = "libm"
@@ -350,9 +350,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.95"
+version = "1.0.97"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02b3e5e68a3a1a02aad3ec490a98007cbc13c37cbe84a3cd7b8e406d76e7f778"
+checksum = "d61789d7719defeb74ea5fe81f2fdfdbd28a803847077cecce2ff14e1472f6f1"
 dependencies = [
  "unicode-ident",
 ]
@@ -440,9 +440,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.141"
+version = "1.0.142"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30b9eff21ebe718216c6ec64e1d9ac57087aad11efc64e32002bce4a0d4c03d3"
+checksum = "030fedb782600dcbd6f02d479bf0d817ac3bb40d644745b769d6a96bc3afc5a7"
 dependencies = [
  "itoa",
  "memchr",
@@ -497,9 +497,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.104"
+version = "2.0.106"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17b6f705963418cdb9927482fa304bc562ece2fdd4f616084c50b7023b435a40"
+checksum = "ede7c438028d4436d71104916910f5bb611972c5cfd7f89b8300a8186e6fada6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -517,18 +517,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "2.0.12"
+version = "2.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "567b8a2dae586314f7be2a752ec7474332959c6460e02bde30d702a66d488708"
+checksum = "0b0949c3a6c842cbde3f1686d6eea5a010516deb7085f79db747562d4102f41e"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "2.0.12"
+version = "2.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f7cf42b4507d8ea322120659672cf1b9dbb93f8f2d4ecfd6e51350ff5b17a1d"
+checksum = "cc5b44b4ab9c2fdd0e0512e6bece8388e214c0749f5862b114cc5b7a25daf227"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -549,9 +549,9 @@ checksum = "5a5f39404a5da50712a4c1eecf25e90dd62b613502b7e925fd4e4d19b5c96512"
 
 [[package]]
 name = "uuid"
-version = "1.17.0"
+version = "1.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cf4199d1e5d15ddd86a694e4d0dffa9c323ce759fea589f00fef9d81cc1931d"
+checksum = "f33196643e165781c20a5ead5582283a7dacbb87855d867fbc2df3f81eddc1be"
 dependencies = [
  "serde",
 ]
