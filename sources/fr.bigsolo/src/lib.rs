@@ -94,6 +94,7 @@ impl Source for BigSolo {
                 status: match series_data.release_status.as_str() {
                     "En cours" => MangaStatus::Ongoing,
                     "Fini" => MangaStatus::Completed,
+                    "Finis" => MangaStatus::Completed,
                     "En pause" => MangaStatus::Hiatus,
                     "Annulé" => MangaStatus::Cancelled,
                     _ => MangaStatus::Unknown,
