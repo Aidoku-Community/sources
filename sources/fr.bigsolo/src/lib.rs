@@ -1,0 +1,373 @@
+//
+// source made by apix <@apix0n>
+//
+
+#![no_std]
+use aidoku::{
+    AidokuError, AlternateCoverProvider, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue,
+    Home, HomeComponent, HomeLayout, Manga, MangaPageResult, MangaStatus, Page, PageContent,
+    Result, Source,
+    alloc::{String, Vec, vec},
+    imports::net::Request,
+    prelude::*,
+};
+
+mod models;
+use models::ImageList;
+mod slugify;
+use slugify::slugify;
+
+use crate::models::{ConfigJson, SeriesData};
+
+struct ExampleSource;
+
+impl Source for ExampleSource {
+    // this method is called once when the source is initialized
+    // perform any necessary setup here
+    fn new() -> Self {
+        Self
+    }
+
+    // this method will be called first without a query when the search page is opened,
+    // then when a search query is entered or filters are changed
+    fn get_search_manga_list(
+        &self,
+        query: Option<String>,
+        _page: i32,
+        _filters: Vec<FilterValue>,
+    ) -> Result<MangaPageResult> {
+        let manga_list = ExampleSource::get_bigsolo_manga_files();
+
+        let mut entries: Vec<Manga> = Vec::new();
+
+        // Load all JSON files sequentially (no_std compatible)
+        for file_path in manga_list {
+            let response = match Request::get(&file_path).ok().and_then(|r| r.string().ok()) {
+                Some(r) => r,
+                None => {
+                    continue; // Skip files that can't be loaded
+                }
+            };
+
+            let series_data: models::SeriesData =
+                match serde_json::from_str::<SeriesData>(&response) {
+                    Ok(data) => data,
+                    Err(_) => {
+                        continue; // Skip files that can't be parsed
+                    }
+                };
+
+            // Filter by query if provided
+            if let Some(ref search_query) = query {
+                let title_lower = series_data.title.to_lowercase();
+                let author_lower = series_data.author.to_lowercase();
+                let artist_lower = series_data.artist.to_lowercase();
+                let query_lower = search_query.to_lowercase();
+
+                if !title_lower.contains(&query_lower)
+                    && !author_lower.contains(&query_lower)
+                    && !artist_lower.contains(&query_lower)
+                {
+                    continue; // Skip if no match
+                }
+            }
+
+            // Convert SeriesData to Manga
+            let title = series_data.title.clone();
+            let slug = slugify(&title);
+
+            // Extract filename from file_path to use as key
+            let file_name = file_path
+                .split('/')
+                .next_back()
+                .unwrap_or("unknown")
+                .replace(".json", "");
+
+            // Add 'One-shot' tag if os is true
+            let mut tags = series_data.tags;
+            if series_data.os.unwrap_or(false) {
+                tags.push(String::from("One-shot"));
+            }
+
+            let manga = Manga {
+                key: file_name.clone(),
+                title,
+                cover: Some(series_data.cover),
+                authors: Some(vec![series_data.author]),
+                artists: Some(vec![series_data.artist]),
+                description: Some(series_data.description),
+                status: match series_data.release_status.as_str() {
+                    "En cours" => MangaStatus::Ongoing,
+                    "Fini" => MangaStatus::Completed,
+                    "En pause" => MangaStatus::Hiatus,
+                    "Annulé" => MangaStatus::Cancelled,
+                    _ => MangaStatus::Unknown,
+                },
+                tags: Some(tags),
+                url: Some(format!("https://bigsolo.org/{slug}")),
+                chapters: {
+                    // Collect chapters into a Vec, sort by chapter number, then map to Chapter
+                    let mut chapter_vec: Vec<(String, models::ChapterData)> =
+                        series_data.chapters.into_iter().collect();
+                    use core::cmp::Ordering;
+                    chapter_vec.sort_by(|(a_key, _), (b_key, _)| {
+                        let a_num = a_key.parse::<f32>().unwrap_or(0.0);
+                        let b_num = b_key.parse::<f32>().unwrap_or(0.0);
+                        b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal)
+                    });
+                    Some(
+                        chapter_vec
+                            .into_iter()
+                            .map(|(chapter_key, chapter)| {
+                                // Extract chapter ID from groups[0].value URL path for the key only
+                                let chapter_id = chapter
+                                    .groups
+                                    .values()
+                                    .next()
+                                    .and_then(|url| url.split('/').next_back())
+                                    .unwrap_or("unknown");
+
+                                Chapter {
+                                    key: chapter_id
+                                        .parse()
+                                        .ok()
+                                        .unwrap_or(String::from(chapter_id)),
+                                    title: Some(chapter.title),
+                                    chapter_number: chapter_key.parse().ok(),
+                                    volume_number: chapter.volume.parse().ok(),
+                                    date_uploaded: Some(
+                                        chapter.last_updated.parse().unwrap_or_default(),
+                                    ),
+                                    url: Some(format!("https://bigsolo.org/{slug}/{chapter_key}")),
+                                    scanlators: {
+                                        let mut scanlators: Vec<String> =
+                                            chapter.groups.keys().cloned().collect();
+                                        if let Some(collab) = chapter.collab.as_ref() {
+                                            scanlators.push(collab.clone());
+                                        }
+                                        Some(scanlators)
+                                    },
+                                    locked: chapter
+                                        .licencied
+                                        .as_ref()
+                                        .is_some_and(|v| !v.is_empty()),
+                                    ..Default::default()
+                                }
+                            })
+                            .collect(),
+                    )
+                },
+                ..Default::default()
+            };
+
+            entries.push(manga);
+        }
+
+        Ok(MangaPageResult {
+            entries,
+            has_next_page: false,
+        })
+    }
+
+    fn get_manga_update(
+        &self,
+        manga: Manga,
+        _needs_details: bool,
+        _needs_chapters: bool,
+    ) -> Result<Manga> {
+        // nothing needs to be updated, just return the manga (everything is already loaded in get_search_manga_list)
+        Ok(manga)
+    }
+
+    fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+        let response = Request::get(format!(
+            "https://bigsolo.org/api/imgchest-chapter-pages?id={}",
+            chapter.key
+        ))?
+        .string()?;
+
+        let parsed = serde_json::from_str::<ImageList>(&response).map_err(AidokuError::message)?;
+
+        Ok(parsed
+            .into_iter()
+            .map(|image| Page {
+                content: PageContent::url(image.link.clone()),
+                has_description: false,
+                thumbnail: Some(image.thumbnail.clone()),
+                ..Default::default()
+            })
+            .collect())
+    }
+}
+
+impl ExampleSource {
+    // gets all manga list of the website
+    fn get_bigsolo_manga_files() -> Vec<String> {
+        let req = match Request::get("https://bigsolo.org/data/config.json")
+            .ok()
+            .and_then(|r| r.string().ok())
+        {
+            Some(r) => r,
+            None => return Vec::new(),
+        };
+
+        let config: ConfigJson = match serde_json::from_str(&req).ok() {
+            Some(cfg) => cfg,
+            None => return Vec::new(),
+        };
+
+        // convert relative paths to absolute urls
+        let urls: Vec<String> = config
+            .LOCAL_SERIES_FILES
+            .into_iter()
+            .map(|file| format!("https://bigsolo.org/data/series/{file}"))
+            .collect();
+
+        urls
+    }
+}
+
+impl Home for ExampleSource {
+    fn get_home(&self) -> Result<HomeLayout> {
+        let all_entries = self.get_search_manga_list(None, 1, Vec::new())?.entries;
+
+        // load recommendations
+        let reco_entries = match Request::get("https://bigsolo.org/data/reco.json")
+            .ok()
+            .and_then(|r| r.string().ok())
+        {
+            Some(response) => {
+                match serde_json::from_str::<models::RecoFile>(&response) {
+                    Ok(recos) => {
+                        // match recommendations to manga data
+                        recos
+                            .into_iter()
+                            .filter_map(|reco| {
+                                let file_name = reco.file.replace(".json", "");
+                                all_entries
+                                    .iter()
+                                    .find(|manga| manga.key == file_name)
+                                    .cloned()
+                            })
+                            .collect::<Vec<Manga>>()
+                    }
+                    Err(_) => Vec::new(),
+                }
+            }
+            None => Vec::new(),
+        };
+
+        // filter mangas for the home views (using the 'One-shot' tag)
+        let series_entries: Vec<Manga> = all_entries
+            .iter()
+            .filter(|manga| {
+                !manga
+                    .tags
+                    .as_ref()
+                    .unwrap_or(&Vec::new())
+                    .contains(&String::from("One-shot"))
+            })
+            .cloned()
+            .collect();
+
+        let oneshot_entries: Vec<Manga> = all_entries
+            .iter()
+            .filter(|manga| {
+                manga
+                    .tags
+                    .as_ref()
+                    .unwrap_or(&Vec::new())
+                    .contains(&String::from("One-shot"))
+            })
+            .cloned()
+            .collect();
+
+        Ok(HomeLayout {
+            components: vec![
+                HomeComponent {
+                    title: Some(String::from("Recommandations")),
+                    subtitle: None,
+                    value: aidoku::HomeComponentValue::BigScroller {
+                        entries: reco_entries,
+                        auto_scroll_interval: Some(10.0),
+                    },
+                },
+                HomeComponent {
+                    title: Some(String::from("Séries")),
+                    subtitle: None,
+                    value: aidoku::HomeComponentValue::Scroller {
+                        entries: series_entries.iter().cloned().map(|m| m.into()).collect(),
+                        listing: None,
+                    },
+                },
+                HomeComponent {
+                    title: Some(String::from("One-shot")),
+                    subtitle: None,
+                    value: aidoku::HomeComponentValue::MangaList {
+                        ranking: false,
+                        page_size: None,
+                        entries: oneshot_entries.iter().cloned().map(|m| m.into()).collect(),
+                        listing: None,
+                    },
+                },
+                HomeComponent {
+                    title: Some(String::from("Liens")),
+                    subtitle: None,
+                    value: aidoku::HomeComponentValue::Links(vec![
+                        aidoku::Link {
+                            title: String::from("Fan-Arts"),
+                            value: Some(aidoku::LinkValue::Url(String::from(
+                                "https://bigsolo.org/galerie",
+                            ))),
+                            ..Default::default()
+                        },
+                        aidoku::Link {
+                            title: String::from("À propos de Big_herooooo"),
+                            value: Some(aidoku::LinkValue::Url(String::from(
+                                "https://bigsolo.org/presentation",
+                            ))),
+                            ..Default::default()
+                        },
+                    ]),
+                },
+            ],
+        })
+    }
+}
+
+impl AlternateCoverProvider for ExampleSource {
+    fn get_alternate_covers(&self, manga: Manga) -> Result<Vec<String>> {
+        // reload the manga's json file to get covers_gallery
+        let file_path = format!("https://bigsolo.org/data/series/{}.json", manga.key);
+
+        let response = match Request::get(&file_path).ok().and_then(|r| r.string().ok()) {
+            Some(r) => r,
+            None => return Ok(Vec::new()),
+        };
+
+        let series_data: SeriesData = match serde_json::from_str(&response) {
+            Ok(data) => data,
+            Err(_) => return Ok(Vec::new()),
+        };
+
+        // extract covers from covers_gallery
+        let covers: Vec<String> = series_data
+            .covers_gallery
+            .unwrap_or_default()
+            .into_iter()
+            .map(|cover| cover.url_hq)
+            .collect();
+
+        Ok(covers)
+    }
+}
+
+impl DeepLinkHandler for ExampleSource {
+    fn handle_deep_link(&self, _url: String) -> Result<Option<DeepLinkResult>> {
+        // i'm not even gonna try to handle deep links, it's not worth the effort rn
+        // the website is getting reworked anyways, i'm not gonna waste my time on this
+        Ok(None)
+    }
+}
+
+register_source!(ExampleSource, Home, AlternateCoverProvider, DeepLinkHandler);
