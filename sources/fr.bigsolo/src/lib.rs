@@ -4,7 +4,7 @@
 
 #![no_std]
 use aidoku::{
-    AidokuError, AlternateCoverProvider, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue,
+    AidokuError, AlternateCoverProvider, Chapter, FilterValue,
     Home, HomeComponent, HomeLayout, Manga, MangaPageResult, MangaStatus, Page, PageContent,
     Result, Source,
     alloc::{String, Vec, vec},
@@ -357,12 +357,12 @@ impl AlternateCoverProvider for BigSolo {
     }
 }
 
-impl DeepLinkHandler for BigSolo {
-    fn handle_deep_link(&self, _url: String) -> Result<Option<DeepLinkResult>> {
-        // i'm not even gonna try to handle deep links, it's not worth the effort rn
-        // the website is getting reworked anyways, i'm not gonna waste my time on this
-        Ok(None)
-    }
-}
+// impl DeepLinkHandler for BigSolo {
+//     fn handle_deep_link(&self, _url: String) -> Result<Option<DeepLinkResult>> {
+//         // i'm not even gonna try to handle deep links, it's not worth the effort rn
+//         // the website is getting reworked anyways, i'm not gonna waste my time on this
+//         Ok(None)
+//     }
+// }
 
-register_source!(BigSolo, Home, AlternateCoverProvider, DeepLinkHandler);
+register_source!(BigSolo, Home, AlternateCoverProvider);
