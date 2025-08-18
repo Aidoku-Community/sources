@@ -19,28 +19,23 @@ use slugify::slugify;
 
 use crate::models::{ConfigJson, SeriesData};
 
-struct ExampleSource;
+struct BigSolo;
 
-impl Source for ExampleSource {
-    // this method is called once when the source is initialized
-    // perform any necessary setup here
+impl Source for BigSolo {
     fn new() -> Self {
         Self
     }
 
-    // this method will be called first without a query when the search page is opened,
-    // then when a search query is entered or filters are changed
     fn get_search_manga_list(
         &self,
         query: Option<String>,
         _page: i32,
         _filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        let manga_list = ExampleSource::get_bigsolo_manga_files();
+        let manga_list = BigSolo::get_bigsolo_manga_files();
 
         let mut entries: Vec<Manga> = Vec::new();
 
-        // Load all JSON files sequentially (no_std compatible)
         for file_path in manga_list {
             let response = match Request::get(&file_path).ok().and_then(|r| r.string().ok()) {
                 Some(r) => r,
@@ -72,18 +67,18 @@ impl Source for ExampleSource {
                 }
             }
 
-            // Convert SeriesData to Manga
+            // convert SeriesData to Manga
             let title = series_data.title.clone();
             let slug = slugify(&title);
 
-            // Extract filename from file_path to use as key
+            // extract filename from file_path to use as manga entry key
             let file_name = file_path
                 .split('/')
                 .next_back()
                 .unwrap_or("unknown")
                 .replace(".json", "");
 
-            // Add 'One-shot' tag if os is true
+            // add 'One-shot' tag if os is true (for homepage filtering)
             let mut tags = series_data.tags;
             if series_data.os.unwrap_or(false) {
                 tags.push(String::from("One-shot"));
@@ -106,7 +101,7 @@ impl Source for ExampleSource {
                 tags: Some(tags),
                 url: Some(format!("https://bigsolo.org/{slug}")),
                 chapters: {
-                    // Collect chapters into a Vec, sort by chapter number, then map to Chapter
+                    // collect all chapters into a Vec to sort them then map to Chapter
                     let mut chapter_vec: Vec<(String, models::ChapterData)> =
                         series_data.chapters.into_iter().collect();
                     use core::cmp::Ordering;
@@ -119,7 +114,7 @@ impl Source for ExampleSource {
                         chapter_vec
                             .into_iter()
                             .map(|(chapter_key, chapter)| {
-                                // Extract chapter ID from groups[0].value URL path for the key only
+                                // extract chapter id from the imgchest proxy link
                                 let chapter_id = chapter
                                     .groups
                                     .values()
@@ -200,7 +195,7 @@ impl Source for ExampleSource {
     }
 }
 
-impl ExampleSource {
+impl BigSolo {
     // gets all manga list of the website
     fn get_bigsolo_manga_files() -> Vec<String> {
         let req = match Request::get("https://bigsolo.org/data/config.json")
@@ -227,7 +222,7 @@ impl ExampleSource {
     }
 }
 
-impl Home for ExampleSource {
+impl Home for BigSolo {
     fn get_home(&self) -> Result<HomeLayout> {
         let all_entries = self.get_search_manga_list(None, 1, Vec::new())?.entries;
 
@@ -335,7 +330,7 @@ impl Home for ExampleSource {
     }
 }
 
-impl AlternateCoverProvider for ExampleSource {
+impl AlternateCoverProvider for BigSolo {
     fn get_alternate_covers(&self, manga: Manga) -> Result<Vec<String>> {
         // reload the manga's json file to get covers_gallery
         let file_path = format!("https://bigsolo.org/data/series/{}.json", manga.key);
@@ -362,7 +357,7 @@ impl AlternateCoverProvider for ExampleSource {
     }
 }
 
-impl DeepLinkHandler for ExampleSource {
+impl DeepLinkHandler for BigSolo {
     fn handle_deep_link(&self, _url: String) -> Result<Option<DeepLinkResult>> {
         // i'm not even gonna try to handle deep links, it's not worth the effort rn
         // the website is getting reworked anyways, i'm not gonna waste my time on this
@@ -370,4 +365,4 @@ impl DeepLinkHandler for ExampleSource {
     }
 }
 
-register_source!(ExampleSource, Home, AlternateCoverProvider, DeepLinkHandler);
+register_source!(BigSolo, Home, AlternateCoverProvider, DeepLinkHandler);
