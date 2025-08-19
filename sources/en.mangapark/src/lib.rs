@@ -1,11 +1,6 @@
 #![no_std]
 use aidoku::{
-	alloc::{string::ToString, vec, String, Vec},
-	imports::{html::*, net::Request},
-	prelude::*,
-	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Link,
-	Home, HomeComponent, HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus,
-	MangaWithChapter, Page, PageContent, Result, Source
+	alloc::{borrow::ToOwned, string::ToString, vec, String, Vec}, imports::{html::*, net::Request}, prelude::*, AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout, Link, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source
 };
 
 
@@ -39,7 +34,7 @@ impl Source for MangaPark {
 		query: Option<String>,
 		page: i32,
 		filters: Vec<FilterValue>,
-	) -> Result<MangaPageResult> {
+	) -> Result<MangaPageResult> { // Option<asdsadsa> // as.ref() 
 		// URL with search/filter options to get list of manga... https://mangapark.com/search?
 		let url = format!("{}/search", BASE_URL);
 
@@ -153,17 +148,115 @@ impl Source for MangaPark {
 		//Ex: https://mangapark.com/title/346393-en-an-introvert-s-hookup-hiccups-this-gyaru-is-head-over-heels-for-me
 		// what is the page component suppose to be?
 		// let url = format!("{}/search/{}-", BASE_URL,page,);
-// 
-		let manga_url = format!("{BASE_URL}{}", manga.key);
-		println!("{}",manga_url);
+
+		
+		const AUTHOR_SELECTOR: &str = "[q:key=\"tz_4\"] > a";
+		const UPLOAD_STATUS_SELECTOR: &str = "[q:key=\"Yn_9\"] > span.uppercase";
+		let manga_url = format!("{BASE_URL}{}",manga.key);
+		let html = Request::get(&manga_url)?.html()?;
+// 		
 		if needs_details{
-			let html = Request::get(&manga_url)?.html()?;
+			// println!("URL:{}", manga.url.as.unwrap_or_default());
+			// println!("TAGS:{}", manga.title);
+			let description_tag = html
+				.select(".limit-html-p")
+				.and_then(|desc| desc.text())
+				.unwrap_or_default();
+			manga.description = Some(description_tag);
+			let status_str = html 
+				.select(UPLOAD_STATUS_SELECTOR)
+				.and_then(|status| status.text())
+				.unwrap_or_default();
+			// println!("Manga Status:{}", status_str);
+			manga.status = match status_str.as_str() {
+				"Complete" => MangaStatus::Completed,
+				"Ongoing" => MangaStatus::Ongoing,
+				"Hiatus" => MangaStatus::Hiatus,
+				"Canceled" => MangaStatus::Cancelled,
+				_ => MangaStatus::Unknown,
+			};
+			let authors_str = html
+				.select(AUTHOR_SELECTOR)
+				.and_then(|els| els.text())
+				.unwrap_or_default();
+			let authors:Vec<String> = authors_str
+				.split(" ")
+				.map(|s| s.to_string())
+				.collect();
+			manga.authors = Some(authors);
+			let tags = manga.tags.as_deref().unwrap_or_default();
+			manga.content_rating = if tags
+				.iter()
+				.any(|e| matches!(e.as_str(), "Doujinshi" | "Adult" | "Mature" | "Smut"))
+			{
+				ContentRating::NSFW
+			} else if tags.iter().any(|e| e == "Ecchi") {
+				ContentRating::Suggestive
+			} else {
+				ContentRating::Safe
+			};
 		}
 
 		if needs_chapters{
+			manga.chapters = html.select("[q:key=\"Yn_9\"]").map(|elements| {
+				elements
+					.filter_map(|element| {
+						println!("Test");
+						let links = element
+							.select_first("a");
+						let url = links
+							.as_ref()
+							.and_then(|el| el.attr("abs:href"))
+							.unwrap_or_default();
 
+						let key = url.strip_prefix(&manga_url).unwrap_or_default().into();
+						let title = links
+							.as_ref()
+							.and_then(|el| el.text());
+
+						// let mut chapter_number = title
+						// 	.as_ref()
+						// 	.and_then(|t| t.rsplit(' ').next())
+						// 	.and_then(|num| num.parse::<f32>().ok());
+
+						// let is_volume = title.as_ref().is_some_and(|t| t.contains("Volume"));
+						// let is_chapter = title.as_ref().is_some_and(|t| t.contains("Chapter"));
+
+						// let (final_title, volume_number) = match (is_volume, is_chapter) {
+						// 	(true, _) => (None, chapter_number.take()),
+						// 	(_, true) => (None, None),
+						// 	_ => (title, None),
+						// };
+
+						// let date_uploaded = element
+						// 	.select_first("time[datetime]")
+						// 	.and_then(|el| el.attr("datetime"))
+						// 	.and_then(|dt| chrono::DateTime::parse_from_rfc3339(&dt).ok())
+						// 	.map(|d| d.timestamp());
+
+						println!("Key:{}", key);
+						println!("Title:{}", title.unwrap_or_default());
+						// println!("Title:{}", final_title.as_ref().unwrap());
+						// println!("Chapter Num:{}", chapter_number.unwrap());
+						// println!("Volume Num:{}", volume_number.unwrap_or_default());
+						// println!("Date Upload:{}", date_uploaded.unwrap_or_default());
+						// println!("Chapter URL:{}", url);
+
+						Some(Chapter {
+							key,
+							// title: final_title,
+							// chapter_number,
+							// volume_number,
+							// date_uploaded,
+							url: Some(url),
+							..Default::default()
+						})
+					})
+					.collect::<Vec<_>>()
+			});
 		}
-		Err(AidokuError::Unimplemented)
+		
+		Ok(manga)
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
@@ -187,32 +280,28 @@ impl Home for MangaPark {
 		const MANGA_TAGS_SELECTOR: &str = "[q:key=\"kd_0\"]";
 		const LATEST_RELEASES_SELECTOR: &str = "[q:key=\"Di_7\"]";
 		const CHAPTER_SELECTOR: &str = "[q:key=\"R7_8\"]";
-		const KEY_INDEX: usize = 0; 
-		const MANGA_PATH_SEGMENT_INDEX: usize = 4;
-		const CHAPTER_PATH_SEGMENT_INDEX: usize = 5;
 
 		fn parse_manga_with_chapter_with_details(el: &Element)-> Option<MangaWithChapter>{
 			let links = el.select_first("a")?;
 			let manga_title = el.select("h3 span")?.text()?;
 			let cover = el.select_first("img")?.attr("abs:src"); 
 			let manga_url = links.attr("abs:href").unwrap_or_default();
-			let parts:Vec<&str> = manga_url.split("/").collect();
-			let manga_key_and_title = parts[MANGA_PATH_SEGMENT_INDEX].to_string(); 
-			let split_key_and_title:Vec<&str> = manga_key_and_title.split("-").collect();
-			let manga_key = split_key_and_title[KEY_INDEX].to_string();
+			let manga_key:String = manga_url
+				.strip_prefix(BASE_URL)?
+				.into();
 			let manga_tags_str = el.select(MANGA_TAGS_SELECTOR)?.text()?;
 			let tags:Vec<&str> = manga_tags_str.split(" ").collect();
 			let manga_tags:Vec<String> = tags.
 											iter()
 											.map(|s| s.to_string())
 											.collect();
-			let chapter_el = el.select(CHAPTER_SELECTOR)?;
-			let chapter_url = chapter_el.select_first("a")?.attr("abs:href").unwrap_or_default();
-			let parts:Vec<&str> = chapter_url.split("/").collect();
-			let chapter_key_and_title = parts[CHAPTER_PATH_SEGMENT_INDEX].to_string(); 
-			let split_key_and_title:Vec<&str> = chapter_key_and_title.split("-").collect();
-			let chapter_key = split_key_and_title[KEY_INDEX].to_string();
-			let chapter_number = split_key_and_title[2].to_string().parse::<f32>().unwrap_or_default();
+			let ch_el = el.select(CHAPTER_SELECTOR)?;
+			let ch_url = ch_el.select_first("a")?.attr("abs:href").unwrap_or_default();
+			let ch_key:String = ch_url
+				.strip_prefix(&manga_url)?
+				.into();
+			let split_for_ch_number:Vec<&str> = ch_url.split("-").collect();
+			let ch_number = split_for_ch_number[split_for_ch_number.len()-1].to_string().parse::<f32>().unwrap_or_default();
 			let date_uploaded = el
 				.select_first("time")
 				.and_then(|el| el.attr("data-time"))?
@@ -232,27 +321,23 @@ impl Home for MangaPark {
 						..Default::default()
 					}, 
 					chapter: Chapter{
-						key: chapter_key,
-						chapter_number: Some(chapter_number),
+						key: ch_key,
+						chapter_number: Some(ch_number),
 						date_uploaded: Some(date_uploaded),
-						url: Some(chapter_url),
+						url: Some(ch_url),
 						..Default::default()
 					}
 				})
 		}
 		
-		fn parse_manga(element: &Element) ->  Option<Manga>{
-			let manga_url = element.select_first("a")?.attr("abs:href");
-			let cover = element.select_first("img")?.attr("abs:src");
-			let domain_parts:Vec<&str> = manga_url
-				.as_ref()
-				.unwrap()
-				.split("/")
-				.collect();
-			let manga_key_and_title = domain_parts[MANGA_PATH_SEGMENT_INDEX].to_string();
-			let split_key_and_title:Vec<&str> = manga_key_and_title.split("-").collect();
-			let manga_key= split_key_and_title[KEY_INDEX].to_string();
-			let title = element.select_first("a.font-bold").unwrap().text().unwrap_or_default();
+		fn parse_manga(el: &Element) ->  Option<Manga>{
+			let manga_url = el.select_first("a")?.attr("abs:href");
+			let cover = el.select_first("img")?.attr("abs:src");
+			let manga_key:String = manga_url
+				.as_ref()?
+				.strip_prefix(BASE_URL)?
+				.into();
+			let title = el.select_first("a.font-bold").unwrap().text().unwrap_or_default();
 			Some(Manga{ 
 				title,
 				key: manga_key,
