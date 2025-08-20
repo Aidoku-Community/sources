@@ -8,7 +8,7 @@ use aidoku::{
     Home, HomeComponent, HomeLayout, Manga, MangaPageResult, MangaStatus, Page, PageContent,
     Result, Source,
     alloc::{String, Vec, vec},
-    imports::net::Request,
+    imports::{net::Request, std::send_partial_result},
     prelude::*,
 };
 
@@ -67,7 +67,7 @@ impl Source for BigSolo {
                 }
             }
 
-            // convert SeriesData to Manga
+            // convert SeriesData to a minimal Manga entry (to load full data into `get_manga_update`)
             let title = series_data.title.clone();
             let slug = slugify(&title);
 
@@ -91,68 +91,9 @@ impl Source for BigSolo {
                 authors: Some(vec![series_data.author]),
                 artists: Some(vec![series_data.artist]),
                 description: Some(series_data.description),
-                status: match series_data.release_status.as_str() {
-                    "En cours" => MangaStatus::Ongoing,
-                    "Fini" => MangaStatus::Completed,
-                    "Finis" => MangaStatus::Completed,
-                    "En pause" => MangaStatus::Hiatus,
-                    "Annulé" => MangaStatus::Cancelled,
-                    _ => MangaStatus::Unknown,
-                },
+                status: BigSolo::map_bigsolo_status(&series_data.release_status),
                 tags: Some(tags),
                 url: Some(format!("https://bigsolo.org/{slug}")),
-                chapters: {
-                    // collect all chapters into a Vec to sort them then map to Chapter
-                    let mut chapter_vec: Vec<(String, models::ChapterData)> =
-                        series_data.chapters.into_iter().collect();
-                    use core::cmp::Ordering;
-                    chapter_vec.sort_by(|(a_key, _), (b_key, _)| {
-                        let a_num = a_key.parse::<f32>().unwrap_or(0.0);
-                        let b_num = b_key.parse::<f32>().unwrap_or(0.0);
-                        b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal)
-                    });
-                    Some(
-                        chapter_vec
-                            .into_iter()
-                            .map(|(chapter_key, chapter)| {
-                                // extract chapter id from the imgchest proxy link
-                                let chapter_id = chapter
-                                    .groups
-                                    .values()
-                                    .next()
-                                    .and_then(|url| url.split('/').next_back())
-                                    .unwrap_or("unknown");
-
-                                Chapter {
-                                    key: chapter_id
-                                        .parse()
-                                        .ok()
-                                        .unwrap_or(String::from(chapter_id)),
-                                    title: Some(chapter.title),
-                                    chapter_number: chapter_key.parse().ok(),
-                                    volume_number: chapter.volume.parse().ok(),
-                                    date_uploaded: Some(
-                                        chapter.last_updated.parse().unwrap_or_default(),
-                                    ),
-                                    url: Some(format!("https://bigsolo.org/{slug}/{chapter_key}")),
-                                    scanlators: {
-                                        let mut scanlators: Vec<String> =
-                                            chapter.groups.keys().cloned().collect();
-                                        if let Some(collab) = chapter.collab.as_ref() {
-                                            scanlators.push(collab.clone());
-                                        }
-                                        Some(scanlators)
-                                    },
-                                    locked: chapter
-                                        .licencied
-                                        .as_ref()
-                                        .is_some_and(|v| !v.is_empty()),
-                                    ..Default::default()
-                                }
-                            })
-                            .collect(),
-                    )
-                },
                 ..Default::default()
             };
 
@@ -167,11 +108,80 @@ impl Source for BigSolo {
 
     fn get_manga_update(
         &self,
-        manga: Manga,
-        _needs_details: bool,
-        _needs_chapters: bool,
+        mut manga: Manga,
+        needs_details: bool,
+        needs_chapters: bool,
     ) -> Result<Manga> {
-        // nothing needs to be updated, just return the manga (everything is already loaded in get_search_manga_list)
+        let file_path = format!("https://bigsolo.org/data/series/{}.json", manga.key);
+        let response = Request::get(&file_path)?.string()?;
+        let series_data: SeriesData = serde_json::from_str(&response).map_err(AidokuError::message)?;
+
+        let title = series_data.title.clone();
+        let slug = slugify(&title);
+
+        if needs_details {
+            manga.title = title;
+            manga.cover = Some(series_data.cover.clone());
+            manga.authors = Some(vec![series_data.author.clone()]);
+            manga.artists = Some(vec![series_data.artist.clone()]);
+            manga.description = Some(series_data.description.clone());
+            manga.status = BigSolo::map_bigsolo_status(&series_data.release_status);
+            let mut tags = series_data.tags.clone();
+            if series_data.os.unwrap_or(false) {
+                tags.push(String::from("One-shot"));
+            }
+            manga.tags = Some(tags);
+            manga.url = Some(format!("https://bigsolo.org/{slug}"));
+
+            if needs_chapters {
+                send_partial_result(&manga);
+            }
+        }
+
+        if needs_chapters {
+            let mut chapter_vec: Vec<(String, models::ChapterData)> = series_data.chapters.into_iter().collect();
+            use core::cmp::Ordering;
+            chapter_vec.sort_by(|(a_key, _), (b_key, _)| {
+                let a_num = a_key.parse::<f32>().unwrap_or(0.0);
+                let b_num = b_key.parse::<f32>().unwrap_or(0.0);
+                b_num.partial_cmp(&a_num).unwrap_or(Ordering::Equal)
+            });
+            manga.chapters = Some(
+                chapter_vec
+                    .into_iter()
+                    .map(|(chapter_key, chapter)| {
+                        let chapter_id = chapter
+                            .groups
+                            .values()
+                            .next()
+                            .and_then(|url| url.split('/').next_back())
+                            .unwrap_or("unknown");
+
+                        Chapter {
+                            key: String::from(chapter_id),
+                            title: Some(chapter.title),
+                            chapter_number: chapter_key.parse().ok(),
+                            volume_number: chapter.volume.parse().ok(),
+                            date_uploaded: Some(chapter.last_updated.parse().unwrap_or_default()),
+                            url: Some(format!("https://bigsolo.org/{slug}/{chapter_key}")),
+                            scanlators: {
+                                let mut scanlators: Vec<String> = chapter.groups.keys().cloned().collect();
+                                if let Some(collab) = chapter.collab.as_ref() {
+                                    scanlators.push(collab.clone());
+                                }
+                                Some(scanlators)
+                            },
+                            locked: chapter
+                                .licencied
+                                .as_ref()
+                                .is_some_and(|v| !v.is_empty()),
+                            ..Default::default()
+                        }
+                    })
+                    .collect(),
+            );
+        }
+
         Ok(manga)
     }
 
@@ -220,6 +230,16 @@ impl BigSolo {
             .collect();
 
         urls
+    }
+
+    fn map_bigsolo_status(status: &str) -> MangaStatus {
+        match status {
+            "En cours" => MangaStatus::Ongoing,
+            "Fini" | "Finis" => MangaStatus::Completed,
+            "En pause" => MangaStatus::Hiatus,
+            "Annulé" => MangaStatus::Cancelled,
+            _ => MangaStatus::Unknown,
+        }
     }
 }
 
@@ -311,7 +331,7 @@ impl Home for BigSolo {
                     subtitle: None,
                     value: aidoku::HomeComponentValue::Links(vec![
                         aidoku::Link {
-                            title: String::from("Fan-Arts"),
+                            title: String::from("Fan-arts (Colorisations KH)"),
                             value: Some(aidoku::LinkValue::Url(String::from(
                                 "https://bigsolo.org/galerie",
                             ))),
