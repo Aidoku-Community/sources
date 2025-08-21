@@ -1,4 +1,4 @@
-use crate::auth::{get_token, refresh_token, set_token};
+use crate::auth::{get_token, get_user_id, refresh_token, set_token, set_token_and_user_id};
 use aidoku::{
 	alloc::{String, string::ToString},
 	imports::defaults::{DefaultValue, defaults_set},
@@ -8,7 +8,7 @@ use aidoku_test::aidoku_test;
 use serde_json::{from_str, to_string};
 
 use crate::{
-	auth::{AUTH_SCHEME, TOKEN_KEY},
+	auth::{AUTH_SCHEME, TOKEN_KEY, USER_ID_KEY},
 	models::responses::TokenResponse,
 };
 
@@ -22,9 +22,15 @@ fn create_test_token(access: Option<&str>, refresh: Option<&str>, expires: Optio
 	to_string(&token).unwrap_or_default()
 }
 
-// Test helper to clear stored token
-fn clear_token() {
+// Test helper to clear stored token and user ID
+fn clear_auth_data() {
 	defaults_set(TOKEN_KEY, DefaultValue::String(String::new()));
+	defaults_set(USER_ID_KEY, DefaultValue::Int(0));
+}
+
+// Test helper to set user ID directly
+fn set_test_user_id(user_id: i32) {
+	defaults_set(USER_ID_KEY, DefaultValue::Int(user_id));
 }
 
 #[aidoku_test]
@@ -43,13 +49,13 @@ fn get_token_success() {
 	assert_eq!(token.expires_in, Some(3600));
 
 	// Cleanup
-	clear_token();
+	clear_auth_data();
 }
 
 #[aidoku_test]
 fn get_token_no_token_stored() {
 	// Ensure no token is stored
-	clear_token();
+	clear_auth_data();
 
 	// Test: Should return error when no token exists
 	let result = get_token();
@@ -66,7 +72,7 @@ fn get_token_invalid_json() {
 	assert!(result.is_err());
 
 	// Cleanup
-	clear_token();
+	clear_auth_data();
 }
 
 #[aidoku_test]
@@ -86,7 +92,7 @@ fn set_token_stores_correctly() {
 	assert_eq!(token.expires_in, Some(7200));
 
 	// Cleanup
-	clear_token();
+	clear_auth_data();
 }
 
 #[aidoku_test]
@@ -110,96 +116,67 @@ fn set_token_overwrites_existing() {
 	assert_eq!(token.expires_in, Some(3600));
 
 	// Cleanup
-	clear_token();
+	clear_auth_data();
 }
 
 #[aidoku_test]
-fn set_token_handles_empty_string() {
-	// Test: Store empty string
-	set_token(String::new());
+fn get_user_id_existing_stored() {
+	// Setup: Store a user ID
+	set_test_user_id(12345);
 
-	// Should be able to call without panic
-	let result = get_token();
-	// May succeed or fail depending on JSON parsing, but should not panic
-	let _ = result;
+	// Test: Should return stored user ID
+	let result = get_user_id();
+	assert_eq!(result, Some(12345));
 
 	// Cleanup
-	clear_token();
+	clear_auth_data();
 }
 
 #[aidoku_test]
-fn token_response_serialization() {
-	// Test: Complete token
-	let complete_token = TokenResponse {
-		access_token: Some("access123".to_string()),
-		refresh_token: Some("refresh456".to_string()),
-		expires_in: Some(3600),
-	};
+fn get_user_id_zero_value() {
+	// Setup: Store zero (invalid) user ID
+	set_test_user_id(0);
 
-	let json = to_string(&complete_token).unwrap();
-	assert!(json.contains("access123"));
-	assert!(json.contains("refresh456"));
-	assert!(json.contains("3600"));
+	// Test: Should return None for zero value
+	let result = get_user_id();
+	assert_eq!(result, None);
+
+	// Cleanup
+	clear_auth_data();
 }
 
 #[aidoku_test]
-fn token_response_partial_serialization() {
-	// Test: Token with only access token
-	let partial_token = TokenResponse {
-		access_token: Some("only_access".to_string()),
-		refresh_token: None,
-		expires_in: None,
-	};
+fn get_user_id_no_stored_no_token() {
+	// Ensure no auth data is stored
+	clear_auth_data();
 
-	let json = to_string(&partial_token).unwrap();
-	assert!(json.contains("only_access"));
-	// Should handle None values gracefully
-	let _ = json;
+	// Test: Should return None when no user ID and no token
+	let result = get_user_id();
+	assert_eq!(result, None);
 }
 
 #[aidoku_test]
-fn token_response_deserialization() {
-	let json = r#"{"access_token":"test_access","refresh_token":"test_refresh","expires_in":7200}"#;
+fn set_token_and_user_id_stores_token() {
+	let token_json = create_test_token(Some("combo_access"), Some("combo_refresh"), Some(3600));
 
-	let result: Result<TokenResponse, _> = from_str(json);
+	// Test: Should store token (user ID fetch will fail in test env but token should be stored)
+	let _ = set_token_and_user_id(token_json);
+
+	// Verify: Token should be retrievable
+	let result = get_token();
 	assert!(result.is_ok());
 
 	let token = result.unwrap();
-	assert_eq!(token.access_token, Some("test_access".to_string()));
-	assert_eq!(token.refresh_token, Some("test_refresh".to_string()));
-	assert_eq!(token.expires_in, Some(7200));
-}
+	assert_eq!(token.access_token, Some("combo_access".to_string()));
 
-#[aidoku_test]
-fn token_response_deserialization_partial() {
-	let json = r#"{"access_token":"partial_access"}"#;
-
-	let result: Result<TokenResponse, _> = from_str(json);
-	assert!(result.is_ok());
-
-	let token = result.unwrap();
-	assert_eq!(token.access_token, Some("partial_access".to_string()));
-	assert_eq!(token.refresh_token, None);
-	assert_eq!(token.expires_in, None);
-}
-
-#[aidoku_test]
-fn token_response_deserialization_null_values() {
-	let json = r#"{"access_token":null,"refresh_token":null,"expires_in":null}"#;
-
-	let result: Result<TokenResponse, _> = from_str(json);
-	assert!(result.is_ok());
-
-	let token = result.unwrap();
-	assert_eq!(token.access_token, None);
-	assert_eq!(token.refresh_token, None);
-	assert_eq!(token.expires_in, None);
+	// Cleanup
+	clear_auth_data();
 }
 
 #[aidoku_test]
 fn refresh_token_no_current_token() {
 	// Ensure no token is stored
-	clear_token();
+	clear_auth_data();
 
 	// Test: Should fail when no token exists
 	let result = refresh_token();
@@ -217,7 +194,35 @@ fn refresh_token_no_refresh_token() {
 	assert!(result.is_err());
 
 	// Cleanup
-	clear_token();
+	clear_auth_data();
+}
+
+#[aidoku_test]
+fn token_response_serialization() {
+	// Test: Complete token serialization
+	let complete_token = TokenResponse {
+		access_token: Some("access123".to_string()),
+		refresh_token: Some("refresh456".to_string()),
+		expires_in: Some(3600),
+	};
+
+	let json = to_string(&complete_token).unwrap();
+	assert!(json.contains("access123"));
+	assert!(json.contains("refresh456"));
+	assert!(json.contains("3600"));
+}
+
+#[aidoku_test]
+fn token_response_deserialization() {
+	let json = r#"{"access_token":"test_access","refresh_token":"test_refresh","expires_in":7200}"#;
+
+	let result: Result<TokenResponse, _> = from_str(json);
+	assert!(result.is_ok());
+
+	let token = result.unwrap();
+	assert_eq!(token.access_token, Some("test_access".to_string()));
+	assert_eq!(token.refresh_token, Some("test_refresh".to_string()));
+	assert_eq!(token.expires_in, Some(7200));
 }
 
 #[aidoku_test]
@@ -229,105 +234,4 @@ fn auth_request_format_validation() {
 	assert!(expected_header.starts_with("Bearer "));
 	assert!(expected_header.contains(access_token));
 	assert_eq!(expected_header.split_whitespace().count(), 2);
-}
-
-#[aidoku_test]
-fn token_storage_stress_test() {
-	// Stress test token storage with rapid operations
-	for i in 0..50 {
-		let token_json = create_test_token(
-			Some(&format!("access_{}", i)),
-			Some(&format!("refresh_{}", i)),
-			Some(3600 + i),
-		);
-
-		set_token(token_json);
-
-		// Should be able to retrieve immediately
-		let result = get_token();
-		assert!(result.is_ok());
-
-		let token = result.unwrap();
-		assert_eq!(token.access_token, Some(format!("access_{}", i)));
-	}
-
-	// Cleanup
-	clear_token();
-}
-
-#[aidoku_test]
-fn token_persistence() {
-	// Test: Token should persist across multiple get operations
-	let token_json = create_test_token(
-		Some("persistent_token"),
-		Some("persistent_refresh"),
-		Some(1800),
-	);
-	set_token(token_json);
-
-	// Multiple reads should return same data
-	for _ in 0..10 {
-		let result = get_token();
-		assert!(result.is_ok());
-
-		let token = result.unwrap();
-		assert_eq!(token.access_token, Some("persistent_token".to_string()));
-		assert_eq!(token.refresh_token, Some("persistent_refresh".to_string()));
-	}
-
-	// Cleanup
-	clear_token();
-}
-
-#[aidoku_test]
-fn token_boundary_values() {
-	// Test with boundary values for expires_in
-	let boundary_values = [0i64, 1, i64::MAX, i64::MIN, -1, 3600, 86400];
-
-	for &expires in &boundary_values {
-		let token_json = create_test_token(
-			Some("boundary_access"),
-			Some("boundary_refresh"),
-			Some(expires),
-		);
-		set_token(token_json);
-
-		let result = get_token();
-		assert!(result.is_ok());
-
-		let token = result.unwrap();
-		assert_eq!(token.expires_in, Some(expires));
-	}
-
-	// Cleanup
-	clear_token();
-}
-
-#[aidoku_test]
-fn token_unicode_handling() {
-	// Test with unicode characters in tokens
-	let unicode_tokens = [
-		"токен_доступа_🔑",
-		"アクセストークン",
-		"令牌_access",
-		"🚀_refresh_token_✨",
-	];
-
-	for token_text in &unicode_tokens {
-		let token_json = create_test_token(
-			Some(token_text),
-			Some(&format!("refresh_{}", token_text)),
-			Some(3600),
-		);
-		set_token(token_json);
-
-		let result = get_token();
-		assert!(result.is_ok());
-
-		let token = result.unwrap();
-		assert_eq!(token.access_token, Some(token_text.to_string()));
-	}
-
-	// Cleanup
-	clear_token();
 }

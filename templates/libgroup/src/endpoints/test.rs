@@ -29,6 +29,11 @@ fn basic_urls() {
 		Url::constants(TEST_BASE_URL),
 		"https://api.cdnlibs.org/api/constants"
 	);
+
+	assert_eq!(
+		Url::auth_me(TEST_BASE_URL),
+		"https://api.cdnlibs.org/api/auth/me"
+	);
 }
 
 #[aidoku_test]

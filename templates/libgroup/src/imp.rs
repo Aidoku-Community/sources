@@ -6,7 +6,7 @@ use aidoku::{
 };
 
 use crate::{
-	auth::AuthRequest,
+	auth::{AuthRequest, get_user_id},
 	chapters::get_chapters_cache,
 	endpoints::Url,
 	filters::FilterProcessor,
@@ -88,6 +88,7 @@ pub trait Impl {
 	) -> Result<Manga> {
 		let api_url = get_api_url();
 		let base_url = get_base_url();
+		let user_id = get_user_id();
 		let cover_quality = get_cover_quality_url();
 		let slug_url = manga.key.clone();
 
@@ -118,7 +119,7 @@ pub trait Impl {
 		}
 
 		if needs_chapters {
-			let chapters_url = Url::manga_chapters(base_url.as_str(), &slug_url);
+			let chapters_url = Url::manga_chapters(api_url.as_str(), &slug_url);
 
 			let chapters = LibGroupChapterListItem::flatten_chapters(
 				Request::get(chapters_url)?
@@ -127,6 +128,7 @@ pub trait Impl {
 					.data,
 				base_url.as_str(),
 				&slug_url,
+				&user_id,
 			);
 
 			manga.chapters = Some(chapters);
@@ -137,13 +139,12 @@ pub trait Impl {
 
 	fn get_page_list(&self, params: &Params, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let api_url = get_api_url();
-		let base_url = get_base_url();
 		let slug_url = manga.key.as_str();
 
 		let chapter_number = chapter.chapter_number.unwrap_or_default();
 		let volume = chapter.volume_number.unwrap_or_default();
 
-		let chapters = get_chapters_cache(Some(3600)).get_chapters(slug_url, base_url.as_str())?;
+		let chapters = get_chapters_cache(Some(3600)).get_chapters(slug_url, api_url.as_str())?;
 		let branch_id: Option<i32> = chapters
 			.into_iter()
 			.flat_map(|c| c.branches)

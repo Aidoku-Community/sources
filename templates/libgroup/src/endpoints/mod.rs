@@ -60,8 +60,23 @@ impl Url {
 		volume_number: Option<f32>,
 		chapter_number: Option<f32>,
 		branch_id: Option<i32>,
+		user_id: &Option<i32>,
 	) -> String {
-		let branch_param = branch_id.map(|id| format!("?bid={id}")).unwrap_or_default();
+		let mut query_params = Vec::new();
+
+		if let Some(id) = branch_id {
+			query_params.push(format!("bid={id}"));
+		}
+
+		if let Some(id) = user_id {
+			query_params.push(format!("ui={id}"));
+		}
+
+		let query_string = if query_params.is_empty() {
+			String::new()
+		} else {
+			format!("?{}", query_params.join("&"))
+		};
 
 		format!(
 			"{}/ru/{}/read/v{}/c{}{}",
@@ -69,7 +84,7 @@ impl Url {
 			slug_url,
 			volume_number.unwrap_or_default(),
 			chapter_number.unwrap_or_default(),
-			branch_param
+			query_string
 		)
 	}
 
@@ -87,6 +102,15 @@ impl Url {
 	pub fn constants(base_url: &str) -> String {
 		format!(
 			"{}{}/constants",
+			Self::normalize_base(base_url),
+			Self::BASE_PATH
+		)
+	}
+
+	/// Build auth/me URL for user information
+	pub fn auth_me(base_url: &str) -> String {
+		format!(
+			"{}{}/auth/me",
 			Self::normalize_base(base_url),
 			Self::BASE_PATH
 		)

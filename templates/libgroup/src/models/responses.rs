@@ -1,13 +1,19 @@
 use aidoku::alloc::{String, Vec};
 use serde::{Deserialize, Serialize};
 
-use crate::models::{common::LibGroupMeta, manga::LibGroupCoverItem};
+use crate::models::{common::LibGroupMeta, manga::LibGroupCoverItem, user::LibGroupUser};
 
 use super::{
 	chapter::{LibGroupChapter, LibGroupChapterListItem},
 	constants::LibGroupConstantsData,
 	manga::LibGroupManga,
 };
+
+#[derive(Default, Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct UserResponse {
+	pub data: LibGroupUser,
+}
 
 #[derive(Default, Deserialize, Debug, Clone)]
 #[serde(default)]

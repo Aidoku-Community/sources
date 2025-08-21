@@ -36,7 +36,7 @@ pub struct LibGroupStatus {
 
 #[derive(Default, Deserialize, Debug, Clone)]
 #[serde(default)]
-pub struct Moderated {
+pub struct LibGroupModerated {
 	pub label: String,
 }
 

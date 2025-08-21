@@ -1,0 +1,27 @@
+{
+	"info": {
+		"id": "ru.slashlib",
+		"name": "SlashLib",
+		"version": 1,
+		"url": "https://slashlib.me",
+		"contentRating": 2,
+		"minAppVersion": "0.7.1",
+		"languages": [
+			"ru"
+		]
+	},
+	"listings": [
+        {
+			"id": "popular",
+			"name": "Популярное"
+		},
+		{
+			"id": "currently_reading",
+			"name": "Сейчас читают"
+		},
+		{
+			"id": "latest",
+			"name": "Последние обновления"
+		}
+	]
+}
