@@ -1,4 +1,4 @@
-use crate::auth::{get_token, get_user_id, refresh_token, set_token, set_token_and_user_id};
+use crate::auth::{get_token, get_user_id, refresh_token, set_token};
 use aidoku::{
 	alloc::{String, string::ToString},
 	imports::defaults::{DefaultValue, defaults_set},
@@ -153,24 +153,6 @@ fn get_user_id_no_stored_no_token() {
 	// Test: Should return None when no user ID and no token
 	let result = get_user_id();
 	assert_eq!(result, None);
-}
-
-#[aidoku_test]
-fn set_token_and_user_id_stores_token() {
-	let token_json = create_test_token(Some("combo_access"), Some("combo_refresh"), Some(3600));
-
-	// Test: Should store token (user ID fetch will fail in test env but token should be stored)
-	let _ = set_token_and_user_id(token_json);
-
-	// Verify: Token should be retrievable
-	let result = get_token();
-	assert!(result.is_ok());
-
-	let token = result.unwrap();
-	assert_eq!(token.access_token, Some("combo_access".to_string()));
-
-	// Cleanup
-	clear_auth_data();
 }
 
 #[aidoku_test]

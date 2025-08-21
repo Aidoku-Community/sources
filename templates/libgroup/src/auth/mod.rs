@@ -77,20 +77,14 @@ pub fn get_user_id() -> Option<i32> {
 	}
 }
 
+/// Clears the stored user ID (called when token changes)
+pub fn clear_user_id() {
+	defaults_set(USER_ID_KEY, DefaultValue::Null);
+}
+
 /// Stores the authentication token JSON string into defaults.
 fn set_token(token_json: String) {
 	defaults_set(TOKEN_KEY, DefaultValue::String(token_json));
-}
-
-/// Stores the user ID into defaults.
-fn set_user_id(user_id: i32) {
-	defaults_set(USER_ID_KEY, DefaultValue::Int(user_id));
-}
-
-/// Stores both token and fetches/stores user ID.
-pub fn set_token_and_user_id(token_json: String) -> Result<()> {
-	set_token(token_json);
-	fetch_and_store_user_id()
 }
 
 /// Fetches user ID from API and stores it.
@@ -99,7 +93,7 @@ fn fetch_and_store_user_id() -> Result<()> {
 		.authed()?
 		.get_json::<UserResponse>()?;
 
-	set_user_id(user_response.data.id);
+	defaults_set(USER_ID_KEY, DefaultValue::Int(user_response.data.id));
 	Ok(())
 }
 
@@ -121,7 +115,7 @@ fn refresh_token() -> Result<()> {
 
 	if response.status_code() == 200 {
 		let data = String::from_utf8(response.get_data()?).unwrap_or_default();
-		set_token_and_user_id(data)?;
+		set_token(data);
 	}
 
 	Ok(())

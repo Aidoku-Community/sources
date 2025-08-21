@@ -6,7 +6,7 @@ use aidoku::{
 };
 
 use crate::{
-	auth::{AuthRequest, get_user_id},
+	auth::{AuthRequest, clear_user_id, get_user_id},
 	chapters::get_chapters_cache,
 	endpoints::Url,
 	filters::FilterProcessor,
@@ -366,8 +366,15 @@ pub trait Impl {
 	}
 
 	fn handle_notification(&self, _params: &Params, notification: String) {
-		if notification == "system.endMigration" {
-			get_chapters_cache(None).clear();
+		match notification.as_str() {
+			"system.endMigration" => {
+				get_chapters_cache(None).clear();
+			}
+			"token.changed" => {
+				clear_user_id();
+				get_user_id();
+			}
+			_ => {}
 		}
 	}
 }

@@ -61,13 +61,14 @@
 			{
 				"type": "login",
 				"key": "login",
+				"notification": "token.changed",
 				"method": "oauth",
 				"url": "https://auth.lib.social/auth/oauth/authorize?scope=&client_id=3&response_type=code&redirect_uri=ru.libapp.oauth://type/callback&code_challenge_method=S256&prompt=consent",
 				"tokenUrl": "https://api.imglib.info/api/auth/oauth/token",
 				"pkce": true,
 				"callbackScheme": "ru.libapp.oauth",
 				"title": "Войти через SocialLib",
-				"refreshes": ["listings"]
+				"refreshes": ["listings", "content"]
 			}
 		]
 	}
