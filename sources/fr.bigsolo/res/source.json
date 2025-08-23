@@ -1,0 +1,12 @@
+{
+	"info": {
+		"id": "fr.bigsolo",
+		"name": "BigSolo",
+		"version": 1,
+		"url": "https://bigsolo.org",
+		"contentRating": 0,
+		"languages": [
+			"fr"
+		]
+	}
+}
