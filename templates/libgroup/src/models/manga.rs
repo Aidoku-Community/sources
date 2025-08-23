@@ -5,7 +5,7 @@ use aidoku::{
 };
 use serde::Deserialize;
 
-use crate::{endpoints::Url, models::common::LibGroupRating};
+use crate::{context::Context, endpoints::Url, models::common::LibGroupRating};
 
 use super::common::{
 	LibGroupAgeRestriction, LibGroupCover, LibGroupMediaType, LibGroupStatus, LibGroupTag,
@@ -47,7 +47,7 @@ pub struct LibGroupCoverItem {
 }
 
 impl LibGroupManga {
-	pub fn into_manga(self, base_url: &str, cover_quality: &str) -> Manga {
+	pub fn into_manga(self, ctx: &Context) -> Manga {
 		Manga {
 			key: self.slug_url.clone(),
 			title: if !self.rus_name.is_empty() {
@@ -55,7 +55,7 @@ impl LibGroupManga {
 			} else {
 				self.eng_name.clone().unwrap_or_default()
 			},
-			cover: Some(self.cover.get_cover_url(cover_quality)),
+			cover: Some(self.cover.get_cover_url(&ctx.cover_quality)),
 			artists: self.artists.as_ref().map(|artists| {
 				artists
 					.iter()
@@ -79,7 +79,7 @@ impl LibGroupManga {
 					.collect()
 			}),
 			description: Some(Self::detailed_description(&self)),
-			url: Some(Url::manga_page(base_url, &self.slug_url)),
+			url: Some(Url::manga_page(&ctx.base_url, &self.slug_url)),
 			tags: self
 				.tags
 				.as_ref()

@@ -22,13 +22,15 @@
 					"https://api.imglib.info",
 					"https://api.lib.social",
 					"https://api.mangalib.me",
-					"https://api2.mangalib.me"
+					"https://api2.mangalib.me",
+					"https://api.cdnlibs.org"
 				],
 				"titles": [
 					"Официальное приложение (api.imglib.info)",
 					"Основной (api.lib.social)",
 					"Резервный (api.mangalib.me)",
-					"Резервный 2 (api2.mangalib.me)"
+					"Резервный 2 (api2.mangalib.me)",
+					"Резервный 3 (api.cdnlibs.org)"
 				],
 				"default": "https://api.imglib.info",
 				"refreshes": ["listings", "content"]

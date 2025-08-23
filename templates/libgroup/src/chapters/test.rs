@@ -1,6 +1,17 @@
 use crate::chapters::{ChaptersCache, TimedVec};
+use crate::context::Context;
 use crate::models::chapter::LibGroupChapterListItem;
 use aidoku::alloc::{string::ToString, vec};
+use aidoku_test::aidoku_test;
+
+fn test_context() -> Context {
+	Context {
+		api_url: "http://fake.api".to_string(),
+		base_url: "http://fake.base".to_string(),
+		site_id: 1,
+		cover_quality: "high".to_string(),
+	}
+}
 
 fn fake_now() -> i64 {
 	1_000_000
@@ -19,27 +30,26 @@ fn make_item(id: &str) -> LibGroupChapterListItem {
 	}
 }
 
-#[test]
+#[aidoku_test]
 fn cache_hit_returns_same_data() {
+	let ctx = test_context();
 	let cache = make_cache_with_ttl(None);
 	let manga_key = "manga1";
 
-	{
-		let mut guard = cache.cache.write();
-		guard.insert(
-			manga_key.to_string(),
-			TimedVec::new(vec![make_item("ch1")], fake_now()),
-		);
-	}
+	let mut guard = cache.cache.write();
+	guard.insert(
+		manga_key.to_string(),
+		TimedVec::new(vec![make_item("ch1")], fake_now()),
+	);
 
-	let chapters = cache.get_chapters(manga_key, "http://fake.base");
+	let chapters = cache.get_chapters(manga_key, &ctx);
 	assert!(chapters.is_ok());
 	let chs = chapters.unwrap();
 	assert_eq!(chs.len(), 1);
 	assert_eq!(chs[0].number, "ch1");
 }
 
-#[test]
+#[aidoku_test]
 fn ttl_expiration_detected() {
 	static mut CURRENT_TIME: i64 = 1_000_000;
 	let cache = ChaptersCache::new_with_ttl(Some(10), || unsafe { CURRENT_TIME });
@@ -64,7 +74,7 @@ fn ttl_expiration_detected() {
 	assert!(expired);
 }
 
-#[test]
+#[aidoku_test]
 fn clear_removes_all_entries() {
 	let cache = make_cache_with_ttl(None);
 	let manga_key = "manga3";

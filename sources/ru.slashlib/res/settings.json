@@ -30,7 +30,7 @@
 					"Резервный (hapi.hentaicdn.org)",
 					"Резервный 2 (api.cdnlibs.org)"
 				],
-				"default": "https://api.imglib.info",
+				"default": "https://hapi.hentaicdn.org",
 				"refreshes": ["listings", "content"]
 			},
 			{

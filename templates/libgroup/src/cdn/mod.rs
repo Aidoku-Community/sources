@@ -6,10 +6,8 @@ use aidoku::{
 use spin::{Once, RwLock};
 
 use crate::{
-	auth::AuthRequest,
-	endpoints::Url,
-	models::responses::ConstantsResponse,
-	settings::{get_api_url, get_image_server_url},
+	auth::AuthRequest, context::Context, endpoints::Url, models::responses::ConstantsResponse,
+	settings::get_image_server_url,
 };
 
 struct CacheEntry {
@@ -58,7 +56,7 @@ impl ImageServerCache {
 	}
 
 	/// Public getter that returns the selected base URL (may be empty)
-	pub fn get_base_url(&self, site_id: &u8) -> String {
+	pub fn get_base_url(&self, ctx: &Context) -> String {
 		let now = (self.now_fn)();
 
 		// Fast path: check cache under read lock
@@ -68,24 +66,24 @@ impl ImageServerCache {
 				&& !entry.is_expired(now, self.ttl_seconds)
 			{
 				let selected_id = get_image_server_url();
-				return self.extract_url(&entry.data, site_id, &selected_id);
+				return self.extract_url(&entry.data, &ctx.site_id, &selected_id);
 			}
 		}
 
 		// Miss or expired: attempt reload synchronously.
-		match self.load_data() {
+		match self.load_data(ctx) {
 			Ok(data) => {
 				let entry = CacheEntry::new(data.clone(), now);
 				*self.cache.write() = Some(entry);
 				let selected_id = get_image_server_url();
-				self.extract_url(&data, site_id, &selected_id)
+				self.extract_url(&data, &ctx.site_id, &selected_id)
 			}
 			Err(_) => {
 				// Load failed: return stale if present, else empty
 				let guard = self.cache.read();
 				if let Some(ref entry) = *guard {
 					let selected_id = get_image_server_url();
-					self.extract_url(&entry.data, site_id, &selected_id)
+					self.extract_url(&entry.data, &ctx.site_id, &selected_id)
 				} else {
 					String::new()
 				}
@@ -93,12 +91,11 @@ impl ImageServerCache {
 		}
 	}
 
-	fn load_data(&self) -> Result<BTreeMap<u8, BTreeMap<String, String>>> {
-		let api_url = get_api_url();
-		let constants_url = Url::constants_with_fields(&api_url, &["imageServers"]);
+	fn load_data(&self, ctx: &Context) -> Result<BTreeMap<u8, BTreeMap<String, String>>> {
+		let constants_url = Url::constants_with_fields(&ctx.api_url, &["imageServers"]);
 
 		let response = Request::get(constants_url)?
-			.authed()?
+			.authed(ctx)?
 			.get_json::<ConstantsResponse>()?;
 
 		let mut servers_by_site: BTreeMap<u8, BTreeMap<String, String>> = BTreeMap::new();
@@ -134,8 +131,8 @@ pub fn get_image_server_cache() -> &'static ImageServerCache {
 	IMAGE_SERVER_CACHE.call_once(ImageServerCache::new)
 }
 
-pub fn get_selected_image_server_url(site_id: &u8) -> String {
-	get_image_server_cache().get_base_url(site_id)
+pub fn get_selected_image_server_url(ctx: &Context) -> String {
+	get_image_server_cache().get_base_url(ctx)
 }
 
 #[cfg(test)]

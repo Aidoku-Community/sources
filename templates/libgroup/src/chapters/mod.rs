@@ -7,6 +7,7 @@ use spin::{Once, RwLock};
 
 use crate::{
 	auth::AuthRequest,
+	context::Context,
 	endpoints::Url,
 	models::{chapter::LibGroupChapterListItem, responses::ChaptersResponse},
 };
@@ -54,7 +55,7 @@ impl ChaptersCache {
 	pub fn get_chapters(
 		&self,
 		manga_key: &str,
-		base_url: &str,
+		ctx: &Context,
 	) -> Result<Vec<LibGroupChapterListItem>> {
 		let now = (self.now_fn)();
 		let mut guard = self.cache.write();
@@ -69,9 +70,9 @@ impl ChaptersCache {
 		}
 
 		// Load remote
-		let chapters_url = Url::manga_chapters(base_url, manga_key);
+		let chapters_url = Url::manga_chapters(&ctx.base_url, manga_key);
 		let chapters = Request::get(chapters_url)?
-			.authed()?
+			.authed(ctx)?
 			.get_json::<ChaptersResponse>()?
 			.data;
 

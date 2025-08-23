@@ -1,4 +1,5 @@
 use crate::auth::{get_token, get_user_id, refresh_token, set_token};
+use crate::context::Context;
 use aidoku::{
 	alloc::{String, string::ToString},
 	imports::defaults::{DefaultValue, defaults_set},
@@ -11,6 +12,15 @@ use crate::{
 	auth::{AUTH_SCHEME, TOKEN_KEY, USER_ID_KEY},
 	models::responses::TokenResponse,
 };
+
+fn test_context() -> Context {
+	Context {
+		api_url: "http://fake.api".to_string(),
+		base_url: "http://fake.base".to_string(),
+		site_id: 1,
+		cover_quality: "high".to_string(),
+	}
+}
 
 // Test helper to create a valid token response JSON
 fn create_test_token(access: Option<&str>, refresh: Option<&str>, expires: Option<i64>) -> String {
@@ -121,11 +131,13 @@ fn set_token_overwrites_existing() {
 
 #[aidoku_test]
 fn get_user_id_existing_stored() {
+	let ctx = test_context();
+
 	// Setup: Store a user ID
 	set_test_user_id(12345);
 
 	// Test: Should return stored user ID
-	let result = get_user_id();
+	let result = get_user_id(&ctx);
 	assert_eq!(result, Some(12345));
 
 	// Cleanup
@@ -134,11 +146,13 @@ fn get_user_id_existing_stored() {
 
 #[aidoku_test]
 fn get_user_id_zero_value() {
+	let ctx = test_context();
+
 	// Setup: Store zero (invalid) user ID
 	set_test_user_id(0);
 
 	// Test: Should return None for zero value
-	let result = get_user_id();
+	let result = get_user_id(&ctx);
 	assert_eq!(result, None);
 
 	// Cleanup
@@ -147,11 +161,13 @@ fn get_user_id_zero_value() {
 
 #[aidoku_test]
 fn get_user_id_no_stored_no_token() {
+	let ctx = test_context();
+
 	// Ensure no auth data is stored
 	clear_auth_data();
 
 	// Test: Should return None when no user ID and no token
-	let result = get_user_id();
+	let result = get_user_id(&ctx);
 	assert_eq!(result, None);
 }
 

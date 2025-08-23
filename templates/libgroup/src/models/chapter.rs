@@ -7,7 +7,8 @@ use chrono::DateTime;
 use serde::{Deserialize, Deserializer};
 
 use crate::{
-	cdn::get_selected_image_server_url, endpoints::Url, models::common::LibGroupModerated,
+	cdn::get_selected_image_server_url, context::Context, endpoints::Url,
+	models::common::LibGroupModerated,
 };
 
 use super::common::{LibGroupRestrictedView, LibGroupTeam};
@@ -144,13 +145,13 @@ impl LibGroupChapterListItem {
 }
 
 impl LibGroupChapter {
-	pub fn into_pages(self, site_id: &u8) -> Vec<Page> {
+	pub fn into_pages(self, ctx: &Context) -> Vec<Page> {
 		self.pages
 			.into_iter()
 			.map(|page| Page {
 				content: PageContent::url(format!(
 					"{}{}",
-					get_selected_image_server_url(site_id),
+					get_selected_image_server_url(ctx),
 					page.url
 				)),
 				..Default::default()

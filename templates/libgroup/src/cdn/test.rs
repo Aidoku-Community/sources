@@ -2,6 +2,15 @@ use super::*;
 use aidoku::alloc::{String, string::ToString};
 use aidoku_test::aidoku_test;
 
+fn test_context() -> Context {
+	Context {
+		api_url: "http://fake.api".to_string(),
+		base_url: "http://fake.base".to_string(),
+		site_id: 1,
+		cover_quality: "high".to_string(),
+	}
+}
+
 fn fake_now() -> i64 {
 	1_000_000
 }
@@ -35,6 +44,7 @@ fn cache_hit_returns_same_url() {
 
 #[aidoku_test]
 fn expired_entry_detected() {
+	let ctx = test_context();
 	let cache = make_cache_with_ttl(1);
 
 	let mut servers = BTreeMap::new();
@@ -50,7 +60,7 @@ fn expired_entry_detected() {
 
 	// Since load_data will try to do a network request (and we can't mock it here),
 	// ensure get_base_url doesn't panic and returns either stale or empty string.
-	let _ = cache.get_base_url(&1u8);
+	let _ = cache.get_base_url(&ctx);
 }
 
 #[aidoku_test]

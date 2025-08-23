@@ -7,6 +7,7 @@ use aidoku::{
 
 use crate::{
 	auth::AuthRequest,
+	context::Context,
 	endpoints::Url,
 	models::responses::{MangaDetailResponse, MangaListResponse},
 };
@@ -37,17 +38,13 @@ pub fn send_initial_layout() {
 }
 
 // Load popular manga with detailed information
-pub fn load_popular_manga(
-	api_url: &str,
-	site_id: &str,
-	base_url: &str,
-	cover_quality: &str,
-) -> Result<()> {
-	let params = vec![("site_id[]", site_id)];
-	let url = Url::manga_search_with_params(api_url, &params);
+pub fn load_popular_manga(ctx: &Context) -> Result<()> {
+	let site_id_str = ctx.site_id.to_string();
+	let params = vec![("site_id[]", site_id_str.as_str())];
+	let url = Url::manga_search_with_params(&ctx.api_url, &params);
 
-	let response = Request::get(url)?
-		.authed()?
+	let response = Request::get(&url)?
+		.authed(ctx)?
 		.get_json::<MangaListResponse>()?;
 
 	let entries: Vec<Manga> = response
@@ -56,8 +53,8 @@ pub fn load_popular_manga(
 		.take(10)
 		.map(|manga_data| {
 			// Try to fetch details, fallback to basic if it fails
-			fetch_manga_details(api_url, &manga_data.slug_url, base_url, cover_quality)
-				.unwrap_or_else(|_| manga_data.into_manga(base_url, cover_quality))
+			fetch_manga_details(&manga_data.slug_url, ctx)
+				.unwrap_or_else(|_| manga_data.into_manga(ctx))
 		})
 		.collect();
 
@@ -66,28 +63,19 @@ pub fn load_popular_manga(
 }
 
 // Load currently reading manga (daily trending)
-pub fn load_currently_reading(
-	api_url: &str,
-	site_id: &str,
-	base_url: &str,
-	cover_quality: &str,
-	user_agent: &str,
-) -> Result<()> {
+pub fn load_currently_reading(ctx: &Context) -> Result<()> {
 	let params = vec![("page", "1"), ("popularity", "1"), ("time", "day")];
-	let url = Url::top_views_with_params(api_url, &params);
+	let url = Url::top_views_with_params(&ctx.api_url, &params);
 
 	let response = Request::get(url)?
-		.header("Referer", api_url)
-		.header("Site-Id", site_id)
-		.header("User-Agent", user_agent)
-		.authed()?
+		.authed(ctx)?
 		.get_json::<MangaListResponse>()?;
 
 	let entries: Vec<Link> = response
 		.data
 		.into_iter()
 		.take(30)
-		.map(|manga_data| Link::from(manga_data.into_manga(base_url, cover_quality)))
+		.map(|manga_data| Link::from(manga_data.into_manga(ctx)))
 		.collect();
 
 	send_scroller_component(
@@ -101,28 +89,24 @@ pub fn load_currently_reading(
 }
 
 // Load latest updates
-pub fn load_latest_updates(
-	api_url: &str,
-	site_id: &str,
-	base_url: &str,
-	cover_quality: &str,
-) -> Result<()> {
+pub fn load_latest_updates(ctx: &Context) -> Result<()> {
+	let site_id_str = &ctx.site_id.to_string();
 	let params = vec![
 		("page", "1"),
-		("site_id[]", site_id),
+		("site_id[]", site_id_str.as_str()),
 		("sort_by", "last_chapter_at"),
 	];
-	let url = Url::manga_search_with_params(api_url, &params);
+	let url = Url::manga_search_with_params(&ctx.api_url, &params);
 
 	let response = Request::get(url)?
-		.authed()?
+		.authed(ctx)?
 		.get_json::<MangaListResponse>()?;
 
 	let entries: Vec<Link> = response
 		.data
 		.into_iter()
 		.take(30)
-		.map(|manga_data| Link::from(manga_data.into_manga(base_url, cover_quality)))
+		.map(|manga_data| Link::from(manga_data.into_manga(ctx)))
 		.collect();
 
 	send_scroller_component(LATEST_TITLE, None, entries, "latest", LATEST_TITLE);
@@ -130,23 +114,18 @@ pub fn load_latest_updates(
 }
 
 // Helper functions
-fn fetch_manga_details(
-	api_url: &str,
-	slug_url: &str,
-	base_url: &str,
-	cover_quality: &str,
-) -> Result<Manga> {
+fn fetch_manga_details(slug_url: &str, ctx: &Context) -> Result<Manga> {
 	let details_url = Url::manga_details_with_fields(
-		api_url,
+		&ctx.api_url,
 		slug_url,
 		&["summary", "tags", "authors", "artists"],
 	);
 
 	let manga = Request::get(details_url)?
-		.authed()?
+		.authed(ctx)?
 		.get_json::<MangaDetailResponse>()?
 		.data
-		.into_manga(base_url, cover_quality);
+		.into_manga(ctx);
 
 	Ok(manga)
 }
