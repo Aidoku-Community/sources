@@ -5,14 +5,12 @@
 		"version": 1,
 		"url": "https://mangapark.com",
 		"contentRating": 1,
-		"languages": ["en"],
-		"listings":{
-			"latest" : [
-				{
-					"id": "latest",
-					"name": "Latest Releases"
-				}
-			]
-		}
-	}
+		"languages": ["en"]
+	},
+	"listings":[
+		{
+			"id": "latest",
+			"name": "Latest Releases"
+		}	
+	]
 }
