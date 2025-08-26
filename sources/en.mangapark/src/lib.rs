@@ -245,9 +245,7 @@ impl Source for MangaPark {
 		let arr = text_slice
 			.split(",")
 			.collect::<Vec<_>>();
-
 		for page_url in arr{
-			println!("URL: {}", page_url);
 			pages.push(Page{
 				content: PageContent::url(page_url),
 				..Default::default()
@@ -259,9 +257,43 @@ impl Source for MangaPark {
 
 // Listing for /latest
 impl ListingProvider for MangaPark {
-	fn get_manga_list(&self, _listing: Listing, _page: i32) -> Result<MangaPageResult> {
-		Err(AidokuError::Unimplemented)
+	fn get_manga_list(&self, listing: Listing, _page: i32) -> Result<MangaPageResult> {
+		if listing.id == "latest" {
+			let html = Request::get(format!("{BASE_URL}/latest"))?.html()?;
+			let entries = html
+				.select("[q:key=\"Di_7\"]")
+				.map(|els| {
+					els.filter_map(|el| {
+						let manga_key = el
+							.select_first("a")?
+							.attr("abs:href")?
+							.strip_prefix(BASE_URL)?
+							.into();
+						let cover = el.select_first("img")?.attr("abs:src").unwrap_or_default();
+						let title = el.select_first("[q:key=\"o2_2\"]")?.text()?;
+						println!("Key:{}", manga_key);
+						println!("Cover: {}", cover);
+						println!("Title: {}", title);
+						Some(Manga {
+							key: manga_key,
+							title,
+							cover: Some(cover),
+							..Default::default()
+						})
+					})
+					.collect::<Vec<_>>()
+				})
+				.unwrap_or_default();
+
+			Ok(MangaPageResult {
+				entries,
+				has_next_page: false, // true?
+			})
+		} else {
+			bail!("Invalid listing");
+		}	
 	}
+	
 }
 
 impl Home for MangaPark {
