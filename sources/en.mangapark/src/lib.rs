@@ -271,9 +271,6 @@ impl ListingProvider for MangaPark {
 							.into();
 						let cover = el.select_first("img")?.attr("abs:src").unwrap_or_default();
 						let title = el.select_first("[q:key=\"o2_2\"]")?.text()?;
-						println!("Key:{}", manga_key);
-						println!("Cover: {}", cover);
-						println!("Title: {}", title);
 						Some(Manga {
 							key: manga_key,
 							title,
@@ -287,7 +284,7 @@ impl ListingProvider for MangaPark {
 
 			Ok(MangaPageResult {
 				entries,
-				has_next_page: false, // true?
+				has_next_page: false, 
 			})
 		} else {
 			bail!("Invalid listing");
