@@ -1,9 +1,12 @@
 #![no_std]
 use aidoku::{
-	alloc::{borrow::ToOwned, string::ToString, vec, String, Vec}, imports::{html::*, net::Request}, prelude::*, AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout, Link, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source
+	alloc::{string::ToString, vec, String, Vec},
+	imports::{html::*, net::*}, 
+	prelude::*, 
+	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source
 };
 
-
+// mod model;
 // mod filter;
 /** Build w/ aidoku pkg
  * 
@@ -31,9 +34,9 @@ impl Source for MangaPark {
 	// then when a search query is entered or filters are changed
 	fn get_search_manga_list(
 		&self,
-		query: Option<String>,
+		_query: Option<String>,
 		page: i32,
-		filters: Vec<FilterValue>,
+		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> { // Option<asdsadsa> // as.ref() 
 		// URL with search/filter options to get list of manga... https://mangapark.com/search?
 		let url = format!("{}/search", BASE_URL);
@@ -42,7 +45,7 @@ impl Source for MangaPark {
 		// div[q\:key="jp_1"]
 
 		const LIST_SELECTOR: &str = r#"div[q\:key="jp_1"]"#;
-		const MANGA_SELECTOR: &str = r#"div[q\:key="q4_9"]"#;
+		// const MANGA_SELECTOR: &str = r#"div[q\:key="q4_9"]"#;
 
 		let url = format!("https://mangapark.com/search?page={}", page);
 		let html = Request::get(&url)?.html()?;
@@ -77,10 +80,6 @@ impl Source for MangaPark {
 			entries: Vec::new(),
 			has_next_page: false,
 		})
-
-
-
-
 		// let html = Request::get(&url)?.html()?; 
 
 		// let entries = html
@@ -140,34 +139,22 @@ impl Source for MangaPark {
 
 	fn get_manga_update(
 		&self,
-		mut manga: Manga, //From weebcentral
-		// _manga: Manga,
+		mut manga: Manga, 
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		//Ex: https://mangapark.com/title/346393-en-an-introvert-s-hookup-hiccups-this-gyaru-is-head-over-heels-for-me
-		// what is the page component suppose to be?
-		// let url = format!("{}/search/{}-", BASE_URL,page,);
-
-		
-		const AUTHOR_SELECTOR: &str = "[q:key=\"tz_4\"] > a";
-		const UPLOAD_STATUS_SELECTOR: &str = "[q:key=\"Yn_9\"] > span.uppercase";
 		let manga_url = format!("{BASE_URL}{}",manga.key);
 		let html = Request::get(&manga_url)?.html()?;
-// 		
 		if needs_details{
-			// println!("URL:{}", manga.url.as.unwrap_or_default());
-			// println!("TAGS:{}", manga.title);
 			let description_tag = html
 				.select(".limit-html-p")
 				.and_then(|desc| desc.text())
 				.unwrap_or_default();
 			manga.description = Some(description_tag);
 			let status_str = html 
-				.select(UPLOAD_STATUS_SELECTOR)
+				.select("[q:key=\"Yn_9\"] > span.uppercase")
 				.and_then(|status| status.text())
 				.unwrap_or_default();
-			// println!("Manga Status:{}", status_str);
 			manga.status = match status_str.as_str() {
 				"Complete" => MangaStatus::Completed,
 				"Ongoing" => MangaStatus::Ongoing,
@@ -176,7 +163,7 @@ impl Source for MangaPark {
 				_ => MangaStatus::Unknown,
 			};
 			let authors_str = html
-				.select(AUTHOR_SELECTOR)
+				.select("[q:key=\"tz_4\"] > a")
 				.and_then(|els| els.text())
 				.unwrap_or_default();
 			let authors:Vec<String> = authors_str
@@ -198,10 +185,11 @@ impl Source for MangaPark {
 		}
 
 		if needs_chapters{
-			manga.chapters = html.select("[q:key=\"Yn_9\"]").map(|elements| {
-				elements
+			manga.chapters = html
+				.select("[q:key=\"8t_8\"]")
+				.map(|elements| {
+					elements
 					.filter_map(|element| {
-						println!("Test");
 						let links = element
 							.select_first("a");
 						let url = links
@@ -214,59 +202,64 @@ impl Source for MangaPark {
 							.as_ref()
 							.and_then(|el| el.text());
 
-						// let mut chapter_number = title
-						// 	.as_ref()
-						// 	.and_then(|t| t.rsplit(' ').next())
-						// 	.and_then(|num| num.parse::<f32>().ok());
-
-						// let is_volume = title.as_ref().is_some_and(|t| t.contains("Volume"));
-						// let is_chapter = title.as_ref().is_some_and(|t| t.contains("Chapter"));
-
-						// let (final_title, volume_number) = match (is_volume, is_chapter) {
-						// 	(true, _) => (None, chapter_number.take()),
-						// 	(_, true) => (None, None),
-						// 	_ => (title, None),
-						// };
-
-						// let date_uploaded = element
-						// 	.select_first("time[datetime]")
-						// 	.and_then(|el| el.attr("datetime"))
-						// 	.and_then(|dt| chrono::DateTime::parse_from_rfc3339(&dt).ok())
-						// 	.map(|d| d.timestamp());
-
-						println!("Key:{}", key);
-						println!("Title:{}", title.unwrap_or_default());
-						// println!("Title:{}", final_title.as_ref().unwrap());
-						// println!("Chapter Num:{}", chapter_number.unwrap());
-						// println!("Volume Num:{}", volume_number.unwrap_or_default());
-						// println!("Date Upload:{}", date_uploaded.unwrap_or_default());
-						// println!("Chapter URL:{}", url);
+						let date_uploaded = element
+						.select_first("time")
+						.and_then(|el| el.attr("data-time"))?
+						.parse::<i64>()
+						.ok()
+						.and_then(|dt| chrono::DateTime::from_timestamp_millis(dt))
+						.map(|d| d.timestamp())
+						.unwrap_or_default();
 
 						Some(Chapter {
 							key,
-							// title: final_title,
-							// chapter_number,
-							// volume_number,
-							// date_uploaded,
+							title,
+							date_uploaded: Some(date_uploaded),
 							url: Some(url),
 							..Default::default()
 						})
 					})
-					.collect::<Vec<_>>()
+				.collect::<Vec<_>>()
 			});
 		}
-		
 		Ok(manga)
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		Err(AidokuError::Unimplemented)
+		let chapter_url = format!("{BASE_URL}{}{}", manga.key, chapter.key);
+		let html = Request::get(&chapter_url)?.html()?;
+		let mut pages: Vec<Page> = Vec::new();
+		let script_str = html
+			.select("[type=\"qwik/json\"]")
+			.and_then(|el | el.html())
+			.unwrap_or_default();
+		let chap = script_str
+			.find("\"https://s")
+			.unwrap_or(0);
+		let end = script_str
+			.find("whb")
+			.unwrap_or(0);
+		let mut text_slice = script_str[chap..end].to_string();
+		text_slice = text_slice.replace("\"", "");
+		text_slice.pop();
+		let arr = text_slice
+			.split(",")
+			.collect::<Vec<_>>();
+
+		for page_url in arr{
+			println!("URL: {}", page_url);
+			pages.push(Page{
+				content: PageContent::url(page_url),
+				..Default::default()
+			});
+		}
+		Ok(pages)
 	}
 }
 
 // Listing for /latest
 impl ListingProvider for MangaPark {
-	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+	fn get_manga_list(&self, _listing: Listing, _page: i32) -> Result<MangaPageResult> {
 		Err(AidokuError::Unimplemented)
 	}
 }
@@ -297,11 +290,10 @@ impl Home for MangaPark {
 											.collect();
 			let ch_el = el.select(CHAPTER_SELECTOR)?;
 			let ch_url = ch_el.select_first("a")?.attr("abs:href").unwrap_or_default();
+			let ch_title = ch_el.select_first("a > span")?.text().unwrap_or_default();
 			let ch_key:String = ch_url
 				.strip_prefix(&manga_url)?
 				.into();
-			let split_for_ch_number:Vec<&str> = ch_url.split("-").collect();
-			let ch_number = split_for_ch_number[split_for_ch_number.len()-1].to_string().parse::<f32>().unwrap_or_default();
 			let date_uploaded = el
 				.select_first("time")
 				.and_then(|el| el.attr("data-time"))?
@@ -317,12 +309,12 @@ impl Home for MangaPark {
 						title: manga_title,
 						cover,
 						url: Some(manga_url),
-						tags: Some(manga_tags),
+						tags: Some(manga_tags), //Change/Edit tags
 						..Default::default()
 					}, 
 					chapter: Chapter{
 						key: ch_key,
-						chapter_number: Some(ch_number),
+						title: Some(ch_title),
 						date_uploaded: Some(date_uploaded),
 						url: Some(ch_url),
 						..Default::default()
