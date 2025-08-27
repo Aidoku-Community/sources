@@ -1,7 +1,7 @@
 #![no_std]
 use aidoku::{
 	alloc::{string::ToString, vec, String, Vec},
-	imports::{html::*, net::*}, 
+	imports::{html::*, net::*, std::print}, 
 	prelude::*, 
 	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source
 };
@@ -146,6 +146,7 @@ impl Source for MangaPark {
 		let manga_url = format!("{BASE_URL}{}",manga.key);
 		let html = Request::get(&manga_url)?.html()?;
 		if needs_details{
+			//"[q:key=\"kd_0\"]"
 			let description_tag = html
 				.select(".limit-html-p")
 				.and_then(|desc| desc.text())
@@ -171,9 +172,17 @@ impl Source for MangaPark {
 				.map(|s| s.to_string())
 				.collect();
 			manga.authors = Some(authors);
+			let manga_tags: Vec<String> = html
+				.select("[q:key=\"kd_0\"]")
+				.map(|els| {
+					els.filter_map(|el| el.text()).collect()
+				})
+				.unwrap_or_default();
+
+			manga.tags = Some(manga_tags);
 			let tags = manga.tags.as_deref().unwrap_or_default();
-			manga.content_rating = if tags
-				.iter()
+			manga.content_rating = if tags.as_ref()
+				.into_iter()
 				.any(|e| matches!(e.as_str(), "Doujinshi" | "Adult" | "Mature" | "Smut"))
 			{
 				ContentRating::NSFW
@@ -255,11 +264,10 @@ impl Source for MangaPark {
 	}
 }
 
-// Listing for /latest
 impl ListingProvider for MangaPark {
-	fn get_manga_list(&self, listing: Listing, _page: i32) -> Result<MangaPageResult> {
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		if listing.id == "latest" {
-			let html = Request::get(format!("{BASE_URL}/latest"))?.html()?;
+			let html = Request::get(format!("{BASE_URL}/latest/{}",page))?.html()?;
 			let entries = html
 				.select("[q:key=\"Di_7\"]")
 				.map(|els| {
@@ -284,7 +292,7 @@ impl ListingProvider for MangaPark {
 
 			Ok(MangaPageResult {
 				entries,
-				has_next_page: false, 
+				has_next_page: true, 
 			})
 		} else {
 			bail!("Invalid listing");
@@ -296,10 +304,8 @@ impl ListingProvider for MangaPark {
 impl Home for MangaPark {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let html = Request::get(BASE_URL)?.html()?;
-
 		const POPULAR_UPDATES_SELECTOR: & str = "[q:key=\"xL_7\"]"; 
 		const MEMBER_UPLOADS_SELECTOR: &str = "[q:key=\"QJ_7\"]";
-		const MANGA_TAGS_SELECTOR: &str = "[q:key=\"kd_0\"]";
 		const LATEST_RELEASES_SELECTOR: &str = "[q:key=\"Di_7\"]";
 		const CHAPTER_SELECTOR: &str = "[q:key=\"R7_8\"]";
 
@@ -311,12 +317,6 @@ impl Home for MangaPark {
 			let manga_key:String = manga_url
 				.strip_prefix(BASE_URL)?
 				.into();
-			let manga_tags_str = el.select(MANGA_TAGS_SELECTOR)?.text()?;
-			let tags:Vec<&str> = manga_tags_str.split(" ").collect();
-			let manga_tags:Vec<String> = tags.
-											iter()
-											.map(|s| s.to_string())
-											.collect();
 			let ch_el = el.select(CHAPTER_SELECTOR)?;
 			let ch_url = ch_el.select_first("a")?.attr("abs:href").unwrap_or_default();
 			let ch_title = ch_el.select_first("a > span")?.text().unwrap_or_default();
@@ -338,7 +338,7 @@ impl Home for MangaPark {
 						title: manga_title,
 						cover,
 						url: Some(manga_url),
-						tags: Some(manga_tags), //Change/Edit tags
+						// tags: Some(manga_tags), //Change/Edit tags
 						..Default::default()
 					}, 
 					chapter: Chapter{
