@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "pt.mangalivre",
+		"name": "Manga Livre",
+		"version": 1,
+		"url": "https://mangalivre.tv",
+		"contentRating": 1,
+		"languages": ["pt-br"]
+	}
+}
