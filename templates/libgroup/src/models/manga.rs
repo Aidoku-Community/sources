@@ -43,7 +43,6 @@ pub struct LibGroupAuthor {
 #[serde(default)]
 pub struct LibGroupCoverItem {
 	pub cover: LibGroupCover,
-	pub order: i32,
 }
 
 impl LibGroupManga {
@@ -105,7 +104,7 @@ impl LibGroupManga {
 				"Руманга" => Viewer::RightToLeft,
 				"OEL-манга" => Viewer::RightToLeft,
 				"Япония" | "Корея" | "Китай" | "Английский" | "Авторский" | "Фанфик" => {
-					Viewer::Webtoon
+					Viewer::LeftToRight
 				}
 				_ => Viewer::Unknown,
 			},

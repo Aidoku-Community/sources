@@ -155,6 +155,7 @@ pub trait Impl {
 			.authed(&ctx)?
 			.get_json::<ChapterResponse>()?
 			.data
+			.ok_or_else(|| AidokuError::message("Chapter is empty"))?
 			.into_pages(&ctx);
 
 		Ok(pages)

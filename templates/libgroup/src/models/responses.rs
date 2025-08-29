@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::models::{common::LibGroupMeta, manga::LibGroupCoverItem, user::LibGroupUser};
 
 use super::{
-	chapter::{LibGroupChapter, LibGroupChapterListItem},
+	chapter::{LibGroupChapterData, LibGroupChapterListItem},
 	constants::LibGroupConstantsData,
 	manga::LibGroupManga,
 };
@@ -37,7 +37,7 @@ pub struct ChaptersResponse {
 #[derive(Default, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct ChapterResponse {
-	pub data: LibGroupChapter,
+	pub data: Option<LibGroupChapterData>,
 }
 
 #[derive(Default, Deserialize, Debug, Clone)]

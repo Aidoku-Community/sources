@@ -7,11 +7,11 @@
 				"type": "text",
 				"key": "baseUrl",
 				"title": "Веб домен",
-				"placeholder": "https://v2.shlib.life",
+				"placeholder": "https://ranobelib.me",
 				"keyboardType": 3,
 				"returnKeyType": 9,
 				"autocorrectionDisabled": true,
-				"default": "https://v2.shlib.life",
+				"default": "https://ranobelib.me",
 				"refreshes": ["listings", "content"]
 			},
 			{
@@ -21,14 +21,12 @@
 				"values": [
 					"https://api.imglib.info",
 					"https://api.lib.social",
-					"https://hapi.hentaicdn.org",
 					"https://api.cdnlibs.org"
 				],
 				"titles": [
 					"Официальное приложение (api.imglib.info)",
 					"Основной (api.lib.social)",
-					"Резервный (hapi.hentaicdn.org)",
-					"Резервный 2 (api.cdnlibs.org)"
+					"Резервный (api.cdnlibs.org)"
 				],
 				"default": "https://api.imglib.info",
 				"refreshes": ["listings", "content"]

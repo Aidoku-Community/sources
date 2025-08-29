@@ -1,10 +1,10 @@
 {
 	"info": {
-		"id": "ru.slashlib",
-		"name": "SlashLib",
-		"version": 2,
-		"url": "https://slashlib.me",
-		"contentRating": 2,
+		"id": "ru.ranobelib",
+		"name": "RanobeLib",
+		"version": 1,
+		"url": "https://ranobelib.me",
+		"contentRating": 1,
 		"minAppVersion": "0.7.1",
 		"languages": [
 			"ru"
