@@ -17,20 +17,23 @@ dependencies = [
 [[package]]
 name = "aidoku"
 version = "0.3.0"
-source = "git+https://github.com/Aidoku/aidoku-rs.git#9854e5e8fd913d51d570b7c61a5a7e4e32364194"
+source = "git+https://github.com/Aidoku/aidoku-rs.git#db934c1d181d04048258dbcb90f872dfcc7e1919"
 dependencies = [
  "euclid",
  "hashbrown",
+ "itoa",
  "num-traits",
+ "paste",
  "postcard",
  "serde",
  "talc",
+ "thiserror",
 ]
 
 [[package]]
 name = "aidoku-test"
 version = "1.0.0"
-source = "git+https://github.com/Aidoku/aidoku-rs.git#9854e5e8fd913d51d570b7c61a5a7e4e32364194"
+source = "git+https://github.com/Aidoku/aidoku-rs.git#db934c1d181d04048258dbcb90f872dfcc7e1919"
 dependencies = [
  "quote",
  "syn",
@@ -177,15 +180,7 @@ dependencies = [
  "aidoku",
  "aidoku-test",
  "chrono",
- "serde",
- "serde_json",
 ]
-
-[[package]]
-name = "memchr"
-version = "2.7.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32a282da65faaf38286cf3be983213fcf1d2e2a58700e808f83f4ea9a4804bc0"
 
 [[package]]
 name = "num-traits"
@@ -202,6 +197,12 @@ name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+
+[[package]]
+name = "paste"
+version = "1.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "postcard"
@@ -244,12 +245,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ryu"
-version = "1.0.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28d3b2b1366ec20994f1fd18c3c594f05c5dd4bc44d8bb0c1c632c8d6829481f"
-
-[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -279,18 +274,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "serde_json"
-version = "1.0.143"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d401abef1d108fbd9cbaebc3e46611f4b1021f714a0597a71f41ee463f5f4a5a"
-dependencies = [
- "itoa",
- "memchr",
- "ryu",
- "serde",
 ]
 
 [[package]]
