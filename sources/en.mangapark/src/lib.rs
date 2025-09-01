@@ -1,140 +1,56 @@
 #![no_std]
-use aidoku::{
-	alloc::{string::ToString, vec, String, Vec},
-	imports::{html::*, net::*, std::print}, 
-	prelude::*, 
-	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source
+use aidoku::{ 
+	alloc::{string::ToString, vec, String, Vec}, imports::{html::*, net::*}, prelude::*, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue, HomeLayout, Link, Listing, ListingKind, ListingProvider, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source, Viewer
 };
 
-// mod model;
-// mod filter;
-/** Build w/ aidoku pkg
- * 
- * 
- */
+mod model;
+mod filter;
 
 const BASE_URL: &str = "https://mangapark.com";
-
-const PAGE_SIZE: i32 = 20;
-
+const PAGE_SIZE: i32 = 18;
 struct MangaPark;
 
 impl Source for MangaPark {
 	fn new() -> Self {
 		Self
 	}
-
-	/* Quite challenging to select the tag with all the articles
-	
-	 */
-
-	 //TODO: Filter options in filter.rs
-
-	// this method will be called first without a query when the search page is opened,
-	// then when a search query is entered or filters are changed
 	fn get_search_manga_list(
 		&self,
-		_query: Option<String>,
+		query: Option<String>,
 		page: i32,
-		_filters: Vec<FilterValue>,
-	) -> Result<MangaPageResult> { // Option<asdsadsa> // as.ref() 
-		// URL with search/filter options to get list of manga... https://mangapark.com/search?
-		let url = format!("{}/search", BASE_URL);
-
-		// List of Manga in Selector: q:key="jp_1"
-		// div[q\:key="jp_1"]
-
-		const LIST_SELECTOR: &str = r#"div[q\:key="jp_1"]"#;
-		// const MANGA_SELECTOR: &str = r#"div[q\:key="q4_9"]"#;
-
-		let url = format!("https://mangapark.com/search?page={}", page);
+		filters: Vec<FilterValue>, 
+	) -> Result<MangaPageResult> { 
+		let url = format!("{BASE_URL}/search?&{}&page={}", filter::get_filters(query, filters), page);
 		let html = Request::get(&url)?.html()?;
-
 		let entries = html
-		.select(LIST_SELECTOR)
-		.map(|items| {
-			items
-				.filter_map(|item| {
-					let div = item.select_first("div")?.text()?;
-					println!("Div: {}", div);
-					aidoku::prelude::println!("Div: {}", div);
-					// let url = item.select_first("a")?.attr("href");
-					// let title = item.select_first(".post-title")?.text()?;
-					// let cover = item
-					// 	.select_first("img")
-					// 	.and_then(|img| img.attr("abs:src").or_else(|| img.attr("data-cfsrc")));
-					Some(Manga {
-						// key: url.clone()?.strip_prefix(BASE_URL)?.into(),
-						// title,
-						// cover,
-						// url,
-						..Default::default()
-					})
+			.select("[q:key=\"q4_9\"]")
+			.map(|els| {
+				els
+					.filter_map(|el| {
+						let manga_url = el.select_first("a")?.attr("abs:href");
+						let cover = el.select_first("img")?.attr("abs:src").unwrap_or_default();
+						let manga_key:String = manga_url
+							.as_ref()?
+							.strip_prefix(BASE_URL)?
+							.into();
+						let title = el.select_first("[q:key=\"o2_2\"]")?.text()?;
+						Some(Manga{ 
+							key: manga_key,
+							title,
+							cover: Some(cover),
+							url: manga_url,
+							..Default::default()
+						})
 				})
 				.collect::<Vec<Manga>>()
 		})
 		.unwrap_or_default();		
-		// aidoku::prelude::println!("HTML: {}", html.select_first(MANGA_SELECTOR).);
-		// aidoku::println!("First few chars: {}", &html.read()[..100.min(html.read().len())]);
+
+		let has_next_page = !entries.is_empty();
 		Ok(MangaPageResult {
-			entries: Vec::new(),
-			has_next_page: false,
+			entries,
+			has_next_page,
 		})
-		// let html = Request::get(&url)?.html()?; 
-
-		// let entries = html
-		// 	.select(LIST_SELECTOR)
-		// 	.map(|elements| {
-		// 		elements.filter_map(|element| {
-		// 			let cover = element.select_first("img")?.attr("abs:src");
-
-		// 			let title_element = element.select_first("a")?;
-		// 			let mut title = title_element.text().unwrap_or_default();
-		// 			// let mut title = element.select_first("span")?;
-
-		// 			const OFFICIAL_PREFIX: &str = "Official ";
-		// 			if title.starts_with(OFFICIAL_PREFIX) {
-		// 				title = title[OFFICIAL_PREFIX.len()..].trim().into();
-		// 			}
-
-		// 			let url = title_element.attr("abs:href")?;
-		// 			let key = url.strip_prefix(BASE_URL).map(String::from)?;
-		// 			println!("{}", title);
-		// 			// println!("{}", )
-		// 			Some(Manga {
-		// 				key,
-		// 				title,
-		// 				cover,
-		// 				..Default::default()
-		// 			})
-		// 		})
-		// 	} );
-
-			// let mut entries: Vec<Manga> = Vec::new();
-			// let start = (page - 1) * PAGE_SIZE + 1;
-			// for i in start..start + PAGE_SIZE {
-			// 	let title = format!("Manga {i}");
-			// 	if let Some(query) = query.as_ref() {
-			// 		if !title.contains(query) {
-			// 			continue;
-			// 		}
-			// 	}
-			// 	entries.push(Manga {
-			// 		key: format!("{i}"),
-			// 		title,
-			// 		cover: Some(String::from("https://aidoku.app/images/icon.png")),
-			// 		authors: Some(vec![String::from("Author")]),
-			// 		..Default::default()
-			// 	})
-			// }
-
-
-		//TODO: set entries, has_net_page
-		// Ok(MangaPageResult{
-		// 	entries,
-		// 	has_next_page
-		// });
-		// Err(AidokuError::Unimplemented)
 	}
 
 	fn get_manga_update(
@@ -146,7 +62,6 @@ impl Source for MangaPark {
 		let manga_url = format!("{BASE_URL}{}",manga.key);
 		let html = Request::get(&manga_url)?.html()?;
 		if needs_details{
-			//"[q:key=\"kd_0\"]"
 			let description_tag = html
 				.select(".limit-html-p")
 				.and_then(|desc| desc.text())
@@ -178,19 +93,28 @@ impl Source for MangaPark {
 					els.filter_map(|el| el.text()).collect()
 				})
 				.unwrap_or_default();
-
 			manga.tags = Some(manga_tags);
 			let tags = manga.tags.as_deref().unwrap_or_default();
 			manga.content_rating = if tags.as_ref()
 				.into_iter()
 				.any(|e| matches!(e.as_str(), "Doujinshi" | "Adult" | "Mature" | "Smut"))
-			{
-				ContentRating::NSFW
-			} else if tags.iter().any(|e| e == "Ecchi") {
-				ContentRating::Suggestive
-			} else {
-				ContentRating::Safe
-			};
+				{
+					ContentRating::NSFW
+				} else if tags.iter().any(|e| e == "Ecchi") {
+					ContentRating::Suggestive
+				} else {
+					ContentRating::Safe
+				};
+			manga.viewer = if tags.as_ref()
+				.into_iter()
+				.any(|e| e == "Manga")
+				{
+					Viewer::RightToLeft
+				} else if tags.iter().any(|e| matches!(e.as_str(), "Manhwa" | "Manhua" | "Webtoon")){
+					Viewer::Webtoon
+				}else{
+					Viewer::Unknown
+				}
 		}
 
 		if needs_chapters{
@@ -205,12 +129,10 @@ impl Source for MangaPark {
 							.as_ref()
 							.and_then(|el| el.attr("abs:href"))
 							.unwrap_or_default();
-
 						let key = url.strip_prefix(&manga_url).unwrap_or_default().into();
 						let title = links
 							.as_ref()
 							.and_then(|el| el.text());
-
 						let date_uploaded = element
 						.select_first("time")
 						.and_then(|el| el.attr("data-time"))?
@@ -219,7 +141,6 @@ impl Source for MangaPark {
 						.and_then(|dt| chrono::DateTime::from_timestamp_millis(dt))
 						.map(|d| d.timestamp())
 						.unwrap_or_default();
-
 						Some(Chapter {
 							key,
 							title,
@@ -228,7 +149,7 @@ impl Source for MangaPark {
 							..Default::default()
 						})
 					})
-				.collect::<Vec<_>>()
+				.collect::<Vec<Chapter>>()
 			});
 		}
 		Ok(manga)
@@ -245,15 +166,21 @@ impl Source for MangaPark {
 		let chap = script_str
 			.find("\"https://s")
 			.unwrap_or(0);
-		let end = script_str
-			.find("whb")
+		let mut end = script_str
+			.find("whb") 
 			.unwrap_or(0);
+		if end == 0{
+			end = script_str
+				.find("bwh")
+				.unwrap_or(0);
+		}
 		let mut text_slice = script_str[chap..end].to_string();
 		text_slice = text_slice.replace("\"", "");
 		text_slice.pop();
 		let arr = text_slice
 			.split(",")
-			.collect::<Vec<_>>();
+			.map(|s| s.to_string())
+			.collect::<Vec<String>>();
 		for page_url in arr{
 			pages.push(Page{
 				content: PageContent::url(page_url),
@@ -286,19 +213,22 @@ impl ListingProvider for MangaPark {
 							..Default::default()
 						})
 					})
-					.collect::<Vec<_>>()
+					.collect::<Vec<Manga>>()
 				})
-				.unwrap_or_default();
+			.unwrap_or_default();
 
+			let mut has_next_page = true;
+			if page == 99{
+				has_next_page = false;
+			}
 			Ok(MangaPageResult {
 				entries,
-				has_next_page: true, 
+				has_next_page, 
 			})
 		} else {
 			bail!("Invalid listing");
 		}	
 	}
-	
 }
 
 impl Home for MangaPark {
@@ -338,7 +268,6 @@ impl Home for MangaPark {
 						title: manga_title,
 						cover,
 						url: Some(manga_url),
-						// tags: Some(manga_tags), //Change/Edit tags
 						..Default::default()
 					}, 
 					chapter: Chapter{
@@ -360,8 +289,8 @@ impl Home for MangaPark {
 				.into();
 			let title = el.select_first("a.font-bold").unwrap().text().unwrap_or_default();
 			Some(Manga{ 
-				title,
 				key: manga_key,
+				title,
 				cover,
 				url: manga_url,
 				..Default::default()
@@ -370,7 +299,8 @@ impl Home for MangaPark {
 		let popular_updates = html
 			.select(POPULAR_UPDATES_SELECTOR)
 			.map(|els| {
-				els.filter_map(|el| parse_manga(&el).map(Into::into)).collect::<Vec<_>>()
+				els.filter_map(|el| parse_manga(&el).map(Into::into))
+				.collect::<Vec<Link>>()
 			})
 			.unwrap_or_default();
 
@@ -378,7 +308,7 @@ impl Home for MangaPark {
 		.select(MEMBER_UPLOADS_SELECTOR)
 		.map(|els| {
 			els.filter_map(|el| parse_manga_with_chapter_with_details(&el))
-				.collect::<Vec<_>>()
+			.collect::<Vec<MangaWithChapter>>()
 		})
 		.unwrap_or_default();
 
@@ -386,7 +316,7 @@ impl Home for MangaPark {
 			.select(LATEST_RELEASES_SELECTOR)
 			.map(|els| {
 				els.filter_map(|el| parse_manga_with_chapter_with_details(&el))
-					.collect::<Vec<_>>()
+				.collect::<Vec<MangaWithChapter>>()
 			})
 			.unwrap_or_default();
 
@@ -395,7 +325,7 @@ impl Home for MangaPark {
 				HomeComponent {
 					title: Some(("Popular Releases").into()),
 					subtitle: None,
-					value: aidoku::HomeComponentValue::Scroller 
+					value: HomeComponentValue::Scroller 
 					{ 
 						entries: popular_updates,
 						listing: None
@@ -404,7 +334,7 @@ impl Home for MangaPark {
 				HomeComponent {
 					title: Some(("Member Uploads").into()),
 					subtitle: None,
-					value: aidoku::HomeComponentValue::MangaChapterList 
+					value: HomeComponentValue::MangaChapterList 
 					{ 
 						page_size: Some(PAGE_SIZE),
 						entries: member_uploads,
@@ -414,7 +344,7 @@ impl Home for MangaPark {
 				HomeComponent {
 					title: Some(("Latest Releases").into()),
 					subtitle: None,
-					value: aidoku::HomeComponentValue::MangaChapterList 
+					value: HomeComponentValue::MangaChapterList 
 					{ 
 						page_size: Some(PAGE_SIZE),
 						entries: latest_releases, 
@@ -431,8 +361,31 @@ impl Home for MangaPark {
 }
 
 impl DeepLinkHandler for MangaPark {
-	fn handle_deep_link(&self, _url: String) -> Result<Option<DeepLinkResult>> {
-		Err(AidokuError::Unimplemented)
+	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
+		if !url.starts_with(BASE_URL) {
+			return Ok(None);
+		}
+		let key = &url[BASE_URL.len()..]; // remove base url prefix
+		const LATEST_PATH: &str = "/latest";
+		let num_sections: usize = url.split("/").count();
+		if key.starts_with(LATEST_PATH){
+			Ok(Some(DeepLinkResult::Listing(Listing { id: "latest".to_string(), name: "Latest Releases".to_string(), kind: ListingKind::Default })))
+		}
+		else if num_sections == 2 {
+			// ex: https://mangapark.com/title/408288-en-eternally-regressing-knight
+			Ok(Some(DeepLinkResult::Manga { key: key.into() }))
+		} else if num_sections == 3 {
+			// ex: https://mangapark.com/title/408288-en-eternally-regressing-knight/9831073-chapter-73
+			let split_sections: Vec<String>  = key.split("/").map(|s| s.to_string()).collect();
+			let manga_key: String = split_sections[0..2].join(",").to_string();
+			let chapter_key: String = split_sections[3].to_string();
+			Ok(Some(DeepLinkResult::Chapter {
+				manga_key,
+				key: chapter_key,
+			}))
+		} else {
+			Ok(None)
+		}
 	}
 }
 
