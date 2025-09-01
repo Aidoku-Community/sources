@@ -1,5 +1,3 @@
-// use crate::helper;
-// use crate::model::SortOptions;
 use aidoku::{
 	alloc::{ string::ToString, String, Vec},
 	helpers::uri::QueryParameters,
@@ -8,21 +6,6 @@ use aidoku::{
 };
 
 use crate::model::SortOptions;
-/* FilterValues
- * Add all filters to corresponding value(ex: Sort: sort(option), order(ascending))
-
- * Text: 
- * Sort: (Order By: Rating Score, Most Follows, Most Reviews, Most Comments, Most Chapters, New Chapters, Recently Created, Name A-Z, )
- *  - By Views(60 min, 6 hrs, 12 hrs, 24 hrs, 7 days, 30 days, 90 days)
- * Select: (Original Work Status, MPark Upload Status, Number of Chapters))
- * Check: (Translated Language)
- * MultiSelect: (genres, Original Work Language)
- * Range:
- 
-
- 36 manga/page
- * Note: genres => include, exclude
-*/
 pub fn get_filters(query: Option<String>, filters: Vec<FilterValue>) -> String {
 	let mut qs = QueryParameters::new();
 
