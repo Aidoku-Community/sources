@@ -21,8 +21,8 @@ pub struct MultipleMangas {
 	pub mangas: Nodes<MangaDto>,
 }
 
-#[derive(Default, Debug, Deserialize)]
-#[serde(rename_all = "camelCase", default)]
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MangaDto {
 	pub id: u32,
 	pub title: String,
