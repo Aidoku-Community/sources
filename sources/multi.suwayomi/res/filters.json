@@ -1,0 +1,16 @@
+[
+	{
+		"type": "sort",
+		"title": "Sort",
+		"canAscend": true,
+		"options": [
+			"Title",
+			"Date added",
+			"Last fetched"
+		],
+		"default": {
+			"index": 0,
+			"ascending": false
+		}
+	}
+]

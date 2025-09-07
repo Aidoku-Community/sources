@@ -1,0 +1,8 @@
+[
+  {
+    "type": "text",
+    "placeholder": "Suwayomi Base Url",
+    "key": "baseUrl",
+    "autocapitalizationType": 0
+  }
+]
