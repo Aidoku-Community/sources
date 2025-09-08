@@ -1,0 +1,16 @@
+{
+	"info": {
+		"id": "en.mangapark",
+		"name": "MangaPark",
+		"version": 1,
+		"url": "https://mangapark.com",
+		"contentRating": 1,
+		"languages": ["en"]
+	},
+	"listings":[
+		{
+			"id": "latest",
+			"name": "Latest Releases"
+		}	
+	]
+}
