@@ -1,0 +1,26 @@
+[package]
+name = "cuutruyen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", features = ["json"] }
+base64 = { version = "0.21.1", default-features = false, features = ["alloc"] }
+chrono = { version = "0.4.30", default-features = false, features = ["alloc"] }
+serde = { version = "1.0.188", default-features = false, features = ["derive", "alloc"] }
+
+[dev-dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
+aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+strip = true
+lto = true
