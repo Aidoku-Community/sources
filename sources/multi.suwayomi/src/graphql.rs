@@ -31,6 +31,7 @@ const CHAPTER_FRAGMENT: &str = r#"fragment ChapterFragment on ChapterType {
 	chapterNumber
 	scanlator
 	uploadDate
+	sourceOrder
 	manga {
 	    source {
 	        displayName

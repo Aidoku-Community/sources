@@ -97,11 +97,12 @@ pub struct ChapterDto {
 	pub scanlator: Option<String>,
 	pub upload_date: String,
 	pub manga: SlimManga,
+    pub source_order: i32,
 }
 
 impl ChapterDto {
 	pub fn into_chapter(self, base_url: &str, manga_id: i32) -> Chapter {
-		let url = format!("{}/manga/{}/chapter/{}", base_url, manga_id, self.id);
+		let url = format!("{}/manga/{}/chapter/{}", base_url, manga_id, self.source_order);
 
 		let scanlator_name = if let Some(ref s) = self.scanlator {
 			if !s.is_empty() {
