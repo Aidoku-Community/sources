@@ -31,7 +31,6 @@ pub struct MangaDto {
 	pub artist: Option<String>,
 	pub genre: Vec<String>,
 	pub status: String,
-	pub description: String,
 }
 
 impl MangaDto {
@@ -55,7 +54,6 @@ impl MangaDto {
 			cover: Some(format!("{}{}", base_url, self.thumbnail_url)),
 			artists: self.artist.map(|a| vec![a]),
 			authors: self.author.map(|a| vec![a]),
-			description: Some(self.description),
 			url: Some(url),
 			tags: Some(self.genre),
 			status: match self.status.as_str() {
@@ -145,4 +143,14 @@ pub struct FetchChapterPagesResponse {
 #[derive(Debug, Deserialize)]
 pub struct ChapterPages {
 	pub pages: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MangaOnlyDescriptionResponse {
+	pub manga: OnlyDescriptionManga,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OnlyDescriptionManga {
+	pub description: String,
 }

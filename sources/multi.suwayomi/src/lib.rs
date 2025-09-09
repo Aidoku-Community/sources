@@ -5,7 +5,11 @@ mod graphql;
 mod models;
 mod settings;
 
-use crate::models::{FetchChapterPagesResponse, GraphQLResponse, MultipleChapters, MultipleMangas};
+use crate::models::{
+	FetchChapterPagesResponse, GraphQLResponse, MangaOnlyDescriptionResponse, MultipleChapters,
+	MultipleMangas,
+};
+use aidoku::imports::std::send_partial_result;
 use aidoku::{
 	AidokuError, Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult, Page,
 	PageContent, Result, Source,
@@ -109,13 +113,39 @@ impl Source for Suwayomi {
 	fn get_manga_update(
 		&self,
 		mut manga: Manga,
-		_needs_details: bool,
+		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		if needs_chapters {
-			let manga_id = manga.key.parse::<i32>().expect("Invalid number");
-			let base_url = settings::get_base_url();
+		let manga_id = manga.key.parse::<i32>().expect("Invalid number");
+		let base_url = settings::get_base_url();
+		if needs_details {
+			let gql = graphql::GraphQLQuery::get_manga_description();
+			let variables = serde_json::json!({
+				"mangaId": manga_id
+			});
 
+			let body = serde_json::json!({
+				"operationName": gql.operation_name,
+				"query": gql.query,
+				"variables": variables,
+			});
+
+			let data = Request::post(format!("{base_url}/api/graphql"))?
+				.header("Content-Type", "application/json")
+				.body(body.to_string())
+				.data()?;
+
+			let response =
+				serde_json::from_slice::<GraphQLResponse<MangaOnlyDescriptionResponse>>(&data)
+					.map_err(|_| AidokuError::JsonParseError)?;
+
+			manga.description = Some(response.data.manga.description);
+
+			if needs_chapters {
+				send_partial_result(&manga);
+			}
+		}
+		if needs_chapters {
 			let gql = graphql::GraphQLQuery::get_manga_chapters();
 			let variables = serde_json::json!({
 				"mangaId": manga_id

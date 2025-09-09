@@ -14,7 +14,6 @@ const MANGA_FRAGMENT: &str = r#"fragment MangaFragment on MangaType {
 	artist
 	genre
 	status
-	description
 }"#;
 
 const GET_SEARCH_MANGA_LIST_BASE: &str = r#"query GET_SEARCH_MANGA_LIST($condition: MangaConditionInput, $order: [MangaOrderInput!], $filter: MangaFilterInput) {
@@ -53,6 +52,13 @@ const GET_CHAPTER_PAGES_BASE: &str = r#"mutation GET_PAGE_LIST($input: FetchChap
 	}
 }"#;
 
+const GET_MANGA_DESCRIPTION: &str = r#"query GET_MANGA_DESCRIPTION($mangaId: Int!) {
+	manga(id: $mangaId) {
+		description
+	}
+}
+"#;
+
 impl GraphQLQuery {
 	pub fn get_search_manga_list() -> Self {
 		Self {
@@ -72,6 +78,13 @@ impl GraphQLQuery {
 		Self {
 			operation_name: "GET_PAGE_LIST",
 			query: GET_CHAPTER_PAGES_BASE.to_string(),
+		}
+	}
+
+	pub fn get_manga_description() -> Self {
+		Self {
+			operation_name: "GET_MANGA_DESCRIPTION",
+			query: GET_MANGA_DESCRIPTION.to_string(),
 		}
 	}
 }
