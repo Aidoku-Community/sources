@@ -1,8 +1,14 @@
 [
 	{
-		"type": "text",
-		"placeholder": "Suwayomi Base Url",
-		"key": "baseUrl",
-		"autocapitalizationType": 0
+		"type": "group",
+		"title": "Server settings",
+		"items": [
+			{
+				"type": "text",
+				"placeholder": "Suwayomi Base Url",
+				"key": "baseUrl",
+				"autocapitalizationType": 0
+			}
+		]
 	}
 ]
