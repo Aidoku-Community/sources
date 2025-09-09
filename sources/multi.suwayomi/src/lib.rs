@@ -180,8 +180,7 @@ impl Source for Suwayomi {
 			.fetch_chapter_pages
 			.pages
 			.into_iter()
-			.enumerate()
-			.map(|(_, url)| {
+			.map(|url| {
 				let full_url = format!("{}{}", base_url, url);
 				Page {
 					content: PageContent::Url(full_url, None),
