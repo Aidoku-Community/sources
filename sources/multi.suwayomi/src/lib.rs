@@ -81,7 +81,7 @@ impl Source for Suwayomi {
 
 		let json_value = serde_json::Value::Object(variables);
 
-		let gql = graphql::GraphQLQuery::get_search_manga_list();
+		let gql = graphql::GraphQLQuery::SEARCH_MANGA_LIST;
 		let body = serde_json::json!({
 			"operationName": gql.operation_name,
 			"query": gql.query,
@@ -119,7 +119,7 @@ impl Source for Suwayomi {
 		let manga_id = manga.key.parse::<i32>().expect("Invalid number");
 		let base_url = settings::get_base_url();
 		if needs_details {
-			let gql = graphql::GraphQLQuery::get_manga_description();
+			let gql = graphql::GraphQLQuery::MANGA_DESCRIPTION;
 			let variables = serde_json::json!({
 				"mangaId": manga_id
 			});
@@ -146,7 +146,7 @@ impl Source for Suwayomi {
 			}
 		}
 		if needs_chapters {
-			let gql = graphql::GraphQLQuery::get_manga_chapters();
+			let gql = graphql::GraphQLQuery::MANGA_CHAPTERS;
 			let variables = serde_json::json!({
 				"mangaId": manga_id
 			});
@@ -182,7 +182,7 @@ impl Source for Suwayomi {
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let chapter_id = chapter.key.parse::<i32>().expect("Invalid chapter ID");
 
-		let gql = graphql::GraphQLQuery::get_chapter_pages();
+		let gql = graphql::GraphQLQuery::CHAPTER_PAGES;
 		let variables = serde_json::json!({
 			"input": {
 				"chapterId": chapter_id
