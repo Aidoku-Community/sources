@@ -10,7 +10,7 @@
 				"keyboardType": 3,
 				"returnKeyType": 9,
 				"autocorrectionDisabled": true,
-				"refreshes": ["listings"]
+				"refreshes": ["content"]
 			}
 		]
 	}

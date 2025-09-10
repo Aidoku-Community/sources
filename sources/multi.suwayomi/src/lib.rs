@@ -10,7 +10,13 @@ use crate::models::{
 	MultipleMangas,
 };
 use aidoku::imports::std::send_partial_result;
-use aidoku::{AidokuError, Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result, Source, alloc::{String, Vec}, imports::net::Request, prelude::*, BaseUrlProvider};
+use aidoku::{
+	AidokuError, BaseUrlProvider, Chapter, FilterValue, Listing, ListingProvider, Manga,
+	MangaPageResult, Page, PageContent, Result, Source,
+	alloc::{String, Vec},
+	imports::net::Request,
+	prelude::*,
+};
 use alloc::string::ToString;
 use alloc::vec;
 
@@ -82,7 +88,7 @@ impl Source for Suwayomi {
 			"variables": json_value,
 		});
 
-		let base_url = settings::get_base_url();
+		let base_url = settings::get_base_url()?;
 		let data = Request::post(format!("{base_url}/api/graphql"))?
 			.header("Content-Type", "application/json")
 			.body(body.to_string())
@@ -91,7 +97,7 @@ impl Source for Suwayomi {
 		let response = serde_json::from_slice::<GraphQLResponse<MultipleMangas>>(&data)
 			.map_err(|_| AidokuError::JsonParseError)?;
 
-		let base_url = settings::get_base_url();
+		let base_url = settings::get_base_url()?;
 		Ok(MangaPageResult {
 			entries: response
 				.data
@@ -111,7 +117,7 @@ impl Source for Suwayomi {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let manga_id = manga.key.parse::<i32>().expect("Invalid number");
-		let base_url = settings::get_base_url();
+		let base_url = settings::get_base_url()?;
 		if needs_details {
 			let gql = graphql::GraphQLQuery::MANGA_DESCRIPTION;
 			let variables = serde_json::json!({
@@ -189,7 +195,7 @@ impl Source for Suwayomi {
 			"variables": variables,
 		});
 
-		let base_url = settings::get_base_url();
+		let base_url = settings::get_base_url()?;
 		let data = Request::post(format!("{base_url}/api/graphql"))?
 			.header("Content-Type", "application/json")
 			.body(body.to_string())
@@ -198,7 +204,7 @@ impl Source for Suwayomi {
 		let response = serde_json::from_slice::<GraphQLResponse<FetchChapterPagesResponse>>(&data)
 			.map_err(|_| AidokuError::JsonParseError)?;
 
-		let base_url = settings::get_base_url();
+		let base_url = settings::get_base_url()?;
 		Ok(response
 			.data
 			.fetch_chapter_pages
@@ -234,7 +240,7 @@ impl ListingProvider for Suwayomi {
 
 impl BaseUrlProvider for Suwayomi {
 	fn get_base_url(&self) -> Result<String> {
-		Ok(settings::get_base_url())
+		settings::get_base_url()
 	}
 }
 
