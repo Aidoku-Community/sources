@@ -1,17 +1,17 @@
 {
-  "info": {
-    "id": "mulit.suwayomi",
-    "name": "Suwayomi",
-    "version": 1,
-    "url": "https://github.com/Suwayomi",
-    "contentRating": 0,
-    "languages": [
-      "multi"
-    ]
-  },
-  "listings": [
-    {
-      "id": "Library"
-    }
-  ]
+	"info": {
+		"id": "mulit.suwayomi",
+		"name": "Suwayomi",
+		"version": 1,
+		"url": "https://github.com/Suwayomi",
+		"contentRating": 0,
+		"languages": [
+			"multi"
+		]
+	},
+	"listings": [
+		{
+			"id": "Library"
+		}
+	]
 }
