@@ -10,13 +10,7 @@ use crate::models::{
 	MultipleMangas,
 };
 use aidoku::imports::std::send_partial_result;
-use aidoku::{
-	AidokuError, Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult, Page,
-	PageContent, Result, Source,
-	alloc::{String, Vec},
-	imports::net::Request,
-	prelude::*,
-};
+use aidoku::{AidokuError, Chapter, FilterValue, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result, Source, alloc::{String, Vec}, imports::net::Request, prelude::*, BaseUrlProvider};
 use alloc::string::ToString;
 use alloc::vec;
 
@@ -238,4 +232,10 @@ impl ListingProvider for Suwayomi {
 	}
 }
 
-register_source!(Suwayomi, ListingProvider);
+impl BaseUrlProvider for Suwayomi {
+	fn get_base_url(&self) -> Result<String> {
+		Ok(settings::get_base_url())
+	}
+}
+
+register_source!(Suwayomi, ListingProvider, BaseUrlProvider);
