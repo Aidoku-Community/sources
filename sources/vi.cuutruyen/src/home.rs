@@ -1,7 +1,7 @@
 // a source made by @c0ntens
 use crate::CuuTruyen;
 use crate::models::*;
-use crate::API_URL;
+use crate::settings;
 use aidoku::{
 	alloc::{string::ToString, vec, String, Vec},
 	imports::{
@@ -40,11 +40,11 @@ impl Home for CuuTruyen {
 		]}));
 
 		let responses: [core::result::Result<Response, RequestError>; 3] = Request::send_all([
-			Request::get(format!("{API_URL}/home_a"))?,
+			Request::get(format!("{}/api/v2/home_a", settings::get_url()))?,
 			// top week
-			Request::get(format!("{API_URL}/mangas/top?duration=week&page=1&per_page=24"))?,
+			Request::get(format!("{}/api/v2/mangas/top?duration=week&page=1&per_page=24", settings::get_url()))?,
 			// top month
-			Request::get(format!("{API_URL}/mangas/top?duration=month&page=1&per_page=24"))?,
+			Request::get(format!("{}/api/v2/mangas/top?duration=month&page=1&per_page=24", settings::get_url()))?,
 		])
 		.try_into()
 		.expect("requests vec length should be 3");
@@ -52,21 +52,21 @@ impl Home for CuuTruyen {
 		let [home, week, month] = responses;
 
 		// spotlight mangas
-		let manga_id = home?.get_json::<CuuResponse<CuuHome>>()?
+		let manga_id = home?.get_json::<CuuSearchResponse<CuuHome>>()?
 			.data.spotlight_mangas
 			.iter()
 			.map(|value| value.id.to_string())
 			.collect::<Vec<String>>();
 
 		let manga_res = Request::send_all(manga_id.iter().map(|id| {
-			Request::get(format!("{API_URL}/mangas/{}", id)).unwrap()
+			Request::get(format!("{}/api/v2/mangas/{}", settings::get_url(), id)).unwrap()
 		}));
 
 		let spotlight_manga = manga_res
 			.into_iter()
 			.filter_map(|res| {
 				Some(res.ok()?
-					.get_json::<CuuResponse<CuuMangas>>()
+					.get_json::<CuuSearchResponse<CuuMangaDetails>>()
 					.unwrap()
 					.data.into()
 				)
@@ -83,21 +83,26 @@ impl Home for CuuTruyen {
 		}));
 
 		// latest mangas
-		let latest_chapter = Request::get(format!("{API_URL}/home_a"))?.send()?.get_json::<CuuResponse<CuuHome>>()?
+		let latest_chapter = Request::get(format!("{}/api/v2/home_a", settings::get_url()))?.send()?.get_json::<CuuSearchResponse<CuuHome>>()?
 			.data.new_chapter_mangas
 			.into_iter()
 			.map(|value| {
 				let key = value.chapter_id.to_string();
 				let chapter_number = value.number.parse::<f32>().ok();
 				let chapter_num = if chapter_number.is_none() {
-					Some(String::from("Chương ") + value.number.as_ref())
+					Some(format!("Chương {}", value.number))
 				} else { None };
 				let date_uploaded = chrono::DateTime::parse_from_rfc3339(&value.created_at)
 					.ok()
 					.map(|d| d.timestamp());
 
 				MangaWithChapter {
-					manga: value.into_basic_manga(),
+					manga: Manga {
+						key: value.id.to_string(),
+						title: value.name.to_string(),
+						cover: value.cover_url.clone(),
+						..Default::default()
+					},
 					chapter: Chapter {
 						key,
 						title: chapter_num,

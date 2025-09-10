@@ -1,25 +1,25 @@
 // a source made by @c0ntens
-use crate::BASE_URL;
+use crate::settings;
 use aidoku::{
-	alloc::{string::ToString, vec, String, Vec}, helpers::element::ElementHelpers, imports::html::Html, prelude::format, ContentRating, Manga, MangaStatus, Viewer
+	alloc::{string::ToString, vec, String, Vec},
+	helpers::element::ElementHelpers,
+	imports::html::Html,
+	prelude::format,
+	ContentRating, Manga, MangaStatus, Viewer
 };
 use serde::Deserialize;
 
 #[derive(Default, Deserialize, Debug, Clone)]
 pub struct CuuSearchResponse<T> {
 	pub data: T,
-	#[serde(rename = "_metadata")]
+	#[serde(rename = "_metadata", default)]
 	pub meta: CuuPageCount,
 }
 
 #[derive(Default, Deserialize, Debug, Clone)]
-pub struct CuuResponse<T> {
-	pub data: T,
-}
-
-#[derive(Default, Deserialize, Debug, Clone)]
-pub struct CuuPageCount {
-	pub total_pages: Option<i32>,
+pub struct CuuHome {
+	pub spotlight_mangas: Vec<CuuSpotlightManga>,
+	pub new_chapter_mangas: Vec<CuuNewestManga>,
 }
 
 #[derive(Default, Deserialize, Debug, Clone)]
@@ -28,23 +28,25 @@ pub struct CuuPage {
 }
 
 #[derive(Default, Deserialize, Debug, Clone)]
+pub struct CuuPageCount {
+	pub total_pages: Option<i32>,
+}
+
+#[derive(Default, Deserialize, Debug, Clone)]
 pub struct CuuSpotlightManga {
 	pub id: i32,
 }
 
 #[derive(Default, Deserialize, Debug, Clone)]
-pub struct CuuSearchTags {
-	pub mangas: Vec<CuuManga>,
-}
-
-#[derive(Default, Deserialize, Debug, Clone)]
-pub struct CuuHome {
-	pub spotlight_mangas: Vec<CuuSpotlightManga>,
-	pub new_chapter_mangas: Vec<CuuManga>,
-}
-
-#[derive(Default, Deserialize, Debug, Clone)]
 pub struct CuuManga {
+	pub cover_url: Option<String>,
+	pub name: String,
+	pub id: i32,
+}
+
+// idk why some search query got json parsing errors, so i created the same for homepage
+#[derive(Default, Deserialize, Debug, Clone)]
+pub struct CuuNewestManga {
 	pub cover_url: Option<String>,
 	pub name: String,
 	pub id: i32,
@@ -57,7 +59,7 @@ pub struct CuuManga {
 }
 
 #[derive(Default, Deserialize, Debug, Clone)]
-pub struct CuuMangas {
+pub struct CuuMangaDetails {
 	pub author: CuuNames,
 	pub cover_url: Option<String>,
 	pub full_description: Option<String>,
@@ -100,7 +102,7 @@ impl CuuManga {
 	}
 }
 
-impl CuuMangas {
+impl CuuMangaDetails {
 	pub fn description(&self) -> Option<String> {
     	if let Some(des) = self.full_description.as_ref() {
         	Html::parse(des).ok().and_then(|doc| {
@@ -116,11 +118,11 @@ impl CuuMangas {
 	}
 
 	pub fn authors(&self) -> Option<Vec<String>> {
-		Some(vec![String::from(self.author.name.to_string())])
+		Some(vec![self.author.name.to_string()])
 	}
 
 	pub fn url(&self) -> String {
-		format!("{BASE_URL}/mangas/{}", self.id)
+		format!("{}/mangas/{}", settings::get_url(), self.id)
 	}
 
 	pub fn tags(&self) -> Vec<String> {
@@ -142,12 +144,12 @@ impl CuuMangas {
 	}
 
 	pub fn scanlators(&self) -> Option<Vec<String>> {
-		Some(vec![String::from(self.team.name.to_string())])
+		Some(vec![self.team.name.to_string()])
 	}
 }
 
-impl From<CuuMangas> for Manga {
-	fn from(val: CuuMangas) -> Self {
+impl From<CuuMangaDetails> for Manga {
+	fn from(val: CuuMangaDetails) -> Self {
 		let tags = val.tags();
 
 		let status = if tags.iter().any(|tag| tag == "Đã Hoàn Thành") { MangaStatus::Completed }

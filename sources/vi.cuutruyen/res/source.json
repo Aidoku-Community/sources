@@ -3,18 +3,21 @@
 		"id": "vi.cuutruyen",
 		"name": "Cứu Truyện",
 		"version": 1,
-		"url": "https://cuutruyen.net",
 		"urls": [
-        		"https://cuutruyen.net",
-        		"https://hetcuutruyen.net",
-        		"https://nettrom.com",
-        		"https://cuutruyen5c844.site"
-    		],
+        	"https://cuutruyen.net",
+        	"https://hetcuutruyen.net",
+        	"https://nettrom.com",
+        	"https://cuutruyen5c844.site"
+    	],
 		"contentRating": 1,
 		"minAppVersion": "0.7.1",
 		"languages": ["vi"]
 	},
 	"listings": [
+		{
+			"id": "vn",
+			"name": "Truyện việt"
+		},
 		{
 			"id": "all",
 			"name": "Nổi bật"
@@ -27,5 +30,8 @@
 			"id": "month",
 			"name": "Top tháng"
 		}
-	]
+	],
+	"config": {
+		"allowsBaseUrlSelect": true
+	}
 }

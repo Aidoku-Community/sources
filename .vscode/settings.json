@@ -1,0 +1,3 @@
+{
+    "rust-analyzer.linkedProjects": ["sources/vi.cuutruyen/Cargo.toml"]
+}
