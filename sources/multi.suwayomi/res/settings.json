@@ -7,7 +7,10 @@
 				"type": "text",
 				"placeholder": "Suwayomi Base Url",
 				"key": "baseUrl",
-				"autocapitalizationType": 0
+				"keyboardType": 3,
+				"returnKeyType": 9,
+				"autocorrectionDisabled": true,
+				"refreshes": ["listings"]
 			}
 		]
 	}
