@@ -18,7 +18,7 @@
 			"Views 360 days",
 			"Views Total"
 		],
-		"ids":[
+		"ids": [
 			"field_score", 
 			"field_follow",
 			"field_review",
@@ -108,7 +108,7 @@
 			"29~20",
 			"19~10",
 			"9~1"
-		  ]		  
+		]		  
 	},
 	{
 		"type": "multi-select",
@@ -248,7 +248,7 @@
 			"Xianxia",
 			"Xuanhuan",
 			"Zombies"
-		  ],
+		],
 		"ids": [
 			"artbook",
 			"cartoon",
