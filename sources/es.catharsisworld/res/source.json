@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "es.catharsisworld",
+		"name": "Catharsis World",
+		"version": 1,
+		"url": "https://catharsisworld.dig-it.info",
+		"contentRating": 1,
+		"languages": ["es"]
+	}
+}
