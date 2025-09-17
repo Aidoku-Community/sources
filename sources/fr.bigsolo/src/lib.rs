@@ -86,7 +86,7 @@ impl Source for BigSolo {
 			let manga = Manga {
 				key: file_name.clone(),
 				title,
-				cover: Some(series_data.cover),
+				cover: Some(series_data.cover_low),
 				authors: Some(vec![series_data.author]),
 				artists: Some(vec![series_data.artist]),
 				description: Some(series_data.description),
@@ -121,7 +121,7 @@ impl Source for BigSolo {
 
 		if needs_details {
 			manga.title = title;
-			manga.cover = Some(series_data.cover.clone());
+			manga.cover = Some(series_data.cover_hq.clone());
 			manga.authors = Some(vec![series_data.author.clone()]);
 			manga.artists = Some(vec![series_data.artist.clone()]);
 			manga.description = Some(series_data.description.clone());
@@ -304,7 +304,7 @@ impl Home for BigSolo {
 					subtitle: None,
 					value: aidoku::HomeComponentValue::BigScroller {
 						entries: reco_entries,
-						auto_scroll_interval: Some(10.0),
+						auto_scroll_interval: Some(7.0),
 					},
 				},
 				HomeComponent {
@@ -330,7 +330,7 @@ impl Home for BigSolo {
 					subtitle: None,
 					value: aidoku::HomeComponentValue::Links(vec![
 						aidoku::Link {
-							title: String::from("Fan-arts (Colorisations KH)"),
+							title: String::from("Colorisations"),
 							value: Some(aidoku::LinkValue::Url(String::from(
 								"https://bigsolo.org/galerie",
 							))),
