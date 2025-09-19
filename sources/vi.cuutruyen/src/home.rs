@@ -1,7 +1,6 @@
 // a source made by @c0ntens
 use crate::CuuTruyen;
 use crate::models::*;
-use crate::settings;
 use aidoku::{
 	alloc::{string::ToString, vec, String, Vec},
 	imports::{
@@ -9,7 +8,7 @@ use aidoku::{
 		std::send_partial_result,
 	},
 	prelude::*, 
-	Chapter, Home, HomeComponent, HomeLayout, HomePartialResult,
+	BaseUrlProvider, Chapter, Home, HomeComponent, HomeLayout, HomePartialResult,
 	Link, Listing, ListingKind, Manga, MangaWithChapter, Result
 };
 
@@ -39,12 +38,13 @@ impl Home for CuuTruyen {
 			},
 		]}));
 
+		let base_url = self.get_base_url()?;
 		let responses: [core::result::Result<Response, RequestError>; 3] = Request::send_all([
-			Request::get(format!("{}/api/v2/home_a", settings::get_url()))?,
+			Request::get(format!("{}/api/v2/home_a", base_url))?,
 			// top week
-			Request::get(format!("{}/api/v2/mangas/top?duration=week&page=1&per_page=24", settings::get_url()))?,
+			Request::get(format!("{}/api/v2/mangas/top?duration=week&page=1&per_page=24", base_url))?,
 			// top month
-			Request::get(format!("{}/api/v2/mangas/top?duration=month&page=1&per_page=24", settings::get_url()))?,
+			Request::get(format!("{}/api/v2/mangas/top?duration=month&page=1&per_page=24", base_url))?,
 		])
 		.try_into()
 		.expect("requests vec length should be 3");
@@ -59,7 +59,7 @@ impl Home for CuuTruyen {
 			.collect::<Vec<String>>();
 
 		let manga_res = Request::send_all(manga_id.iter().map(|id| {
-			Request::get(format!("{}/api/v2/mangas/{}", settings::get_url(), id)).unwrap()
+			Request::get(format!("{}/api/v2/mangas/{}", base_url, id)).unwrap()
 		}));
 
 		let spotlight_manga = manga_res
@@ -83,7 +83,7 @@ impl Home for CuuTruyen {
 		}));
 
 		// latest mangas
-		let latest_chapter = Request::get(format!("{}/api/v2/home_a", settings::get_url()))?.send()?.get_json::<CuuSearchResponse<CuuHome>>()?
+		let latest_chapter = Request::get(format!("{}/api/v2/home_a", base_url))?.send()?.get_json::<CuuSearchResponse<CuuHome>>()?
 			.data.new_chapter_mangas
 			.into_iter()
 			.map(|value| {

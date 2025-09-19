@@ -1,5 +1,4 @@
 // a source made by @c0ntens
-use crate::settings;
 use aidoku::{
 	alloc::{string::ToString, vec, String, Vec},
 	helpers::element::ElementHelpers,
@@ -121,10 +120,6 @@ impl CuuMangaDetails {
 		Some(vec![self.author.name.to_string()])
 	}
 
-	pub fn url(&self) -> String {
-		format!("{}/mangas/{}", settings::get_url(), self.id)
-	}
-
 	pub fn tags(&self) -> Vec<String> {
 		self.tags
 			.iter()
@@ -171,7 +166,7 @@ impl From<CuuMangaDetails> for Manga {
 			cover: val.cover_url.clone(),
 			authors: val.authors(),
 			description: val.description(),
-			url: Some(val.url()),
+			url: Some(format!("https://truycapcuutruyen.pages.dev/mangas/{}", val.id)),
 			tags: Some(tags),
 			status,
 			content_rating,
