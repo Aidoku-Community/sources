@@ -62,7 +62,7 @@ pub struct ChapterData {
 	pub title: String,
 	pub volume: String,
 	pub last_updated: String,
-	pub licencied: Option<Vec<String>>,
+	pub licencied: Option<bool>,
 	pub groups: HashMap<String, String>,
 	pub collab: Option<String>,
 }

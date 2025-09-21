@@ -173,7 +173,7 @@ impl Source for BigSolo {
 								}
 								Some(scanlators)
 							},
-							locked: chapter.licencied.as_ref().is_some_and(|v| !v.is_empty()),
+							locked: chapter.licencied.as_ref().is_some_and(|v| *v),
 							..Default::default()
 						}
 					})
