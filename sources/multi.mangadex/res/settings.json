@@ -30,6 +30,14 @@
 				"refreshes": ["content"]
 			},
 			{
+				"type": "switch",
+				"key": "lockedChapters",
+				"title": "Shows Unavailable Chapters",
+				"subtitle": "Usually due to DMCA takedown requests, scanlator requests, or an official copyright claim",
+				"default": true,
+				"refreshes": ["content"]
+			},
+			{
 				"type": "multi-select",
 				"key": "contentRating",
 				"title": "Default Content Rating",

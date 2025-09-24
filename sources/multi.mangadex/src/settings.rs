@@ -16,6 +16,7 @@ const CONTENT_RATING_KEY: &str = "contentRating";
 const BLOCKED_UUIDS_KEY: &str = "blockedUUIDs";
 const FORCE_PORT_KEY: &str = "standardHttpsPort";
 const DATA_SAVER_KEY: &str = "dataSaver";
+const LOCKED_CHAPTERS_KEY: &str = "lockedChapters";
 const TOKEN_KEY: &str = "login";
 const CODE_VERIFIER_KEY: &str = "login.codeVerifier";
 
@@ -83,6 +84,10 @@ pub fn get_force_port() -> bool {
 
 pub fn get_data_saver() -> bool {
 	defaults_get::<bool>(DATA_SAVER_KEY).unwrap_or(false)
+}
+
+pub fn get_locked_chapters() -> bool {
+	defaults_get::<bool>(LOCKED_CHAPTERS_KEY).unwrap_or(false)
 }
 
 pub fn get_cover_quality() -> String {

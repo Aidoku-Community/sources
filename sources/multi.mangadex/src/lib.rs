@@ -221,6 +221,7 @@ impl Source for MangaDex {
 		if needs_chapters {
 			let languages = settings::get_languages_with_key("translatedLanguage")?;
 			let blocked_groups = settings::get_blocked_uuids()?;
+			let show_unavailable_chapters = settings::get_locked_chapters();
 
 			let url = format!(
 				"{API_URL}/manga/{}/feed\
@@ -231,11 +232,13 @@ impl Source for MangaDex {
 					&contentRating[]=erotica\
 					&contentRating[]=suggestive\
 					&contentRating[]=safe\
+					&includeUnavailable={}\
 					&includes[]=user\
 					&includes[]=scanlation_group\
 					{languages}\
 					{blocked_groups}",
-				manga.key
+				manga.key,
+				if show_unavailable_chapters { "1" } else { "0" }
 			);
 
 			let (mut chapters, total) = Request::get(&url)?

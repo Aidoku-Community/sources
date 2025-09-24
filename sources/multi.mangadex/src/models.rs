@@ -140,6 +140,7 @@ pub struct DexChapterAttributes<'a> {
 	pub volume: Option<&'a str>,
 	pub chapter: Option<&'a str>,
 	pub external_url: Option<Value>,
+	pub is_unavailable: bool,
 	pub translated_language: &'a str,
 	pub publish_at: &'a str,
 }
@@ -400,6 +401,7 @@ impl From<DexChapter<'_>> for Chapter {
 			scanlators: Some(val.scanlators()),
 			url: Some(val.url()),
 			language: Some(String::from(val.attributes.translated_language)),
+			locked: val.attributes.is_unavailable,
 			..Default::default()
 		}
 	}
