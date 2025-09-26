@@ -16,6 +16,7 @@ use aidoku::{
 };
 use chrono::{TimeZone, Utc};
 use hashbrown::HashSet;
+use regex::Regex;
 
 impl Home for MangaDex {
 	fn get_home(&self) -> Result<HomeLayout> {
@@ -57,6 +58,49 @@ impl Home for MangaDex {
 			})
 			.collect::<Vec<_>>();
 
+		// fetch seasonal list
+		struct SeasonalList<'a> {
+			name: String,
+			entries: Vec<&'a str>,
+		}
+		let owner_user_id = "d2ae45e0-b5e2-4e7f-a688-17925c2d7d6b";
+		let mut seasonal_res = Request::get(format!("{API_URL}/user/{owner_user_id}/list"))?.send()?;
+
+		let seasonal_re = Regex::new(r"^Seasonal:\s*(?P<season>Winter|Spring|Summer|Fall)\s*(?P<year>\d{4})$").expect("Failed to compile regex");
+		let season_to_rank = |season: &str| -> u8 {
+			match season.to_lowercase().as_str() {
+				"winter" => 1,
+				"spring" => 2,
+				"summer" => 3,
+				"fall" => 4,
+				_ => 0,
+			}
+		};
+		
+  		let mut latest_seasonal_lists = seasonal_res
+			.get_json::<DexResponse<Vec<DexCustomList>>>()?
+			.data
+			.iter()
+			.filter_map(|item| {
+				let name = &item.attributes.name;
+				let captures = seasonal_re.captures(name)?;
+				let year = captures.name("year")?.as_str().parse::<u16>().ok();
+				let season_rank = season_to_rank(captures.name("season")?.as_str());
+
+				let manga_ids = item.relationships.iter().filter_map(|relationship| {
+					if relationship.r#type == "manga" {
+						Some(relationship.id)
+					} else {
+						None
+					}
+				})
+				.collect::<Vec<&str>>();
+
+				Some((year, season_rank, name, manga_ids))
+			})
+			.max_by(|(y1, s1, _, _), (y2, s2, _, _)| (y1,s1).cmp(&(y2,s2)))
+			.map(|(_, _, name, manga_ids)| SeasonalList { name: name.clone(), entries: manga_ids });
+
 		// send basic home layout
 		{
 			let mut components = vec![
@@ -76,6 +120,13 @@ impl Home for MangaDex {
 					title: Some(name.clone()),
 					subtitle: None,
 					value: aidoku::HomeComponentValue::empty_scroller(),
+				});
+			}
+			for SeasonalList { name, .. } in latest_seasonal_lists.iter() {
+				components.push(HomeComponent {
+					title: Some(name.clone()),
+					subtitle: None,
+					value: aidoku::HomeComponentValue::empty_scroller()
 				});
 			}
 			components.push(HomeComponent {
@@ -288,6 +339,55 @@ impl Home for MangaDex {
 						entries,
 						listing: Some(Listing {
 							id: format!("list-{id}"),
+							name,
+							kind: ListingKind::Default,
+						}),
+					},
+				}));
+			}
+		}
+
+		// same from a custom lists
+		{
+			let seasonal_list_responses = Request::send_all(latest_seasonal_lists.iter().map(|list| {
+				Request::get(format!(
+					"{API_URL}/manga\
+						?limit=100\
+						&includes[]=cover_art\
+						{content_ratings}\
+						&ids[]={}",
+					list.entries.join("&ids[]=")
+				))
+				.unwrap()
+			}));
+			let latest_seasonal_lists = latest_seasonal_lists
+				.iter_mut()
+				.zip(seasonal_list_responses)
+				.filter_map(|(list, res)| {
+					Some((
+						list.name.clone(),
+						res.ok()?
+							.get_json::<DexResponse<Vec<DexManga>>>()
+							.map(|response| {
+								response
+									.data
+									.into_iter()
+									.map(|value| value.into_basic_manga().into())
+									.collect::<Vec<Link>>()
+							})
+							.ok()?,
+					))
+				})
+				.collect::<Vec<(String, Vec<Link>)>>();
+
+			for (name, entries) in latest_seasonal_lists {
+				send_partial_result(&HomePartialResult::Component(HomeComponent {
+					title: Some(name.clone()),
+					subtitle: None,
+					value: aidoku::HomeComponentValue::Scroller {
+						entries,
+						listing: Some(Listing {
+							id: String::from("seasonal"),
 							name,
 							kind: ListingKind::Default,
 						}),

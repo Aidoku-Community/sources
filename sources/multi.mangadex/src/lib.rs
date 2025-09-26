@@ -12,6 +12,7 @@ use aidoku::{
 	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result,
 	Source,
 };
+use regex::Regex;
 use core::fmt::Write;
 use hashbrown::HashSet;
 
@@ -35,7 +36,6 @@ const CUSTOM_LISTS: &[&str] = &[
 	"f66ebc10-ef89-46d1-be96-bb704559e04a", // Self-Published
 	"805ba886-dd99-4aa4-b460-4bd7c7b71352", // Staff Picks
 	"5c5e6e39-0b4b-413e-be59-27b1ba03d1b9", // Featured by Supporters
-	"a5ba5473-07b2-4d0a-aefd-90d9d4a04521", // Seasonal
 ];
 
 struct MangaDex;
@@ -345,6 +345,7 @@ impl ListingProvider for MangaDex {
 			),
 			"latest" => self.get_latest_manga(page),
 			"library" => self.get_library(page),
+			"seasonal" => self.get_seasonal_list(),
 			_ if listing.id.starts_with(CUSTOM_LIST_PREFIX) => {
 				self.get_mangadex_list(&listing.id[CUSTOM_LIST_PREFIX.len()..])
 			}
@@ -367,6 +368,71 @@ impl MangaDex {
 			.collect::<Vec<String>>();
 
 		Ok(ids)
+	}
+
+	// get a seasonal list
+	fn get_seasonal_list(&self) -> Result<MangaPageResult> {
+		let content_ratings = settings::get_content_ratings()?;
+		let owner_user_id = "d2ae45e0-b5e2-4e7f-a688-17925c2d7d6b";
+		let mut seasonal_res = Request::get(format!("{API_URL}/user/{owner_user_id}/list"))?.send()?;
+
+		let seasonal_re = Regex::new(r"^Seasonal:\s*(?P<season>Winter|Spring|Summer|Fall)\s*(?P<year>\d{4})$").expect("Failed to compile regex");
+		let season_to_rank = |season: &str| -> u8 {
+			match season.to_lowercase().as_str() {
+				"winter" => 1,
+				"spring" => 2,
+				"summer" => 3,
+				"fall" => 4,
+				_ => 0,
+			}
+		};
+		
+  		let latest_seasonal_lists = seasonal_res
+			.get_json::<DexResponse<Vec<DexCustomList>>>()?
+			.data
+			.iter()
+			.filter_map(|item| {
+				let name = &item.attributes.name;
+				let captures = seasonal_re.captures(name)?;
+				let year = captures.name("year")?.as_str().parse::<u16>().ok();
+				let season_rank = season_to_rank(captures.name("season")?.as_str());
+
+				let manga_ids = item.relationships.iter().filter_map(|relationship| {
+					if relationship.r#type == "manga" {
+						Some(relationship.id)
+					} else {
+						None
+					}
+				})
+				.collect::<Vec<&str>>();
+
+				Some((year, season_rank, manga_ids))
+			})
+			.max_by(|(y1, s1, _), (y2, s2, _)| (y1,s1).cmp(&(y2,s2)))
+			.map(|(_, _, manga_ids)| manga_ids);
+
+		let entries = Request::get(format!(
+			"{API_URL}/manga\
+					?limit=100\
+					&includes[]=cover_art\
+					{content_ratings}\
+					&ids[]={}",
+			latest_seasonal_lists.unwrap().join("&ids[]=")
+		))?
+		.send()?
+		.get_json::<DexResponse<Vec<DexManga>>>()
+		.map(|response| {
+			response
+				.data
+				.into_iter()
+				.map(|value| value.into_basic_manga())
+				.collect::<Vec<Manga>>()
+		})?;
+
+		Ok(MangaPageResult {
+			entries,
+			has_next_page: false,
+		})
 	}
 
 	// get a custom list
