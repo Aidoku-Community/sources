@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "en.flamecomics",
+		"name": "FlameComics",
+		"version": 3,
+		"url": "https://flamecomics.xyz",
+		"contentRating": 0,
+		"languages": ["en"]
+	}
+}
