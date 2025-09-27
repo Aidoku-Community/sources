@@ -222,6 +222,59 @@ pub trait Impl {
 			.header("Referer", &format!("{}/", params.base_url))
 			.html()?;
 
+		fn extract_array(content: &str, arr_name: &str) -> Vec<String> {
+			let start = format!("{arr_name} = [");
+			let slice: &str = content
+				.find(&start)
+				.and_then(|start_idx| {
+					let after_start = &content[start_idx + start.len()..];
+					after_start
+						.find("]")
+						.map(|end_idx| after_start[..end_idx].into())
+						.unwrap_or_default()
+				})
+				.unwrap_or_default();
+			fn remove_quotes(s: &str) -> &str {
+				let bytes = s.as_bytes();
+				if bytes.len() >= 2 && bytes[0] == b'"' && bytes[bytes.len() - 1] == b'"' {
+					&s[1..bytes.len() - 1]
+				} else {
+					s
+				}
+			}
+			slice
+				.split(',')
+				.map(|s| remove_quotes(s.trim()).replace("\\/", "/"))
+				.collect()
+		}
+
+		let content = html
+			.select("script")
+			.map(|els| {
+				els.filter_map(|e| e.data())
+					.filter(|s| s.contains("cdns ="))
+					.collect::<Vec<_>>()
+					.join("\n")
+			})
+			.unwrap_or_default();
+		let content_trimmed = content.trim();
+		if !content.is_empty() {
+			let mut cdns = extract_array(content_trimmed, "cdns");
+			cdns.extend(extract_array(content_trimmed, "backupImage"));
+			if let Some(cdn) = cdns.first() {
+				let chapter_imgs = extract_array(content_trimmed, "chapterImages");
+				if !chapter_imgs.is_empty() {
+					return Ok(chapter_imgs
+						.iter()
+						.map(|path| Page {
+							content: PageContent::url(format!("{cdn}/{path}")),
+							..Default::default()
+						})
+						.collect());
+				}
+			};
+		}
+
 		Ok(html
 			.select("div.container-chapter-reader > img")
 			.map(|els| {

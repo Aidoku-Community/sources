@@ -22,7 +22,9 @@ impl Default for Params {
 	fn default() -> Self {
 		Self {
 			base_url: "".into(),
-			item_selector: ".panel_story_list .story_item, .list-truyen-item-wrap".into(),
+			item_selector:
+				".panel_story_list .story_item, .list-truyen-item-wrap, .list-comic-item-wrap"
+					.into(),
 			search_path: "/search/story".into(),
 			genres: Cow::Borrowed(&[]),
 		}

@@ -2,8 +2,11 @@
 	"info": {
 		"id": "en.mangakakalot",
 		"name": "MangaKakalot",
-		"version": 1,
-		"urls": ["www.mangakakalot.gg", "www.mangakakalove.com"],
+		"version": 2,
+		"urls": [
+			"https://www.mangakakalot.gg",
+			"https://www.mangakakalove.com"
+		],
 		"contentRating": 1,
 		"languages": ["en"]
 	},
