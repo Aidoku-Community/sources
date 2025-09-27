@@ -21,6 +21,7 @@ impl Impl for ShonenJumpPlus {
 		Params {
 			base_url: BASE_URL.into(),
 			cdn_url: CDN_URL.into(),
+			is_paginated: true,
 			..Default::default()
 		}
 	}

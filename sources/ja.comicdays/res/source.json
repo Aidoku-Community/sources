@@ -3,7 +3,7 @@
 		"id": "ja.comicdays",
 		"name": "コミックDAYS",
 		"altNames": ["Comic Days"],
-		"version": 1,
+		"version": 2,
 		"url": "https://comic-days.com",
 		"contentRating": 0,
 		"languages": ["ja"]
