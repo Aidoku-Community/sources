@@ -296,7 +296,7 @@ impl Source for MangaDex {
 				let base_url = format!(
 					"{}/{}/{}",
 					response.base_url,
-					if data_saver { "dataSaver" } else { "data" },
+					if data_saver { "data-saver" } else { "data" },
 					response.chapter.hash
 				);
 

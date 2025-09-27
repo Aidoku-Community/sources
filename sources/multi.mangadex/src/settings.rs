@@ -21,12 +21,24 @@ const CODE_VERIFIER_KEY: &str = "login.codeVerifier";
 
 pub fn get_languages() -> Result<Vec<String>> {
 	defaults_get::<Vec<String>>(LANGUAGES_KEY)
+		.map(|langs| {
+			langs
+				.into_iter()
+				.map(|lang| match lang.as_str() {
+					"zh-Hans" => "zh".into(),
+					"zh-Hant" => "zh-hk".into(),
+					"fil" => "tl".into(),
+					"pt-BR" => "pt-br".into(),
+					"es-419" => "es-la".into(),
+					_ => lang,
+				})
+				.collect()
+		})
 		.ok_or(AidokuError::message("Unable to fetch languages"))
 }
 
 pub fn get_languages_with_key(key: &str) -> Result<String> {
-	Ok(defaults_get::<Vec<String>>(LANGUAGES_KEY)
-		.ok_or(AidokuError::message("Unable to fetch languages"))?
+	Ok(get_languages()?
 		.iter()
 		.fold(String::new(), |mut output, lang| {
 			let _ = write!(output, "&{key}[]={lang}");
