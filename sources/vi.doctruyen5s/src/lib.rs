@@ -2,7 +2,7 @@
 use aidoku::{prelude::*, Source};
 use liliana::{Impl, Liliana, Params};
 
-const BASE_URL: &str = "https://dongmoe.com";
+const BASE_URL: &str = "https://manga.io.vn";
 
 struct DocTruyen5s;
 
