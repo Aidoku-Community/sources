@@ -1,12 +1,19 @@
 use aidoku::{
-	alloc::{String, Vec},
-	helpers::date::parse_local_date,
+	alloc::{string::ToString, String, Vec},
+	helpers::uri::QueryParameters,
 	imports::{
 		defaults::defaults_get,
 		html::{Document, Html},
+		net::Request,
+		std::parse_local_date,
 	},
 	prelude::*,
-	Chapter, Manga,
+	Chapter, Manga, Result,
+};
+
+use crate::{
+	models::{GigaPaginationReadableProduct, GigaReadMoreResponse},
+	AuthedRequest,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -55,6 +62,98 @@ pub fn parse_response<T: AsRef<str>>(
 		.unwrap_or_default()
 }
 
+pub fn parse_chapters_single_page(
+	html: &Document,
+	base_url: &str,
+	referer_url: &str,
+	manga_title: &str,
+	chapter_list_selector: &str,
+) -> Result<Vec<Chapter>> {
+	let target_endpoint = {
+		let aggregate_id = html
+			.select_first("script.js-valve")
+			.and_then(|el| el.attr("data-giga_series"))
+			.unwrap_or_else(|| {
+				html.select_first(".readable-products-pagination")
+					.and_then(|el| el.attr("data-aggregate-id"))
+					.unwrap_or_default()
+			});
+
+		let mut qs = QueryParameters::new();
+		qs.push("aggregate_id", Some(&aggregate_id));
+		qs.push("number_since", Some("2147483647")); // i32 max
+		qs.push("number_until", Some("0"));
+		qs.push("read_more_num", Some("150"));
+		qs.push("type", Some("episode"));
+
+		format!("{base_url}/api/viewer/readable_products?{qs}")
+	};
+
+	let mut json = Request::get(target_endpoint)?
+		.header("Referer", referer_url)
+		.authed()
+		.json_owned::<GigaReadMoreResponse>();
+	let mut chapters: Vec<Chapter> = Vec::new();
+
+	while let Ok(ok_json) = json {
+		if let Some(new_chapters) =
+			parse_chapter_elements(ok_json.html, base_url, manga_title, chapter_list_selector)
+		{
+			chapters.extend(new_chapters);
+		}
+		json = Request::get(ok_json.next_url)?
+			.header("Referer", referer_url)
+			.authed()
+			.json_owned::<GigaReadMoreResponse>();
+	}
+
+	Ok(chapters)
+}
+
+pub fn parse_chapters_paginated(
+	html: &Document,
+	base_url: &str,
+	referer_url: &str,
+) -> Result<Vec<Chapter>> {
+	let aggregate_id = html
+		.select_first("script.js-valve")
+		.and_then(|el| el.attr("data-giga_series"))
+		.unwrap_or_else(|| {
+			html.select_first(".readable-products-pagination")
+				.and_then(|el| el.attr("data-aggregate-id"))
+				.unwrap_or_default()
+		});
+
+	let mut chapters = Vec::new();
+	let mut offset = 0;
+
+	loop {
+		let url = {
+			let mut qs = QueryParameters::new();
+			qs.push("type", Some("episode"));
+			qs.push("aggregate_id", Some(&aggregate_id));
+			qs.push("sort_order", Some("desc"));
+			qs.push("offset", Some(&offset.to_string()));
+
+			format!("{base_url}/api/viewer/pagination_readable_products?{qs}")
+		};
+		let json = Request::get(url)?
+			.header("Referer", referer_url)
+			.authed()
+			.json_owned::<Vec<GigaPaginationReadableProduct>>()
+			.unwrap_or_default();
+
+		if json.is_empty() {
+			break;
+		}
+
+		offset += json.len();
+		chapters.extend(json.into_iter().map(|product| product.into()));
+	}
+
+	Ok(chapters)
+}
+
 pub fn parse_chapter_elements(
 	html: String,
 	base_url: &str,
@@ -70,7 +169,7 @@ pub fn parse_chapter_elements(
 				.filter_map(|e| {
 					let date_uploaded = e
 						.select_first("span.series-episode-list-date")
-						.and_then(|e| parse_local_date(e.text()?, "%Y/%m/%d"));
+						.and_then(|e| parse_local_date(e.text()?, "yyyy/MM/dd"));
 
 					let locked = e.select_first(".series-episode-list-price").is_some();
 

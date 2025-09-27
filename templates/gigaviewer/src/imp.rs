@@ -112,51 +112,23 @@ pub trait Impl {
 				..Default::default()
 			});
 
-			send_partial_result(&new_manga);
+			if needs_chapters {
+				send_partial_result(&new_manga);
+			}
 		}
 
 		if needs_chapters {
-			let target_endpoint = {
-				let aggregate_id = html
-					.select_first("script.js-valve")
-					.and_then(|el| el.attr("data-giga_series"))
-					.unwrap_or_else(|| {
-						html.select_first(".readable-products-pagination")
-							.and_then(|el| el.attr("data-aggregate-id"))
-							.unwrap_or_default()
-					});
-
-				let mut qs = QueryParameters::new();
-				qs.push("aggregate_id", Some(&aggregate_id));
-				qs.push("number_since", Some("2147483647")); // i32 max
-				qs.push("number_until", Some("0"));
-				qs.push("read_more_num", Some("150"));
-				qs.push("type", Some("episode"));
-
-				format!("{}/api/viewer/readable_products?{qs}", params.base_url)
-			};
-
-			let mut json = Request::get(target_endpoint)?
-				.header("Referer", &url)
-				.authed()
-				.json_owned::<GigaReadMoreResponse>();
-			let mut chapters: Vec<Chapter> = Vec::new();
-
-			while let Ok(ok_json) = json {
-				if let Some(new_chapters) = parser::parse_chapter_elements(
-					ok_json.html,
+			let chapters = if params.is_paginated {
+				parser::parse_chapters_paginated(&html, &params.base_url, &url)?
+			} else {
+				parser::parse_chapters_single_page(
+					&html,
 					&params.base_url,
+					&url,
 					&new_manga.title,
 					&params.chapter_list_selector,
-				) {
-					chapters.extend(new_chapters);
-				}
-				json = Request::get(ok_json.next_url)?
-					.header("Referer", &url)
-					.authed()
-					.json_owned::<GigaReadMoreResponse>();
-			}
-
+				)?
+			};
 			new_manga.chapters = Some(chapters);
 		}
 
