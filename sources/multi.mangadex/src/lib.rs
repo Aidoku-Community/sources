@@ -345,7 +345,7 @@ impl ListingProvider for MangaDex {
 			),
 			"latest" => self.get_latest_manga(page),
 			"library" => self.get_library(page),
-			"seasonal" => self.get_seasonal_list(),
+			"seasonal" => self.get_current_seasonal_list(),
 			_ if listing.id.starts_with(CUSTOM_LIST_PREFIX) => {
 				self.get_mangadex_list(&listing.id[CUSTOM_LIST_PREFIX.len()..])
 			}
@@ -371,12 +371,12 @@ impl MangaDex {
 	}
 
 	// get a seasonal list
-	fn get_seasonal_list(&self) -> Result<MangaPageResult> {
+	fn get_current_seasonal_list(&self) -> Result<MangaPageResult> {
 		let content_ratings = settings::get_content_ratings()?;
 		let owner_user_id = "d2ae45e0-b5e2-4e7f-a688-17925c2d7d6b";
 		let mut seasonal_res = Request::get(format!("{API_URL}/user/{owner_user_id}/list"))?.send()?;
 
-		let seasonal_re = Regex::new(r"^Seasonal:\s*(?P<season>Winter|Spring|Summer|Fall)\s*(?P<year>\d{4})$").expect("Failed to compile regex");
+		let seasonal_re = Regex::new(r"^Seasonal:\s*(?P<season>Winter|Spring|Summer|Fall)\s*(?P<year>\d{4})$").unwrap();
 		let season_to_rank = |season: &str| -> u8 {
 			match season.to_lowercase().as_str() {
 				"winter" => 1,
@@ -387,7 +387,7 @@ impl MangaDex {
 			}
 		};
 		
-  		let latest_seasonal_lists = seasonal_res
+  		let current_seasonal_lists = seasonal_res
 			.get_json::<DexResponse<Vec<DexCustomList>>>()?
 			.data
 			.iter()
@@ -417,7 +417,7 @@ impl MangaDex {
 					&includes[]=cover_art\
 					{content_ratings}\
 					&ids[]={}",
-			latest_seasonal_lists.unwrap().join("&ids[]=")
+			current_seasonal_lists.unwrap().join("&ids[]=")
 		))?
 		.send()?
 		.get_json::<DexResponse<Vec<DexManga>>>()
@@ -629,6 +629,12 @@ impl AlternateCoverProvider for MangaDex {
 				offset += 100;
 			}
 		}
+
+		items.sort_by(|a, b| {
+			let num_a = a.attributes.volume.as_ref().and_then(|a| a.parse::<f32>().ok()).unwrap_or(0.0);
+			let num_b = b.attributes.volume.as_ref().and_then(|b| b.parse::<f32>().ok()).unwrap_or(0.0);
+			num_b.total_cmp(&num_a)
+		});
 
 		let result = items
 			.iter()

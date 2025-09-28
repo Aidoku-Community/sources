@@ -112,6 +112,7 @@ pub struct DexCustomListAttributes {
 #[derive(Default, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DexCoverArtAttributes {
+	pub volume: Option<String>,
 	pub file_name: String,
 }
 

@@ -66,7 +66,7 @@ impl Home for MangaDex {
 		let owner_user_id = "d2ae45e0-b5e2-4e7f-a688-17925c2d7d6b";
 		let mut seasonal_res = Request::get(format!("{API_URL}/user/{owner_user_id}/list"))?.send()?;
 
-		let seasonal_re = Regex::new(r"^Seasonal:\s*(?P<season>Winter|Spring|Summer|Fall)\s*(?P<year>\d{4})$").expect("Failed to compile regex");
+		let seasonal_re = Regex::new(r"^Seasonal:\s*(?P<season>Winter|Spring|Summer|Fall)\s*(?P<year>\d{4})$").unwrap();
 		let season_to_rank = |season: &str| -> u8 {
 			match season.to_lowercase().as_str() {
 				"winter" => 1,
@@ -77,7 +77,7 @@ impl Home for MangaDex {
 			}
 		};
 		
-  		let mut latest_seasonal_lists = seasonal_res
+  		let mut current_seasonal_lists = seasonal_res
 			.get_json::<DexResponse<Vec<DexCustomList>>>()?
 			.data
 			.iter()
@@ -122,7 +122,7 @@ impl Home for MangaDex {
 					value: aidoku::HomeComponentValue::empty_scroller(),
 				});
 			}
-			for SeasonalList { name, .. } in latest_seasonal_lists.iter() {
+			for SeasonalList { name, .. } in current_seasonal_lists.iter() {
 				components.push(HomeComponent {
 					title: Some(name.clone()),
 					subtitle: None,
@@ -349,7 +349,7 @@ impl Home for MangaDex {
 
 		// same from a custom lists
 		{
-			let seasonal_list_responses = Request::send_all(latest_seasonal_lists.iter().map(|list| {
+			let seasonal_list_responses = Request::send_all(current_seasonal_lists.iter().map(|list| {
 				Request::get(format!(
 					"{API_URL}/manga\
 						?limit=100\
@@ -360,7 +360,7 @@ impl Home for MangaDex {
 				))
 				.unwrap()
 			}));
-			let latest_seasonal_lists = latest_seasonal_lists
+			let current_seasonal_lists = current_seasonal_lists
 				.iter_mut()
 				.zip(seasonal_list_responses)
 				.filter_map(|(list, res)| {
@@ -380,7 +380,7 @@ impl Home for MangaDex {
 				})
 				.collect::<Vec<(String, Vec<Link>)>>();
 
-			for (name, entries) in latest_seasonal_lists {
+			for (name, entries) in current_seasonal_lists {
 				send_partial_result(&HomePartialResult::Component(HomeComponent {
 					title: Some(name.clone()),
 					subtitle: None,

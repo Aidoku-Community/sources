@@ -33,7 +33,7 @@
 				"type": "switch",
 				"key": "lockedChapters",
 				"title": "Shows Unavailable Chapters",
-				"subtitle": "Usually due to DMCA takedown requests, scanlator requests, or an official copyright claim",
+				"subtitle": "Displays chapters that has been removed.",
 				"default": true,
 				"refreshes": ["content"]
 			},
