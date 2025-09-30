@@ -12,7 +12,6 @@ use aidoku::{
 	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result,
 	Source,
 };
-use regex::Regex;
 use core::fmt::Write;
 use hashbrown::HashSet;
 
@@ -345,7 +344,6 @@ impl ListingProvider for MangaDex {
 			),
 			"latest" => self.get_latest_manga(page),
 			"library" => self.get_library(page),
-			"seasonal" => self.get_current_seasonal_list(),
 			_ if listing.id.starts_with(CUSTOM_LIST_PREFIX) => {
 				self.get_mangadex_list(&listing.id[CUSTOM_LIST_PREFIX.len()..])
 			}
@@ -368,71 +366,6 @@ impl MangaDex {
 			.collect::<Vec<String>>();
 
 		Ok(ids)
-	}
-
-	// get a seasonal list
-	fn get_current_seasonal_list(&self) -> Result<MangaPageResult> {
-		let content_ratings = settings::get_content_ratings()?;
-		let owner_user_id = "d2ae45e0-b5e2-4e7f-a688-17925c2d7d6b";
-		let mut seasonal_res = Request::get(format!("{API_URL}/user/{owner_user_id}/list"))?.send()?;
-
-		let seasonal_re = Regex::new(r"^Seasonal:\s*(?P<season>Winter|Spring|Summer|Fall)\s*(?P<year>\d{4})$").unwrap();
-		let season_to_rank = |season: &str| -> u8 {
-			match season.to_lowercase().as_str() {
-				"winter" => 1,
-				"spring" => 2,
-				"summer" => 3,
-				"fall" => 4,
-				_ => 0,
-			}
-		};
-		
-  		let current_seasonal_lists = seasonal_res
-			.get_json::<DexResponse<Vec<DexCustomList>>>()?
-			.data
-			.iter()
-			.filter_map(|item| {
-				let name = &item.attributes.name;
-				let captures = seasonal_re.captures(name)?;
-				let year = captures.name("year")?.as_str().parse::<u16>().ok();
-				let season_rank = season_to_rank(captures.name("season")?.as_str());
-
-				let manga_ids = item.relationships.iter().filter_map(|relationship| {
-					if relationship.r#type == "manga" {
-						Some(relationship.id)
-					} else {
-						None
-					}
-				})
-				.collect::<Vec<&str>>();
-
-				Some((year, season_rank, manga_ids))
-			})
-			.max_by(|(y1, s1, _), (y2, s2, _)| (y1,s1).cmp(&(y2,s2)))
-			.map(|(_, _, manga_ids)| manga_ids);
-
-		let entries = Request::get(format!(
-			"{API_URL}/manga\
-					?limit=100\
-					&includes[]=cover_art\
-					{content_ratings}\
-					&ids[]={}",
-			current_seasonal_lists.unwrap().join("&ids[]=")
-		))?
-		.send()?
-		.get_json::<DexResponse<Vec<DexManga>>>()
-		.map(|response| {
-			response
-				.data
-				.into_iter()
-				.map(|value| value.into_basic_manga())
-				.collect::<Vec<Manga>>()
-		})?;
-
-		Ok(MangaPageResult {
-			entries,
-			has_next_page: false,
-		})
 	}
 
 	// get a custom list
@@ -458,7 +391,7 @@ impl MangaDex {
 		// assume the list is 32 items or less (mangadex site uses this value)
 		let entries = Request::get(format!(
 			"{API_URL}/manga\
-					?limit=32\
+					?limit=100\
 					&includes[]=cover_art\
 					{content_ratings}\
 					&ids[]={}",

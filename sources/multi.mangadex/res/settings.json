@@ -32,8 +32,8 @@
 			{
 				"type": "switch",
 				"key": "lockedChapters",
-				"title": "Shows Unavailable Chapters",
-				"subtitle": "Displays chapters that has been removed.",
+				"title": "Show Unavailable Chapters",
+				"subtitle": "Display chapters that has been removed",
 				"default": true,
 				"refreshes": ["content"]
 			},
