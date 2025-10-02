@@ -6,11 +6,11 @@ use aidoku::{
 pub fn get_genre_filter(filters: &Vec<FilterValue>) -> String {
 	let mut filter_str: String = "".to_string();
 	for filter in filters {
-		if let FilterValue::Select { ref id, ref value } = *filter {
-			if id == "genre" {
-				filter_str.push_str("genre/");
-				filter_str.push_str(value);
-			}
+		if let FilterValue::Select { ref id, ref value } = *filter
+			&& id == "genre"
+		{
+			filter_str.push_str("genre/");
+			filter_str.push_str(value);
 		}
 	}
 	filter_str.to_string()

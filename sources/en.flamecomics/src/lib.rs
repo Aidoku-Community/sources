@@ -1,18 +1,20 @@
 #![no_std]
 use aidoku::{
-	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
-	HomeLayout, Link, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent,
-	Result, Source, Viewer,
-	alloc::{String, Vec, borrow::ToOwned, string::ToString, vec},
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout, Link,
+	Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source,
+	Viewer,
+	alloc::{String, Vec, string::ToString, vec},
 	imports::{html::*, net::*},
 	prelude::*,
 };
 use chrono::{DateTime, FixedOffset, NaiveDateTime, TimeZone, Utc};
 
-struct FlameComics;
+mod filter;
 
 const BASE_URL: &str = "https://flamecomics.xyz";
-mod filter;
+
+struct FlameComics;
+
 impl Source for FlameComics {
 	fn new() -> Self {
 		Self
@@ -77,11 +79,16 @@ impl Source for FlameComics {
 		let html = Request::get(&manga_url)?.html()?;
 
 		if needs_details {
-			let manga_authors = ".mantine-Grid-root .mantine-Grid-col:nth-of-type(1) .mantine-Stack-root .mantine-Stack-root";
-			let manga_details = ".mantine-Grid-root .mantine-Grid-col:nth-of-type(2) .mantine-Stack-root .mantine-Paper-root:nth-of-type(1)";
-			let desc_selector = format!("{manga_details}{}", " p");
-			let description = html
-				.select(desc_selector)
+			const MANGA_AUTHORS: &str = ".mantine-Grid-root .mantine-Grid-col:nth-of-type(1) .mantine-Stack-root .mantine-Stack-root";
+			const MANGA_DETAILS: &str = ".mantine-Grid-root .mantine-Grid-col:nth-of-type(2) .mantine-Stack-root .mantine-Paper-root:nth-of-type(1)";
+			let details = html
+				.select_first(MANGA_DETAILS)
+				.ok_or(error!("Missing manga details"))?;
+			let authors = html
+				.select_first(MANGA_AUTHORS)
+				.ok_or(error!("Missing manga authors"))?;
+			let description = details
+				.select("p")
 				.and_then(|desc| desc.text())
 				.unwrap_or_default();
 			// Extract text between <p> and </p> tags of the description...
@@ -94,9 +101,8 @@ impl Source for FlameComics {
 				})
 				.unwrap_or_default();
 			manga.description = Some(description);
-			let status_selector = format!("{manga_details}{}", " .mantine-Badge-root");
-			let status_str = html
-				.select(status_selector)
+			let status_str = details
+				.select(".mantine-Badge-root")
 				.and_then(|el| el.select_first("span"))
 				.and_then(|status| status.text())
 				.unwrap_or_default();
@@ -107,33 +113,21 @@ impl Source for FlameComics {
 				"Canceled" | "Dropped" => MangaStatus::Cancelled,
 				_ => MangaStatus::Unknown,
 			};
-			let tags_selector = format!(
-				"{manga_details}{}",
-				" .mantine-Group-root:last-of-type .mantine-Badge-label"
-			);
-			let manga_tags: Vec<String> = html
-				.select(tags_selector)
+			let manga_tags: Vec<String> = details
+				.select(".mantine-Group-root:last-of-type .mantine-Badge-label")
 				.map(|els| els.filter_map(|el| el.text()).collect())
 				.unwrap_or_default();
 			manga.tags = Some(manga_tags);
-			let artist_selector = format!(
-				"{manga_authors}{}",
-				" .mantine-Paper-root:nth-of-type(1) p:last-of-type"
-			);
-			let manga_artist = html
-				.select(artist_selector)
+			let manga_artist = authors
+				.select(".mantine-Paper-root:nth-of-type(1) p:last-of-type")
 				.and_then(|el| el.text())
 				.unwrap_or_default()
 				.split(",")
 				.map(|s| s.to_string())
 				.collect::<Vec<String>>();
 			manga.artists = Some(manga_artist);
-			let author_selector = format!(
-				"{manga_authors}{}",
-				" .mantine-Paper-root:nth-of-type(2) p:last-of-type"
-			);
-			let manga_author = html
-				.select(author_selector)
+			let manga_author = authors
+				.select(".mantine-Paper-root:nth-of-type(2) p:last-of-type")
 				.and_then(|el| el.text())
 				.unwrap_or_default()
 				.split(",")
@@ -144,8 +138,8 @@ impl Source for FlameComics {
 		}
 
 		if needs_chapters {
-			let chapter_selector = ".mantine-Grid-root .mantine-Grid-col:nth-of-type(2) .mantine-Stack-root .mantine-Paper-root:nth-of-type(2) .mantine-ScrollArea-viewport a";
-			manga.chapters = html.select(chapter_selector).map(|elements| {
+			const CHAPTER_SELECTOR: &str = ".mantine-Grid-root .mantine-Grid-col:nth-of-type(2) .mantine-Stack-root .mantine-Paper-root:nth-of-type(2) .mantine-ScrollArea-viewport a";
+			manga.chapters = html.select(CHAPTER_SELECTOR).map(|elements| {
 				elements
 					.map(|element| {
 						let url = element.attr("abs:href").unwrap_or_default();
@@ -321,15 +315,9 @@ impl DeepLinkHandler for FlameComics {
 			Ok(Some(DeepLinkResult::Manga { key: key.into() }))
 		} else if num_sections == 3 {
 			// ex: https://flamecomics.xyz/series/2/79c2cf38ecc5fd25
-			let html = Request::get(&url)?.html()?;
-			let manga_key = html
-				.select_first(
-					".mantine-Container-root .mantine-Grid-root .mantine-Grid-col .mantine-focus-auto",
-				)
-				.and_then(|e| e.attr("href"))
-				.and_then(|url| url.strip_prefix(BASE_URL).map(|s| s.to_owned()))
-				.ok_or(AidokuError::message("Missing manga key"))?;
-			let chapter_key = key.strip_prefix(&manga_key).unwrap_or_default().into();
+			let mut chapter_key = key.rsplit("/").next().unwrap_or_default().to_string(); // 79c2cf38ecc5fd25
+			chapter_key = format!("/{chapter_key}"); // add leading slash
+			let manga_key = key.strip_suffix(&chapter_key).unwrap_or_default().into();
 			Ok(Some(DeepLinkResult::Chapter {
 				manga_key,
 				key: chapter_key,

@@ -109,21 +109,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 
 [[package]]
-name = "enflamecomics"
-version = "0.1.0"
-dependencies = [
- "aidoku",
- "aidoku-test",
- "chrono",
-]
-
-[[package]]
 name = "euclid"
 version = "0.22.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ad9cdb4b747e485a12abb0e6566612956c7a1bafa3bdb8d682c5b6d403589e48"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "flamecomics"
+version = "0.1.0"
+dependencies = [
+ "aidoku",
+ "aidoku-test",
+ "chrono",
 ]
 
 [[package]]
