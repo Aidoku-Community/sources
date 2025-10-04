@@ -1,0 +1,37 @@
+{
+	"info": {
+		"id": "multi.nhentai",
+		"name": "nhentai",
+		"version": 10,
+		"url": "https://nhentai.net",
+		"contentRating": 2,
+		"languages": [
+			"en",
+			"ja",
+			"zh"
+		]
+	},
+	"listings": [
+		{
+			"id": "popular-today",
+			"name": "Popular Today"
+		},
+		{
+			"id": "popular-week",
+			"name": "Popular Week"
+		},
+		{
+			"id": "popular",
+			"name": "Popular All"
+		},
+		{
+			"id": "latest",
+			"name": "Latest"
+		}
+	],
+	"config": {
+		"supportsAuthorSearch": true,
+		"supportsArtistSearch": true,
+		"supportsTagSearch": true
+	}
+}

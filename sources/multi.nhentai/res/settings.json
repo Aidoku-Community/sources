@@ -1,0 +1,17 @@
+[
+	{
+		"type": "group",
+		"title": "Title Preferences",
+		"items": [
+			{
+				"type": "select",
+				"key": "titlePreference",
+				"title": "Preferred Title Language",
+				"values": ["english", "japanese"],
+				"titles": ["English", "Japanese"],
+				"default": "english",
+				"refreshes": ["content"]
+			}
+		]
+	}
+]
