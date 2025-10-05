@@ -36,7 +36,7 @@ pub trait Impl {
 		} else {
 			helpers::get_search_request(params, query, page, filters)?
 		};
-		let html = request.html()?;
+		let html = self.modify_request(params, request)?.html()?;
 
 		helpers::detect_load_more(params, &html);
 
@@ -86,7 +86,7 @@ pub trait Impl {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let url = format!("{}{}", params.base_url, manga.key);
-		let html = Request::get(&url)?.html()?;
+		let html = self.modify_request(params, Request::get(&url)?)?.html()?;
 
 		if needs_details {
 			manga.title = html
@@ -294,7 +294,7 @@ pub trait Impl {
 
 	fn get_page_list(&self, params: &Params, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = format!("{}{}", params.base_url, chapter.key);
-		let html = Request::get(&url)?.html()?;
+		let html = self.modify_request(params, Request::get(&url)?)?.html()?;
 
 		let Some(chapter_protector) = html.select_first(&params.chapter_protector_selector) else {
 			let base_uri = html.select_first("body").unwrap().base_uri().unwrap_or(url);
@@ -378,7 +378,9 @@ pub trait Impl {
 	}
 
 	fn get_home(&self, params: &Params) -> Result<HomeLayout> {
-		let html = Request::get(&params.base_url)?.html()?;
+		let html = self
+			.modify_request(params, Request::get(&params.base_url)?)?
+			.html()?;
 
 		let mut components = Vec::new();
 
@@ -495,7 +497,8 @@ pub trait Impl {
 	}
 
 	fn get_dynamic_filters(&self, params: &Params) -> Result<Vec<Filter>> {
-		let html = Request::get(format!("{}{}", params.base_url, params.genre_endpoint))?.html()?;
+		let request = Request::get(format!("{}{}", params.base_url, params.genre_endpoint))?;
+		let html = self.modify_request(params, request)?.html()?;
 
 		let (options, ids) = html
 			.select_first("div.checkbox-group")
@@ -529,10 +532,13 @@ pub trait Impl {
 	) -> Result<Request> {
 		if let Some(context) = context {
 			if let Some(referer) = context.get("Referer") {
-				return Ok(Request::get(url)?.header("Referer", referer));
+				return self.modify_request(params, Request::get(url)?.header("Referer", referer));
 			}
 		}
-		Ok(Request::get(url)?.header("Referer", &format!("{}/", params.base_url)))
+		self.modify_request(
+			params,
+			Request::get(url)?.header("Referer", &format!("{}/", params.base_url)),
+		)
 	}
 
 	fn handle_deep_link(&self, params: &Params, url: String) -> Result<Option<DeepLinkResult>> {
@@ -570,5 +576,9 @@ pub trait Impl {
 		} else {
 			format!("{prefixed_id}/")
 		})
+	}
+
+	fn modify_request(&self, _params: &Params, request: Request) -> Result<Request> {
+		Ok(request)
 	}
 }

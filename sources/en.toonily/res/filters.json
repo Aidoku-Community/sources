@@ -1,0 +1,112 @@
+[
+	{
+		"type": "text",
+		"id": "author",
+		"title": "Author",
+		"placeholder": "Author"
+	},
+	{
+		"type": "text",
+		"id": "artist",
+		"title": "Artist",
+		"placeholder": "Artist"
+	},
+	{
+		"type": "sort",
+		"id": "m_orderby",
+		"title": "Order by",
+		"canAscend": false,
+		"options": [
+			"Relevence",
+			"Latest",
+			"A-Z",
+			"Rating",
+			"Trending",
+			"Most Views",
+			"New"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "status[]",
+		"title": "Status",
+		"canExclude": false,
+		"options": ["Ongoing", "Completed", "Canceled", "On Hold", "Upcoming"],
+		"ids": ["on-going", "end", "canceled", "on-hold", "upcoming"]
+	},
+	{
+		"type": "select",
+		"id": "op",
+		"title": "Genres condition",
+		"options": [
+			"OR (having one of the selected genres)",
+			"AND (having all of the selected genres)"
+		],
+		"ids": ["", "1"]
+	},
+	{
+		"type": "multi-select",
+		"id": "genre[]",
+		"title": "Genres",
+		"isGenre": true,
+		"canExclude": false,
+		"options": [
+			"Action",
+			"Adventure",
+			"Comedy",
+			"Crime",
+			"Drama",
+			"Fantasy",
+			"Gossip",
+			"Historical",
+			"Horror",
+			"Josei",
+			"Magic",
+			"Mature",
+			"Mystery",
+			"Psychological",
+			"Romance",
+			"School Life",
+			"Sci-Fi",
+			"Seinen",
+			"Shoujo",
+			"Shounen",
+			"Slice of Life",
+			"Sports",
+			"Supernatural",
+			"Thriller",
+			"Tragedy",
+			"Yaoi",
+			"Yuri"
+		],
+		"ids": [
+			"action",
+			"adventure",
+			"comedy",
+			"crime",
+			"drama",
+			"fantasy",
+			"gossip",
+			"historical",
+			"horror",
+			"josei",
+			"magic",
+			"mature",
+			"mystery",
+			"psychological",
+			"romance",
+			"school-life",
+			"scifi-webtoon",
+			"seinen",
+			"shoujo",
+			"shounen",
+			"slice-of-life",
+			"sports",
+			"supernatural",
+			"thriller",
+			"tragedy",
+			"yaoi",
+			"yuri"
+		]
+	}
+]
