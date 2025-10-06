@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "ja.rawfree",
+		"name": "Raw FREE",
+		"version": 1,
+		"url": "https://rawfree.me",
+		"contentRating": 1,
+		"languages": ["ja"]
+	},
+	"config": {
+		"supportsTagSearch": true
+	}
+}
