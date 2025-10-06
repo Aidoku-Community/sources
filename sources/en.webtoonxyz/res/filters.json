@@ -1,0 +1,108 @@
+[
+	{
+		"type": "text",
+		"id": "author",
+		"title": "Author",
+		"placeholder": "Author"
+	},
+	{
+		"type": "text",
+		"id": "artist",
+		"title": "Artist",
+		"placeholder": "Artist"
+	},
+	{
+		"type": "sort",
+		"id": "m_orderby",
+		"title": "Order by",
+		"canAscend": false,
+		"options": [
+			"Relevence",
+			"Latest",
+			"A-Z",
+			"Rating",
+			"Trending",
+			"Most Views",
+			"New"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "status[]",
+		"title": "Status",
+		"canExclude": false,
+		"options": ["Ongoing", "Completed", "Canceled", "On Hold", "Upcoming"],
+		"ids": ["on-going", "end", "canceled", "on-hold", "upcoming"]
+	},
+	{
+		"type": "select",
+		"id": "op",
+		"title": "Genres condition",
+		"options": [
+			"OR (having one of the selected genres)",
+			"AND (having all of the selected genres)"
+		],
+		"ids": ["", "1"]
+	},
+	{
+		"type": "multi-select",
+		"id": "genre[]",
+		"title": "Genres",
+		"isGenre": true,
+		"canExclude": false,
+		"options": [
+			"Action",
+			"Adventure",
+			"BL",
+			"Comedy",
+			"Drama",
+			"Ecchi",
+			"Fantasy",
+			"GL",
+			"Harem",
+			"Historical",
+			"Horror",
+			"Josei",
+			"Martial Arts",
+			"Mature",
+			"Mystery",
+			"Psychological",
+			"Romance",
+			"School Life",
+			"Sci-Fi",
+			"Shoujo",
+			"Slice of Life",
+			"Smut",
+			"Sports",
+			"Supernatural",
+			"Thriller"
+		],
+		"ids": [
+			"action",
+			"adventure",
+			"bl",
+			"comedy",
+			"drama",
+			"ecchi",
+			"fantasy",
+			"gl",
+			"harem",
+			"historical",
+			"horror",
+			"josei",
+			"martial-arts",
+			"mature",
+			"mystery",
+			"psychological",
+			"romance",
+			"school-life",
+			"sci-fi",
+			"shoujo",
+			"slice-of-life",
+			"smut",
+			"sports",
+			"supernatural",
+			"thriller"
+		]
+	}
+]

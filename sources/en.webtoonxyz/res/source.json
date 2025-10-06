@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.webtoonxyz",
+		"name": "WebtoonXYZ",
+		"version": 2,
+		"url": "https://www.webtoon.xyz",
+		"contentRating": 2,
+		"languages": ["en"]
+	},
+	"config": {
+		"breakingChangeVersion": 2
+	}
+}
