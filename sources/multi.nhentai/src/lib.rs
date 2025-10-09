@@ -133,12 +133,24 @@ impl Source for Nhentai {
 
 			if needs_chapters {
 				// nhentai galleries are single chapter
+				let mut languages = Vec::new();
+				for tag in &gallery.tags {
+					if tag.r#type == "language" && tag.name != "translated" && tag.name != "rewrite" {
+						languages.push(tag.name.clone());
+					}
+				}
+
 				let chapter = Chapter {
 					key: manga.key.clone(),
 					title: Some(format!("{} pages", gallery.num_pages)),
 					chapter_number: Some(1.0),
 					date_uploaded: Some(gallery.upload_date),
 					url: Some(format!("{}/g/{}", BASE_URL, manga.key)),
+					scanlators: if !languages.is_empty() {
+						Some(vec![languages.join(", ")])
+					} else {
+						None
+					},
 					..Default::default()
 				};
 				manga.chapters = Some(vec![chapter]);
