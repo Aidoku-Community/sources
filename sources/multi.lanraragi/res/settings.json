@@ -1,0 +1,29 @@
+[
+	{
+		"type": "group",
+		"title": "SETTINGS",
+		"items": [
+			{
+				"type": "text",
+				"title": "BASE_URL",
+				"placeholder": "https://lrr.tvc-16.science",
+				"key": "baseUrl",
+				"keyboardType": 3,
+				"returnKeyType": 9,
+				"autocorrectionDisabled": true,
+				"autocapitalizationType": 0,
+				"refreshes": ["content", "listings"]
+			},
+			{
+				"type": "text",
+				"title": "API Key",
+				"placeholder": "API Key (optional)",
+				"key": "apiKey",
+				"keyboardType": 3,
+				"returnKeyType": 9,
+				"autocorrectionDisabled": true,
+				"refreshes": ["content", "listings"]
+			}
+		]
+	}
+]
