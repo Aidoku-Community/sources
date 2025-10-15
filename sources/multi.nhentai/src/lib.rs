@@ -31,6 +31,22 @@ impl Source for Nhentai {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
+		// If the query is a numeric ID, return the manga directly
+		if let Some(q) = &query {
+			if let Ok(id) = q.parse::<i32>() {
+				let url = format!("{}/gallery/{}", API_URL, id);
+				let gallery: NhentaiGallery = Request::get(&url)?
+					.header("User-Agent", USER_AGENT)
+					.send()?
+					.get_json()?;
+				let manga = gallery.into_manga();
+				return Ok(MangaPageResult {
+					entries: vec![manga],
+					has_next_page: false,
+				});
+			}
+		}
+
 		let mut query_parts = Vec::new();
 
 		// Add main query if present
@@ -65,10 +81,13 @@ impl Source for Nhentai {
 					};
 					// nhentai doesn't use ascending parameter in the same way
 				}
-				FilterValue::MultiSelect { id, included, .. } => match id.as_str() {
+				FilterValue::MultiSelect { id, included, excluded, .. } => match id.as_str() {
 					"tags" => {
 						for tag in included {
-							query_parts.push(format!("tag:{}", tag));
+							query_parts.push(format!("tag:\"{}\"", tag));
+						}
+						for tag in excluded {
+							query_parts.push(format!("-tag:\"{}\"", tag));
 						}
 					}
 					_ => continue,
@@ -101,10 +120,20 @@ impl Source for Nhentai {
 			.get_json()?;
 
 		let result_vec = response.result;
-		let has_next_page = result_vec.len() == 25; // nhentai returns 25 results per page
+		let has_next_page = page < response.num_pages;
+
+		let blocklist = settings::get_blocklist();
 
 		let entries = result_vec
 			.into_iter()
+			.filter(|gallery| {
+				if blocklist.is_empty() {
+					return true;
+				}
+				!gallery.tags.iter().any(|tag| {
+					blocklist.contains(&tag.name.to_lowercase())
+				})
+			})
 			.map(|gallery| gallery.into_manga())
 			.collect::<Vec<Manga>>();
 
@@ -133,12 +162,24 @@ impl Source for Nhentai {
 
 			if needs_chapters {
 				// nhentai galleries are single chapter
+				let mut languages = Vec::new();
+				for tag in &gallery.tags {
+					if tag.r#type == "language" && tag.name != "translated" && tag.name != "rewrite" {
+						languages.push(tag.name.clone());
+					}
+				}
+
 				let chapter = Chapter {
 					key: manga.key.clone(),
 					title: Some(format!("{} pages", gallery.num_pages)),
 					chapter_number: Some(1.0),
 					date_uploaded: Some(gallery.upload_date),
 					url: Some(format!("{}/g/{}", BASE_URL, manga.key)),
+					scanlators: if !languages.is_empty() {
+						Some(vec![languages.join(", ")])
+					} else {
+						None
+					},
 					..Default::default()
 				};
 				manga.chapters = Some(vec![chapter]);

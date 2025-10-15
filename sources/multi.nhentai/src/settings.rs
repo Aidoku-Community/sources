@@ -5,6 +5,7 @@ use aidoku::{
 
 const TITLE_PREFERENCE_KEY: &str = "titlePreference";
 const LANGUAGES_KEY: &str = "languages";
+const BLOCKLIST_KEY: &str = "blocklist";
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TitlePreference {
@@ -44,5 +45,14 @@ pub fn get_languages() -> Vec<String> {
 			"zh" => "chinese".into(),
 			_ => lang,
 		})
+		.collect()
+}
+
+pub fn get_blocklist() -> Vec<String> {
+	defaults_get::<Vec<String>>(BLOCKLIST_KEY)
+		.unwrap_or_default()
+		.into_iter()
+		.map(|s| s.trim().to_lowercase())
+		.filter(|s| !s.is_empty())
 		.collect()
 }

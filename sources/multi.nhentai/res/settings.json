@@ -9,8 +9,22 @@
 				"title": "Preferred Title Language",
 				"values": ["english", "japanese"],
 				"titles": ["English", "Japanese"],
-				"default": "english",
-				"refreshes": ["content"]
+				"default": "english"
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Blocklist",
+		"items": [
+			{
+				"type": "editable-list",
+				"key": "blocklist",
+				"title": "Add Blocked Tag",
+				"lineLimit": 1,
+				"inline": true,
+				"placeholder": "Tag to block",
+				"default": ["example"]
 			}
 		]
 	}

@@ -171,7 +171,8 @@ impl NhentaiGallery {
 			artists: Some(artists),
 			tags: Some(tags),
 			content_rating: ContentRating::NSFW,
-			status: MangaStatus::Completed,
+			status: MangaStatus::Unknown,
+			update_strategy: aidoku::UpdateStrategy::Never,
 			viewer,
 			..Default::default()
 		}
