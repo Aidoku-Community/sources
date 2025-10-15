@@ -1,12 +1,14 @@
+use crate::settings::{get_title_preference, TitlePreference};
 use aidoku::{
-	alloc::{string::String, string::ToString, Vec},
+	alloc::{
+		string::{String, ToString},
+		Vec,
+	},
 	prelude::*,
-	ContentRating, Manga, MangaStatus, Viewer,
+	ContentRating, Manga, MangaStatus, UpdateStrategy, Viewer,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-
-use crate::settings::{get_title_preference, TitlePreference};
 
 pub fn extension_from_type(t: &str) -> &str {
 	match t {
@@ -19,7 +21,7 @@ pub fn extension_from_type(t: &str) -> &str {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct NhentaiTag {
+pub struct NHentaiTag {
 	pub id: i32,
 	pub name: String,
 	pub count: i32,
@@ -28,46 +30,46 @@ pub struct NhentaiTag {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct NhentaiImage {
+pub struct NHentaiImage {
 	pub t: String,
 	pub w: i32,
 	pub h: i32,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct NhentaiImages {
-	pub pages: Vec<NhentaiImage>,
-	pub cover: NhentaiImage,
-	pub thumbnail: NhentaiImage,
+pub struct NHentaiImages {
+	pub pages: Vec<NHentaiImage>,
+	pub cover: NHentaiImage,
+	pub thumbnail: NHentaiImage,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct NhentaiGallery {
+pub struct NHentaiGallery {
 	pub id: Value,
 	pub media_id: String,
-	pub title: NhentaiTitle,
-	pub images: NhentaiImages,
-	pub tags: Vec<NhentaiTag>,
+	pub title: NHentaiTitle,
+	pub images: NHentaiImages,
+	pub tags: Vec<NHentaiTag>,
 	pub num_pages: i32,
 	pub num_favorites: i32,
 	pub upload_date: i64,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct NhentaiTitle {
+pub struct NHentaiTitle {
 	pub english: String,
 	pub japanese: Option<String>,
 	pub pretty: String,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct NhentaiSearchResponse {
-	pub result: Vec<NhentaiGallery>,
+pub struct NHentaiSearchResponse {
+	pub result: Vec<NHentaiGallery>,
 	pub num_pages: i32,
 	pub per_page: i32,
 }
 
-impl NhentaiGallery {
+impl NHentaiGallery {
 	pub fn id_str(&self) -> String {
 		match &self.id {
 			Value::String(s) => s.clone(),
@@ -75,15 +77,17 @@ impl NhentaiGallery {
 			_ => String::new(),
 		}
 	}
+}
 
-	pub fn into_manga(self) -> Manga {
+impl From<NHentaiGallery> for Manga {
+	fn from(value: NHentaiGallery) -> Self {
 		let mut tags = Vec::new();
 		let mut artists = Vec::new();
 		let mut groups = Vec::new();
 		let mut parodies = Vec::new();
 		let mut characters = Vec::new();
 
-		for tag in &self.tags {
+		for tag in &value.tags {
 			match tag.r#type.as_str() {
 				"tag" => tags.push((tag.name.clone(), tag.count)),
 				"artist" => artists.push((tag.name.clone(), tag.count)),
@@ -121,31 +125,32 @@ impl NhentaiGallery {
 			.map(|(name, _)| name)
 			.collect::<Vec<_>>();
 
-		let mut info_parts = Vec::new();
-
-		if !parodies.is_empty() {
-			info_parts.push(format!("Parodies: {}", parodies.join(", ")));
-		}
-		if !characters.is_empty() {
-			info_parts.push(format!("Characters: {}", characters.join(", ")));
-		}
-
-		let mut description = format!("#{}", self.id_str());
-		if !info_parts.is_empty() {
-			description.push_str("  \n");
-			description.push_str(&info_parts.join("  \n"));
-		}
+		let description = {
+			let mut info_parts = Vec::new();
+			info_parts.push(format!("#{}", value.id_str()));
+			if !parodies.is_empty() {
+				info_parts.push(format!("Parodies: {}", parodies.join(", ")));
+			}
+			if !characters.is_empty() {
+				info_parts.push(format!("Characters: {}", characters.join(", ")));
+			}
+			info_parts.push(format!("Pages: {}", value.num_pages));
+			if value.num_favorites > 0 {
+				info_parts.push(format!("Favorited by: {}", value.num_favorites));
+			}
+			info_parts.join("  \n")
+		};
 
 		let title_preference = get_title_preference();
 		let title = match title_preference {
-			TitlePreference::Japanese => self
+			TitlePreference::Japanese => value
 				.title
 				.japanese
 				.as_ref()
 				.filter(|s| !s.is_empty())
-				.unwrap_or(&self.title.english)
+				.unwrap_or(&value.title.english)
 				.clone(),
-			TitlePreference::English => self.title.english.clone(),
+			TitlePreference::English => value.title.english.clone(),
 		};
 
 		let viewer = if tags.iter().any(|t| t == "webtoon") {
@@ -154,26 +159,25 @@ impl NhentaiGallery {
 			Viewer::RightToLeft
 		};
 
-		let mut combined_authors = groups.clone();
-		combined_authors.extend(artists.clone());
+		let combined_authors = [groups, artists.clone()].concat();
 
 		Manga {
-			key: self.id_str(),
+			key: value.id_str(),
 			title,
 			cover: Some(format!(
 				"https://t.nhentai.net/galleries/{}/cover.{}",
-				self.media_id,
-				extension_from_type(&self.images.cover.t)
+				value.media_id,
+				extension_from_type(&value.images.cover.t)
 			)),
 			description: Some(description),
-			url: Some(format!("https://nhentai.net/g/{}", self.id_str())),
 			authors: Some(combined_authors),
 			artists: Some(artists),
+			url: Some(format!("https://nhentai.net/g/{}", value.id_str())),
 			tags: Some(tags),
+			status: MangaStatus::Completed,
 			content_rating: ContentRating::NSFW,
-			status: MangaStatus::Unknown,
-			update_strategy: aidoku::UpdateStrategy::Never,
 			viewer,
+			update_strategy: UpdateStrategy::Never,
 			..Default::default()
 		}
 	}

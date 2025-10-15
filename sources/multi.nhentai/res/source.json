@@ -2,14 +2,10 @@
 	"info": {
 		"id": "multi.nhentai",
 		"name": "nhentai",
-		"version": 11,
+		"version": 12,
 		"url": "https://nhentai.net",
 		"contentRating": 2,
-		"languages": [
-			"en",
-			"ja",
-			"zh"
-		]
+		"languages": ["All", "en", "ja", "zh"]
 	},
 	"listings": [
 		{
@@ -30,6 +26,7 @@
 		}
 	],
 	"config": {
+		"languageSelectType": "single",
 		"supportsAuthorSearch": true,
 		"supportsArtistSearch": true,
 		"supportsTagSearch": true

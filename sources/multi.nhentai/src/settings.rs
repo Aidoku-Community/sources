@@ -2,21 +2,15 @@ use aidoku::{
 	alloc::{string::String, vec::Vec},
 	imports::defaults::defaults_get,
 };
-
 const TITLE_PREFERENCE_KEY: &str = "titlePreference";
-const LANGUAGES_KEY: &str = "languages";
+const LANGUAGE_KEY: &str = "language";
 const BLOCKLIST_KEY: &str = "blocklist";
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum TitlePreference {
+	#[default]
 	English,
 	Japanese,
-}
-
-impl Default for TitlePreference {
-	fn default() -> Self {
-		Self::English
-	}
 }
 
 impl From<String> for TitlePreference {
@@ -35,17 +29,13 @@ pub fn get_title_preference() -> TitlePreference {
 		.unwrap_or_default()
 }
 
-pub fn get_languages() -> Vec<String> {
-	defaults_get::<Vec<String>>(LANGUAGES_KEY)
-		.unwrap_or_default()
-		.into_iter()
-		.map(|lang| match lang.as_str() {
-			"en" => "english".into(),
-			"ja" => "japanese".into(),
-			"zh" => "chinese".into(),
-			_ => lang,
-		})
-		.collect()
+pub fn get_language() -> Option<String> {
+	defaults_get::<String>(LANGUAGE_KEY).and_then(|lang| match lang.as_str() {
+		"en" => Some("english".into()),
+		"ja" => Some("japanese".into()),
+		"zh" => Some("chinese".into()),
+		_ => None,
+	})
 }
 
 pub fn get_blocklist() -> Vec<String> {

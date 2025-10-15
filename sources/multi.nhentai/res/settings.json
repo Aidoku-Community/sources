@@ -24,7 +24,8 @@
 				"lineLimit": 1,
 				"inline": true,
 				"placeholder": "Tag to block",
-				"default": ["example"]
+				"default": ["example"],
+				"refreshes": ["content"]
 			}
 		]
 	}

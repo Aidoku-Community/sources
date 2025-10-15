@@ -1,29 +1,95 @@
+use crate::{models::NHentaiSearchResponse, settings, NHentai, API_URL};
 use aidoku::{
-	alloc::{vec, String, Vec},
-	Home, HomeComponent, HomeLayout, Link, Listing, ListingKind, Manga, Result,
-	Source,
+	alloc::{vec, Vec},
+	helpers::uri::encode_uri_component,
+	imports::{
+		net::{Request, RequestError, Response},
+		std::send_partial_result,
+	},
+	prelude::*,
+	Home, HomeComponent, HomeLayout, HomePartialResult, Listing, ListingKind, Manga, Result,
 };
 
-use crate::Nhentai;
-
-impl Home for Nhentai {
+impl Home for NHentai {
 	fn get_home(&self) -> Result<HomeLayout> {
-		let nhentai = Nhentai;
-		let mut components = Vec::new();
+		// send basic home layout
+		send_partial_result(&HomePartialResult::Layout(HomeLayout {
+			components: vec![
+				HomeComponent {
+					title: Some("Popular Today".into()),
+					subtitle: None,
+					value: aidoku::HomeComponentValue::empty_big_scroller(),
+				},
+				HomeComponent {
+					title: Some("Popular This Week".into()),
+					subtitle: None,
+					value: aidoku::HomeComponentValue::empty_manga_list(),
+				},
+				HomeComponent {
+					title: Some("Popular All Time".into()),
+					subtitle: None,
+					value: aidoku::HomeComponentValue::empty_manga_list(),
+				},
+				HomeComponent {
+					title: Some("Latest".into()),
+					subtitle: None,
+					value: aidoku::HomeComponentValue::empty_scroller(),
+				},
+			],
+		}));
 
-		// Fetch popular today - use the same logic as search
-		let popular_today = match nhentai.get_search_manga_list(
-			None,
-			1,
-			vec![aidoku::FilterValue::Sort {
-				id: String::from("sort"),
-				index: 1, // popular-today
-				ascending: false,
-			}],
-		) {
-			Ok(result) => result.entries.into_iter().take(25).collect::<Vec<Manga>>(),
-			Err(_) => Vec::new(),
-		};
+		let blocklist = settings::get_blocklist();
+		let query = encode_uri_component(
+			settings::get_language()
+				.map(|language| format!("language:{language}"))
+				.unwrap_or(" ".into()),
+		);
+
+		let responses: [core::result::Result<Response, RequestError>; 4] = Request::send_all([
+			// popular today
+			Request::get(format!(
+				"{API_URL}/galleries/search?query={query}&page=1&sort=popular-today"
+			))?,
+			// popular week
+			Request::get(format!(
+				"{API_URL}/galleries/search?query={query}&page=1&sort=popular-week"
+			))?,
+			// popular all
+			Request::get(format!(
+				"{API_URL}/galleries/search?query={query}&page=1&sort=popular"
+			))?,
+			// latest
+			Request::get(format!(
+				"{API_URL}/galleries/search?query={query}&page=1&sort=recent"
+			))?,
+		])
+		.try_into()
+		.expect("requests vec length should be 4");
+		let results: [Result<Vec<Manga>>; 4] = responses
+			.map(|res| res?.get_json::<NHentaiSearchResponse>())
+			.map(|res| {
+				Ok(res?
+					.result
+					.into_iter()
+					.filter(|gallery| {
+						if blocklist.is_empty() {
+							return true;
+						}
+						!gallery
+							.tags
+							.iter()
+							.any(|tag| blocklist.contains(&tag.name.to_lowercase()))
+					})
+					.map(|gallery| gallery.into())
+					.collect::<Vec<Manga>>())
+			});
+		let [popular_today, popular_week, popular_all, recent] = results;
+		let popular_today = popular_today?;
+		let popular_week = popular_week?;
+		let popular_all = popular_all?;
+		let recent = recent?;
+
+		let mut components = Vec::new();
 
 		if !popular_today.is_empty() {
 			components.push(HomeComponent {
@@ -36,25 +102,6 @@ impl Home for Nhentai {
 			});
 		}
 
-		// Fetch popular this week
-		let popular_week = match nhentai.get_search_manga_list(
-			None,
-			1,
-			vec![aidoku::FilterValue::Sort {
-				id: String::from("sort"),
-				index: 2, // popular-week
-				ascending: false,
-			}],
-		) {
-			Ok(result) => result
-				.entries
-				.into_iter()
-				.take(25)
-				.map(|manga| manga.into())
-				.collect::<Vec<Link>>(),
-			Err(_) => Vec::new(),
-		};
-
 		if !popular_week.is_empty() {
 			components.push(HomeComponent {
 				title: Some("Popular This Week".into()),
@@ -62,7 +109,7 @@ impl Home for Nhentai {
 				value: aidoku::HomeComponentValue::MangaList {
 					ranking: true,
 					page_size: Some(3),
-					entries: popular_week,
+					entries: popular_week.into_iter().map(|item| item.into()).collect(),
 					listing: Some(Listing {
 						id: "popular-week".into(),
 						name: "Popular This Week".into(),
@@ -72,25 +119,6 @@ impl Home for Nhentai {
 			});
 		}
 
-		// Fetch popular all time
-		let popular_all = match nhentai.get_search_manga_list(
-			None,
-			1,
-			vec![aidoku::FilterValue::Sort {
-				id: String::from("sort"),
-				index: 3, // popular all time
-				ascending: false,
-			}],
-		) {
-			Ok(result) => result
-				.entries
-				.into_iter()
-				.take(25)
-				.map(|manga| manga.into())
-				.collect::<Vec<Link>>(),
-			Err(_) => Vec::new(),
-		};
-
 		if !popular_all.is_empty() {
 			components.push(HomeComponent {
 				title: Some("Popular All Time".into()),
@@ -98,7 +126,7 @@ impl Home for Nhentai {
 				value: aidoku::HomeComponentValue::MangaList {
 					ranking: true,
 					page_size: Some(3),
-					entries: popular_all,
+					entries: popular_all.into_iter().map(|item| item.into()).collect(),
 					listing: Some(Listing {
 						id: "popular".into(),
 						name: "Popular All Time".into(),
@@ -108,31 +136,12 @@ impl Home for Nhentai {
 			});
 		}
 
-		// Fetch recently added
-		let recent = match nhentai.get_search_manga_list(
-			None,
-			1,
-			vec![aidoku::FilterValue::Sort {
-				id: String::from("sort"),
-				index: 0, // recent
-				ascending: false,
-			}],
-		) {
-			Ok(result) => result
-				.entries
-				.into_iter()
-				.take(25)
-				.map(|manga| manga.into())
-				.collect::<Vec<Link>>(),
-			Err(_) => Vec::new(),
-		};
-
 		if !recent.is_empty() {
 			components.push(HomeComponent {
 				title: Some("Latest".into()),
 				subtitle: None,
 				value: aidoku::HomeComponentValue::Scroller {
-					entries: recent,
+					entries: recent.into_iter().map(|item| item.into()).collect(),
 					listing: Some(Listing {
 						id: "latest".into(),
 						name: "Latest".into(),

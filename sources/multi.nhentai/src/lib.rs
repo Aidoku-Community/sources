@@ -14,13 +14,15 @@ mod settings;
 
 use models::*;
 
-const API_URL: &str = "https://nhentai.net/api";
 const BASE_URL: &str = "https://nhentai.net";
-const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
+const API_URL: &str = "https://nhentai.net/api";
+const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) \
+						  AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 \
+						  Mobile/15E148 Safari/604";
 
-struct Nhentai;
+struct NHentai;
 
-impl Source for Nhentai {
+impl Source for NHentai {
 	fn new() -> Self {
 		Self
 	}
@@ -34,14 +36,12 @@ impl Source for Nhentai {
 		// If the query is a numeric ID, return the manga directly
 		if let Some(q) = &query {
 			if let Ok(id) = q.parse::<i32>() {
-				let url = format!("{}/gallery/{}", API_URL, id);
-				let gallery: NhentaiGallery = Request::get(&url)?
+				let url = format!("{API_URL}/gallery/{id}");
+				let gallery: NHentaiGallery = Request::get(&url)?
 					.header("User-Agent", USER_AGENT)
-					.send()?
-					.get_json()?;
-				let manga = gallery.into_manga();
+					.json_owned()?;
 				return Ok(MangaPageResult {
-					entries: vec![manga],
+					entries: vec![gallery.into()],
 					has_next_page: false,
 				});
 			}
@@ -49,7 +49,6 @@ impl Source for Nhentai {
 
 		let mut query_parts = Vec::new();
 
-		// Add main query if present
 		if let Some(q) = query {
 			query_parts.push(q);
 		}
@@ -64,10 +63,10 @@ impl Source for Nhentai {
 						query_parts.push(value);
 					}
 					"artist" => {
-						query_parts.push(format!("artist:{}", value));
+						query_parts.push(format!("artist:{value}"));
 					}
 					"groups" => {
-						query_parts.push(format!("group:{}", value));
+						query_parts.push(format!("group:{value}"));
 					}
 					_ => continue,
 				},
@@ -79,15 +78,19 @@ impl Source for Nhentai {
 						3 => "popular",       // Popular All
 						_ => "recent",
 					};
-					// nhentai doesn't use ascending parameter in the same way
 				}
-				FilterValue::MultiSelect { id, included, excluded, .. } => match id.as_str() {
+				FilterValue::MultiSelect {
+					id,
+					included,
+					excluded,
+					..
+				} => match id.as_str() {
 					"tags" => {
 						for tag in included {
-							query_parts.push(format!("tag:\"{}\"", tag));
+							query_parts.push(format!("tag:\"{tag}\""));
 						}
 						for tag in excluded {
-							query_parts.push(format!("-tag:\"{}\"", tag));
+							query_parts.push(format!("-tag:\"{tag}\""));
 						}
 					}
 					_ => continue,
@@ -96,46 +99,40 @@ impl Source for Nhentai {
 			}
 		}
 
-		let languages = settings::get_languages();
-		for lang in languages {
-			query_parts.push(format!("language:{}", lang));
+		if let Some(language) = settings::get_language() {
+			query_parts.push(format!("language:{language}"));
 		}
 
 		let combined_query = if query_parts.is_empty() {
-			" ".to_string()
+			" ".into()
 		} else {
 			query_parts.join(" ")
 		};
 		let url = format!(
-			"{}/galleries/search?query={}&page={}&sort={}",
-			API_URL,
-			encode_uri_component(&combined_query),
-			page,
-			sort
+			"{API_URL}/galleries/search?query={}&page={page}&sort={sort}",
+			encode_uri_component(combined_query),
 		);
-
-		let response: NhentaiSearchResponse = Request::get(&url)?
+		let response: NHentaiSearchResponse = Request::get(&url)?
 			.header("User-Agent", USER_AGENT)
-			.send()?
-			.get_json()?;
-
-		let result_vec = response.result;
-		let has_next_page = page < response.num_pages;
+			.json_owned()?;
 
 		let blocklist = settings::get_blocklist();
 
-		let entries = result_vec
+		let entries = response
+			.result
 			.into_iter()
 			.filter(|gallery| {
 				if blocklist.is_empty() {
 					return true;
 				}
-				!gallery.tags.iter().any(|tag| {
-					blocklist.contains(&tag.name.to_lowercase())
-				})
+				!gallery
+					.tags
+					.iter()
+					.any(|tag| blocklist.contains(&tag.name.to_lowercase()))
 			})
-			.map(|gallery| gallery.into_manga())
+			.map(|gallery| gallery.into())
 			.collect::<Vec<Manga>>();
+		let has_next_page = page < response.num_pages;
 
 		Ok(MangaPageResult {
 			entries,
@@ -150,28 +147,27 @@ impl Source for Nhentai {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		if needs_details || needs_chapters {
-			let url = format!("{}/gallery/{}", API_URL, manga.key);
-			let gallery: NhentaiGallery = Request::get(&url)?
+			let url = format!("{API_URL}/gallery/{}", manga.key);
+			let gallery: NHentaiGallery = Request::get(&url)?
 				.header("User-Agent", USER_AGENT)
-				.send()?
-				.get_json()?;
+				.json_owned()?;
 
 			if needs_details {
-				manga.copy_from(gallery.clone().into_manga());
+				manga.copy_from(gallery.clone().into());
 			}
 
 			if needs_chapters {
 				// nhentai galleries are single chapter
 				let mut languages = Vec::new();
 				for tag in &gallery.tags {
-					if tag.r#type == "language" && tag.name != "translated" && tag.name != "rewrite" {
+					if tag.r#type == "language" && tag.name != "translated" && tag.name != "rewrite"
+					{
 						languages.push(tag.name.clone());
 					}
 				}
 
 				let chapter = Chapter {
 					key: manga.key.clone(),
-					title: Some(format!("{} pages", gallery.num_pages)),
 					chapter_number: Some(1.0),
 					date_uploaded: Some(gallery.upload_date),
 					url: Some(format!("{}/g/{}", BASE_URL, manga.key)),
@@ -191,10 +187,9 @@ impl Source for Nhentai {
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let api_url = format!("{}/gallery/{}", API_URL, chapter.key);
-		let gallery: NhentaiGallery = Request::get(&api_url)?
+		let gallery: NHentaiGallery = Request::get(&api_url)?
 			.header("User-Agent", USER_AGENT)
-			.send()?
-			.get_json()?;
+			.json_owned()?;
 
 		let pages = gallery
 			.images
@@ -216,7 +211,7 @@ impl Source for Nhentai {
 	}
 }
 
-impl ListingProvider for Nhentai {
+impl ListingProvider for NHentai {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		match listing.id.as_str() {
 			"popular-today" => self.get_search_manga_list(
@@ -260,7 +255,7 @@ impl ListingProvider for Nhentai {
 	}
 }
 
-impl DeepLinkHandler for Nhentai {
+impl DeepLinkHandler for NHentai {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		if !url.starts_with(BASE_URL) {
 			return Ok(None);
@@ -282,4 +277,4 @@ impl DeepLinkHandler for Nhentai {
 	}
 }
 
-register_source!(Nhentai, Home, ListingProvider, DeepLinkHandler);
+register_source!(NHentai, Home, ListingProvider, DeepLinkHandler);
