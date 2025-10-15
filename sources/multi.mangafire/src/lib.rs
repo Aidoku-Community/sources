@@ -16,8 +16,10 @@ use aidoku::{
 mod home;
 mod models;
 mod settings;
+mod vrf;
 
 use models::*;
+use vrf::VrfGenerator;
 
 const BASE_URL: &str = "https://mangafire.to";
 
@@ -224,7 +226,9 @@ impl Source for MangaFire {
 					.select("li")
 					.ok_or(error!("failed manga_list select"))?;
 
-				let ajax_read_url = format!("{BASE_URL}/ajax/read/{manga_id}/chapter/{lang}");
+				let vrf = VrfGenerator::generate(&format!("{manga_id}@chapter@{lang}"));
+				let ajax_read_url =
+					format!("{BASE_URL}/ajax/read/{manga_id}/chapter/{lang}?vrf={vrf}");
 				let read_list = Request::get(&ajax_read_url)?
 					.send()?
 					.get_json::<AjaxResponse<AjaxRead>>()
@@ -282,7 +286,8 @@ impl Source for MangaFire {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let ajax_url = format!("{BASE_URL}/ajax/read/{}", chapter.key);
+		let vrf = VrfGenerator::generate(&chapter.key.replace("/", "@")); // chapter/id -> chapter@id
+		let ajax_url = format!("{BASE_URL}/ajax/read/{}?vrf={vrf}", chapter.key);
 
 		Request::get(&ajax_url)?
 			.send()?

@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", features = ["json"] }
+base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
 serde = { version = "1.0.188", default-features = false, features = ["derive", "alloc"] }
 serde_json = { version = "1.0.105", default-features = false, features = ["alloc"] }
 
