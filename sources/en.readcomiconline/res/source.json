@@ -1,0 +1,20 @@
+{
+	"info": {
+		"id": "en.readcomiconline",
+		"name": "ReadComicOnline",
+		"version": 1,
+		"url": "https://readcomiconline.li",
+		"contentRating": 0,
+		"languages": ["en"]
+	},
+	"listings": [
+		{
+			"id": "/Publisher/Marvel/LatestUpdate",
+			"name": "Marvel Comics"
+		},
+		{
+			"id": "/Publisher/DC-Comics/LatestUpdate",
+			"name": "DC Comics"
+		}
+	]
+}
