@@ -1,6 +1,18 @@
 [
 	{
 		"type": "group",
+		"title": "View Preferences",
+		"items": [
+			{
+				"type": "segment",
+				"key": "isListView",
+				"title": "Home Detail View",
+				"options": ["Grid", "List"]
+			}
+		]
+	},
+	{
+		"type": "group",
 		"title": "Title Preferences",
 		"items": [
 			{

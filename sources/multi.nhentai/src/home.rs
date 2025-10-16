@@ -113,7 +113,11 @@ impl Home for NHentai {
 					listing: Some(Listing {
 						id: "popular-week".into(),
 						name: "Popular This Week".into(),
-						kind: ListingKind::Default,
+						kind: if settings::get_list_viewer() {
+							ListingKind::List
+						} else {
+							ListingKind::Default
+						},
 					}),
 				},
 			});
@@ -130,7 +134,11 @@ impl Home for NHentai {
 					listing: Some(Listing {
 						id: "popular".into(),
 						name: "Popular All Time".into(),
-						kind: ListingKind::Default,
+						kind: if settings::get_list_viewer() {
+							ListingKind::List
+						} else {
+							ListingKind::Default
+						},
 					}),
 				},
 			});
@@ -145,7 +153,11 @@ impl Home for NHentai {
 					listing: Some(Listing {
 						id: "latest".into(),
 						name: "Latest".into(),
-						kind: ListingKind::Default,
+						kind: if settings::get_list_viewer() {
+							ListingKind::List
+						} else {
+							ListingKind::Default
+						},
 					}),
 				},
 			});

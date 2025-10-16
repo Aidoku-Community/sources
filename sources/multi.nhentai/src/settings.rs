@@ -5,6 +5,7 @@ use aidoku::{
 const TITLE_PREFERENCE_KEY: &str = "titlePreference";
 const LANGUAGE_KEY: &str = "language";
 const BLOCKLIST_KEY: &str = "blocklist";
+const LIST_VIEWER_KEY: &str = "isListView";
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum TitlePreference {
@@ -45,4 +46,8 @@ pub fn get_blocklist() -> Vec<String> {
 		.map(|s| s.trim().to_lowercase())
 		.filter(|s| !s.is_empty())
 		.collect()
+}
+
+pub fn get_list_viewer() -> bool {
+	defaults_get(LIST_VIEWER_KEY).unwrap_or(false)
 }
