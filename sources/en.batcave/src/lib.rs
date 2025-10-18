@@ -123,8 +123,7 @@ impl Source for BatCave {
 				.strip_prefix("Release type: ")
 				.unwrap_or_default()
 			{
-				"Completed" => MangaStatus::Completed,
-				"Complete" => MangaStatus::Completed,
+				"Completed" | "Complete" => MangaStatus::Completed,
 				"Ongoing" => MangaStatus::Ongoing,
 				_ => MangaStatus::Unknown,
 			};
@@ -135,50 +134,53 @@ impl Source for BatCave {
 		}
 
 		if needs_chapters {
-			let chapter_list: ChapterList = serde_json::from_str(
-				html.select_first(".page__chapters-list > script")
-					.and_then(|x| x.data())
-					.expect("No script data")
-					.strip_prefix("window.__DATA__ = ")
-					.expect("Wrong script format")
-					.strip_suffix(";")
-					.unwrap_or_default(),
-			)
-			.unwrap();
+			let script_data = html
+				.select_first(".page__chapters-list > script")
+				.and_then(|x| x.data())
+				.ok_or(error!("No script data"))?;
 
-			manga.chapters = Some(
-				chapter_list
-					.chapters
-					.into_iter()
-					.map(|chapter| {
-						let url =
-							format!("{BASE_URL}/reader/{}/{}", chapter_list.news_id, chapter.id);
+			let json_str = script_data
+				.strip_prefix("window.__DATA__ = ")
+				.ok_or(error!("Wrong script format"))?
+				.strip_suffix(";")
+				.ok_or(error!("Wrong script format"))?;
 
-						let title = chapter
-							.title
-							.strip_prefix(&manga.title)
-							.map(str::trim)
-							.map(String::from)
-							.unwrap_or_else(|| chapter.title);
+			let chapter_list = match serde_json::from_str::<ChapterList>(json_str) {
+				Ok(list) => list,
+				Err(_) => return Err(error!("Unable to parse chapter list")),
+			};
 
-						let mut chapter_number = None;
-						if let Some(idx) = title.find('#') {
-							chapter_number = title[idx + 1..].parse::<f32>().ok();
-						}
+			let chapters = chapter_list
+				.chapters
+				.into_iter()
+				.map(|chapter| {
+					let url = format!("{BASE_URL}/reader/{}/{}", chapter_list.news_id, chapter.id);
 
-						let date_uploaded = parse_date(&chapter.date, "%-d.%-m.%Y");
+					let title = chapter
+						.title
+						.strip_prefix(&manga.title)
+						.map(str::trim)
+						.map(String::from)
+						.unwrap_or_else(|| chapter.title);
 
-						Chapter {
-							key: url.clone(),
-							url: Some(url),
-							title: Some(title),
-							chapter_number,
-							date_uploaded,
-							..Default::default()
-						}
-					})
-					.collect::<Vec<Chapter>>(),
-			);
+					let chapter_number = title
+						.find('#')
+						.and_then(|idx| title[idx + 1..].parse::<f32>().ok());
+
+					let date_uploaded = parse_date(&chapter.date, "%-d.%-m.%Y");
+
+					Chapter {
+						key: url.clone(),
+						url: Some(url),
+						title: Some(title),
+						chapter_number,
+						date_uploaded,
+						..Default::default()
+					}
+				})
+				.collect::<Vec<Chapter>>();
+
+			manga.chapters = Some(chapters);
 		}
 
 		Ok(manga)
@@ -197,12 +199,15 @@ impl Source for BatCave {
 							return None;
 						}
 
-						let page_list: PageList = serde_json::from_str(
-							text.strip_prefix("window.__DATA__ = ")
-								.and_then(|x| x.strip_suffix(";"))
-								.unwrap_or_default(),
-						)
-						.unwrap();
+						let page_json_str = text
+							.strip_prefix("window.__DATA__ = ")
+							.and_then(|x| x.strip_suffix(";"))
+							.unwrap_or_default();
+
+						let page_list = match serde_json::from_str::<PageList>(page_json_str) {
+							Err(_) => return None,
+							Ok(page) => page,
+						};
 
 						let pages = page_list
 							.images
