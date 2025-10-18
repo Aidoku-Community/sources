@@ -68,8 +68,8 @@ impl Url<'_> {
 
 		for filter in filters {
 			#[expect(clippy::wildcard_enum_match_arm)]
-			match filter {
-				FilterValue::Text { id, value } => match id.as_str() {
+			match *filter {
+				FilterValue::Text { ref id, ref value } => match id.as_str() {
 					"author" => {
 						let search_query = SearchQuery::new(page, value, SearchType::Author);
 						let url = Self::search(search_query)?;
@@ -79,19 +79,19 @@ impl Url<'_> {
 				},
 
 				FilterValue::Sort {
-					id,
+					ref id,
 					index,
 					ascending,
 				} => match id.as_str() {
 					"排序" => {
-						is_asc = *ascending;
-						sort = Sort::from_repr(*index)
+						is_asc = ascending;
+						sort = Sort::from_repr(index)
 							.ok_or_else(|| error!("Invalid `排序` index: `{index}`"))?;
 					}
 					_ => bail!("Invalid sort filter ID: `{id}`"),
 				},
 
-				FilterValue::Select { id, value } => match id.as_str() {
+				FilterValue::Select { ref id, ref value } => match id.as_str() {
 					"地區" => r#type = value,
 					"狀態" => status = value,
 					"題材" => genre = value.into(),
