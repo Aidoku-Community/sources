@@ -133,7 +133,7 @@ impl Source for BatCave {
 
         if needs_chapters {
             let chapter_list: ChapterList = serde_json::from_str(
-                html.select_first(".page__chapters-list>script")
+                html.select_first(".page__chapters-list > script")
                     .and_then(|x| x.data())
                     .expect("No script data")
                     .strip_prefix("window.__DATA__ = ")
@@ -234,7 +234,7 @@ impl Home for BatCave {
             .and_then(|x| x.text());
 
         let hot_releases = hot_releases_section
-            .select("div>a")
+            .select("div > a")
             .map(|elements| {
                 elements
                     .filter_map(|element| {
