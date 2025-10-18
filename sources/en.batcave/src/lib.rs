@@ -114,6 +114,12 @@ impl Source for BatCave {
 				.map(|x| x.strip_prefix("Writer: ").unwrap_or_default().to_string())
 				.map(|x| vec![x]);
 
+			manga.tags = html.select(".page__tags > a").map(|elements| {
+				elements
+					.map(|element| element.text().unwrap_or_default())
+					.collect::<Vec<String>>()
+			});
+
 			let status_str = html
 				.select_first("ul > li:has(div:contains(Release type))")
 				.and_then(|x| x.text())
