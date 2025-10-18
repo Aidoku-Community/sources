@@ -151,21 +151,25 @@ impl Source for BatCave {
 						let url =
 							format!("{BASE_URL}/reader/{}/{}", chapter_list.news_id, chapter.id);
 
-						let title = Some(
-							chapter
-								.title
-								.strip_prefix(&manga.title)
-								.map(str::trim)
-								.map(String::from)
-								.unwrap_or_else(|| chapter.title),
-						);
+						let title = chapter
+							.title
+							.strip_prefix(&manga.title)
+							.map(str::trim)
+							.map(String::from)
+							.unwrap_or_else(|| chapter.title);
+
+						let mut chapter_number = None;
+						if let Some(idx) = title.find('#') {
+							chapter_number = title[idx + 1..].parse::<f32>().ok();
+						}
 
 						let date_uploaded = parse_date(&chapter.date, "%-d.%-m.%Y");
 
 						Chapter {
 							key: url.clone(),
 							url: Some(url),
-							title,
+							title: Some(title),
+							chapter_number,
 							date_uploaded,
 							..Default::default()
 						}
