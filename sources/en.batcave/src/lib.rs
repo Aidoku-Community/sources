@@ -106,13 +106,13 @@ impl Source for BatCave {
 				.select_first("ul > li:has(div:contains(Artist))")
 				.and_then(|x| x.text())
 				.map(|x| x.strip_prefix("Artist: ").unwrap_or_default().to_string())
-				.map(|x| vec![x.to_string()]);
+				.map(|x| vec![x]);
 
 			manga.authors = html
 				.select_first("ul > li:has(div:contains(Writer))")
 				.and_then(|x| x.text())
 				.map(|x| x.strip_prefix("Writer: ").unwrap_or_default().to_string())
-				.map(|x| vec![x.to_string()]);
+				.map(|x| vec![x]);
 
 			let status_str = html
 				.select_first("ul > li:has(div:contains(Release type))")
