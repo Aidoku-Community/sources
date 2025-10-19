@@ -1,9 +1,11 @@
 #![no_std]
 use aidoku::{
 	alloc::{string::ToString, vec, Box, String, Vec},
-	imports::html::Document,
-	imports::net::Request,
-	imports::std::{parse_date, send_partial_result},
+	imports::{
+		html::Document,
+		net::Request,
+		std::{parse_date, send_partial_result},
+	},
 	prelude::*,
 	Chapter, FilterValue, Home, HomeComponent, HomeLayout, ImageRequestProvider, Link, Manga,
 	MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source,
@@ -42,12 +44,25 @@ impl Source for BatCave {
 		&self,
 		query: Option<String>,
 		page: i32,
-		_filters: Vec<FilterValue>,
+		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let url = format!(
+		let mut url = format!(
 			"{BASE_URL}/search/{}/page/{page}/",
 			query.unwrap_or_default()
 		);
+
+		for filter in filters {
+			match filter {
+				FilterValue::MultiSelect { id, included, .. } => match id.as_str() {
+					"genre" => {
+						url = format!("{BASE_URL}/ComicList/g={}/page/{page}/", included.join(","));
+					}
+					_ => {}
+				},
+				_ => {}
+			}
+		}
+
 		let result = Request::get(&url)?.html()?;
 
 		let entries = result

@@ -8,5 +8,8 @@
 		"languages": [
 			"en"
 		]
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true
 	}
 }
