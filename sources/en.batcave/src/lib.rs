@@ -172,7 +172,7 @@ impl Source for BatCave {
 						.find('#')
 						.and_then(|idx| title[idx + 1..].parse::<f32>().ok());
 
-					let date_uploaded = parse_date(&chapter.date, "%-d.%-m.%Y");
+					let date_uploaded = parse_date(&chapter.date, "dd.MM.yyyy");
 
 					Chapter {
 						key: url.clone(),
@@ -320,7 +320,7 @@ fn get_home_newest_releases(html: &Document) -> Option<HomeComponent> {
 					if let Some(text) = details_text {
 						let parts = text.splitn(2, " - ").collect::<Vec<&str>>();
 						if parts.len() == 2 {
-							date_uploaded = parse_date(parts[0].trim(), "%-d.%-m.%Y");
+							date_uploaded = parse_date(parts[0].trim(), "dd.MM.yyyy");
 
 							chapter_title = parts[1]
 								.strip_prefix(&manga_title)
