@@ -419,7 +419,7 @@ impl Home for BatCave {
 		let html = Request::get(BASE_URL)?.html()?;
 		let mut components = Vec::new();
 
-		let component_fns: Vec<ComponentBuilderFn> = vec![
+		let component_fns: &[ComponentBuilderFn; 4] = &[
 			Box::new(get_home_hot_releases),
 			Box::new(get_home_newest_releases),
 			get_side_block(1),
