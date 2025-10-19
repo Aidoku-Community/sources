@@ -147,9 +147,8 @@ impl Source for BatCave {
 
 			let json_str = script_data
 				.strip_prefix("window.__DATA__ = ")
-				.ok_or(error!("Wrong script format"))?
-				.strip_suffix(";")
-				.ok_or(error!("Wrong script format"))?;
+				.and_then(|x| x.strip_suffix(";"))
+				.unwrap_or_default();
 
 			let chapter_list = match serde_json::from_str::<ChapterList>(json_str) {
 				Ok(list) => list,
