@@ -1,0 +1,15 @@
+{
+	"info": {
+		"id": "zh.bilimanga",
+		"name": "嗶哩漫畫",
+		"version": 1,
+		"url": "https://www.bilimanga.net",
+		"contentRating": 1,
+		"languages": ["zh"]
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true,
+		"supportsAuthorSearch": true,
+		"supportsTagSearch": true
+	}
+}
