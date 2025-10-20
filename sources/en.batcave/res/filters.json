@@ -1,5 +1,12 @@
 [
   {
+		"id": "year_of_issue",
+		"title": "Yearn of Issue",
+		"type": "range",
+		"min": 0,
+		"decimal": false
+	},
+  {
     "type": "multi-select",
     "id": "genre",
     "title": "Genres",

@@ -7,9 +7,11 @@ use aidoku::{
 		std::{parse_date, send_partial_result},
 	},
 	prelude::*,
-	Chapter, FilterValue, Home, HomeComponent, HomeLayout, ImageRequestProvider, Link, Manga,
-	MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout,
+	ImageRequestProvider, Link, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page,
+	PageContent, Result, Source,
 };
+use regex::Regex;
 use serde::Deserialize;
 
 const BASE_URL: &str = "https://batcave.biz";
@@ -46,22 +48,44 @@ impl Source for BatCave {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let mut url = format!(
-			"{BASE_URL}/search/{}/page/{page}/",
-			query.unwrap_or_default()
-		);
+		let mut filters_vec = Vec::<String>::new();
 
 		for filter in filters {
 			match filter {
+				FilterValue::Range { id, from, to } => match id.as_str() {
+					"year_of_issue" => {
+						if let Some(from) = from {
+							filters_vec.push(format!("y[from]={}", from));
+						}
+						if let Some(to) = to {
+							filters_vec.push(format!("y[to]={}", to));
+						}
+					}
+					_ => {}
+				},
 				FilterValue::MultiSelect { id, included, .. } => match id.as_str() {
 					"genre" => {
-						url = format!("{BASE_URL}/ComicList/g={}/page/{page}/", included.join(","));
+						filters_vec.push(format!("g={}", included.join(",")));
 					}
 					_ => {}
 				},
 				_ => {}
 			}
 		}
+
+		let url = if filters_vec.is_empty() {
+			format!(
+				"{BASE_URL}/search/{}/page/{page}/",
+				query.unwrap_or_default()
+			)
+		} else {
+			format!(
+				"{BASE_URL}/ComicList/{}/page/{page}/",
+				filters_vec.join("/")
+			)
+		};
+
+		println!("{}", url);
 
 		let result = Request::get(&url)?.html()?;
 
@@ -460,4 +484,19 @@ impl ImageRequestProvider for BatCave {
 	}
 }
 
-register_source!(BatCave, ImageRequestProvider, Home);
+impl DeepLinkHandler for BatCave {
+	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
+		let re = match Regex::new(r"^https://batcave\.biz/\d+-[\w-]+\.html$") {
+			Ok(re) => re,
+			Err(_) => return Ok(None),
+		};
+
+		if re.is_match(&url) {
+			return Ok(Some(DeepLinkResult::Manga { key: url }));
+		}
+
+		Ok(None)
+	}
+}
+
+register_source!(BatCave, ImageRequestProvider, Home, DeepLinkHandler);
