@@ -1,0 +1,58 @@
+{
+	"info": {
+		"id": "zh.manhuabika",
+		"name": "哔咔漫画",
+		"version": 1,
+		"url": "https://manhuabika.com",
+		"contentRating": 2,
+		"languages": ["zh"]
+	},
+	"listings": [
+		{
+			"id": "update",
+			"name": "更新"
+		},
+		{
+			"id": "dayup",
+			"name": "日榜"
+		},
+		{
+			"id": "weekup",
+			"name": "周榜"
+		},
+		{
+			"id": "monthup",
+			"name": "月榜"
+		},
+		{
+			"id": "djkz",
+			"name": "大家都在看"
+		},
+		{
+			"id": "gfdjkz",
+			"name": "官方都在看"
+		},
+		{
+			"id": "dswj",
+			"name": "大湿推荐"
+		},
+		{
+			"id": "nndtn",
+			"name": "那年今天"
+		},
+		{
+			"id": "random",
+			"name": "随机本子"
+		},
+		{
+			"id": "favourite",
+			"name": "收藏列表"
+		}
+	],
+	"config": {
+		"requiresAuth": true,
+		"hidesFiltersWhileSearching": true,
+		"supportsAuthorSearch": true,
+		"supportsTagSearch": true
+	}
+}

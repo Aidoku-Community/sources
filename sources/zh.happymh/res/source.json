@@ -1,0 +1,53 @@
+{
+	"info": {
+		"id": "zh.happymh",
+		"name": "Happymh",
+		"version": 1,
+		"url": "https://m.happymh.com",
+		"contentRating": 1,
+		"languages": ["zh"]
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "最近更新"
+		},
+		{
+			"id": "day",
+			"name": "日阅读"
+		},
+		{
+			"id": "dayBookcasesOne",
+			"name": "日收藏"
+		},
+		{
+			"id": "week",
+			"name": "周阅读"
+		},
+		{
+			"id": "weekBookcasesOne",
+			"name": "周收藏"
+		},
+		{
+			"id": "month",
+			"name": "月阅读"
+		},
+		{
+			"id": "monthBookcasesOne",
+			"name": "月收藏"
+		},
+		{
+			"id": "voteNumMonthRank",
+			"name": "月投票"
+		},
+		{
+			"id": "voteRank",
+			"name": "总评分"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true,
+		"supportsAuthorSearch": false,
+		"supportsTagSearch": true
+	}
+}

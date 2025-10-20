@@ -1,6 +1,6 @@
 use crate::{BASE_URL, net::Url};
 use aidoku::{
-	Manga, MangaPageResult, MangaStatus, Page, Result,
+	Manga, MangaPageResult, MangaStatus, Viewer, Page, Result,
 	alloc::{String, Vec, string::ToString as _, vec},
 	error,
 	imports::html::{Document, ElementList},
@@ -89,10 +89,6 @@ impl MangaPage for Document {
 					.and_then(|meta| meta.attr("content"))
 			});
 
-		manga.tags = self
-			.select("a[href*='tag']")
-			.map(|elements| elements.filter_map(|a| a.text()).collect::<Vec<String>>());
-
 		manga.status = match self
 			.select_first("div[data-flux-badge]")
 			.and_then(|badge| badge.text())
@@ -105,6 +101,34 @@ impl MangaPage for Document {
 		};
 
 		manga.url = Some(Url::manga(manga.key.clone()).to_string());
+
+		let country = self
+    		.select_first("a[href*='country']")
+   			.and_then(|a| a.text());
+
+		let tags = self
+			.select("a[href*='tag']")
+			.map(|elements| elements.filter_map(|a| a.text()).collect::<Vec<String>>())
+			.unwrap_or_default();
+
+		let mut all_tags = Vec::new();
+		if let Some(ref c) = country {
+		  	all_tags.push(c.clone());
+		}
+		all_tags.extend(tags);
+		manga.tags = Some(all_tags);
+
+		manga.viewer = if let Some(ref c) = country {
+			if c.contains("内地") || c.contains("韩国") || c.contains("韓國") {
+				Viewer::Webtoon
+			} else if c.contains("日本") {
+				Viewer::RightToLeft
+			} else {
+				Viewer::LeftToRight
+			}
+		} else {
+			Viewer::LeftToRight
+		};
 
 		Ok(())
 	}

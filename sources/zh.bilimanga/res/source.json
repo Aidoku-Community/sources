@@ -2,7 +2,7 @@
 	"info": {
 		"id": "zh.bilimanga",
 		"name": "嗶哩漫畫",
-		"version": 1,
+		"version": 2,
 		"url": "https://www.bilimanga.net",
 		"contentRating": 1,
 		"languages": ["zh"]

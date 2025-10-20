@@ -2,7 +2,7 @@
 	"info": {
 		"id": "zh.mycomic",
 		"name": "MYCOMIC",
-		"version": 1,
+		"version": 2,
 		"url": "https://mycomic.com",
 		"contentRating": 1,
 		"languages": ["zh"]

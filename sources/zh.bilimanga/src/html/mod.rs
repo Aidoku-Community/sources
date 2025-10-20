@@ -1,6 +1,6 @@
 use crate::{BASE_URL, net::Url};
 use aidoku::{
-	Manga, MangaPageResult, MangaStatus, Page, Result,
+	Manga, MangaPageResult, MangaStatus, Viewer, Page, Result,
 	alloc::{String, Vec, string::ToString as _},
 	error,
 	imports::{
@@ -98,7 +98,7 @@ impl MangaPage for Document {
 			.try_select(".tag-small-group>.tag-small>a")?
 			.filter_map(|a| a.text())
 			.collect::<Vec<String>>();
-		manga.tags = Some(tags);
+		manga.tags = Some(tags.clone());
 		manga.status = match self
 			.try_select_first(".book-layout-inline")?
 			.text()
@@ -114,6 +114,13 @@ impl MangaPage for Document {
 			"連載" => MangaStatus::Ongoing,
 			"完結" => MangaStatus::Completed,
 			_ => MangaStatus::Unknown,
+		};
+		manga.viewer = if tags.iter().any(|tag| tag.contains("大陸") || tag.contains("韓國")) {
+			Viewer::Webtoon
+		} else if tags.iter().any(|tag| tag.contains("日本")) {
+			Viewer::RightToLeft
+		} else {
+			Viewer::LeftToRight
 		};
 		manga.url = Some(Url::manga(manga.key.clone()).to_string());
 		Ok(())

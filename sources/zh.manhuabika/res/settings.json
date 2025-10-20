@@ -1,0 +1,79 @@
+[
+	{
+		"type": "group",
+		"title": "视图选择",
+		"items": [
+			{
+				"type": "segment",
+				"key": "isListView",
+				"title": "主页详情视图",
+				"options": ["网格", "列表"]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "账号设置",
+		"items": [
+			{
+				"type": "text",
+				"key": "username",
+				"title": "用户名",
+				"placeholder": "哔咔漫画用户名",
+				"refreshes": ["content", "listings"]
+			},
+			{
+				"type": "text",
+				"key": "password",
+				"title": "密码",
+				"placeholder": "哔咔漫画密码",
+				"secure": true,
+				"refreshes": ["content", "listings"]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "图片设置",
+		"items": [
+			{
+				"type": "select",
+				"key": "imageQuality",
+				"title": "图片质量",
+				"values": ["original", "medium", "low"],
+				"titles": ["原图", "中等", "低清"],
+				"default": "original"
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "网络设置",
+		"items": [
+			{
+				"type": "select",
+				"key": "appChannel",
+				"title": "分流",
+				"values": ["1", "2", "3"],
+				"titles": ["分流1", "分流2", "分流3"],
+				"default": "3"
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "屏蔽设置",
+		"footer": "屏蔽包含指定关键词标签的内容",
+		"items": [
+			{
+				"type": "editable-list",
+				"key": "blockGenres",
+				"title": "添加屏蔽词",
+				"lineLimit": 1,
+				"inline": true,
+				"placeholder": "输入要屏蔽的关键词",
+				"default": ["耽美花園"]
+			}
+		]
+	}
+]

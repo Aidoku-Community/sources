@@ -1,0 +1,29 @@
+{
+	"info": {
+		"id": "zh.godamanga",
+		"name": "G站漫畫",
+		"version": 1,
+		"url": "https://godamh.com",
+		"contentRating": 1,
+		"languages": ["zh"]
+	},
+	"listings": [
+		{
+			"id": "hots",
+			"name": "人气推荐"
+		},
+		{
+			"id": "dayup",
+			"name": "热门更新"
+		},
+		{
+			"id": "newss",
+			"name": "最新上架"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true,
+		"supportsAuthorSearch": false,
+		"supportsTagSearch": true
+	}
+}
