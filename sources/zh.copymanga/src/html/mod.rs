@@ -95,8 +95,7 @@ impl MangaPage for Document {
 
 		manga.description = self.try_select_first("p.intro")?.text();
 
-		let url = Url::manga(&manga.key).into();
-		manga.url = Some(url);
+		manga.url = Url::manga(&manga.key).to_string().ok();
 
 		let tags = self
 			.try_select("span.comicParticulars-tag > a")?

@@ -108,7 +108,7 @@ impl ChapterItem {
 
 		let scanlators = [group.into()].into();
 
-		let url = Url::chapter(manga_key, &key).into();
+		let url = Url::chapter(manga_key, &key).to_string().ok();
 
 		Chapter {
 			key,
@@ -117,7 +117,7 @@ impl ChapterItem {
 			volume_number,
 			date_uploaded,
 			scanlators: Some(scanlators),
-			url: Some(url),
+			url,
 			..Default::default()
 		}
 	}

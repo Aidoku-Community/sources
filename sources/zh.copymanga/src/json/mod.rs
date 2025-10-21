@@ -25,7 +25,7 @@ pub struct MangaItem {
 
 impl From<MangaItem> for Manga {
 	fn from(item: MangaItem) -> Self {
-		let url = Url::manga(&item.path_word).into();
+		let url = Url::manga(&item.path_word).to_string().ok();
 
 		let key = item.path_word;
 
@@ -46,7 +46,7 @@ impl From<MangaItem> for Manga {
 			title,
 			cover: Some(cover),
 			authors: Some(authors),
-			url: Some(url),
+			url,
 			status,
 			..Default::default()
 		}

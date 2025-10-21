@@ -4,13 +4,12 @@ use aidoku::{
 	alloc::{String, format, string::ToString as _},
 	bail, error,
 	helpers::uri::QueryParameters,
-	imports::net::Request,
+	imports::{defaults::defaults_get, net::Request},
 };
 use core::fmt::{Display, Formatter, Result as FmtResult};
 use strum::{AsRefStr, Display, EnumIs, FromRepr};
 
 #[derive(Display, EnumIs)]
-#[strum(prefix = "https://www.2025copy.com")]
 pub enum Url<'a> {
 	#[strum(to_string = "/filter")]
 	GenresPage,
@@ -29,8 +28,15 @@ pub enum Url<'a> {
 }
 
 impl Url<'_> {
+	pub fn to_string(&self) -> Result<String> {
+		let base_url = defaults_get::<String>("url")
+			.ok_or_else(|| error!("Default not exist or not string for key: `url`"))?;
+		Ok(format!("{base_url}{self}"))
+	}
+
 	pub fn request(&self) -> Result<Request> {
-		let mut request = Request::get(self.to_string())?.header(
+		let url = self.to_string()?;
+		let mut request = Request::get(url)?.header(
 			"User-Agent",
 			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
 			 AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0.1 Safari/605.1.15",
@@ -136,12 +142,6 @@ impl<'a> Url<'a> {
 
 	pub const fn chapter(manga_key: &'a str, key: &'a str) -> Self {
 		Self::Chapter { manga_key, key }
-	}
-}
-
-impl From<Url<'_>> for String {
-	fn from(url: Url<'_>) -> Self {
-		url.to_string()
 	}
 }
 

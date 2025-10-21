@@ -8,7 +8,8 @@ fn filters_default() {
 	assert_eq!(
 		Url::from_query_or_filters(None, 1, &[])
 			.unwrap()
-			.to_string(),
+			.to_string()
+			.unwrap(),
 		"https://www.2025copy.com/comics?ordering=-datetime_updated&offset=0&limit=50"
 	);
 }
@@ -40,7 +41,8 @@ fn filters_romance_manga_ongoing_popularity_ascending_2() {
 			]
 		)
 		.unwrap()
-		.to_string(),
+		.to_string()
+		.unwrap(),
 		"https://www.2025copy.com/comics?theme=aiqing&status=0&region=0&ordering=popular&offset=50&limit=50"
 	);
 }
@@ -104,7 +106,7 @@ fn filters_romance_manga_ongoing_popularity_ascending_2() {
 #[aidoku_test]
 fn manga() {
 	assert_eq!(
-		Url::manga("heishoudangbaomu").to_string(),
+		Url::manga("heishoudangbaomu").to_string().unwrap(),
 		"https://www.2025copy.com/comic/heishoudangbaomu"
 	);
 }
@@ -113,7 +115,7 @@ fn manga() {
 fn chapter_list() {
 	let url = Url::chapter_list("wodelinjuzhongshidingzhewo");
 	assert_eq!(
-		url.to_string(),
+		url.to_string().unwrap(),
 		"https://www.2025copy.com/comicdetail/wodelinjuzhongshidingzhewo/chapters"
 	);
 	assert!(
@@ -128,7 +130,9 @@ fn chapter_list() {
 #[aidoku_test]
 fn chapter() {
 	assert_eq!(
-		Url::chapter("jiandieguojiajia", "555d889e-98ab-11ea-ad89-00163e0ca5bd").to_string(),
+		Url::chapter("jiandieguojiajia", "555d889e-98ab-11ea-ad89-00163e0ca5bd")
+			.to_string()
+			.unwrap(),
 		"https://www.2025copy.com/comic/jiandieguojiajia/chapter/555d889e-98ab-11ea-ad89-00163e0ca5bd"
 	);
 }

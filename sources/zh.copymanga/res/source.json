@@ -15,6 +15,7 @@
 		"languages": ["zh"]
 	},
 	"config": {
+		"allowsBaseUrlSelect": true,
 		"hidesFiltersWhileSearching": true,
 		"supportsAuthorSearch": true,
 		"supportsTagSearch": true
