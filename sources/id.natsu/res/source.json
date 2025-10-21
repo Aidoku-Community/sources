@@ -1,0 +1,20 @@
+{
+	"info": {
+		"id": "id.natsu",
+		"name": "Natsu",
+		"version": 1,
+		"url": "https://natsu.tv",
+		"contentRating": 1,
+		"languages": ["id"]
+	},
+	"listings": [
+		{
+			"id": "/project/",
+			"name": "Project"
+		},
+		{
+			"id": "/latest-update/",
+			"name": "Latest Update"
+		}
+	]
+}

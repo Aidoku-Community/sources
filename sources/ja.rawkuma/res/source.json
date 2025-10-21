@@ -1,0 +1,19 @@
+{
+	"info": {
+		"id": "ja.rawkuma",
+		"name": "Rawkuma",
+		"version": 5,
+		"url": "https://rawkuma.net",
+		"contentRating": 1,
+		"languages": ["ja"]
+	},
+	"listings": [
+		{
+			"id": "/latest-update/",
+			"name": "Latest Update"
+		}
+	],
+	"config": {
+		"breakingChangeVersion": 5
+	}
+}
