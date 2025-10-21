@@ -58,6 +58,7 @@ impl Source for Copymanga {
 		let key = manga_page.key()?;
 		manga.chapters = Url::chapter_list(&manga.key)
 			.request()?
+			.header("dnts", manga_page.dnt().as_deref().unwrap_or("2"))
 			.json_owned::<chapter_list::Root>()?
 			.chapters(&key)?;
 

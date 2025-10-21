@@ -143,6 +143,7 @@ impl KeyPage for Document {
 
 pub trait ChapterPage {
 	fn pages(&self) -> Result<Vec<Page>>;
+	fn dnt(&self) -> Option<String>;
 }
 
 impl ChapterPage for Document {
@@ -166,6 +167,10 @@ impl ChapterPage for Document {
 			.into_iter()
 			.map(TryInto::try_into)
 			.collect()
+	}
+
+	fn dnt(&self) -> Option<String> {
+		self.select_first("#dnt")?.attr("value")
 	}
 }
 
