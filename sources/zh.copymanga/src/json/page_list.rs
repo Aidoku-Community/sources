@@ -31,6 +31,5 @@ impl TryFrom<Item> for Page {
 }
 
 fn defaults_get_string(key: &str) -> Result<String> {
-	defaults_get(key)
-		.ok_or_else(|| error!("Default does not exist or is not a string or number value"))
+	defaults_get(key).ok_or_else(|| error!("Default not exist or not string"))
 }

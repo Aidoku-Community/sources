@@ -157,7 +157,7 @@ impl ChapterPage for Document {
 			})
 			.ok_or_else(|| error!("No script content contains `var`"))?
 			.split_once("var contentKey = '")
-			.ok_or_else(|| error!("String not fount: `var contentKey = '`"))?
+			.ok_or_else(|| error!("String not found: `var contentKey = '`"))?
 			.1
 			.split_once("';")
 			.ok_or_else(|| error!("String not found: `';`"))?
