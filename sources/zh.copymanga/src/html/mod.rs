@@ -3,7 +3,7 @@ use crate::{
 	net::Url,
 };
 use aidoku::{
-	AidokuError, Manga, MangaPageResult, MangaStatus, Page, Result, SelectFilter,
+	Manga, MangaPageResult, MangaStatus, Page, Result, SelectFilter,
 	alloc::{String, Vec, borrow::ToOwned as _, format},
 	error,
 	imports::{
@@ -53,8 +53,7 @@ impl FiltersPage for Document {
 			.attr("list")
 			.ok_or_else(|| error!("Attribute not found: `list`"))?;
 		let json = JsContext::new().eval(&format!("JSON.stringify({single_quoted_json})"))?;
-		let entries = serde_json::from_str::<Vec<MangaItem>>(&json)
-			.map_err(AidokuError::message)?
+		let entries = serde_json::from_str::<Vec<MangaItem>>(&json)?
 			.into_iter()
 			.map(Into::into)
 			.collect();
@@ -164,8 +163,7 @@ impl ChapterPage for Document {
 			.ok_or_else(|| error!("String not found: `';`"))?
 			.0
 			.decrypt(&key)?;
-		serde_json::from_slice::<Vec<page_list::Item>>(&json)
-			.map_err(AidokuError::message)?
+		serde_json::from_slice::<Vec<page_list::Item>>(&json)?
 			.into_iter()
 			.map(TryInto::try_into)
 			.collect()

@@ -1,7 +1,7 @@
 use super::EncryptedJson as _;
 use crate::net::Url;
 use aidoku::{
-	AidokuError, Chapter, HashMap, Result,
+	Chapter, HashMap, Result,
 	alloc::{String, Vec, borrow::ToOwned as _, string::ToString as _},
 	serde::Deserialize,
 };
@@ -18,9 +18,7 @@ pub struct Root {
 impl Root {
 	pub fn chapters(self, key: &str) -> Result<Option<Vec<Chapter>>> {
 		let plain_text = self.results.decrypt(key)?;
-		let chapters = serde_json::from_slice::<Results>(&plain_text)
-			.map_err(AidokuError::message)?
-			.into();
+		let chapters = serde_json::from_slice::<Results>(&plain_text)?.into();
 		Ok(chapters)
 	}
 }
