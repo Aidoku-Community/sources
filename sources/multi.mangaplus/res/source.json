@@ -1,0 +1,19 @@
+{
+	"info": {
+		"id": "multi.mangaplus",
+		"name": "MANGA Plus",
+		"version": 1,
+		"url": "https://mangaplus.shueisha.co.jp",
+		"contentRating": 0,
+		"languages": ["en", "es", "fr", "id", "pt-BR", "ru", "th", "vi", "de"],
+		"minAppVersion": "0.7.2"
+	},
+	"listings": [
+		{
+			"id": "Updates"
+		},
+		{
+			"id": "Ranking"
+		}
+	]
+}

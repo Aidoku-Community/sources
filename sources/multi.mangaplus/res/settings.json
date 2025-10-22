@@ -1,0 +1,22 @@
+[
+	{
+		"type": "group",
+		"title": "SETTINGS",
+		"items": [
+			{
+				"type": "select",
+				"key": "imgQuality",
+				"title": "Image Quality",
+				"values": ["low", "high", "super_high"],
+				"titles": ["Low", "Medium", "High"],
+				"default": "super_high"
+			},
+			{
+				"type": "switch",
+				"key": "split",
+				"title": "Split Double Pages",
+				"default": false
+			}
+		]
+	}
+]
