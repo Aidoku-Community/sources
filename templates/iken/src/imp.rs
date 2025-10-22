@@ -1,5 +1,4 @@
-use super::Params;
-use crate::{helpers, models::*};
+use crate::{helpers, models::*, Params};
 use aidoku::{
 	alloc::{string::ToString, vec, String, Vec},
 	helpers::{element::ElementHelpers, string::StripPrefixOrSelf, uri::QueryParameters},
@@ -37,6 +36,9 @@ pub trait Impl {
 			}
 			for filter in filters {
 				match filter {
+					FilterValue::Sort { id, index, .. } => {
+						qs.push(&id, Some(&(params.get_sort_value)(index)))
+					}
 					FilterValue::Select { id, value } => qs.push(&id, Some(&value)),
 					FilterValue::MultiSelect { included, .. } => {
 						qs.push("genreIds", Some(&included.join(",")));
@@ -159,9 +161,7 @@ pub trait Impl {
 	}
 
 	fn get_home(&self, params: &Params) -> Result<HomeLayout> {
-		// "https://eternalmangas.com"
-		// "https://magustoon.org"
-		let html = Request::get(format!("{}/home", params.base_url))?.html()?;
+		let html = Request::get(&params.base_url)?.html()?;
 
 		let mut components = Vec::new();
 
@@ -169,7 +169,9 @@ pub trait Impl {
 		if let Some(header) = html.select_first("main section") {
 			let entries: Vec<Manga> = header
 				.select(
-					".swiper > .swiper-wrapper > .swiper-slide, ul > li:not(.splide__slide--clone)",
+					".swiper > .swiper-wrapper > .swiper-slide, \
+					 ul > li:not(.splide__slide--clone), \
+					 .embla > .embla__viewport > .embla__container > .embla__slide",
 				)
 				.map(|els| {
 					els.filter_map(|el| {
@@ -196,6 +198,7 @@ pub trait Impl {
 							cover: el.select_first("img").and_then(|img| img.attr("src")),
 							description: el
 								.select_first(".text-lg")
+								.or_else(|| el.select_first("h3 + p"))
 								.and_then(|text| text.text_with_newlines())
 								.map(|text| text.trim().into()),
 							tags: el
@@ -220,7 +223,11 @@ pub trait Impl {
 		}
 
 		// "popular today" scroller
-		if let Some(popular_today) = html.select_first("main > div > .splide, div > .swiper") {
+		if let Some(popular_today) = html.select_first(
+			"main > div > .splide, \
+			 div > .swiper, \
+			 div.w-full:contains(Popular Today) > div > div[aria-roledescription=carousel] > div",
+		) {
 			let title = popular_today
 				.parent()
 				.and_then(|parent| {
@@ -238,10 +245,15 @@ pub trait Impl {
 				subtitle: None,
 				value: HomeComponentValue::Scroller {
 					entries: popular_today
-						.select("ul > li:not(.splide__slide--clone) > a, .swiper-slide > a")
+						.select(
+							"ul > li:not(.splide__slide--clone) > a, \
+							 .swiper-slide > a, \
+							 div[aria-roledescription=slide]",
+						)
 						.map(|els| {
 							els.filter_map(|el| {
 								let key = el
+									.select_first("a")?
 									.attr("href")?
 									.strip_prefix_or_self(&params.base_url)
 									.into();
@@ -269,7 +281,11 @@ pub trait Impl {
 		}
 
 		if let Some(main_body) = html
-			.select("main > div.relative, main > div > div.relative")
+			.select(
+				"main > div.relative, \
+				 main > div > div.relative, \
+				 main section > div.w-full > .grid > div:contains(Last Updates)",
+			)
 			.and_then(|mut els| els.next_back())
 		{
 			for child in main_body.children() {
@@ -296,7 +312,7 @@ pub trait Impl {
 										Manga {
 											key,
 											title: el
-												.select_first("h1")
+												.select_first("h1, a > p")
 												.and_then(|h1| h1.text())
 												.or_else(|| link.attr("title"))
 												.unwrap_or_default(),
@@ -316,9 +332,9 @@ pub trait Impl {
 				}
 
 				// trending list
-				if let Some(list) =
-					child.select_first("div.grid.gap-3, div.grid.gap-4:not(.grid-cols-1)")
-				{
+				if let Some(list) = child.select_first(
+					"div.grid.gap-3:not(.grid-cols-1), div.grid.gap-4:not(.grid-cols-1)",
+				) {
 					let title = list
 						.parent()
 						.and_then(|parent| parent.prev())
@@ -342,7 +358,7 @@ pub trait Impl {
 										Manga {
 											key,
 											title: el
-												.select_first("h3")
+												.select_first("h3, a > p")
 												.and_then(|h| h.own_text())
 												.or_else(|| link.attr("title"))
 												.unwrap_or_default(),

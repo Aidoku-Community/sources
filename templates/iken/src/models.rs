@@ -1,3 +1,4 @@
+use crate::Params;
 use aidoku::{
 	alloc::{string::ToString, vec, String, Vec},
 	helpers::element::ElementHelpers,
@@ -6,8 +7,6 @@ use aidoku::{
 	Chapter, Manga, MangaStatus, Viewer,
 };
 use serde::Deserialize;
-
-use crate::Params;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,11 +39,11 @@ pub struct ChapterResponse<'a> {
 pub struct Post<'a> {
 	pub id: i32,
 	pub slug: &'a str,
-	post_title: &'a str,
+	post_title: String,
 	post_content: Option<String>,
 	featured_image: Option<&'a str>,
-	author: Option<&'a str>,
-	artist: Option<&'a str>,
+	author: Option<String>,
+	artist: Option<String>,
 	series_type: Option<&'a str>,
 	series_status: Option<&'a str>,
 	genres: Option<Vec<Genre<'a>>>,
@@ -98,7 +97,7 @@ impl Post<'_> {
 			} else {
 				self.id.to_string()
 			},
-			title: self.post_title.into(),
+			title: self.post_title.clone(),
 			cover: self.featured_image.map(|s| s.into()),
 			..Default::default()
 		}
@@ -106,14 +105,14 @@ impl Post<'_> {
 
 	pub fn parse_manga(&self, params: &Params) -> Manga {
 		Manga {
-			artists: self.artist.and_then(|s| {
+			artists: self.artist.as_ref().and_then(|s| {
 				if !s.is_empty() {
 					Some(vec![s.into()])
 				} else {
 					None
 				}
 			}),
-			authors: self.author.and_then(|s| {
+			authors: self.author.as_ref().and_then(|s| {
 				if !s.is_empty() {
 					Some(vec![s.into()])
 				} else {

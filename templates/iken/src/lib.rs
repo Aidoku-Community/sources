@@ -8,11 +8,10 @@ use aidoku::{
 
 mod helpers;
 mod imp;
-mod models;
+pub mod models;
 
 pub use imp::Impl;
 
-#[derive(Default)]
 pub struct Params {
 	pub base_url: Cow<'static, str>,
 	pub api_url: Option<Cow<'static, str>>,
@@ -20,11 +19,24 @@ pub struct Params {
 	pub use_slug_series_keys: bool,
 	// the post endpoint doesn't contain all keys for the chapter objects
 	pub fetch_full_chapter_list: bool,
+	pub get_sort_value: fn(i32) -> Cow<'static, str>,
+}
+
+impl Default for Params {
+	fn default() -> Self {
+		Self {
+			base_url: "".into(),
+			api_url: None,
+			use_slug_series_keys: false,
+			fetch_full_chapter_list: false,
+			get_sort_value: |_| "".into(),
+		}
+	}
 }
 
 impl Params {
 	#[inline]
-	fn get_api_url(&self) -> Cow<'static, str> {
+	pub fn get_api_url(&self) -> Cow<'static, str> {
 		self.api_url
 			.clone()
 			.unwrap_or_else(|| self.base_url.clone())

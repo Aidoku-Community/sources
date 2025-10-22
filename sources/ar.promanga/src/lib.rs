@@ -19,6 +19,7 @@ impl Impl for ProManga {
 			use_slug_series_keys: true,
 			// chapter isTimeLocked key not available on post endpoint
 			fetch_full_chapter_list: true,
+			..Default::default()
 		}
 	}
 }

@@ -1,15 +1,17 @@
 import sys
 import json
-import subprocess
+import urllib.request
+
 
 def fetch_genres(api_base_url):
     # ensure no trailing slash
     api_base_url = api_base_url.rstrip("/")
     url = f"{api_base_url}/api/genres"
-    result = subprocess.check_output([
-        "curl", "-sL", url
-    ])
+    req = urllib.request.Request(url, headers={"User-Agent": "Aidoku"})
+    with urllib.request.urlopen(req) as response:
+        result = response.read().decode("utf-8")
     return json.loads(result)
+
 
 def update_filters(filters_path, api_base_url):
     # open filters.json
@@ -33,6 +35,7 @@ def update_filters(filters_path, api_base_url):
         f.write("\n")
 
     print("Genres updated successfully.")
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:

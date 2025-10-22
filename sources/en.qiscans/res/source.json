@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "en.qiscans",
+		"name": "Qi Scans",
+		"version": 1,
+		"url": "https://qiscans.org",
+		"contentRating": 0,
+		"languages": ["en"]
+	}
+}
