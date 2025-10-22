@@ -1,6 +1,6 @@
 use crate::{BASE_URL, net::Url};
 use aidoku::{
-	Manga, MangaPageResult, MangaStatus, Page, Result,
+	Manga, MangaPageResult, MangaStatus, Viewer, Page, Result,
 	alloc::{String, Vec, string::ToString as _},
 	error,
 	imports::{
@@ -83,7 +83,7 @@ impl MangaPage for Document {
 		manga.title = self
 			.try_select_first("h1.book-title")?
 			.text()
-			.unwrap_or_else(String::new);
+			.unwrap_or_default();
 		let authors = self
 			.try_select(".authorname,.illname")?
 			.filter_map(|a| a.text())
@@ -92,7 +92,7 @@ impl MangaPage for Document {
 		manga.description = Some(
 			self.try_select_first(".book-summary>content")?
 				.text()
-				.unwrap_or_else(String::new),
+				.unwrap_or_default(),
 		);
 		let tags = self
 			.try_select(".tag-small-group>.tag-small>a")?
@@ -102,7 +102,7 @@ impl MangaPage for Document {
 		manga.status = match self
 			.try_select_first(".book-layout-inline")?
 			.text()
-			.unwrap_or_else(String::new)
+			.unwrap_or_default()
 			.trim()
 			.split("|")
 			.map(|a| a.trim().to_string())
@@ -114,6 +114,20 @@ impl MangaPage for Document {
 			"連載" => MangaStatus::Ongoing,
 			"完結" => MangaStatus::Completed,
 			_ => MangaStatus::Unknown,
+		};
+		let tags = manga.tags.as_deref().unwrap_or(&[]);
+		manga.viewer = if tags
+			.iter()
+			.any(|tag| tag.contains("大陸") || tag.contains("韓國"))
+		{
+			Viewer::Webtoon
+		} else if tags
+			.iter()
+			.any(|tag| tag.contains("日本"))
+		{
+			Viewer::RightToLeft
+		} else {
+			Viewer::LeftToRight
 		};
 		manga.url = Some(Url::manga(manga.key.clone()).to_string());
 		Ok(())
@@ -138,7 +152,7 @@ impl MangaPage for Document {
 			let title = self
 				.try_select_first("h1.book-title")?
 				.text()
-				.unwrap_or_else(String::new);
+				.unwrap_or_default();
 
 			entries.push(Manga {
 				key,
@@ -149,7 +163,7 @@ impl MangaPage for Document {
 		} else {
 			let items = self.try_select(".book-li>a")?;
 			for item in items {
-				let href = item.attr("href").unwrap_or_else(String::new);
+				let href = item.attr("href").unwrap_or_default();
 				let key = href
 					.split("/")
 					.filter(|s| !s.is_empty())
@@ -163,7 +177,7 @@ impl MangaPage for Document {
 				let title = item
 					.select_first(".book-title")
 					.and_then(|title| title.text())
-					.unwrap_or_else(String::new);
+					.unwrap_or_default();
 
 				if !key.is_empty() && !title.is_empty() {
 					entries.push(Manga {
@@ -216,7 +230,7 @@ impl ChapterPage for Document {
 			let volume_title = volume
 				.select("h3")
 				.and_then(|h3| h3.text())
-				.unwrap_or_else(String::new);
+				.unwrap_or_default();
 			let volume_num = extract_chapter_number(&volume_title).unwrap_or(-1.0);
 			let chapter_links = volume.select(".chapter-li-a");
 
@@ -243,7 +257,7 @@ impl ChapterPage for Document {
 					let vol_href = volume
 						.select_first(".volume-cover-img")
 						.and_then(|v| v.attr("href"))
-						.unwrap_or_else(String::new);
+						.unwrap_or_default();
 					let vol_url = format!("{}{}", BASE_URL, vol_href);
 					let vol_html = Request::get(vol_url)?
 						.header("Origin", BASE_URL)
@@ -254,11 +268,11 @@ impl ChapterPage for Document {
 				};
 
 				for item in chapter_items {
-					let chapter_href = item.attr("href").unwrap_or_else(String::new);
+					let chapter_href = item.attr("href").unwrap_or_default();
 					let title = item
 						.select_first("span")
 						.and_then(|span| span.text())
-						.unwrap_or_else(String::new);
+						.unwrap_or_default();
 					let chapter = create_chapter(
 						chapter_href,
 						title,
@@ -285,7 +299,7 @@ impl PageList for Document {
 		for item in self.try_select("#acontentz>img")? {
 			let url = item
 				.attr("data-src")
-				.unwrap_or_else(String::new)
+				.unwrap_or_default()
 				.trim()
 				.to_string();
 			pages.push(Page {

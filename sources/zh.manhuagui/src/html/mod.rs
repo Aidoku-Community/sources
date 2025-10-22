@@ -1,6 +1,7 @@
 use crate::{USER_AGENT, decoder::Decoder};
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
+	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Viewer,
+	Page, PageContent, Result,
 	SelectFilter,
 	alloc::{String, Vec, borrow::Cow, vec},
 	helpers::uri::encode_uri,
@@ -162,7 +163,33 @@ impl MangaPage for Document {
 				}
 			}
 		}
-		manga.tags = Some(categories);
+
+		let country = if let Some(country_element) = self
+			.select_first("ul.detail-list li:nth-child(1) span:nth-child(2) a")
+		{
+			country_element.text()
+		} else {
+			None
+		};
+
+		let mut all_tags = Vec::new();
+		if let Some(ref c) = country {
+		  		all_tags.push(c.clone());
+		}
+		all_tags.extend(categories);
+		manga.tags = Some(all_tags);
+
+		manga.viewer = if let Some(ref c) = country {
+			if c.contains("内地") || c.contains("韩国") || c.contains("韓國") {
+				Viewer::Webtoon
+			} else if c.contains("日本") {
+				Viewer::RightToLeft
+			} else {
+				Viewer::LeftToRight
+			}
+		} else {
+			Viewer::LeftToRight
+		};
 
 		// Check for NSFW content
 		let has_check_adult = self.select_first("#checkAdult").is_some();
