@@ -7,9 +7,9 @@ use aidoku::{
 		std::{parse_date, send_partial_result},
 	},
 	prelude::*,
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout,
-	ImageRequestProvider, Link, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page,
-	PageContent, Result, Source,
+	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
+	HomeLayout, ImageRequestProvider, Link, Manga, MangaPageResult, MangaStatus, MangaWithChapter,
+	Page, PageContent, Result, Source,
 };
 use regex::Regex;
 use serde::Deserialize;
@@ -185,10 +185,8 @@ impl Source for BatCave {
 				.and_then(|x| x.strip_suffix(";"))
 				.unwrap_or_default();
 
-			let chapter_list = match serde_json::from_str::<ChapterList>(json_str) {
-				Ok(list) => list,
-				Err(_) => return Err(error!("Unable to parse chapter list")),
-			};
+			let chapter_list = serde_json::from_str::<ChapterList>(json_str)
+				.map_err(AidokuError::JsonParseError)?;
 
 			let chapters = chapter_list
 				.chapters
@@ -244,10 +242,7 @@ impl Source for BatCave {
 							.and_then(|x| x.strip_suffix(";"))
 							.unwrap_or_default();
 
-						let page_list = match serde_json::from_str::<PageList>(page_json_str) {
-							Err(_) => return None,
-							Ok(page) => page,
-						};
+						let page_list = serde_json::from_str::<PageList>(page_json_str).ok()?;
 
 						let pages = page_list
 							.images
