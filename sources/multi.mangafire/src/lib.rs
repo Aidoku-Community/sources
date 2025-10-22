@@ -86,6 +86,9 @@ impl Source for MangaFire {
 
 		if let Some(query) = query {
 			qs.push("keyword", Some(&query));
+
+			let vrf = VrfGenerator::generate(&query);
+			qs.push("vrf", Some(&vrf));
 		}
 
 		let url = if let Some(author) = author {
