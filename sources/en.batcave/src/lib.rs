@@ -83,8 +83,6 @@ impl Source for BatCave {
 			)
 		};
 
-		println!("{}", url);
-
 		let result = Request::get(&url)?.html()?;
 
 		let entries = result
