@@ -88,15 +88,16 @@ impl Source for BatCave {
 			.map(|elements| {
 				elements
 					.filter_map(|element| {
-						let cover = element.select_first("img")?.attr("abs:data-src");
 						let url = element.select_first("a")?.attr("abs:href");
+						let key = url.clone()?.strip_prefix(BASE_URL)?.to_string();
+						let cover = element.select_first("img")?.attr("abs:data-src");
 						let title = element
 							.select_first("div > h2")
 							.and_then(|x| x.text())
 							.unwrap_or_default();
 
 						Some(Manga {
-							key: url.clone().unwrap_or_default(),
+							key,
 							cover,
 							title,
 							url,
@@ -121,7 +122,8 @@ impl Source for BatCave {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let html = Request::get(&manga.key)?.html()?;
+		let url = format!("{BASE_URL}{}", manga.key);
+		let html = Request::get(&url)?.html()?;
 
 		if needs_details {
 			manga.title = html
@@ -190,7 +192,7 @@ impl Source for BatCave {
 				.chapters
 				.into_iter()
 				.map(|chapter| {
-					let url = format!("{BASE_URL}/reader/{}/{}", chapter_list.news_id, chapter.id);
+					let url = format!("/reader/{}/{}", chapter_list.news_id, chapter.id);
 
 					let title = chapter
 						.title
@@ -223,7 +225,8 @@ impl Source for BatCave {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let html = Request::get(&chapter.key)?.html()?;
+		let url = format!("{BASE_URL}{}", chapter.key);
+		let html = Request::get(&url)?.html()?;
 
 		let pages = html
 			.select("script")
@@ -274,16 +277,24 @@ impl ImageRequestProvider for BatCave {
 
 impl DeepLinkHandler for BatCave {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let re = match Regex::new(r"^https://batcave\.biz/\d+-[\w-]+\.html$") {
-			Ok(re) => re,
-			Err(_) => return Ok(None),
-		};
+		let pattern = format!(r"^{}\/\d+-[\w-]+\.html$", regex::escape(BASE_URL));
 
-		if re.is_match(&url) {
-			return Ok(Some(DeepLinkResult::Manga { key: url }));
+		let re = Regex::new(&pattern);
+		if re.is_err() {
+			return Ok(None);
 		}
 
-		Ok(None)
+		let re = re.unwrap();
+		if !re.is_match(&url) {
+			return Ok(None);
+		}
+
+		let key = url
+			.strip_prefix(BASE_URL)
+			.ok_or(error!("Invalid URL prefix"))?
+			.to_string();
+
+		Ok(Some(DeepLinkResult::Manga { key }))
 	}
 }
 

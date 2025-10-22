@@ -1,5 +1,6 @@
 use crate::{BatCave, BASE_URL};
 use aidoku::{
+	alloc::string::ToString,
 	alloc::{Box, String, Vec},
 	imports::std::send_partial_result,
 	imports::{html::Document, net::Request, std::parse_date},
@@ -21,7 +22,7 @@ impl Home for BatCave {
 				.select("section.sect--hot > .sect__content > a.grid-item")
 				.map(|elements| {
 					elements
-						.map(|element| {
+						.filter_map(|element| {
 							let title = element
 								.select_first("div > p")
 								.and_then(|x| x.text())
@@ -32,14 +33,15 @@ impl Home for BatCave {
 								.and_then(|x| x.attr("abs:data-src"));
 
 							let url = element.attr("abs:href");
+							let key = url.clone()?.strip_prefix(BASE_URL)?.to_string();
 
-							Manga {
-								key: url.clone().unwrap_or_default(),
+							Some(Manga {
+								key,
 								cover,
 								title,
 								url,
 								..Default::default()
-							}
+							})
 						})
 						.map(Into::into)
 						.collect::<Vec<Link>>()
@@ -69,14 +71,17 @@ impl Home for BatCave {
 				.select(".sect--latest > .sect__content > li.latest")
 				.map(|elements| {
 					elements
-						.map(|element| {
+						.filter_map(|element| {
 							let manga_url = element
 								.select_first(".latest__title")
 								.and_then(|x| x.attr("abs:href"));
+							let manga_key = manga_url.clone()?.strip_prefix(BASE_URL)?.to_string();
 
 							let chapter_url = element
 								.select_first(".latest__chapter > a")
 								.and_then(|x| x.attr("abs:href"));
+							let chapter_key =
+								chapter_url.clone()?.strip_prefix(BASE_URL)?.to_string();
 
 							let cover = element
 								.select_first(".latest__img > img")
@@ -111,23 +116,23 @@ impl Home for BatCave {
 								}
 							}
 
-							MangaWithChapter {
+							Some(MangaWithChapter {
 								manga: Manga {
-									key: manga_url.clone().unwrap_or_default(),
+									key: manga_key,
 									cover,
 									title: manga_title,
 									url: manga_url,
 									..Default::default()
 								},
 								chapter: Chapter {
-									key: chapter_url.clone().unwrap_or_default(),
+									key: chapter_key,
 									url: chapter_url,
 									title: chapter_title,
 									chapter_number,
 									date_uploaded,
 									..Default::default()
 								},
-							}
+							})
 						})
 						.collect::<Vec<MangaWithChapter>>()
 				})
@@ -153,7 +158,7 @@ impl Home for BatCave {
 					.select(".side-block__content > a")
 					.map(|elements| {
 						elements
-							.map(|element| {
+							.filter_map(|element| {
 								let title = element
 									.select_first(".popular__title")
 									.and_then(|x| x.text())
@@ -164,14 +169,15 @@ impl Home for BatCave {
 									.and_then(|x| x.attr("abs:data-src"));
 
 								let url = element.attr("abs:href");
+								let key = url.clone()?.strip_prefix(BASE_URL)?.to_string();
 
-								Manga {
-									key: url.clone().unwrap_or_default(),
+								Some(Manga {
+									key,
 									cover,
 									title,
 									url,
 									..Default::default()
-								}
+								})
 							})
 							.map(Into::into)
 							.collect::<Vec<Link>>()
