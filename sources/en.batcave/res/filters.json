@@ -1,7 +1,7 @@
 [
   {
 		"id": "year_of_issue",
-		"title": "Yearn of Issue",
+		"title": "Year of Issue",
 		"type": "range",
 		"min": 0,
 		"decimal": false
