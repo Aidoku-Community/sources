@@ -140,13 +140,13 @@ impl Source for BatCave {
 			manga.artists = html
 				.select_first("ul > li:has(div:contains(Artist))")
 				.and_then(|x| x.text())
-				.map(|x| x.strip_prefix("Artist: ").unwrap_or_default().to_string())
+				.and_then(|x| x.strip_prefix("Artist: ").map(|x| x.to_string()))
 				.map(|x| vec![x]);
 
 			manga.authors = html
 				.select_first("ul > li:has(div:contains(Writer))")
 				.and_then(|x| x.text())
-				.map(|x| x.strip_prefix("Writer: ").unwrap_or_default().to_string())
+				.and_then(|x| x.strip_prefix("Writer: ").map(|x| x.to_string()))
 				.map(|x| vec![x]);
 
 			manga.tags = html.select(".page__tags > a").map(|elements| {
