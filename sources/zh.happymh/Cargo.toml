@@ -1,0 +1,29 @@
+[package]
+name = "happymh"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs", features = ["helpers", "json"] }
+chrono = { version = "0.4.31", default-features = false, features = ["serde"] }
+regex = { version = "1.11.1", default-features = false, features = ["unicode"] }
+serde = { version = "1.0.219", default-features = false }
+serde_json = { version = "1.0.140", default-features = false }
+
+[dev-dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = [
+    "test",
+] }
+aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+strip = true
+lto = true
