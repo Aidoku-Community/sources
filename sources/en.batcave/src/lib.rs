@@ -52,8 +52,8 @@ impl Source for BatCave {
 
 		for filter in filters {
 			match filter {
-				FilterValue::Range { id, from, to } => match id.as_str() {
-					"year_of_issue" => {
+				FilterValue::Range { id, from, to } => {
+					if id.as_str() == "year_of_issue" {
 						if let Some(from) = from {
 							filters_vec.push(format!("y[from]={}", from));
 						}
@@ -61,14 +61,12 @@ impl Source for BatCave {
 							filters_vec.push(format!("y[to]={}", to));
 						}
 					}
-					_ => {}
-				},
-				FilterValue::MultiSelect { id, included, .. } => match id.as_str() {
-					"genre" => {
+				}
+				FilterValue::MultiSelect { id, included, .. } => {
+					if id.as_str() == "genre" {
 						filters_vec.push(format!("g={}", included.join(",")));
 					}
-					_ => {}
-				},
+				}
 				_ => {}
 			}
 		}
