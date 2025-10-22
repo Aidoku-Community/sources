@@ -1,0 +1,28 @@
+[
+	{
+		"type": "group",
+		"title": "SETTINGS",
+		"items": [
+			{
+				"type": "switch",
+				"key": "showLocked",
+				"title": "ロックされている章の表示",
+				"default": true
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "アカウント",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"title": "LOGIN",
+				"notification": "login",
+				"method": "basic",
+				"useEmail": true
+			}
+		]
+	}
+]

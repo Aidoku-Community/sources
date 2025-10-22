@@ -21,6 +21,8 @@ pub struct Params {
 	pub is_paginated: bool,
 	pub popular_item_selector: Cow<'static, str>,
 	pub chapter_list_selector: Cow<'static, str>,
+	pub search_item_selector: Cow<'static, str>,
+	pub search_item_title_selector: Cow<'static, str>,
 }
 
 impl Default for Params {
@@ -31,6 +33,8 @@ impl Default for Params {
 			is_paginated: false,
 			popular_item_selector: "ul.series-list li a".into(),
 			chapter_list_selector: "li.episode".into(),
+			search_item_selector: "ul.search-series-list li, ul.series-list li".into(),
+			search_item_title_selector: "div.title-box p.series-title".into(),
 		}
 	}
 }

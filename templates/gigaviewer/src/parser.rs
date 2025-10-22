@@ -17,17 +17,17 @@ use crate::{
 };
 
 #[allow(clippy::too_many_arguments)]
-pub fn parse_response<T: AsRef<str>>(
+pub fn parse_response(
 	html: &Document,
 	base_url: &str,
-	item_selector: T,
-	title_selector: T,
-	cover_selector: T,
-	cover_attr: T,
-	authors_selector: Option<T>,
-	description_selector: Option<T>,
+	item_selector: &str,
+	title_selector: &str,
+	cover_selector: &str,
+	cover_attr: &str,
+	authors_selector: Option<&str>,
+	description_selector: Option<&str>,
 ) -> Vec<Manga> {
-	html.select(&item_selector)
+	html.select(item_selector)
 		.map(|x| {
 			x.filter_map(|element| {
 				let key = element
@@ -35,10 +35,10 @@ pub fn parse_response<T: AsRef<str>>(
 					.attr("href")?
 					.strip_prefix(base_url)
 					.map(String::from)?;
-				let title = element.select_first(&title_selector)?.text()?;
+				let title = element.select_first(title_selector)?.text()?;
 				let cover = element
-					.select_first(&cover_selector)
-					.and_then(|x| x.attr(&cover_attr));
+					.select_first(cover_selector)
+					.and_then(|x| x.attr(cover_attr));
 				let authors = authors_selector.as_ref().and_then(|selector| {
 					let el = element.select_first(selector)?;
 					let text = el.text()?;

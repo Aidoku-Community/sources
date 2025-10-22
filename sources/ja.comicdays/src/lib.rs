@@ -29,7 +29,7 @@ impl Impl for ComicDays {
 
 	fn get_manga_list(
 		&self,
-		_params: &Params,
+		params: &Params,
 		listing: Listing,
 		_page: i32,
 	) -> Result<MangaPageResult> {
@@ -54,15 +54,14 @@ impl Impl for ComicDays {
 				cover_attr = "src";
 				authors_selector = Some(".yomikiri-link-title h5");
 			}
-			_ => return Impl::get_manga_list(self, _params, listing, _page),
+			_ => return Impl::get_manga_list(self, params, listing, _page),
 		}
 
-		let base_url = self.params().base_url;
-		let html = Request::get(format!("{}/{}", base_url, listing.id))?.html()?;
+		let html = Request::get(format!("{}/{}", params.base_url, listing.id))?.html()?;
 
 		let entries = gigaviewer::parser::parse_response(
 			&html,
-			&base_url,
+			&params.base_url,
 			item_selector,
 			title_selector,
 			cover_selector,

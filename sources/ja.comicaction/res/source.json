@@ -1,0 +1,27 @@
+{
+	"info": {
+		"id": "ja.comicaction",
+		"name": "webアクション",
+		"version": 1,
+		"url": "https://comic-action.com",
+		"contentRating": 0,
+		"languages": ["ja"]
+	},
+	"listings": [
+		{
+			"id": "series",
+			"name": "連載作品",
+			"kind": 1
+		},
+		{
+			"id": "series/oneshot",
+			"name": "読切・キャンペーン",
+			"kind": 1
+		},
+		{
+			"id": "series/manga-action",
+			"name": "漫画アクション",
+			"kind": 1
+		}
+	]
+}

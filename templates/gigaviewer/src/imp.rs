@@ -46,9 +46,9 @@ pub trait Impl {
 		let entries = parser::parse_response(
 			&html,
 			&params.base_url,
-			"ul.search-series-list li, ul.series-list li",
-			"div.title-box p.series-title",
-			"div.thmb-container a img",
+			&params.search_item_selector,
+			&params.search_item_title_selector,
+			"img",
 			"src",
 			None,
 			None,
@@ -151,8 +151,7 @@ pub trait Impl {
 			.and_then(|e| e.attr("data-value"))
 			.ok_or(AidokuError::message("このチャプターは非公開です"))
 			.and_then(|v| {
-				serde_json::from_str::<GigaEpisode>(v.as_ref())
-					.map_err(|_| AidokuError::JsonParseError)
+				serde_json::from_str::<GigaEpisode>(v.as_ref()).map_err(AidokuError::JsonParseError)
 			})?;
 
 		Ok(episode
