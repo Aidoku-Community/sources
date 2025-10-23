@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "en.toonilyme",
+		"name": "Toonily.me",
+		"version": 1,
+		"url": "https://toonily.me",
+		"contentRating": 2,
+		"languages": ["en"]
+	}
+}

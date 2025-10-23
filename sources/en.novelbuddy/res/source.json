@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "en.novelbuddy",
+		"name": "NovelBuddy",
+		"version": 1,
+		"url": "https://novelbuddy.com",
+		"contentRating": 1,
+		"languages": ["en"]
+	}
+}
