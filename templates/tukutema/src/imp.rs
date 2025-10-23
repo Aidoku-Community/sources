@@ -1,4 +1,4 @@
-use super::Params;
+use crate::Params;
 use aidoku::{
 	Chapter, ContentRating, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue,
 	HomeLayout, Listing, Manga, MangaPageResult, MangaWithChapter, Page, PageContent, Result,
@@ -100,7 +100,7 @@ pub trait Impl {
 					.collect()
 				})
 				.unwrap_or_default(),
-			has_next_page: html.select("body > div.flex button > svg").is_some(),
+			has_next_page: html.select_first("body > div.flex button > svg").is_some(),
 		})
 	}
 
@@ -157,7 +157,7 @@ pub trait Impl {
 		if needs_chapters {
 			let Some(manga_id) = html
 				.select_first("body")
-				.expect("body element must exist")
+				.ok_or(error!("body element missing"))?
 				.class_name()
 				.and_then(|c| {
 					c.split(" ")
@@ -246,7 +246,7 @@ pub trait Impl {
 				})
 				.unwrap_or_default(),
 			has_next_page: html
-				.select("div.flex.items-center.gap-2 > a > svg")
+				.select_first("div.flex.items-center.gap-2 > a > svg")
 				.is_some(),
 		})
 	}
