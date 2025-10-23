@@ -1,0 +1,65 @@
+[
+	{
+		"type": "group",
+		"title": "Help",
+		"items": [
+			{
+				"type": "switch",
+				"title": "Show Guide",
+				"key": "showHelp",
+				"default": true,
+				"refreshes": ["content"]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Remote Storage",
+		"items": [
+			{
+				"type": "text",
+				"placeholder": "user@provider.com",
+				"key": "rsAddress",
+				"notification": "rsAddress",
+				"autocapitalizationType": 0,
+				"autocorrectionDisabled": true,
+				"keyboardType": 7,
+				"returnKeyType": 9
+			},
+			{
+				"type": "login",
+				"method": "oauth",
+				"key": "rsToken",
+				"title": "LOGIN",
+				"urlKey": "rsOauthUrl",
+				"notification": "rsAuthComplete",
+				"requires": "rsAddress",
+				"refreshes": ["content"]
+			}
+		],
+		"footer": "Log in to a remotestorage provider to synchronize your reading history with Cubari. Only one-way sync from the provider to the source is supported."
+	},
+	{
+		"type": "group",
+		"title": "History",
+		"items": [
+			{
+				"type": "switch",
+				"title": "Save Local History",
+				"key": "saveSeries",
+				"default": true
+			},
+			{
+				"key": "deleteHistory",
+				"type": "button",
+				"title": "Delete History",
+				"notification": "deleteHistory",
+				"destructive": true,
+				"confirmTitle": "Delete History?",
+				"confirmMessage": "All cached titles will be removed from the source.",
+				"refreshes": ["content"]
+			}
+		],
+		"footer": "The Save Local History option will cache any searched titles and display them in the source home page."
+	}
+]

@@ -1,0 +1,27 @@
+{
+	"info": {
+		"id": "multi.cubari",
+		"name": "Cubari",
+		"version": 1,
+		"urls": [
+			"https://cubari.moe",
+			"https://imgur.com/a",
+			"https://m.imgur.com/a",
+			"https://imgur.io/a",
+			"https://imgur.com/gallery",
+			"https://m.imgur.com/gallery",
+			"https://imgur.io/gallery",
+			"https://gist.githubusercontent.com",
+			"https://gist.github.com",
+			"https://imgbox.com/g",
+			"https://www.reddit.com/gallery",
+			"https://new.reddit.com/gallery",
+			"https://reddit.com/gallery"
+		],
+		"contentRating": 0,
+		"languages": ["multi"]
+	},
+	"config": {
+		"supportsTagSearch": true
+	}
+}
