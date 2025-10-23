@@ -1,0 +1,80 @@
+[
+	{
+		"type": "select",
+		"title": "地區",
+		"options": ["全部", "國漫", "日本", "韓國", "歐美"],
+		"ids": ["all", "cn", "jp", "kr", "en"]
+	},
+	{
+		"type": "select",
+		"title": "狀態",
+		"options": ["全部", "連載中", "已完結"],
+		"ids": ["all", "serial", "pub"]
+	},
+	{
+		"type": "select",
+		"title": "類型",
+		"options": [
+			"全部",
+			"戀愛",
+			"純愛",
+			"古風",
+			"異能",
+			"懸疑",
+			"劇情",
+			"科幻",
+			"奇幻",
+			"玄幻",
+			"穿越",
+			"冒險",
+			"推理",
+			"武俠",
+			"格鬥",
+			"戰爭",
+			"熱血",
+			"搞笑",
+			"大女主",
+			"都市",
+			"總裁",
+			"後宮",
+			"日常",
+			"韓漫",
+			"少年",
+			"其他"
+		],
+		"ids": [
+			"all",
+			"lianai",
+			"chunai",
+			"gufeng",
+			"yineng",
+			"xuanyi",
+			"juqing",
+			"kehuan",
+			"qihuan",
+			"xuanhuan",
+			"chuanyue",
+			"mouxian",
+			"tuili",
+			"wuxia",
+			"gedou",
+			"zhanzheng",
+			"rexie",
+			"gaoxiao",
+			"danuzhu",
+			"dushi",
+			"zongcai",
+			"hougong",
+			"richang",
+			"hanman",
+			"shaonian",
+			"qita"
+		]
+	},
+	{
+		"type": "select",
+		"title": "字母",
+		"options": ["全部", "ABCD", "EFGH", "IJKL", "MNOP", "QRST", "UVW", "XYZ", "0-9"],
+		"ids": ["*", "ABCD", "EFGH", "IJKL", "MNOP", "QRST", "UVW", "XYZ", "0-9"]
+	}
+]

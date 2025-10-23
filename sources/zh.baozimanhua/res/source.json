@@ -1,0 +1,28 @@
+{
+	"info": {
+		"id": "zh.baozimanhua",
+		"name": "包子漫畫",
+		"version": 4,
+		"urls": [
+			"https://www.baozimh.com",
+			"https://tw.baozimh.com",
+			"https://www.webmota.com",
+			"https://tw.webmota.com",
+			"https://www.czmanga.com",
+			"https://tw.czmanga.com",
+			"https://www.dinnerku.com",
+			"https://tw.dinnerku.com",
+			"https://www.dociy.net",
+			"https://tw.dociy.net",
+			"https://www.twmanga.com",
+			"https://tw.twmanga.com"
+		],
+		"contentRating": 1,
+		"languages": ["zh"]
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true,
+		"supportsAuthorSearch": true,
+		"supportsTagSearch": true
+	}
+}
