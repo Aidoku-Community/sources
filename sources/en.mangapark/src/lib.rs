@@ -129,23 +129,26 @@ impl Source for MangaPark {
 							.and_then(|el| el.attr("abs:href"))
 							.unwrap_or_default();
 						let key = url.strip_prefix(&manga_url).unwrap_or_default().into();
-						let mut title = links.as_ref().and_then(|el| el.text());
+						let vol_and_chap_number =
+							links.as_ref().and_then(|el| el.text()).unwrap_or_default();
+						let title = element
+							.select_first("[q:key=\"8t_1\"]")
+							.and_then(|element| element.text())
+							.unwrap_or_default();
 						let mut volume_number: Option<f32> = None;
 						let mut chapter_number: Option<f32> = None;
-						let normalized_title = title
-							.as_ref()
-							.map(|t| t.to_ascii_lowercase())
-							.unwrap_or_default();
-						let is_volume = normalized_title.contains("vol");
-						let is_chapter = normalized_title.contains("ch");
-						if is_volume || is_chapter {
-							let (vol_num, ch_num) =
-								helper::get_volume_and_chapter_number(normalized_title);
+						let mut final_title: Option<String> = Some(vol_and_chap_number.to_string());
+						let is_chapter = vol_and_chap_number.contains("Ch");
+						if is_chapter {
+							let (vol_num, ch_num, chapter_title) =
+								helper::get_volume_and_chapter_number(vol_and_chap_number);
 							volume_number = vol_num;
 							chapter_number = ch_num;
-							if chapter_number.is_some() {
-								title = None; // if chapter number is found, no need for title
-							}
+							final_title = chapter_title;
+						}
+						if !title.is_empty() {
+							final_title =
+								Some(title.strip_prefix(":").unwrap_or(&title).trim().to_string());
 						}
 						let date_uploaded = element
 							.select_first("time")
@@ -157,7 +160,7 @@ impl Source for MangaPark {
 							.unwrap_or_default();
 						Some(Chapter {
 							key,
-							title,
+							title: final_title,
 							chapter_number,
 							volume_number,
 							date_uploaded: Some(date_uploaded),

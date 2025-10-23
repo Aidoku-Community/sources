@@ -1,27 +1,31 @@
-use aidoku::alloc::{String, Vec};
+use aidoku::alloc::{String, Vec, string::ToString};
 
-pub fn get_volume_and_chapter_number(title: String) -> (Option<f32>, Option<f32>) {
+pub fn get_volume_and_chapter_number(
+	title_input: String,
+) -> (Option<f32>, Option<f32>, Option<String>) {
 	let mut volume_number: Option<f32> = None;
 	let mut chapter_number: Option<f32> = None;
-	let tokens: Vec<&str> = title.split_whitespace().collect();
-
+	let mut title: Option<String> = None;
+	let tokens: Vec<&str> = title_input.split_whitespace().collect();
 	let mut i = 0;
 	while i < tokens.len() {
 		let token = tokens[i];
-		if token.starts_with("vol") {
-			volume_number = token
+		let token_lower = token.to_lowercase();
+
+		if token_lower.starts_with("vol") {
+			volume_number = token_lower
 				.strip_prefix("vol.")
-				.or_else(|| token.strip_prefix("volume"))
+				.or_else(|| token_lower.strip_prefix("volume"))
 				.filter(|s| !s.is_empty())
 				.and_then(|num| num.parse::<f32>().ok())
 				.or_else(|| tokens.get(i + 1).and_then(|s| s.parse::<f32>().ok()));
 		}
-		if token.starts_with("ch") {
-			chapter_number = token
+		if token_lower.starts_with("ch") {
+			chapter_number = token_lower
 				.strip_prefix("ch.")
-				.or_else(|| token.strip_prefix("chapter"))
-				.or_else(|| token.strip_prefix("chap"))
-				.or_else(|| token.strip_prefix("ch-"))
+				.or_else(|| token_lower.strip_prefix("chapter"))
+				.or_else(|| token_lower.strip_prefix("chap"))
+				.or_else(|| token_lower.strip_prefix("ch-"))
 				.filter(|s| !s.is_empty())
 				.and_then(|num_str| {
 					num_str
@@ -43,5 +47,9 @@ pub fn get_volume_and_chapter_number(title: String) -> (Option<f32>, Option<f32>
 		}
 		i += 1;
 	}
-	(volume_number, chapter_number)
+	if title_input.contains(":") {
+		let parts = title_input.split(':').collect::<Vec<&str>>();
+		title = Some(parts[1..].join(":").trim().to_string());
+	}
+	(volume_number, chapter_number, title)
 }
