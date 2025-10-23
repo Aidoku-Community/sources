@@ -6,8 +6,8 @@ use aidoku::{
 		std::{parse_date, send_partial_result},
 	},
 	prelude::*,
-	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Manga, MangaPageResult,
-	MangaStatus, Page, PageContent, Result, Source,
+	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider,
+	Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, Source,
 };
 use regex::Regex;
 use serde::Deserialize;
@@ -15,6 +15,7 @@ use serde::Deserialize;
 mod home;
 
 const BASE_URL: &str = "https://batcave.biz";
+const REFERER: &str = "https://batcave.biz/";
 
 struct BatCave;
 
@@ -247,9 +248,15 @@ impl Source for BatCave {
 						let pages = page_list
 							.images
 							.into_iter()
-							.map(|page_url| Page {
-								content: PageContent::url(page_url),
-								..Default::default()
+							.map(|mut page_url| {
+								if page_url.starts_with("/") {
+									page_url = format!("{BASE_URL}{}", page_url);
+								}
+
+								Page {
+									content: PageContent::url(page_url),
+									..Default::default()
+								}
 							})
 							.collect::<Vec<Page>>();
 
@@ -261,6 +268,20 @@ impl Source for BatCave {
 			.unwrap_or_default();
 
 		Ok(pages)
+	}
+}
+
+impl ImageRequestProvider for BatCave {
+	fn get_image_request(
+		&self,
+		url: String,
+		_context: Option<aidoku::PageContext>,
+	) -> Result<Request> {
+		if url.contains("batcave.biz") {
+			Ok(Request::get(url)?.header("Referer", REFERER))
+		} else {
+			Ok(Request::get(url)?)
+		}
 	}
 }
 
@@ -287,4 +308,4 @@ impl DeepLinkHandler for BatCave {
 	}
 }
 
-register_source!(BatCave, Home, DeepLinkHandler);
+register_source!(BatCave, Home, ImageRequestProvider, DeepLinkHandler);
