@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "it.mangaworldadult",
+		"name": "MangaWorldAdult",
+		"version": 4,
+		"url": "https://www.mangaworldadult.net",
+		"contentRating": 2,
+		"languages": ["it"]
+	},
+	"config": {
+		"breakingChangeVersion": 4
+	}
+}

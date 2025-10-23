@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "it.mangaworld",
+		"name": "MangaWorld",
+		"version": 5,
+		"url": "https://www.mangaworld.cx",
+		"contentRating": 1,
+		"languages": ["it"]
+	},
+	"config": {
+		"breakingChangeVersion": 5
+	}
+}

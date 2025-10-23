@@ -1,0 +1,145 @@
+[
+	{
+		"type": "multi-select",
+		"id": "genre",
+		"title": "Generi",
+		"isGenre": true,
+		"canExclude": false,
+		"options": [
+			"Adulti",
+			"Arti Marziali",
+			"Avventura",
+			"Azione",
+			"Commedia",
+			"Doujinshi",
+			"Drammatico",
+			"Ecchi",
+			"Fantasy",
+			"Gender Bender",
+			"Harem",
+			"Hentai",
+			"Horror",
+			"Josei",
+			"Lolicon",
+			"Maturo",
+			"Mecha",
+			"Mistero",
+			"Psicologico",
+			"Romantico",
+			"Sci-fi",
+			"Scolastico",
+			"Seinen",
+			"Shotacon",
+			"Shoujo",
+			"Shoujo Ai",
+			"Shounen",
+			"Shounen Ai",
+			"Slice of Life",
+			"Smut",
+			"Soprannaturale",
+			"Sport",
+			"Storico",
+			"Tragico",
+			"Yaoi",
+			"Yuri"
+		],
+		"ids": [
+			"adulti",
+			"arti-marziali",
+			"avventura",
+			"azione",
+			"commedia",
+			"doujinshi",
+			"drammatico",
+			"ecchi",
+			"fantasy",
+			"gender-bender",
+			"harem",
+			"hentai",
+			"horror",
+			"josei",
+			"lolicon",
+			"maturo",
+			"mecha",
+			"mistero",
+			"psicologico",
+			"romantico",
+			"sci-fi",
+			"scolastico",
+			"seinen",
+			"shotacon",
+			"shoujo",
+			"shoujo-ai",
+			"shounen",
+			"shounen-ai",
+			"slice-of-life",
+			"smut",
+			"soprannaturale",
+			"sport",
+			"storico",
+			"tragico",
+			"yaoi",
+			"yuri"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "type",
+		"title": "Tipo",
+		"options": [
+			"Doujinshi",
+			"Manga",
+			"Manhua",
+			"Manhwa",
+			"Oneshot",
+			"Thai",
+			"Vietnamita"
+		],
+		"ids": [
+			"doujinshi",
+			"manga",
+			"manhua",
+			"manhwa",
+			"oneshot",
+			"thai",
+			"vietnamese"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "status",
+		"title": "Stato",
+		"options": ["In corso", "Finito", "Droppato", "In pausa", "Cancellato"],
+		"ids": ["ongoing", "completed", "dropped", "paused", "canceled"]
+	},
+
+	{
+		"type": "text",
+		"id": "author",
+		"title": "Autore",
+		"placeholder": "Autore"
+	},
+	{
+		"type": "text",
+		"id": "artist",
+		"title": "Artista",
+		"placeholder": "Artista"
+	},
+	{
+		"type": "sort",
+		"id": "sort",
+		"title": "Ordina per",
+		"canAscend": false,
+		"options": [
+			"Più letti",
+			"Meno letti",
+			"Più recenti",
+			"Meno recenti",
+			"A-Z",
+			"Z-A"
+		],
+		"default": {
+			"index": 4
+		}
+	}
+]
