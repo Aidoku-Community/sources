@@ -84,8 +84,8 @@ impl Source for NHentai {
 					included,
 					excluded,
 					..
-				} => match id.as_str() {
-					"tags" => {
+				} => {
+					if id == "tags" {
 						for tag in included {
 							query_parts.push(format!("tag:\"{tag}\""));
 						}
@@ -93,8 +93,12 @@ impl Source for NHentai {
 							query_parts.push(format!("-tag:\"{tag}\""));
 						}
 					}
-					_ => continue,
-				},
+				}
+				FilterValue::Select { id, value } => {
+					if id == "genre" {
+						query_parts.push(format!("tag:\"{value}\""));
+					}
+				}
 				_ => continue,
 			}
 		}
