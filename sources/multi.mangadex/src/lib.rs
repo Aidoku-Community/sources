@@ -1,16 +1,16 @@
 #![no_std]
 use aidoku::{
-	alloc::{string::ToString, vec, String, Vec},
-	helpers::uri::QueryParameters,
-	imports::{
-		error::AidokuError,
-		net::{set_rate_limit, Request, TimeUnit},
-		std::send_partial_result,
-	},
-	prelude::*,
 	AlternateCoverProvider, Chapter, DeepLinkHandler, DeepLinkResult, DynamicListings, FilterValue,
 	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result,
 	Source,
+	alloc::{String, Vec, string::ToString, vec},
+	helpers::uri::QueryParameters,
+	imports::{
+		error::AidokuError,
+		net::{Request, TimeUnit, set_rate_limit},
+		std::send_partial_result,
+	},
+	prelude::*,
 };
 use core::fmt::Write;
 use hashbrown::HashSet;
@@ -134,14 +134,12 @@ impl Source for MangaDex {
 					}
 				},
 				// has available chapters toggle
-				FilterValue::Check { value, .. } => match value {
-					0 => has_available_chapters = false,
-					_ => continue,
-				},
+				FilterValue::Check { value: 0, .. } => has_available_chapters = false,
 				// includedTagsMode and excludedTagsMode
 				FilterValue::Select { id, value } => {
 					qs.push(&id, Some(&value));
 				}
+				_ => continue,
 			}
 		}
 
@@ -564,8 +562,18 @@ impl AlternateCoverProvider for MangaDex {
 		}
 
 		items.sort_by(|a, b| {
-			let num_a = a.attributes.volume.as_ref().and_then(|a| a.parse::<f32>().ok()).unwrap_or(0.0);
-			let num_b = b.attributes.volume.as_ref().and_then(|b| b.parse::<f32>().ok()).unwrap_or(0.0);
+			let num_a = a
+				.attributes
+				.volume
+				.as_ref()
+				.and_then(|a| a.parse::<f32>().ok())
+				.unwrap_or(0.0);
+			let num_b = b
+				.attributes
+				.volume
+				.as_ref()
+				.and_then(|b| b.parse::<f32>().ok())
+				.unwrap_or(0.0);
 			num_b.total_cmp(&num_a)
 		});
 

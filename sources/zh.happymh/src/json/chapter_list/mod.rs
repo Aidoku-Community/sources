@@ -1,31 +1,29 @@
 use crate::BASE_URL;
 use aidoku::{
-	alloc::{string::ToString as _, vec, Vec},
+	Chapter, Result,
+	alloc::{Vec, string::ToString as _, vec},
 	error,
 	imports::net::Request,
 	prelude::format,
-	Chapter, Result,
 };
 use regex::Regex;
 
 fn extract_chapter_number(title: &str) -> Option<f32> {
 	let re1 = Regex::new(r"(?:第\s*)(\d+(?:\.\d+)?)\s*(?:话|話|章|回|卷|册|冊)").ok()?;
-	if let Some(captures) = re1.captures(title) {
-		if let Some(num_match) = captures.get(1) {
-			if let Ok(num) = num_match.as_str().parse::<f32>() {
-				return Some(num);
-			}
-		}
+	if let Some(captures) = re1.captures(title)
+		&& let Some(num_match) = captures.get(1)
+		&& let Ok(num) = num_match.as_str().parse::<f32>()
+	{
+		return Some(num);
 	}
 
 	// Try to match pure number at the beginning
 	let re2 = Regex::new(r"^(\d+(?:\.\d+)?)").ok()?;
-	if let Some(captures) = re2.captures(title) {
-		if let Some(num_match) = captures.get(1) {
-			if let Ok(num) = num_match.as_str().parse::<f32>() {
-				return Some(num);
-			}
-		}
+	if let Some(captures) = re2.captures(title)
+		&& let Some(num_match) = captures.get(1)
+		&& let Ok(num) = num_match.as_str().parse::<f32>()
+	{
+		return Some(num);
 	}
 
 	None

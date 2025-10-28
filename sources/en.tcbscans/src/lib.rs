@@ -148,9 +148,9 @@ impl DeepLinkHandler for TCBScans {
 			let html = Request::get(&url)?.html()?;
 			let manga_key = html
 				.select("main div.text-sm.font-bold > a")
-    			.and_then(|mut els| els.next_back()) // "View all chapters" button
+				.and_then(|mut els| els.next_back()) // "View all chapters" button
 				.and_then(|a| a.attr("href"))
-				.ok_or(AidokuError::message("Missing manga key"))?;
+				.ok_or_else(|| error!("Missing manga key"))?;
 
 			Ok(Some(DeepLinkResult::Chapter {
 				manga_key,

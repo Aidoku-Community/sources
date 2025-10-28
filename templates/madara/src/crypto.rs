@@ -1,6 +1,6 @@
 use aes::{
-	cipher::{BlockDecryptMut, KeyIvInit},
 	Aes256,
+	cipher::{BlockDecryptMut, KeyIvInit},
 };
 use aidoku::alloc::Vec;
 use block_padding::Pkcs7;

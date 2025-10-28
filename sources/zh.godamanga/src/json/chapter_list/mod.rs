@@ -1,10 +1,10 @@
 use crate::{API_URL, BASE_URL};
 use aidoku::{
-	alloc::{string::ToString as _, vec, Vec},
+	Chapter, Result,
+	alloc::{Vec, string::ToString as _, vec},
 	error,
 	imports::net::Request,
 	prelude::format,
-	Chapter, Result,
 };
 use chrono::DateTime;
 use regex::Regex;
@@ -13,35 +13,32 @@ fn extract_chapter_number(title: &str) -> Option<f32> {
 	// This handles cases like "第183话 180" where 180 is the actual chapter
 	let re1 =
 		Regex::new(r"(?:第\s*\d+(?:\.\d+)?\s*(?:话|話|章|回|卷|册|冊)\s*)(\d+(?:\.\d+)?)").ok()?;
-	if let Some(captures) = re1.captures(title) {
-		if let Some(num_match) = captures.get(1) {
-			if let Ok(num) = num_match.as_str().parse::<f32>() {
-				return Some(num);
-			}
-		}
+	if let Some(captures) = re1.captures(title)
+		&& let Some(num_match) = captures.get(1)
+		&& let Ok(num) = num_match.as_str().parse::<f32>()
+	{
+		return Some(num);
 	}
 
 	// Second try: match "第X话" pattern where X is the chapter number
 	let re2 = Regex::new(r"(?:第\s*)(\d+(?:\.\d+)?)\s*(?:话|話|章|回|卷|册|冊)").ok()?;
-	if let Some(captures) = re2.captures(title) {
-		if let Some(num_match) = captures.get(1) {
-			if let Ok(num) = num_match.as_str().parse::<f32>() {
-				return Some(num);
-			}
-		}
+	if let Some(captures) = re2.captures(title)
+		&& let Some(num_match) = captures.get(1)
+		&& let Ok(num) = num_match.as_str().parse::<f32>()
+	{
+		return Some(num);
 	}
 
 	// Third try: match pure number at the beginning
 	let re3 = Regex::new(r"^(\d+(?:\.\d+)?)").ok()?;
-	if let Some(captures) = re3.captures(title) {
-		if let Some(num_match) = captures.get(1) {
-			if let Ok(num) = num_match.as_str().parse::<f32>() {
-				return Some(num);
-			}
-		}
+	if let Some(captures) = re3.captures(title)
+		&& let Some(num_match) = captures.get(1)
+		&& let Ok(num) = num_match.as_str().parse::<f32>()
+	{
+		Some(num)
+	} else {
+		None
 	}
-
-	None
 }
 
 pub struct ChapterList;

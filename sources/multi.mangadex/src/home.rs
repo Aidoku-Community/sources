@@ -1,18 +1,18 @@
 use crate::MangaDex;
-use crate::{models::*, settings};
 use crate::{API_URL, CUSTOM_LISTS};
-use aidoku::imports::net::Response;
+use crate::{models::*, settings};
 use aidoku::Link;
+use aidoku::imports::net::Response;
 use aidoku::{
-	alloc::{vec, String, Vec},
+	Home, HomeComponent, HomeLayout, HomePartialResult, Listing, ListingKind, Manga,
+	MangaWithChapter, Result,
+	alloc::{String, Vec, vec},
 	imports::{
 		error::AidokuError,
 		net::{Request, RequestError},
 		std::{current_date, send_partial_result},
 	},
 	prelude::*,
-	Home, HomeComponent, HomeLayout, HomePartialResult, Listing, ListingKind, Manga,
-	MangaWithChapter, Result,
 };
 use chrono::{TimeZone, Utc};
 use hashbrown::HashSet;
@@ -59,7 +59,9 @@ impl Home for MangaDex {
 			.collect::<Vec<_>>();
 
 		// fetch seasonal list
-		let seasonal_regax = Regex::new(r"^Seasonal:\s*(?P<season>Winter|Spring|Summer|Fall)\s*(?P<year>\d{4})$").unwrap();
+		let seasonal_regax =
+			Regex::new(r"^Seasonal:\s*(?P<season>Winter|Spring|Summer|Fall)\s*(?P<year>\d{4})$")
+				.unwrap();
 		let season_to_rank = |season: &str| -> u8 {
 			match season.to_lowercase().as_str() {
 				"winter" => 1,
@@ -69,11 +71,13 @@ impl Home for MangaDex {
 				_ => 0,
 			}
 		};
-		
+
 		let owner_user_id = "d2ae45e0-b5e2-4e7f-a688-17925c2d7d6b";
-  		let mut seasonal_res = Request::get(format!("{API_URL}/user/{owner_user_id}/list"))?.send()?;
-    	if let Ok(response) = seasonal_res.get_json::<DexResponse<Vec<DexCustomList>>>() {
-			let current_seasonal_lists = response.data
+		let mut seasonal_res =
+			Request::get(format!("{API_URL}/user/{owner_user_id}/list"))?.send()?;
+		if let Ok(response) = seasonal_res.get_json::<DexResponse<Vec<DexCustomList>>>() {
+			let current_seasonal_lists = response
+				.data
 				.iter()
 				.filter_map(|item| {
 					let name = &item.attributes.name;
@@ -81,19 +85,26 @@ impl Home for MangaDex {
 					let year = captures.name("year")?.as_str().parse::<u16>().ok();
 					let season_rank = season_to_rank(captures.name("season")?.as_str());
 
-					let manga_ids = item.relationships.iter().filter_map(|relationship| {
-						if relationship.r#type == "manga" {
-							Some(relationship.id)
-						} else {
-							None
-						}
-					})
-					.collect::<Vec<&str>>();
+					let manga_ids = item
+						.relationships
+						.iter()
+						.filter_map(|relationship| {
+							if relationship.r#type == "manga" {
+								Some(relationship.id)
+							} else {
+								None
+							}
+						})
+						.collect::<Vec<&str>>();
 
 					Some((year, season_rank, item.id, name, manga_ids))
 				})
-				.max_by(|(y1, s1, _, _, _), (y2, s2, _, _, _)| (y1,s1).cmp(&(y2,s2)))
-				.map(|(_, _, id, name, manga_ids)| CustomList { id, name: name.clone(), entries: manga_ids });
+				.max_by(|(y1, s1, _, _, _), (y2, s2, _, _, _)| (y1, s1).cmp(&(y2, s2)))
+				.map(|(_, _, id, name, manga_ids)| CustomList {
+					id,
+					name: name.clone(),
+					entries: manga_ids,
+				});
 
 			custom_lists.extend(current_seasonal_lists);
 		};
@@ -142,7 +153,7 @@ impl Home for MangaDex {
 					&createdAtSince={}\
 					{content_ratings}",
 				// gmt time, one month ago
-				Utc.timestamp_opt(current_date() as i64 - 2630000, 0)
+				Utc.timestamp_opt(current_date() - 2630000, 0)
 					.unwrap()
 					.format("%Y-%m-%dT%H:%M:%S")
 			))?,
@@ -229,7 +240,7 @@ impl Home for MangaDex {
 			let mut seen = HashSet::new();
 			let chapters: Vec<DexChapter> =
 				serde_json::from_slice::<DexResponse<Vec<DexChapter>>>(&chapters_data)
-					.map_err(|_| AidokuError::JsonParseError)?
+					.map_err(AidokuError::JsonParseError)?
 					.data
 					.into_iter()
 					.filter(|chapter| {

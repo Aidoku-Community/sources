@@ -6,12 +6,10 @@
 		"url": "https://ranobelib.me",
 		"contentRating": 1,
 		"minAppVersion": "0.7.1",
-		"languages": [
-			"ru"
-		]
+		"languages": ["ru"]
 	},
 	"listings": [
-        {
+		{
 			"id": "popular",
 			"name": "Популярное"
 		},

@@ -1,6 +1,7 @@
 use crate::{LoadMoreStrategy, Params};
 use aidoku::{
-	alloc::{string::ToString, vec::Vec, String},
+	FilterValue, Result,
+	alloc::{String, string::ToString, vec::Vec},
 	helpers::uri::QueryParameters,
 	imports::{
 		html::{Document, Element},
@@ -8,7 +9,6 @@ use aidoku::{
 		std::{current_date, parse_date_with_options},
 	},
 	prelude::*,
-	FilterValue, Result,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

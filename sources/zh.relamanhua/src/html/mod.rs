@@ -67,9 +67,11 @@ impl FiltersPage for Document {
 			let mut i = 0;
 			while let Some(item) = elements.get(i) {
 				// Debug: check what we find in each item
-				let title_link = item
-                    .select_first("div.exemptComicItem-txt a")
-                    .ok_or_else(|| error!("Item {i}: No title link found (div.exemptComicItem-txt a)"))?;
+				let title_link =
+					item.select_first("div.exemptComicItem-txt a")
+						.ok_or_else(|| {
+							error!("Item {i}: No title link found (div.exemptComicItem-txt a)")
+						})?;
 				let href = title_link
 					.attr("href")
 					.ok_or_else(|| error!("Item {i}: Title link has no href attribute"))?;
@@ -80,10 +82,14 @@ impl FiltersPage for Document {
 					.ok_or_else(|| error!("Item {i}: Invalid URL format: {href}"))?;
 
 				// Get title from the p.twoLines element inside the link
-				let title_element = title_link
-					.select_first("p.twoLines")
-					.ok_or_else(|| error!("Item {}: No p.twoLines element found in title link", i))?;
-				let title = title_element.own_text().ok_or_else(|| error!("Item {}: p.twoLines element has no text content", i))?.trim().to_string();
+				let title_element = title_link.select_first("p.twoLines").ok_or_else(|| {
+					error!("Item {}: No p.twoLines element found in title link", i)
+				})?;
+				let title = title_element
+					.own_text()
+					.ok_or_else(|| error!("Item {}: p.twoLines element has no text content", i))?
+					.trim()
+					.to_string();
 				if title.is_empty() {
 					return Err(error!("Item {}: Title is empty", i));
 				}
@@ -98,16 +104,16 @@ impl FiltersPage for Document {
 
 				// Get author
 				let author = item
-                    .select_first("span.exemptComicItem-txt-span")
-                    .and_then(|el| el.own_text())
-                    .map(|author_text| {
-                        author_text
-                            .strip_prefix("作者：")
-                            .unwrap_or(&author_text)
-                            .trim()
-                            .to_string()
-                    })
-                    .unwrap_or_default();
+					.select_first("span.exemptComicItem-txt-span")
+					.and_then(|el| el.own_text())
+					.map(|author_text| {
+						author_text
+							.strip_prefix("作者：")
+							.unwrap_or(&author_text)
+							.trim()
+							.to_string()
+					})
+					.unwrap_or_default();
 
 				let manga_item = MangaItem {
 					path_word: path_word.to_string(),
@@ -226,7 +232,8 @@ impl ChapterPage for Document {
 	fn pages(&self) -> Result<Vec<Page>> {
 		let key = self.key()?;
 
-		let json = self.select_first("div.disData")
+		let json = self
+			.select_first("div.disData")
 			.and_then(|div| div.attr("contentKey"))
 			.map(|attr| attr.to_string())
 			.ok_or_else(|| error!("No disData div found"))?;

@@ -5,7 +5,10 @@ use crate::{
 	models::*,
 };
 use aidoku::{
-	alloc::{string::ToString, vec, String, Vec},
+	Chapter, ContentRating, DeepLinkResult, Filter, FilterValue, HomeComponent, HomeLayout, Manga,
+	MangaPageResult, MangaStatus, MangaWithChapter, MultiSelectFilter, Page, PageContent,
+	PageContext, Result, Viewer,
+	alloc::{String, Vec, string::ToString, vec},
 	helpers::{element::ElementHelpers, string::StripPrefixOrSelf},
 	imports::{
 		html::{Document, Element},
@@ -13,9 +16,6 @@ use aidoku::{
 		std::send_partial_result,
 	},
 	prelude::*,
-	Chapter, ContentRating, DeepLinkResult, Filter, FilterValue, HomeComponent, HomeLayout, Manga,
-	MangaPageResult, MangaStatus, MangaWithChapter, MultiSelectFilter, Page, PageContent,
-	PageContext, Result, Viewer,
 };
 use base64::prelude::*;
 
@@ -512,16 +512,18 @@ pub trait Impl {
 			})
 			.unzip();
 
-		Ok(vec![MultiSelectFilter {
-			id: "genre[]".into(),
-			title: Some("Genres".into()),
-			is_genre: true,
-			can_exclude: false,
-			options,
-			ids: Some(ids),
-			..Default::default()
-		}
-		.into()])
+		Ok(vec![
+			MultiSelectFilter {
+				id: "genre[]".into(),
+				title: Some("Genres".into()),
+				is_genre: true,
+				can_exclude: false,
+				options,
+				ids: Some(ids),
+				..Default::default()
+			}
+			.into(),
+		])
 	}
 
 	fn get_image_request(
@@ -530,10 +532,10 @@ pub trait Impl {
 		url: String,
 		context: Option<PageContext>,
 	) -> Result<Request> {
-		if let Some(context) = context {
-			if let Some(referer) = context.get("Referer") {
-				return self.modify_request(params, Request::get(url)?.header("Referer", referer));
-			}
+		if let Some(context) = context
+			&& let Some(referer) = context.get("Referer")
+		{
+			return self.modify_request(params, Request::get(url)?.header("Referer", referer));
 		}
 		self.modify_request(
 			params,

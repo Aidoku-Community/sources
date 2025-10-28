@@ -1,10 +1,10 @@
 use crate::BASE_URL;
 use aidoku::{
-	alloc::{string::ToString as _, String, Vec},
+	FilterValue, Result,
+	alloc::{String, Vec, string::ToString as _},
 	helpers::uri::encode_uri,
 	imports::net::Request,
 	prelude::*,
-	FilterValue, Result,
 };
 use core::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -99,10 +99,9 @@ impl Url {
 						if let Some(index) = TAG_OPTIONS
 							.iter()
 							.position(|&option| option == value.as_str())
+							&& let Some(id) = TAG_IDS.get(index)
 						{
-							if let Some(id) = TAG_IDS.get(index) {
-								genre = id.to_string();
-							}
+							genre = id.to_string();
 						}
 					}
 					_ => {}

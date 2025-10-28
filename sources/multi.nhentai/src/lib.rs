@@ -1,11 +1,11 @@
 #![no_std]
 use aidoku::{
-	alloc::{string::ToString, vec, String, Vec},
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider, Manga,
+	MangaPageResult, Page, PageContent, Result, Source,
+	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::encode_uri_component,
 	imports::{error::AidokuError, net::Request},
 	prelude::*,
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider, Manga,
-	MangaPageResult, Page, PageContent, Result, Source,
 };
 
 mod home;
@@ -34,17 +34,17 @@ impl Source for NHentai {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		// If the query is a numeric ID, return the manga directly
-		if let Some(q) = &query {
-			if let Ok(id) = q.parse::<i32>() {
-				let url = format!("{API_URL}/gallery/{id}");
-				let gallery: NHentaiGallery = Request::get(&url)?
-					.header("User-Agent", USER_AGENT)
-					.json_owned()?;
-				return Ok(MangaPageResult {
-					entries: vec![gallery.into()],
-					has_next_page: false,
-				});
-			}
+		if let Some(q) = &query
+			&& let Ok(id) = q.parse::<i32>()
+		{
+			let url = format!("{API_URL}/gallery/{id}");
+			let gallery: NHentaiGallery = Request::get(&url)?
+				.header("User-Agent", USER_AGENT)
+				.json_owned()?;
+			return Ok(MangaPageResult {
+				entries: vec![gallery.into()],
+				has_next_page: false,
+			});
 		}
 
 		let mut query_parts = Vec::new();

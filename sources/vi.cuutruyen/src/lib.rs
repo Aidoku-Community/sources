@@ -8,15 +8,16 @@ use aidoku::{
 		defaults::defaults_get,
 		error::AidokuError,
 		net::Request,
-		std::send_partial_result
+		std::send_partial_result,
 	},
 	prelude::*,
-	BaseUrlProvider, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageResponse, Listing, ListingProvider,
-	Manga, MangaPageResult, Page, PageContent, PageContext, PageImageProcessor, Result, Source
+	BaseUrlProvider, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageResponse, Listing,
+	ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext, PageImageProcessor,
+	Result, Source,
 };
 
-mod models;
 mod home;
+mod models;
 
 use base64::{engine::general_purpose, Engine};
 use models::*;
@@ -24,7 +25,9 @@ use models::*;
 struct CuuTruyen;
 
 impl Source for CuuTruyen {
-	fn new() -> Self { Self }
+	fn new() -> Self {
+		Self
+	}
 
 	fn get_search_manga_list(
 		&self,
@@ -41,54 +44,64 @@ impl Source for CuuTruyen {
 
 		// parse filters
 		for filter in filters {
-    		match filter {
+			match filter {
 				// thanks gemini for making this
-        		FilterValue::MultiSelect { id: _, included, excluded } => {
-                	let mut parts = Vec::new();
+				FilterValue::MultiSelect {
+					id: _,
+					included,
+					excluded,
+				} => {
+					let mut parts = Vec::new();
 
-                	if !included.is_empty() {
-                    	let formatted_tags = included
-                    		.iter()
-                    		.map(|tag| format!("\"{}\"", tag))
-                    		.collect::<Vec<String>>();
-                    	parts.push(formatted_tags.join(" and "));
-                	}
+					if !included.is_empty() {
+						let formatted_tags = included
+							.iter()
+							.map(|tag| format!("\"{}\"", tag))
+							.collect::<Vec<String>>();
+						parts.push(formatted_tags.join(" and "));
+					}
 
-                	if !excluded.is_empty() {
-                    	let formatted_tags = excluded
-                        	.iter()
-                        	.map(|tag| format!("not \"{}\"", tag))
-                        	.collect::<Vec<String>>();
-                    	parts.push(formatted_tags.join(" and "));
-                	}
+					if !excluded.is_empty() {
+						let formatted_tags = excluded
+							.iter()
+							.map(|tag| format!("not \"{}\"", tag))
+							.collect::<Vec<String>>();
+						parts.push(formatted_tags.join(" and "));
+					}
 
 					qs.push("tags", Some(&parts.join(" and ")))
-        		}
-        		_ => return Err(AidokuError::Unimplemented),
-    		}
+				}
+				_ => return Err(AidokuError::Unimplemented),
+			}
 		}
 
 		let url = match qs.is_empty() {
-			true => format!("{}/api/v2/mangas/recently_updated?page={}&per_page=30", base_url, page),
-			_ => format!("{}/api/v2/mangas/search?{}&page={}&per_page=24", base_url, qs, page),
+			true => format!(
+				"{}/api/v2/mangas/recently_updated?page={}&per_page=30",
+				base_url, page
+			),
+			_ => format!(
+				"{}/api/v2/mangas/search?{}&page={}&per_page=24",
+				base_url, qs, page
+			),
 		};
 
 		let (entries, has_next_page) = Request::get(&url)?
 			.send()?
 			.get_json::<CuuSearchResponse<Vec<CuuManga>>>()
-        	.map(|res| {
-        		(
-                	res.data
-                	.into_iter()
-                	.map(|value| value.into_basic_manga())
-            		.collect(),
-            		res.meta.total_pages.is_some_and(|t| page < t),
-        		)
-    		})?;
+			.map(|res| {
+				(
+					res.data
+						.into_iter()
+						.map(|value| value.into_basic_manga())
+						.collect(),
+					res.meta.total_pages.is_some_and(|t| page < t),
+				)
+			})?;
 
 		Ok(MangaPageResult {
-    		entries,
-    		has_next_page,
+			entries,
+			has_next_page,
 		})
 	}
 
@@ -100,14 +113,13 @@ impl Source for CuuTruyen {
 	) -> Result<Manga> {
 		let base_url = self.get_base_url()?;
 		let manga_url = format!("{}/api/v2/mangas/{}", base_url, manga.key);
-		let manga_res = Request::get(&manga_url)?.send()?.get_json_owned::<CuuSearchResponse<CuuMangaDetails>>()?;
-		
+		let manga_res = Request::get(&manga_url)?
+			.send()?
+			.get_json_owned::<CuuSearchResponse<CuuMangaDetails>>()?;
+
 		if needs_details {
-			manga.copy_from(
-				manga_res.clone()
-				.data.into(),
-			);
-			
+			manga.copy_from(manga_res.clone().data.into());
+
 			if needs_chapters {
 				send_partial_result(&manga);
 			}
@@ -116,14 +128,24 @@ impl Source for CuuTruyen {
 		if needs_chapters {
 			let url = format!("{}/chapters", manga_url);
 
-			manga.chapters = Request::get(&url)?.send()?.get_json::<CuuSearchResponse<Vec<CuuChapter>>>()?
+			manga.chapters = Request::get(&url)?
+				.send()?
+				.get_json::<CuuSearchResponse<Vec<CuuChapter>>>()?
 				.data
 				.into_iter()
 				.map(|chap| {
 					let chapter_number = chap.number.parse::<f32>().ok();
-					let title = if chapter_number.is_none() && !chap.name.as_ref().is_none_or(|r| r.is_empty()) {
-						Some(format!("Ch.{} - {}", chap.number.clone(), chap.name.unwrap().clone()))
-					} else if chapter_number.is_none() && chap.name.as_ref().is_none_or(|r| r.is_empty()) {
+					let title = if chapter_number.is_none()
+						&& !chap.name.as_ref().is_none_or(|r| r.is_empty())
+					{
+						Some(format!(
+							"Ch.{} - {}",
+							chap.number.clone(),
+							chap.name.unwrap().clone()
+						))
+					} else if chapter_number.is_none()
+						&& chap.name.as_ref().is_none_or(|r| r.is_empty())
+					{
 						Some(format!("Ch.{}", chap.number.clone()))
 					} else {
 						chap.name.clone()
@@ -136,7 +158,10 @@ impl Source for CuuTruyen {
 						date_uploaded: chrono::DateTime::parse_from_rfc3339(&chap.created_at)
 							.ok()
 							.map(|d| d.timestamp()),
-						url: Some(format!("https://truycapcuutruyen.pages.dev/mangas/{}/chapters/{}", manga.key, chap.id)),
+						url: Some(format!(
+							"https://truycapcuutruyen.pages.dev/mangas/{}/chapters/{}",
+							manga.key, chap.id
+						)),
 						scanlators: manga_res.data.scanlators(),
 						..Default::default()
 					})
@@ -150,14 +175,20 @@ impl Source for CuuTruyen {
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let base_url = self.get_base_url()?;
 		let url = format!("{}/api/v2/chapters/{}", base_url, chapter.key);
-		let pages = Request::get(&url)?.send()?.get_json::<CuuSearchResponse<CuuPage>>()?
-			.data.pages
+		let pages = Request::get(&url)?
+			.send()?
+			.get_json::<CuuSearchResponse<CuuPage>>()?
+			.data
+			.pages
 			.into_iter()
 			.map(|p| {
 				let mut context = PageContext::new();
 				context.insert(String::from("width"), p.width.unwrap_or(0).to_string());
 				context.insert(String::from("height"), p.height.unwrap_or(0).to_string());
-				context.insert(String::from("drmData"), p.drm_data.unwrap_or_default().to_string());
+				context.insert(
+					String::from("drmData"),
+					p.drm_data.unwrap_or_default().to_string(),
+				);
 
 				Page {
 					content: PageContent::url_context(p.image_url, context),
@@ -177,7 +208,9 @@ impl PageImageProcessor for CuuTruyen {
 		context: Option<PageContext>,
 	) -> Result<ImageRef> {
 		let Some(context) = context else {
-			return Err(AidokuError::message("Đang bị thiếu trang context. Vui lòng tải lại trang này!!"));
+			return Err(AidokuError::message(
+				"Đang bị thiếu trang context. Vui lòng tải lại trang này!!",
+			));
 		};
 
 		let width = context
@@ -199,7 +232,9 @@ impl PageImageProcessor for CuuTruyen {
 		};
 
 		let drm_key = "3141592653589793";
-		let decrypted = general_purpose::STANDARD.decode(&drm_data).unwrap()
+		let decrypted = general_purpose::STANDARD
+			.decode(&drm_data)
+			.unwrap()
 			.iter()
 			.enumerate()
 			.map(|(i, &b)| b ^ drm_key.as_bytes()[i % drm_key.len()])
@@ -214,7 +249,10 @@ impl PageImageProcessor for CuuTruyen {
 				continue;
 			}
 
-			let (dy, part_height) = (part[0].parse::<usize>().unwrap_or(0), part[1].parse::<usize>().unwrap_or(0));
+			let (dy, part_height) = (
+				part[0].parse::<usize>().unwrap_or(0),
+				part[1].parse::<usize>().unwrap_or(0),
+			);
 			let src_rect = Rect::new(0.0, sy, width as f32, part_height as f32);
 			let des_rect = Rect::new(0.0, dy as f32, width as f32, part_height as f32);
 
@@ -231,28 +269,37 @@ impl ListingProvider for CuuTruyen {
 		match listing.id.as_str() {
 			"week" | "month" | "all" => {
 				let base_url = self.get_base_url()?;
-				let (entries, has_next_page) = Request::get(format!("{}/api/v2/mangas/top?duration={}&page={}&per_page=24", base_url, listing.id, page))?
-					.send()?
-					.get_json::<CuuSearchResponse<Vec<CuuManga>>>()
-					.map(|res| {
-						(
-							res.data
+				let (entries, has_next_page) = Request::get(format!(
+					"{}/api/v2/mangas/top?duration={}&page={}&per_page=24",
+					base_url, listing.id, page
+				))?
+				.send()?
+				.get_json::<CuuSearchResponse<Vec<CuuManga>>>()
+				.map(|res| {
+					(
+						res.data
 							.into_iter()
 							.map(|value| value.into_basic_manga())
 							.collect(),
-							res.meta.total_pages.is_some_and(|t| page < t)
-						)
-					})?;
+						res.meta.total_pages.is_some_and(|t| page < t),
+					)
+				})?;
 
 				Ok(MangaPageResult {
 					entries,
 					has_next_page,
 				})
-			},
+			}
 			"latest" => self.get_search_manga_list(None, page, vec![]),
-			"vn" => self.get_search_manga_list(None, page, vec![FilterValue::MultiSelect {
-				id: String::new(), included: vec!["truyện việt".to_string()], excluded: vec![]
-			}]),
+			"vn" => self.get_search_manga_list(
+				None,
+				page,
+				vec![FilterValue::MultiSelect {
+					id: String::new(),
+					included: vec!["truyện việt".to_string()],
+					excluded: vec![],
+				}],
+			),
 			_ => Err(AidokuError::Unimplemented),
 		}
 	}
@@ -260,34 +307,40 @@ impl ListingProvider for CuuTruyen {
 
 impl DeepLinkHandler for CuuTruyen {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-    	let all_urls = vec!["https://cuutruyen.net", "https://hetcuutruyen.net", "https://nettrom.com", "https://cuutruyen5c844.site", "https://truycapcuutruyen.pages.dev"];
+		let all_urls = vec![
+			"https://cuutruyen.net",
+			"https://hetcuutruyen.net",
+			"https://nettrom.com",
+			"https://cuutruyen5c844.site",
+			"https://truycapcuutruyen.pages.dev",
+		];
 
-    	let mut found_base_url = None;
-    	for base_url in &all_urls {
-    		if url.starts_with(base_url) {
-        		found_base_url = Some(url);
-            	break;
-        	}
-    	}
+		let mut found_base_url = None;
+		for base_url in &all_urls {
+			if url.starts_with(base_url) {
+				found_base_url = Some(url);
+				break;
+			}
+		}
 
-    	let base_url = match found_base_url {
-    		Some(url) => url,
-    		_ => return Ok(None),
-    	};
+		let base_url = match found_base_url {
+			Some(url) => url,
+			_ => return Ok(None),
+		};
 
 		let mut results = base_url.split('/').skip(3);
 		match results.next() {
 			Some("mangas") => match (results.next(), results.next(), results.next()) {
-				(Some(key), None, None) => Ok(Some(DeepLinkResult::Manga {
-					key: key.into()
-				})),
-				(Some(manga_key), Some("chapters"), Some(key)) => Ok(Some(DeepLinkResult::Chapter {
-					manga_key: manga_key.into(),
-					key: key.into()
-				})),
+				(Some(key), None, None) => Ok(Some(DeepLinkResult::Manga { key: key.into() })),
+				(Some(manga_key), Some("chapters"), Some(key)) => {
+					Ok(Some(DeepLinkResult::Chapter {
+						manga_key: manga_key.into(),
+						key: key.into(),
+					}))
+				}
 				_ => Ok(None),
-			}
-			_ => Ok(None)
+			},
+			_ => Ok(None),
 		}
 	}
 }
@@ -297,4 +350,11 @@ impl BaseUrlProvider for CuuTruyen {
 		Ok(defaults_get::<String>("url").unwrap_or_default())
 	}
 }
-register_source!(CuuTruyen, Home, ListingProvider, PageImageProcessor, DeepLinkHandler, BaseUrlProvider);
+register_source!(
+	CuuTruyen,
+	Home,
+	ListingProvider,
+	PageImageProcessor,
+	DeepLinkHandler,
+	BaseUrlProvider
+);

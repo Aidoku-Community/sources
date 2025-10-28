@@ -4,10 +4,12 @@ use crate::{
 	models::*,
 };
 use aidoku::{
-	alloc::{vec, String, Vec},
+	Chapter, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue, HomeLayout, Manga,
+	MangaPageResult, MangaStatus, Page, PageContent, PageContext, Result,
+	alloc::{String, Vec, vec},
 	helpers::{
 		string::StripPrefixOrSelf,
-		uri::{encode_uri_component, QueryParameters},
+		uri::{QueryParameters, encode_uri_component},
 	},
 	imports::{
 		html::{Element, Html},
@@ -15,8 +17,6 @@ use aidoku::{
 		std::send_partial_result,
 	},
 	prelude::*,
-	Chapter, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue, HomeLayout, Manga,
-	MangaPageResult, MangaStatus, Page, PageContent, PageContext, Result,
 };
 
 pub trait Impl {
@@ -31,25 +31,25 @@ pub trait Impl {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		if params.uses_post_search {
-			if let Some(query) = query {
-				let body = format!("search={}", encode_uri_component(query));
-				let json = Request::post(format!("{}/ajax/search", params.base_url))?
-					.header("Accept", "application/json, text/javascript, *//*; q=0.01")
-					.header("Host", helpers::url_host(&params.base_url))
-					.header("Origin", &params.base_url)
-					.header("X-Requested-With", "XMLHttpRequest")
-					.body(body)
-					.json_owned::<SearchResponse>()?;
-				return Ok(MangaPageResult {
-					entries: json
-						.list
-						.into_iter()
-						.map(|m| m.into_manga(&params.base_url))
-						.collect(),
-					has_next_page: false,
-				});
-			}
+		if params.uses_post_search
+			&& let Some(query) = query
+		{
+			let body = format!("search={}", encode_uri_component(query));
+			let json = Request::post(format!("{}/ajax/search", params.base_url))?
+				.header("Accept", "application/json, text/javascript, *//*; q=0.01")
+				.header("Host", helpers::url_host(&params.base_url))
+				.header("Origin", &params.base_url)
+				.header("X-Requested-With", "XMLHttpRequest")
+				.body(body)
+				.json_owned::<SearchResponse>()?;
+			return Ok(MangaPageResult {
+				entries: json
+					.list
+					.into_iter()
+					.map(|m| m.into_manga(&params.base_url))
+					.collect(),
+				has_next_page: false,
+			});
 		}
 
 		let url = if let Some(query) = query {
@@ -196,10 +196,10 @@ pub trait Impl {
 			.and_then(|els| {
 				// find first script that contains CHAPTER_ID
 				for el in els {
-					if let Some(data) = el.data() {
-						if data.contains("CHAPTER_ID") {
-							return Some(data);
-						}
+					if let Some(data) = el.data()
+						&& data.contains("CHAPTER_ID")
+					{
+						return Some(data);
 					}
 				}
 				None
@@ -289,7 +289,9 @@ pub trait Impl {
 				subtitle: None,
 				value: HomeComponentValue::Scroller {
 					entries: element
-						.select(".swiper .swiper-slide:not(.swiper-slide-duplicate), figure, .grid > div")
+						.select(
+							".swiper .swiper-slide:not(.swiper-slide-duplicate), figure, .grid > div",
+						)
 						.map(|els| {
 							els.filter_map(|el| {
 								let key = el
@@ -367,17 +369,17 @@ pub trait Impl {
 			components.push(parse_scroller(trend, &params.base_url));
 		}
 
-		if let Some(feed) = html.select_first("#feed") {
-			if let Some(tabs) = feed.select("h1 > span") {
-				for tab in tabs {
-					let Some(selector) = tab.attr("data-tab") else {
-						continue;
-					};
-					if let Some(element) = feed.select_first(selector) {
-						let mut component = parse_scroller(element, &params.base_url);
-						component.title = tab.text();
-						components.push(component);
-					}
+		if let Some(feed) = html.select_first("#feed")
+			&& let Some(tabs) = feed.select("h1 > span")
+		{
+			for tab in tabs {
+				let Some(selector) = tab.attr("data-tab") else {
+					continue;
+				};
+				if let Some(element) = feed.select_first(selector) {
+					let mut component = parse_scroller(element, &params.base_url);
+					component.title = tab.text();
+					components.push(component);
 				}
 			}
 		}

@@ -1,6 +1,6 @@
 use crate::{BASE_URL, net::Url};
 use aidoku::{
-	Manga, MangaPageResult, MangaStatus, Viewer, Page, Result,
+	Manga, MangaPageResult, MangaStatus, Page, Result, Viewer,
 	alloc::{String, Vec, string::ToString as _, vec},
 	error,
 	imports::html::{Document, ElementList},
@@ -103,8 +103,8 @@ impl MangaPage for Document {
 		manga.url = Some(Url::manga(manga.key.clone()).to_string());
 
 		let country = self
-    		.select_first("a[href*='country']")
-   			.and_then(|a| a.text());
+			.select_first("a[href*='country']")
+			.and_then(|a| a.text());
 
 		let tags = self
 			.select("a[href*='tag']")
@@ -113,7 +113,7 @@ impl MangaPage for Document {
 
 		let mut all_tags = Vec::new();
 		if let Some(ref c) = country {
-		  	all_tags.push(c.clone());
+			all_tags.push(c.clone());
 		}
 		all_tags.extend(tags);
 		manga.tags = Some(all_tags);

@@ -4,15 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", features = [
-    "json",
-] }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", features = ["json"] }
 regex = { version = "1.11.1", default-features = false, features = ["unicode"] }
 
 [dev-dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = [
-    "test",
-] }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
 aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }
 
 [lib]

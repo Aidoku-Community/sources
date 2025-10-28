@@ -1,13 +1,13 @@
 use crate::models::TokenResponse;
 use crate::settings;
 use aidoku::{
+	Result,
 	alloc::String,
 	imports::{
 		error::AidokuError,
 		net::{Request, Response},
 	},
 	prelude::*,
-	Result,
 };
 
 const CLIENT_ID: &str = "neko"; // we hijack neko's login system
@@ -46,7 +46,7 @@ fn refresh_access_token() -> Result<TokenResponse> {
 	};
 
 	let token_response = serde_json::from_str::<TokenResponse>(&string_value)
-		.map_err(|_| AidokuError::JsonParseError)?;
+		.map_err(AidokuError::JsonParseError)?;
 
 	settings::set_token(&string_value);
 

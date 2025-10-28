@@ -4,7 +4,7 @@ use aidoku::{
 	helpers::element::ElementHelpers,
 	imports::html::Html,
 	prelude::format,
-	ContentRating, Manga, MangaStatus, Viewer
+	ContentRating, Manga, MangaStatus, Viewer,
 };
 use serde::Deserialize;
 
@@ -103,17 +103,19 @@ impl CuuManga {
 
 impl CuuMangaDetails {
 	pub fn description(&self) -> Option<String> {
-    	if let Some(des) = self.full_description.as_ref() {
-        	Html::parse(des).ok().and_then(|doc| {
-            	doc.text_with_newlines().map(|text| {
-                	if let Some((_, rest)) = text.split_once('\n') {
-                    	rest.to_string()
-                	} else { text }
-            	})
-        	})
-    	} else {
-        	None
-    	}
+		if let Some(des) = self.full_description.as_ref() {
+			Html::parse(des).ok().and_then(|doc| {
+				doc.text_with_newlines().map(|text| {
+					if let Some((_, rest)) = text.split_once('\n') {
+						rest.to_string()
+					} else {
+						text
+					}
+				})
+			})
+		} else {
+			None
+		}
 	}
 
 	pub fn authors(&self) -> Option<Vec<String>> {
@@ -124,18 +126,21 @@ impl CuuMangaDetails {
 		self.tags
 			.iter()
 			.map(|t| {
-				t.name.split_whitespace()
-				.map(|word| {
-					let mut chars = word.chars();
-					match chars.next() {
-						None => String::new(),
-						Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-					}
-				})
-				.collect::<Vec<String>>()
-				.join(" ")
+				t.name
+					.split_whitespace()
+					.map(|word| {
+						let mut chars = word.chars();
+						match chars.next() {
+							None => String::new(),
+							Some(first) => {
+								first.to_uppercase().collect::<String>() + chars.as_str()
+							}
+						}
+					})
+					.collect::<Vec<String>>()
+					.join(" ")
 			})
-		.collect()
+			.collect()
 	}
 
 	pub fn scanlators(&self) -> Option<Vec<String>> {
@@ -147,18 +152,41 @@ impl From<CuuMangaDetails> for Manga {
 	fn from(val: CuuMangaDetails) -> Self {
 		let tags = val.tags();
 
-		let status = if tags.iter().any(|tag| tag == "Đã Hoàn Thành") { MangaStatus::Completed }
-		else if tags.iter().any(|tag| tag == "Đang Tiến Hành") { MangaStatus::Ongoing }
-		else if tags.iter().any(|tag| tag == "Tạm Ngưng") { MangaStatus::Hiatus }
-		else if tags.iter().any(|tag| tag == "Drop") { MangaStatus::Cancelled }
-		else { MangaStatus::Unknown };
+		let status = if tags.iter().any(|tag| tag == "Đã Hoàn Thành") {
+			MangaStatus::Completed
+		} else if tags.iter().any(|tag| tag == "Đang Tiến Hành") {
+			MangaStatus::Ongoing
+		} else if tags.iter().any(|tag| tag == "Tạm Ngưng") {
+			MangaStatus::Hiatus
+		} else if tags.iter().any(|tag| tag == "Drop") {
+			MangaStatus::Cancelled
+		} else {
+			MangaStatus::Unknown
+		};
 
-		let content_rating = if val.is_nsfw || tags.iter().any(|tag| tag == "Khỏa Thân" || tag == "Nsfw" || tag == "Ntr") { ContentRating::NSFW }
-		else if tags.iter().any(|tag| tag == "Ecchi") { ContentRating::Suggestive }
-		else { ContentRating::Safe };
+		let content_rating = if val.is_nsfw
+			|| tags
+				.iter()
+				.any(|tag| tag == "Khỏa Thân" || tag == "Nsfw" || tag == "Ntr")
+		{
+			ContentRating::NSFW
+		} else if tags.iter().any(|tag| tag == "Ecchi") {
+			ContentRating::Suggestive
+		} else {
+			ContentRating::Safe
+		};
 
-		let viewer = if tags.iter().any(|tag| tag == "Manhua" || tag == "Manhwa" || tag == "Long Strip" || tag == "Web Comic" || tag == "Webtoon") { Viewer::Webtoon }
-		else { Viewer::RightToLeft };
+		let viewer = if tags.iter().any(|tag| {
+			tag == "Manhua"
+				|| tag == "Manhwa"
+				|| tag == "Long Strip"
+				|| tag == "Web Comic"
+				|| tag == "Webtoon"
+		}) {
+			Viewer::Webtoon
+		} else {
+			Viewer::RightToLeft
+		};
 
 		Manga {
 			key: val.id.to_string(),
@@ -166,7 +194,10 @@ impl From<CuuMangaDetails> for Manga {
 			cover: val.cover_url.clone(),
 			authors: val.authors(),
 			description: val.description(),
-			url: Some(format!("https://truycapcuutruyen.pages.dev/mangas/{}", val.id)),
+			url: Some(format!(
+				"https://truycapcuutruyen.pages.dev/mangas/{}",
+				val.id
+			)),
 			tags: Some(tags),
 			status,
 			content_rating,

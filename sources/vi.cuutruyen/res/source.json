@@ -4,11 +4,11 @@
 		"name": "Cứu Truyện",
 		"version": 2,
 		"urls": [
-        	"https://cuutruyen.net",
-        	"https://hetcuutruyen.net",
-        	"https://nettrom.com",
-        	"https://cuutruyen5c844.site"
-    	],
+			"https://cuutruyen.net",
+			"https://hetcuutruyen.net",
+			"https://nettrom.com",
+			"https://cuutruyen5c844.site"
+		],
 		"contentRating": 1,
 		"minAppVersion": "0.7.1",
 		"languages": ["vi"]
