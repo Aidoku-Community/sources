@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "id.komiksin",
+		"name": "Komiksin",
+		"version": 6,
+		"url": "https://komiksin.net",
+		"contentRating": 1,
+		"languages": ["id"]
+	},
+	"config": {
+		"breakingChangeVersion": 6
+	}
+}

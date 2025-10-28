@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.manhwax",
+		"name": "Manhwax",
+		"version": 5,
+		"url": "https://manhwax.top",
+		"contentRating": 2,
+		"languages": ["en"]
+	},
+	"config": {
+		"breakingChangeVersion": 5
+	}
+}

@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "en.armageddon",
+		"name": "Armageddon",
+		"version": 1,
+		"url": "https://www.silentquill.net",
+		"contentRating": 2,
+		"languages": ["en"]
+	}
+}

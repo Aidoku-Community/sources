@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "id.kanzenin",
+		"name": "Kanzenin",
+		"version": 6,
+		"url": "https://kanzenin.info",
+		"contentRating": 2,
+		"languages": ["id"]
+	},
+	"config": {
+		"breakingChangeVersion": 6
+	}
+}

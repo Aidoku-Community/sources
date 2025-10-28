@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "id.mangasusu",
+		"name": "Mangasusu",
+		"version": 6,
+		"url": "https://mangasusuku.com",
+		"contentRating": 2,
+		"languages": ["id"]
+	},
+	"config": {
+		"breakingChangeVersion": 6
+	}
+}

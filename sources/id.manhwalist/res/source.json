@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "id.manhwalist",
+		"name": "Manhwalist",
+		"version": 6,
+		"url": "https://manhwalist02.site",
+		"contentRating": 0,
+		"languages": ["id"]
+	},
+	"config": {
+		"breakingChangeVersion": 6
+	}
+}

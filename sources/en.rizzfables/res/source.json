@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.rizzfables",
+		"name": "Rizz Fables",
+		"version": 2,
+		"url": "https://rizzfables.com",
+		"contentRating": 0,
+		"languages": ["en"]
+	},
+	"config": {
+		"breakingChangeVersion": 2
+	}
+}

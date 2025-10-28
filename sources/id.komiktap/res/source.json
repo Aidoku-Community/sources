@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "id.komiktap",
+		"name": "Komiktap",
+		"version": 7,
+		"url": "https://komiktap.info",
+		"contentRating": 2,
+		"languages": ["id"]
+	},
+	"config": {
+		"breakingChangeVersion": 7
+	}
+}

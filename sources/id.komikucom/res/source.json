@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "id.komikucom",
+		"name": "Komiku.com",
+		"version": 5,
+		"url": "https://01.komiku.asia",
+		"contentRating": 1,
+		"languages": ["id"]
+	},
+	"config": {
+		"breakingChangeVersion": 5
+	}
+}
