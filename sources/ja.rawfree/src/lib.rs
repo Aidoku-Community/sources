@@ -1,24 +1,24 @@
 #![no_std]
 use aidoku::{
+	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Manga,
+	MangaPageResult, MangaStatus, Page, PageContent, Result, Source, Viewer,
 	alloc::{
 		string::{String, ToString},
 		vec::Vec,
 	},
-	helpers::uri::{encode_uri_component, QueryParameters},
+	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
 		html::Html,
 		net::Request,
 		std::{parse_date_with_options, send_partial_result},
 	},
 	prelude::*,
-	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Manga,
-	MangaPageResult, MangaStatus, Page, PageContent, Result, Source, Viewer,
 };
 
 mod models;
 use models::*;
 
-const BASE_URL: &str = "https://rawfree.me";
+const BASE_URL: &str = "https://rawfree.to";
 
 struct RawFree;
 
@@ -281,10 +281,10 @@ impl DeepLinkHandler for RawFree {
 		const CHAPTER_PATH: &str = "/manga-chapter";
 
 		if key.starts_with(SERIES_PATH) {
-			// ex: https://rawfree.me/manga-raw/%e6%93%ac%e6%97%8f-raw-free/
+			// ex: https://rawfree.to/manga-raw/%e6%93%ac%e6%97%8f-raw-free/
 			Ok(Some(DeepLinkResult::Manga { key: key.into() }))
 		} else if key.starts_with(CHAPTER_PATH) {
-			// ex: https://rawfree.me/manga-chapter/%e6%93%ac%e6%97%8f-raw-%e3%80%90%e7%ac%ac12%e8%a9%b1%e3%80%91/
+			// ex: https://rawfree.to/manga-chapter/%e6%93%ac%e6%97%8f-raw-%e3%80%90%e7%ac%ac12%e8%a9%b1%e3%80%91/
 			let html = Request::get(&url)?.html()?;
 			let manga_key = html
 				.select_first(".manga-name a")

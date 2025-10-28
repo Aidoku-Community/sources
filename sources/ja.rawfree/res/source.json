@@ -2,8 +2,8 @@
 	"info": {
 		"id": "ja.rawfree",
 		"name": "Raw FREE",
-		"version": 1,
-		"url": "https://rawfree.me",
+		"version": 2,
+		"url": "https://rawfree.to",
 		"contentRating": 1,
 		"languages": ["ja"]
 	},
