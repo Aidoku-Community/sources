@@ -14,11 +14,8 @@
 	{
 		"type": "sort",
 		"title": "Sort",
-		"options": ["Latest", "Popular Today", "Popular Week", "Popular All"],
-		"default": {
-			"index": 0,
-			"ascending": false
-		}
+		"canAscend": false,
+		"options": ["Latest", "Popular Today", "Popular Week", "Popular All"]
 	},
 	{
 		"type": "multi-select",
