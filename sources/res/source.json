@@ -1,0 +1,15 @@
+{
+	"info": {
+		"id": "en.mangademon",
+		"lang": "en",
+		"name": "MangaDemon",
+		"version": 5,
+		"url": "https://demonicscans.org",
+		"nsfw": 0
+	},
+	"listings": [
+		{
+			"name": "Latest"
+		}
+	]
+}
