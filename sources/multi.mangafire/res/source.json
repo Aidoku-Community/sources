@@ -2,7 +2,7 @@
 	"info": {
 		"id": "multi.mangafire",
 		"name": "MangaFire",
-		"version": 3,
+		"version": 4,
 		"url": "https://mangafire.to",
 		"contentRating": 1,
 		"languages": ["en", "es", "es-419", "fr", "ja", "pt", "pt-BR"],

@@ -1,7 +1,7 @@
 use aidoku::{
+	Result,
 	alloc::{string::String, vec::Vec},
 	imports::{defaults::defaults_get, error::AidokuError},
-	Result,
 };
 
 // settings keys

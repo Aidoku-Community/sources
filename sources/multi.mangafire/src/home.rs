@@ -1,13 +1,13 @@
-use crate::{MangaFire, BASE_URL};
+use crate::{BASE_URL, MangaFire};
 use aidoku::helpers::string::StripPrefixOrSelf;
 use aidoku::imports::html::Document;
+use aidoku::{Chapter, Link};
 use aidoku::{
-	alloc::{vec, Vec},
+	Home, HomeComponent, HomeLayout, HomePartialResult, Manga, MangaWithChapter, Result,
+	alloc::{Vec, vec},
 	imports::{net::Request, std::send_partial_result},
 	prelude::*,
-	Home, HomeComponent, HomeLayout, HomePartialResult, Manga, MangaWithChapter, Result,
 };
-use aidoku::{Chapter, Link};
 
 impl Home for MangaFire {
 	fn get_home(&self) -> Result<HomeLayout> {

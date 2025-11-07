@@ -1,7 +1,9 @@
 #![no_std]
 use aidoku::{
-	alloc::{string::ToString, vec, String, Vec},
-	helpers::uri::{encode_uri_component, QueryParameters},
+	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider,
+	Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, Source, Viewer,
+	alloc::{String, Vec, string::ToString, vec},
+	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
 		error::AidokuError,
 		html::{Document, Html},
@@ -9,8 +11,6 @@ use aidoku::{
 		std::{current_date, parse_date, send_partial_result},
 	},
 	prelude::*,
-	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider,
-	Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, Source, Viewer,
 };
 
 mod home;
