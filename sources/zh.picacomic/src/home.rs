@@ -8,6 +8,7 @@ use aidoku::{
 		net::{HttpMethod, Request, RequestError, Response},
 		std::send_partial_result,
 	},
+	prelude::*,
 };
 
 impl Home for Picacomic {
@@ -110,7 +111,18 @@ impl Home for Picacomic {
 				.map_err(|_| error!("Failed to convert responses to array"))?;
 
 		let results: [Result<MangaPageResult>; 8] = responses.map(|res| {
-			let json: serde_json::Value = res?.get_json()?;
+			let mut response = res?;
+
+			// Check for 401 and retry with new login if needed
+			if response.status_code() == 401 {
+				// Re-login
+				net::login()?;
+				// Retry the request - but since we have multiple requests, we need to handle this differently
+				// For simplicity, we'll just return an error for now, but ideally we'd retry each request
+				bail!("Authentication expired, please try again");
+			}
+
+			let json: serde_json::Value = response.get_json()?;
 			let data = json.get("data").ok_or(error!("No data in response"))?;
 
 			// Handle different response formats

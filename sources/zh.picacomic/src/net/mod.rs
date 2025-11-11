@@ -41,15 +41,11 @@ pub enum Url {
 	},
 	Search {
 		query: String,
+		sort: String,
 		page: i32,
 	},
 	Author {
 		author: String,
-		sort: String,
-		page: i32,
-	},
-	Tag {
-		tag: String,
 		sort: String,
 		page: i32,
 	},
@@ -81,15 +77,16 @@ impl Url {
 		page: i32,
 		filters: &[FilterValue],
 	) -> Result<Self> {
+		let mut category = String::new();
+		let mut sort = String::from("dd");
+
 		if let Some(q) = query {
 			return Ok(Self::Search {
 				query: q.to_string(),
+				sort,
 				page,
 			});
 		}
-
-		let mut category = String::new();
-		let mut sort = String::from("dd");
 
 		for filter in filters {
 			match filter {
@@ -105,6 +102,7 @@ impl Url {
 						// Title search
 						return Ok(Self::Search {
 							query: value.to_string(),
+							sort,
 							page,
 						});
 					}
@@ -118,8 +116,8 @@ impl Url {
 						};
 					}
 					"genre" => {
-						return Ok(Self::Tag {
-							tag: value.to_string(),
+						return Ok(Self::Search {
+							query: value.to_string(),
 							sort,
 							page,
 						});
@@ -152,12 +150,12 @@ impl Url {
 			_ => HttpMethod::Get,
 		};
 		let body = match self {
-			Url::Search { query, .. } => Some(format!(
+			Url::Search { query, sort, .. } => Some(format!(
 				r#"{{
 					"keyword": "{}",
-					"sort": "dd"
+					"sort": "{}"
 				}}"#,
-				query
+				query, sort
 			)),
 			_ => None,
 		};
@@ -198,8 +196,8 @@ impl Display for Url {
 					gen_explore_url(category.to_string(), sort.to_string(), *page)
 				)
 			}
-			Url::Search { query: _, page } => {
-				write!(f, "{}/comics/advanced-search?page={}&s=dd", API_URL, page)
+			Url::Search { page, .. } => {
+				write!(f, "{}/comics/advanced-search?page={}", API_URL, page)
 			}
 			Url::Author { author, sort, page } => {
 				write!(
@@ -208,16 +206,6 @@ impl Display for Url {
 					API_URL,
 					page,
 					encode_uri(author),
-					sort
-				)
-			}
-			Url::Tag { tag, sort, page } => {
-				write!(
-					f,
-					"{}/comics?page={}&c={}&s={}",
-					API_URL,
-					page,
-					encode_uri(tag),
 					sort
 				)
 			}
@@ -335,4 +323,22 @@ pub fn create_request(url: String, method: HttpMethod, body: Option<String>) -> 
 	}
 
 	Ok(request)
+}
+
+pub fn request_json<T>(url: Url) -> Result<T>
+where
+	T: serde::de::DeserializeOwned,
+{
+	let request = url.request()?;
+	let mut response = request.send()?;
+
+	if response.status_code() == 401 {
+		// Token expired, login again
+		login()?;
+		// Retry with new token
+		let request = url.request()?;
+		response = request.send()?;
+	}
+
+	response.get_json_owned()
 }

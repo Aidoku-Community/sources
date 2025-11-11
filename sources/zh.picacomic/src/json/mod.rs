@@ -18,7 +18,14 @@ pub struct ComicItem {
 	pub tags: Option<Vec<String>>,
 	pub finished: bool,
 	#[serde(rename = "pagesCount")]
-	pub pages_count: i32,
+	pub pages_count: Option<i32>,
+	#[serde(rename = "likesCount")]
+	pub likes_count: Option<i32>,
+	#[serde(rename = "totalLikes")]
+	pub total_likes: Option<i32>,
+	#[serde(rename = "chineseTeam")]
+	pub chinese_team: Option<String>,
+	pub created_at: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -145,10 +152,32 @@ impl From<ComicItem> for Manga {
 		};
 		all_tags.extend(item.categories);
 
-		let description = if let Some(desc) = item.description {
-			Some(format!("页数：{}P  \n简介：{}", item.pages_count, desc))
+		let pages_text = item.pages_count.map(|count| format!("页数：{}P", count));
+		let likes_text = item
+			.total_likes
+			.or(item.likes_count)
+			.map(|count| format!("{} likes", count));
+
+		let mut desc_parts = Vec::new();
+
+		if let Some(text) = likes_text {
+			desc_parts.push(text);
+		}
+
+		if let Some(text) = pages_text {
+			desc_parts.push(text);
+		}
+
+		if let Some(desc) = item.description
+			&& !desc.trim().is_empty()
+		{
+			desc_parts.push(format!("简介：{}", desc));
+		}
+
+		let description = if desc_parts.is_empty() {
+			None
 		} else {
-			Some(format!("页数：{}P", item.pages_count))
+			Some(desc_parts.join("  \n"))
 		};
 
 		Manga {
