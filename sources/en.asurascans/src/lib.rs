@@ -7,7 +7,7 @@ use aidoku::{
 	helpers::uri::QueryParameters,
 	imports::{
 		net::{Request, TimeUnit, set_rate_limit},
-		std::parse_date_with_options,
+		std::parse_date,
 	},
 	prelude::*,
 };
@@ -193,9 +193,7 @@ impl Source for AsuraScans {
 									s
 								}
 							})
-							.and_then(|s| {
-								parse_date_with_options(s, "MMMM d yyyy", "en_US_POSIX", "current")
-							});
+							.and_then(|s| parse_date(s, "MMMM d yyyy"));
 						let url = helpers::get_chapter_url(&key, &manga.key);
 						let locked = el.select_first("h3 > span > svg").is_some();
 						Some(Chapter {

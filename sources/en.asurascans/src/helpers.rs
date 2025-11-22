@@ -3,9 +3,6 @@ use aidoku::{alloc::string::String, prelude::*};
 
 /// Returns the ID of a manga from a URL.
 pub fn get_manga_key(url: &str) -> Option<String> {
-	// Asura Scans appends a random string at the end of each series slug
-	// The random string is not necessary, but we must leave the trailing '-' else the url will break
-
 	// remove query parameters
 	let path = url.split('?').next().unwrap_or("");
 
@@ -15,9 +12,8 @@ pub fn get_manga_key(url: &str) -> Option<String> {
 		.skip_while(|segment| *segment != "series")
 		.nth(1)?;
 
-	// find the last '-' and keep it in the id
-	let pos = manga_segment.rfind('-')?;
-	Some(manga_segment[..=pos].into())
+	// return the full segment, including the id at the end
+	Some(manga_segment.into())
 }
 
 /// Returns the ID of a chapter from a URL.
@@ -59,21 +55,21 @@ mod tests {
 		assert_eq!(
 			get_manga_key("https://asuracomic.net/series/swordmasters-youngest-son-cb22671f")
 				.as_deref(),
-			Some("swordmasters-youngest-son-")
+			Some("swordmasters-youngest-son-cb22671f")
 		);
 		assert_eq!(
 			get_manga_key(
 				"https://asuracomic.net/series/swordmasters-youngest-son-cb22671f?blahblah"
 			)
 			.as_deref(),
-			Some("swordmasters-youngest-son-")
+			Some("swordmasters-youngest-son-cb22671f")
 		);
 		assert_eq!(
 			get_manga_key(
 				"https://asuracomic.net/series/swordmasters-youngest-son-cb22671f/chapter/1"
 			)
 			.as_deref(),
-			Some("swordmasters-youngest-son-")
+			Some("swordmasters-youngest-son-cb22671f")
 		);
 	}
 
