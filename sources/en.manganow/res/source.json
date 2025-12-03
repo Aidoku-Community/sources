@@ -1,0 +1,31 @@
+{
+	"info": {
+		"id": "en.manganow",
+		"name": "MangaNow",
+		"version": 1,
+		"url": "https://manganow.to",
+		"contentRating": 1,
+		"languages": ["en"]
+	},
+	"listings": [
+		{
+			"id": "latest-updated",
+			"name": "Latest Updated"
+		},
+		{
+			"id": "new-release",
+			"name": "New Release"
+		},
+		{
+			"id": "most-viewed",
+			"name": "Most Viewed"
+		},
+		{
+			"id": "completed",
+			"name": "Completed"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}
