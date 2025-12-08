@@ -18,7 +18,7 @@ use aidoku::{
 mod models;
 use models::*;
 
-const BASE_URL: &str = "https://rawfree.now";
+const BASE_URL: &str = "https://rawfree.ax";
 
 struct RawFree;
 
@@ -188,7 +188,7 @@ impl Source for RawFree {
 
 		// otherwise, we need to fetch page images from ajax endpoint
 		let chapter_js_data = html
-			.select_first(".render > script")
+			.select_first(".render > script, .entry-content > script")
 			.and_then(|el| el.data())
 			.ok_or(error!("failed to find chapter js data"))?;
 		let zing_js_data = html
