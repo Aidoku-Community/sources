@@ -24,6 +24,19 @@ use alloc::vec;
 
 struct Suwayomi;
 
+impl Suwayomi {
+	fn graphql_request<T>(&self, body: serde_json::Value) -> Result<GraphQLResponse<T>>
+	where
+		T: serde::de::DeserializeOwned,
+	{
+		let base_url = settings::get_base_url()?;
+		Request::post(format!("{base_url}/api/graphql"))?
+			.header("Content-Type", "application/json")
+			.body(body.to_string())
+			.json_owned::<GraphQLResponse<T>>()
+	}
+}
+
 impl Source for Suwayomi {
 	fn new() -> Self {
 		Self
@@ -103,10 +116,7 @@ impl Source for Suwayomi {
 		});
 
 		let base_url = settings::get_base_url()?;
-		let response = Request::post(format!("{base_url}/api/graphql"))?
-			.header("Content-Type", "application/json")
-			.body(body.to_string())
-			.json_owned::<GraphQLResponse<MultipleMangas>>()?;
+		let response = self.graphql_request::<MultipleMangas>(body)?;
 
 		Ok(MangaPageResult {
 			entries: response
@@ -140,10 +150,7 @@ impl Source for Suwayomi {
 				"variables": variables,
 			});
 
-			let response = Request::post(format!("{base_url}/api/graphql"))?
-				.header("Content-Type", "application/json")
-				.body(body.to_string())
-				.json_owned::<GraphQLResponse<MangaOnlyDescriptionResponse>>()?;
+			let response = self.graphql_request::<MangaOnlyDescriptionResponse>(body)?;
 
 			manga.description = Some(response.data.manga.description);
 
@@ -163,10 +170,7 @@ impl Source for Suwayomi {
 				"variables": variables,
 			});
 
-			let response = Request::post(format!("{base_url}/api/graphql"))?
-				.header("Content-Type", "application/json")
-				.body(body.to_string())
-				.json_owned::<GraphQLResponse<MultipleChapters>>()?;
+			let response = self.graphql_request::<MultipleChapters>(body)?;
 
 			manga.chapters = Some(
 				response
@@ -199,10 +203,7 @@ impl Source for Suwayomi {
 		});
 
 		let base_url = settings::get_base_url()?;
-		let response = Request::post(format!("{base_url}/api/graphql"))?
-			.header("Content-Type", "application/json")
-			.body(body.to_string())
-			.json_owned::<GraphQLResponse<FetchChapterPagesResponse>>()?;
+		let response = self.graphql_request::<FetchChapterPagesResponse>(body)?;
 
 		Ok(response
 			.data
@@ -253,11 +254,7 @@ impl DynamicListings for Suwayomi {
 			"query": gql.query,
 		});
 
-		let base_url = settings::get_base_url()?;
-		let response = Request::post(format!("{base_url}/api/graphql"))?
-			.header("Content-Type", "application/json")
-			.body(body.to_string())
-			.json_owned::<GraphQLResponse<MultipleCategories>>()?;
+		let response = self.graphql_request::<MultipleCategories>(body)?;
 
 		let categories = response.data.categories.nodes;
 		let total_count = categories.len();
