@@ -108,7 +108,6 @@ impl Source for Suwayomi {
 			.body(body.to_string())
 			.json_owned::<GraphQLResponse<MultipleMangas>>()?;
 
-		let base_url = settings::get_base_url()?;
 		Ok(MangaPageResult {
 			entries: response
 				.data
@@ -205,7 +204,6 @@ impl Source for Suwayomi {
 			.body(body.to_string())
 			.json_owned::<GraphQLResponse<FetchChapterPagesResponse>>()?;
 
-		let base_url = settings::get_base_url()?;
 		Ok(response
 			.data
 			.fetch_chapter_pages
