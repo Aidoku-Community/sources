@@ -168,12 +168,6 @@ pub struct CategoryDto {
 
 impl CategoryDto {
 	pub fn into_listing(self, total_count: usize) -> Listing {
-		let kind = if self.id == 0 {
-			ListingKind::Default
-		} else {
-			ListingKind::List
-		};
-
 		// If there are no categories, the category bar isn't visible on the web library view;
 		// Rename the listing to "Library"
 		let name = if total_count == 1 {
@@ -185,7 +179,7 @@ impl CategoryDto {
 		Listing {
 			id: self.id.to_string(),
 			name,
-			kind,
+			kind: ListingKind::Default,
 		}
 	}
 }
