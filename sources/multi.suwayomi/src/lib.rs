@@ -5,14 +5,16 @@ mod graphql;
 mod models;
 mod settings;
 
+const CATEGORY_FILTER_ID: &str = "CATEGORY";
+
 use crate::models::{
-	FetchChapterPagesResponse, GraphQLResponse, MangaOnlyDescriptionResponse, MultipleChapters,
-	MultipleMangas,
+	FetchChapterPagesResponse, GraphQLResponse, MangaOnlyDescriptionResponse, MultipleCategories,
+	MultipleChapters, MultipleMangas,
 };
 use aidoku::imports::std::send_partial_result;
 use aidoku::{
-	AidokuError, BaseUrlProvider, Chapter, FilterValue, Listing, ListingProvider, Manga,
-	MangaPageResult, Page, PageContent, Result, Source,
+	AidokuError, BaseUrlProvider, Chapter, DynamicListings, FilterValue, Listing, ListingProvider,
+	Manga, MangaPageResult, Page, PageContent, Result, Source,
 	alloc::{String, Vec},
 	imports::net::Request,
 	prelude::*,
@@ -54,6 +56,18 @@ impl Source for Suwayomi {
 						"by": property,
 						"byType": if ascending { "ASC" } else { "DESC" }
 					}));
+				}
+				FilterValue::Check { id, value } => {
+					if id == CATEGORY_FILTER_ID {
+						// This is special cased since the "Default" category means you don't have
+						// any categories attached to the manga.
+						let filter_value = if value == 0 {
+							serde_json::json!({"isNull": true})
+						} else {
+							serde_json::json!({"equalTo": value})
+						};
+						manga_filter.insert("categoryId".to_string(), filter_value);
+					}
 				}
 				_ => continue,
 			}
@@ -223,18 +237,53 @@ impl Source for Suwayomi {
 
 impl ListingProvider for Suwayomi {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		match listing.id.as_str() {
-			"Library" => self.get_search_manga_list(
-				None,
-				page,
-				vec![FilterValue::Sort {
+		let category_id = listing
+			.id
+			.parse::<i32>()
+			.map_err(|_| AidokuError::DeserializeError)?;
+
+		self.get_search_manga_list(
+			None,
+			page,
+			vec![
+				FilterValue::Sort {
 					id: String::default(),
 					index: 0,
 					ascending: true,
-				}],
-			),
-			_ => Err(AidokuError::Unimplemented),
-		}
+				},
+				FilterValue::Check {
+					id: CATEGORY_FILTER_ID.to_string(),
+					value: category_id,
+				},
+			],
+		)
+	}
+}
+
+impl DynamicListings for Suwayomi {
+	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
+		let gql = graphql::GraphQLQuery::CATEGORIES;
+		let body = serde_json::json!({
+			"operationName": gql.operation_name,
+			"query": gql.query,
+		});
+
+		let base_url = settings::get_base_url()?;
+		let data = Request::post(format!("{base_url}/api/graphql"))?
+			.header("Content-Type", "application/json")
+			.body(body.to_string())
+			.data()?;
+
+		let response = serde_json::from_slice::<GraphQLResponse<MultipleCategories>>(&data)
+			.map_err(|_| AidokuError::JsonParseError)?;
+
+		let categories = response.data.categories.nodes;
+		let total_count = categories.len();
+
+		Ok(categories
+			.into_iter()
+			.map(|c| c.into_listing(total_count))
+			.collect())
 	}
 }
 
@@ -244,4 +293,4 @@ impl BaseUrlProvider for Suwayomi {
 	}
 }
 
-register_source!(Suwayomi, ListingProvider, BaseUrlProvider);
+register_source!(Suwayomi, ListingProvider, BaseUrlProvider, DynamicListings);

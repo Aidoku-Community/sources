@@ -48,6 +48,15 @@ const GET_MANGA_DESCRIPTION: &str = r#"query GET_MANGA_DESCRIPTION($mangaId: Int
 }
 "#;
 
+const GET_CATEGORIES: &str = r#"query GET_CATEGORIES {
+	categories {
+		nodes {
+			name
+			id
+		}
+	}
+}"#;
+
 impl GraphQLQuery {
 	pub const SEARCH_MANGA_LIST: Self = Self {
 		operation_name: "GET_SEARCH_MANGA_LIST",
@@ -67,5 +76,10 @@ impl GraphQLQuery {
 	pub const MANGA_DESCRIPTION: Self = Self {
 		operation_name: "GET_MANGA_DESCRIPTION",
 		query: GET_MANGA_DESCRIPTION,
+	};
+
+	pub const CATEGORIES: Self = Self {
+		operation_name: "GET_CATEGORIES",
+		query: GET_CATEGORIES,
 	};
 }

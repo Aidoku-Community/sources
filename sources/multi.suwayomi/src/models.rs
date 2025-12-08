@@ -1,5 +1,5 @@
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaStatus, Viewer,
+	Chapter, ContentRating, Listing, ListingKind, Manga, MangaStatus, Viewer,
 	alloc::{String, Vec, format},
 };
 use alloc::string::ToString;
@@ -153,4 +153,39 @@ pub struct MangaOnlyDescriptionResponse {
 #[derive(Debug, Deserialize)]
 pub struct OnlyDescriptionManga {
 	pub description: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MultipleCategories {
+	pub categories: Nodes<CategoryDto>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CategoryDto {
+	pub id: i32,
+	pub name: String,
+}
+
+impl CategoryDto {
+	pub fn into_listing(self, total_count: usize) -> Listing {
+		let kind = if self.id == 0 {
+			ListingKind::Default
+		} else {
+			ListingKind::List
+		};
+
+		// If there are no categories, the category bar isn't visible on the web library view;
+		// Rename the listing to "Library"
+		let name = if total_count == 1 {
+			String::from("Library")
+		} else {
+			self.name
+		};
+
+		Listing {
+			id: self.id.to_string(),
+			name,
+			kind,
+		}
+	}
 }
