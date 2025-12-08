@@ -115,9 +115,9 @@ impl Source for Suwayomi {
 			"variables": json_value,
 		});
 
-		let base_url = settings::get_base_url()?;
 		let response = self.graphql_request::<MultipleMangas>(body)?;
 
+		let base_url = settings::get_base_url()?;
 		Ok(MangaPageResult {
 			entries: response
 				.data
@@ -137,7 +137,6 @@ impl Source for Suwayomi {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let manga_id = manga.key.parse::<i32>().expect("Invalid number");
-		let base_url = settings::get_base_url()?;
 		if needs_details {
 			let gql = graphql::GraphQLQuery::MANGA_DESCRIPTION;
 			let variables = serde_json::json!({
@@ -172,6 +171,7 @@ impl Source for Suwayomi {
 
 			let response = self.graphql_request::<MultipleChapters>(body)?;
 
+			let base_url = settings::get_base_url()?;
 			manga.chapters = Some(
 				response
 					.data
@@ -202,9 +202,9 @@ impl Source for Suwayomi {
 			"variables": variables,
 		});
 
-		let base_url = settings::get_base_url()?;
 		let response = self.graphql_request::<FetchChapterPagesResponse>(body)?;
 
+		let base_url = settings::get_base_url()?;
 		Ok(response
 			.data
 			.fetch_chapter_pages
