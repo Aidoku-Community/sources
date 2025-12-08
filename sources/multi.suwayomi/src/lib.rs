@@ -103,13 +103,10 @@ impl Source for Suwayomi {
 		});
 
 		let base_url = settings::get_base_url()?;
-		let data = Request::post(format!("{base_url}/api/graphql"))?
+		let response = Request::post(format!("{base_url}/api/graphql"))?
 			.header("Content-Type", "application/json")
 			.body(body.to_string())
-			.data()?;
-
-		let response = serde_json::from_slice::<GraphQLResponse<MultipleMangas>>(&data)
-			.map_err(|_| AidokuError::JsonParseError)?;
+			.json_owned::<GraphQLResponse<MultipleMangas>>()?;
 
 		let base_url = settings::get_base_url()?;
 		Ok(MangaPageResult {
@@ -144,14 +141,10 @@ impl Source for Suwayomi {
 				"variables": variables,
 			});
 
-			let data = Request::post(format!("{base_url}/api/graphql"))?
+			let response = Request::post(format!("{base_url}/api/graphql"))?
 				.header("Content-Type", "application/json")
 				.body(body.to_string())
-				.data()?;
-
-			let response =
-				serde_json::from_slice::<GraphQLResponse<MangaOnlyDescriptionResponse>>(&data)
-					.map_err(|_| AidokuError::JsonParseError)?;
+				.json_owned::<GraphQLResponse<MangaOnlyDescriptionResponse>>()?;
 
 			manga.description = Some(response.data.manga.description);
 
@@ -171,13 +164,10 @@ impl Source for Suwayomi {
 				"variables": variables,
 			});
 
-			let data = Request::post(format!("{base_url}/api/graphql"))?
+			let response = Request::post(format!("{base_url}/api/graphql"))?
 				.header("Content-Type", "application/json")
 				.body(body.to_string())
-				.data()?;
-
-			let response = serde_json::from_slice::<GraphQLResponse<MultipleChapters>>(&data)
-				.map_err(|_| AidokuError::JsonParseError)?;
+				.json_owned::<GraphQLResponse<MultipleChapters>>()?;
 
 			manga.chapters = Some(
 				response
@@ -210,13 +200,10 @@ impl Source for Suwayomi {
 		});
 
 		let base_url = settings::get_base_url()?;
-		let data = Request::post(format!("{base_url}/api/graphql"))?
+		let response = Request::post(format!("{base_url}/api/graphql"))?
 			.header("Content-Type", "application/json")
 			.body(body.to_string())
-			.data()?;
-
-		let response = serde_json::from_slice::<GraphQLResponse<FetchChapterPagesResponse>>(&data)
-			.map_err(|_| AidokuError::JsonParseError)?;
+			.json_owned::<GraphQLResponse<FetchChapterPagesResponse>>()?;
 
 		let base_url = settings::get_base_url()?;
 		Ok(response
@@ -269,13 +256,10 @@ impl DynamicListings for Suwayomi {
 		});
 
 		let base_url = settings::get_base_url()?;
-		let data = Request::post(format!("{base_url}/api/graphql"))?
+		let response = Request::post(format!("{base_url}/api/graphql"))?
 			.header("Content-Type", "application/json")
 			.body(body.to_string())
-			.data()?;
-
-		let response = serde_json::from_slice::<GraphQLResponse<MultipleCategories>>(&data)
-			.map_err(|_| AidokuError::JsonParseError)?;
+			.json_owned::<GraphQLResponse<MultipleCategories>>()?;
 
 		let categories = response.data.categories.nodes;
 		let total_count = categories.len();
