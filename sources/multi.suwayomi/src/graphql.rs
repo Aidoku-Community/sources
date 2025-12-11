@@ -35,7 +35,7 @@ const GET_MANGA_CHAPTERS: &str = r#"query GET_MANGA_CHAPTERS($mangaId: Int!) {
 	}
 }"#;
 
-const GET_CHAPTER_PAGES: &str = r#"mutation GET_PAGE_LIST($input: FetchChapterPagesInput!) {
+const GET_CHAPTER_PAGES: &str = r#"mutation GET_CHAPTER_PAGES($input: FetchChapterPagesInput!) {
 	fetchChapterPages(input: $input) {
 		pages
 	}
@@ -69,7 +69,7 @@ impl GraphQLQuery {
 	};
 
 	pub const CHAPTER_PAGES: Self = Self {
-		operation_name: "GET_PAGE_LIST",
+		operation_name: "GET_CHAPTER_PAGES",
 		query: GET_CHAPTER_PAGES,
 	};
 

@@ -24,7 +24,7 @@ pub struct MultipleMangas {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MangaDto {
-	pub id: u32,
+	pub id: i32,
 	pub title: String,
 	pub thumbnail_url: String,
 	pub author: Option<String>,
@@ -89,7 +89,7 @@ pub struct Source {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChapterDto {
-	pub id: u32,
+	pub id: i32,
 	pub name: String,
 	pub chapter_number: f32,
 	pub scanlator: Option<String>,
@@ -105,15 +105,10 @@ impl ChapterDto {
 			base_url, manga_id, self.source_order
 		);
 
-		let scanlator_name = if let Some(ref s) = self.scanlator {
-			if !s.is_empty() {
-				s
-			} else {
-				&self.manga.source.display_name
-			}
-		} else {
-			&self.manga.source.display_name
-		};
+		let scanlator_name = self.scanlator
+			.as_ref()
+			.filter(|s| !s.is_empty())
+			.unwrap_or(&self.manga.source.display_name);
 		let scanlator = Some(vec![scanlator_name.clone()]);
 
 		let date_uploaded = self

@@ -35,6 +35,26 @@ impl Suwayomi {
 			.body(body.to_string())
 			.json_owned::<GraphQLResponse<T>>()
 	}
+
+	fn execute_query<T>(
+		&self,
+		gql: graphql::GraphQLQuery,
+		variables: Option<serde_json::Value>,
+	) -> Result<GraphQLResponse<T>>
+	where
+		T: serde::de::DeserializeOwned,
+	{
+		let mut body = serde_json::json!({
+			"operationName": gql.operation_name,
+			"query": gql.query,
+		});
+
+		if let Some(vars) = variables {
+			body["variables"] = vars;
+		}
+
+		self.graphql_request(body)
+	}
 }
 
 impl Source for Suwayomi {
@@ -108,14 +128,10 @@ impl Source for Suwayomi {
 
 		let json_value = serde_json::Value::Object(variables);
 
-		let gql = graphql::GraphQLQuery::SEARCH_MANGA_LIST;
-		let body = serde_json::json!({
-			"operationName": gql.operation_name,
-			"query": gql.query,
-			"variables": json_value,
-		});
-
-		let response = self.graphql_request::<MultipleMangas>(body)?;
+		let response = self.execute_query::<MultipleMangas>(
+			graphql::GraphQLQuery::SEARCH_MANGA_LIST,
+			Some(json_value),
+		)?;
 
 		let base_url = settings::get_base_url()?;
 		Ok(MangaPageResult {
@@ -136,20 +152,17 @@ impl Source for Suwayomi {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let manga_id = manga.key.parse::<i32>().expect("Invalid number");
+		let manga_id = manga
+			.key
+			.parse::<i32>()
+			.map_err(|_| AidokuError::DeserializeError)?;
 		if needs_details {
-			let gql = graphql::GraphQLQuery::MANGA_DESCRIPTION;
-			let variables = serde_json::json!({
-				"mangaId": manga_id
-			});
-
-			let body = serde_json::json!({
-				"operationName": gql.operation_name,
-				"query": gql.query,
-				"variables": variables,
-			});
-
-			let response = self.graphql_request::<MangaOnlyDescriptionResponse>(body)?;
+			let response = self.execute_query::<MangaOnlyDescriptionResponse>(
+				graphql::GraphQLQuery::MANGA_DESCRIPTION,
+				Some(serde_json::json!({
+					"mangaId": manga_id
+				})),
+			)?;
 
 			manga.description = Some(response.data.manga.description);
 
@@ -158,18 +171,12 @@ impl Source for Suwayomi {
 			}
 		}
 		if needs_chapters {
-			let gql = graphql::GraphQLQuery::MANGA_CHAPTERS;
-			let variables = serde_json::json!({
-				"mangaId": manga_id
-			});
-
-			let body = serde_json::json!({
-				"operationName": gql.operation_name,
-				"query": gql.query,
-				"variables": variables,
-			});
-
-			let response = self.graphql_request::<MultipleChapters>(body)?;
+			let response = self.execute_query::<MultipleChapters>(
+				graphql::GraphQLQuery::MANGA_CHAPTERS,
+				Some(serde_json::json!({
+					"mangaId": manga_id
+				})),
+			)?;
 
 			let base_url = settings::get_base_url()?;
 			manga.chapters = Some(
@@ -187,22 +194,19 @@ impl Source for Suwayomi {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let chapter_id = chapter.key.parse::<i32>().expect("Invalid chapter ID");
+		let chapter_id = chapter
+			.key
+			.parse::<i32>()
+			.map_err(|_| AidokuError::DeserializeError)?;
 
-		let gql = graphql::GraphQLQuery::CHAPTER_PAGES;
-		let variables = serde_json::json!({
-			"input": {
-				"chapterId": chapter_id
-			}
-		});
-
-		let body = serde_json::json!({
-			"operationName": gql.operation_name,
-			"query": gql.query,
-			"variables": variables,
-		});
-
-		let response = self.graphql_request::<FetchChapterPagesResponse>(body)?;
+		let response = self.execute_query::<FetchChapterPagesResponse>(
+			graphql::GraphQLQuery::CHAPTER_PAGES,
+			Some(serde_json::json!({
+				"input": {
+					"chapterId": chapter_id
+				}
+			})),
+		)?;
 
 		let base_url = settings::get_base_url()?;
 		Ok(response
@@ -248,13 +252,10 @@ impl ListingProvider for Suwayomi {
 
 impl DynamicListings for Suwayomi {
 	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
-		let gql = graphql::GraphQLQuery::CATEGORIES;
-		let body = serde_json::json!({
-			"operationName": gql.operation_name,
-			"query": gql.query,
-		});
-
-		let response = self.graphql_request::<MultipleCategories>(body)?;
+		let response = self.execute_query::<MultipleCategories>(
+			graphql::GraphQLQuery::CATEGORIES,
+			None,
+		)?;
 
 		let categories = response.data.categories.nodes;
 		let total_count = categories.len();
