@@ -11,6 +11,21 @@
 				"returnKeyType": 9,
 				"autocorrectionDisabled": true,
 				"refreshes": ["content"]
+			},
+			{
+				"type": "text",
+				"placeholder": "User",
+				"key": "user",
+				"autocorrectionDisabled": true,
+				"refreshes": ["content"]
+			},
+			{
+				"type": "text",
+				"placeholder": "Password",
+				"key": "pass",
+				"secureTextEntry": true,
+				"autocorrectionDisabled": true,
+				"refreshes": ["content"]
 			}
 		]
 	}
