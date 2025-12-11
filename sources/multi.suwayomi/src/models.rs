@@ -105,7 +105,8 @@ impl ChapterDto {
 			base_url, manga_id, self.source_order
 		);
 
-		let scanlator_name = self.scanlator
+		let scanlator_name = self
+			.scanlator
 			.as_ref()
 			.filter(|s| !s.is_empty())
 			.unwrap_or(&self.manga.source.display_name);

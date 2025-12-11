@@ -252,10 +252,8 @@ impl ListingProvider for Suwayomi {
 
 impl DynamicListings for Suwayomi {
 	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
-		let response = self.execute_query::<MultipleCategories>(
-			graphql::GraphQLQuery::CATEGORIES,
-			None,
-		)?;
+		let response =
+			self.execute_query::<MultipleCategories>(graphql::GraphQLQuery::CATEGORIES, None)?;
 
 		let categories = response.data.categories.nodes;
 		let total_count = categories.len();
