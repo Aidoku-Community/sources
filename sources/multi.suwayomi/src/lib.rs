@@ -30,6 +30,16 @@ impl Suwayomi {
 		T: serde::de::DeserializeOwned,
 	{
 		let base_url = settings::get_base_url()?;
+
+		if let Some((user, pass)) = settings::get_credentials() {
+			let form = format!("user={}&pass={}", user, pass);
+			let _ = Request::post(format!("{}/login.html", base_url))?
+				.header("Content-Type", "application/x-www-form-urlencoded")
+				.body(form)
+				.send()
+				.ok();
+		}
+
 		Request::post(format!("{base_url}/api/graphql"))?
 			.header("Content-Type", "application/json")
 			.body(body.to_string())
