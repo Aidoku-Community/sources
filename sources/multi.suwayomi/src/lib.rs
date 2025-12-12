@@ -21,6 +21,52 @@ use aidoku::{
 };
 use alloc::string::ToString;
 use alloc::vec;
+use core::fmt::Write;
+
+fn url_encode(input: &str) -> String {
+    let mut output = String::new();
+    for byte in input.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                output.push(byte as char);
+            }
+            _ => {
+                let _ = write!(output, "%{:02X}", byte);
+            }
+        }
+    }
+    output
+}
+
+fn base64_encode(input: &str) -> String {
+	const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	let bytes = input.as_bytes();
+	let mut output = String::with_capacity((bytes.len() + 2) / 3 * 4);
+
+	for chunk in bytes.chunks(3) {
+		let b0 = chunk[0] as u32;
+		let b1 = *chunk.get(1).unwrap_or(&0) as u32;
+		let b2 = *chunk.get(2).unwrap_or(&0) as u32;
+
+		let triple = (b0 << 16) | (b1 << 8) | b2;
+
+		output.push(CHARSET[((triple >> 18) & 0x3F) as usize] as char);
+		output.push(CHARSET[((triple >> 12) & 0x3F) as usize] as char);
+
+		if chunk.len() > 1 {
+			output.push(CHARSET[((triple >> 6) & 0x3F) as usize] as char);
+		} else {
+			output.push('=');
+		}
+
+		if chunk.len() > 2 {
+			output.push(CHARSET[(triple & 0x3F) as usize] as char);
+		} else {
+			output.push('=');
+		}
+	}
+	output
+}
 
 struct Suwayomi;
 
@@ -30,20 +76,41 @@ impl Suwayomi {
 		T: serde::de::DeserializeOwned,
 	{
 		let base_url = settings::get_base_url()?;
+		let body_str = body.to_string();
 
-		if let Some((user, pass)) = settings::get_credentials() {
-			let form = format!("user={}&pass={}", user, pass);
-			let _ = Request::post(format!("{}/login.html", base_url))?
-				.header("Content-Type", "application/x-www-form-urlencoded")
-				.body(form)
-				.send()
-				.ok();
+		let send_req = || {
+			let mut request = Request::post(format!("{base_url}/api/graphql"))?
+				.header("Content-Type", "application/json")
+				.body(body_str.clone());
+
+			if let Some((user, pass)) = settings::get_credentials() {
+				let auth = base64_encode(&format!("{}:{}", user, pass));
+				request = request.header("Authorization", &format!("Basic {}", auth));
+			}
+			request.json_owned::<GraphQLResponse<T>>()
+		};
+
+		let response = send_req();
+
+		if response.is_err() {
+			if let Some((user, pass)) = settings::get_credentials() {
+				let form = format!("user={}&pass={}", url_encode(&user), url_encode(&pass));
+				let login_url = if base_url.ends_with('/') {
+					format!("{}login.html", base_url)
+				} else {
+					format!("{}/login.html", base_url)
+				};
+
+				let _ = Request::post(login_url)?
+					.header("Content-Type", "application/x-www-form-urlencoded")
+					.body(form)
+					.send()
+					.ok();
+				return send_req();
+			}
 		}
 
-		Request::post(format!("{base_url}/api/graphql"))?
-			.header("Content-Type", "application/json")
-			.body(body.to_string())
-			.json_owned::<GraphQLResponse<T>>()
+		response
 	}
 }
 
