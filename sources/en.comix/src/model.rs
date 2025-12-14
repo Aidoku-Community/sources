@@ -29,7 +29,7 @@ pub struct ComixManga<'a> {
 	pub hash_id: &'a str,
 	pub title: String,
 	pub alt_titles: Vec<String>,
-	pub synopsis: &'a str,
+	pub synopsis: String,
 	pub slug: &'a str,
 	pub rank: i64,
 	#[serde(rename = "type")]
@@ -63,7 +63,7 @@ pub struct ComixManga<'a> {
 	pub is_nsfw: bool,
 
 	pub year: i64,
-	pub term_ids: Vec<Tag>,
+	pub term_ids: Vec<i64>,
 }
 
 #[derive(Default, Debug, Clone, Deserialize)]
@@ -76,7 +76,7 @@ pub struct ComixChapter {
 	/// In your JSON it's `0`/`1` (number), not `true`/`false`.
 	pub is_official: i64,
 
-	pub number: i64,
+	pub number: f64,
 	pub name: String,
 	pub language: String,
 
@@ -86,7 +86,7 @@ pub struct ComixChapter {
 	pub created_at: i64,
 	pub updated_at: i64,
 
-	pub scanlation_group: ScanlationGroup,
+	pub scanlation_group: Option<ScanlationGroup>,
 }
 
 #[derive(Default, Debug, Clone, Deserialize)]
@@ -139,7 +139,7 @@ impl ComixManga<'_> {
 	}
 
 	pub fn description(&self) -> Option<String> {
-		Some(self.synopsis.into())
+		Some(self.synopsis.clone().into())
 	}
 
 	pub fn cover(&self) -> Option<String> {
@@ -257,9 +257,9 @@ impl ComixChapter {
 
 	pub fn url(&self, manga: &Manga) -> String {
 		match manga.url.as_deref() {
-        Some(base) => format!("{}/{}", base, self.chapter_id),
-        None => String::new(),
-    }
+			Some(base) => format!("{}/{}", base, self.chapter_id),
+			None => String::new(),
+		}
 	}
 
 	pub fn manga_id(&self) -> Option<i64> {
@@ -267,7 +267,10 @@ impl ComixChapter {
 	}
 
 	pub fn scanlators(&self) -> Vec<String> {
-		vec![self.scanlation_group.name.clone()]
+		match self.scanlation_group.as_ref() {
+			Some(group) => vec![group.name.clone()],
+			None => Vec::new(),
+		}
 	}
 }
 
@@ -391,6 +394,11 @@ pub enum Tag {
 	Villainess,
 	VirtualReality,
 	Zombies,
+	Shoujo,
+	Shounen,
+	Josei,
+	Seinen,
+	Fake,
 }
 
 impl fmt::Display for Tag {
@@ -470,6 +478,11 @@ impl Tag {
 			Tag::Villainess => 65,
 			Tag::VirtualReality => 66,
 			Tag::Zombies => 67,
+			Tag::Shoujo => 1,
+			Tag::Shounen => 2,
+			Tag::Josei => 3,
+			Tag::Seinen => 4,
+			Tag::Fake => 39725,
 		}
 	}
 
@@ -542,6 +555,11 @@ impl Tag {
 			65 => Some(Tag::Villainess),
 			66 => Some(Tag::VirtualReality),
 			67 => Some(Tag::Zombies),
+			1 => Some(Tag::Shoujo),
+			2 => Some(Tag::Shounen),
+			3 => Some(Tag::Josei),
+			4 => Some(Tag::Seinen),
+			39725 => Some(Tag::Fake),
 			_ => None,
 		}
 	}
@@ -615,6 +633,11 @@ impl Tag {
 			Tag::Villainess => "Villainess",
 			Tag::VirtualReality => "Virtual Reality",
 			Tag::Zombies => "Zombies",
+			Tag::Shoujo => "Shoujo",
+			Tag::Shounen => "Shounen",
+			Tag::Josei => "Josei",
+			Tag::Seinen => "Seinen",
+			Tag::Fake => "Fake",
 		}
 	}
 }

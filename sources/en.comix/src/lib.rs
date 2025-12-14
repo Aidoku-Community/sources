@@ -41,11 +41,13 @@ impl Source for Comix {
 		if needs_details {}
 
 		if needs_chapters {
-			let limit: i64 = 500;
+			let limit: i64 = 100;
 			let url = format!(
-				"{API_URL}/manga/{}/chapters?limit={}&page={}&ordern[number]=desc",
-				limit, manga.key, 1
+				"{API_URL}/manga/{}/chapters?limit={}&page={}&order[number]=desc",
+				manga.key, limit, 1
 			);
+
+			// panic!("{}", url);
 			// .header("Referer", &format!("{}/", params.base_url))
 			let res = Request::get(url)?
 				.send()?
@@ -66,25 +68,28 @@ impl Source for Comix {
 				.collect();
 
 			let (mut chapters, total) = (chapters, total);
-			let pages = (total + limit - 1) / limit;
+			if (total > chapters.len() as i64) {
+				let pages = (total + limit - 1) / limit;
 
-			for page in 2..=pages {
-				let url = format!(
-					"{API_URL}/manga/{}/chapters?limit={limit}&page={page}&ordern[number]=desc",
-					manga.key
-				);
+				for page in 2..=pages {
+					let url = format!(
+						"{API_URL}/manga/{}/chapters?limit={limit}&page={page}&ordern[number]=desc",
+						manga.key
+					);
 
-				let res = Request::get(url)?
-					.send()?
-					.get_json::<ComixResponse<ComixChapter>>()?;
+					let res = Request::get(url)?
+						.send()?
+						.get_json::<ComixResponse<ComixChapter>>()?;
 
-				chapters.extend(res.result.items.into_iter().map(|item| {
-					let url = Some(item.url(&manga));
-					let mut ch: Chapter = item.into();
-					ch.url = url; // change 1 field (example)
-					ch
-				}));
+					chapters.extend(res.result.items.into_iter().map(|item| {
+						let url = Some(item.url(&manga));
+						let mut ch: Chapter = item.into();
+						ch.url = url; // change 1 field (example)
+						ch
+					}));
+				}
 			}
+
 			manga.chapters = Some(chapters);
 		}
 
