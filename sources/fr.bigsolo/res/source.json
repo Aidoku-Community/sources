@@ -2,11 +2,18 @@
 	"info": {
 		"id": "fr.bigsolo",
 		"name": "BigSolo",
-		"version": 3,
+		"version": 4,
 		"url": "https://bigsolo.org",
 		"contentRating": 0,
 		"languages": [
 			"fr"
 		]
-	}
+	},
+	"config": {
+		"breakingChangeVersion": 4
+	},
+	"listings": [{
+		"id": "catalogue",
+		"name": "Catalogue"
+	}]
 }
