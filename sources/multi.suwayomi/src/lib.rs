@@ -15,28 +15,12 @@ use aidoku::imports::std::send_partial_result;
 use aidoku::{
 	AidokuError, BaseUrlProvider, Chapter, DynamicListings, FilterValue, Listing, ListingProvider,
 	Manga, MangaPageResult, Page, PageContent, Result, Source,
-	alloc::{String, Vec},
+	alloc::{String, Vec, vec},
 	imports::net::Request,
 	prelude::*,
 };
 use alloc::string::ToString;
-use alloc::vec;
 use core::fmt::Write;
-
-fn url_encode(input: &str) -> String {
-    let mut output = String::new();
-    for byte in input.bytes() {
-        match byte {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                output.push(byte as char);
-            }
-            _ => {
-                let _ = write!(output, "%{:02X}", byte);
-            }
-        }
-    }
-    output
-}
 
 fn base64_encode(input: &str) -> String {
 	const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -68,6 +52,25 @@ fn base64_encode(input: &str) -> String {
 	output
 }
 
+fn url_encode(input: &str) -> String {
+	let mut output = String::new();
+	for byte in input.bytes() {
+		match byte {
+			b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+				output.push(byte as char);
+			}
+			_ => {
+				let _ = write!(output, "%{:02X}", byte);
+			}
+		}
+	}
+	output
+}
+
+fn get_basic_credentials() -> Option<(String, String)> {
+	settings::get_credentials()
+}
+
 struct Suwayomi;
 
 impl Suwayomi {
@@ -76,41 +79,54 @@ impl Suwayomi {
 		T: serde::de::DeserializeOwned,
 	{
 		let base_url = settings::get_base_url()?;
+		let auth_mode = settings::get_auth_mode();
 		let body_str = body.to_string();
 
-		let send_req = || {
+		let send_req = |with_basic: bool| {
 			let mut request = Request::post(format!("{base_url}/api/graphql"))?
 				.header("Content-Type", "application/json")
 				.body(body_str.clone());
 
-			if let Some((user, pass)) = settings::get_credentials() {
-				let auth = base64_encode(&format!("{}:{}", user, pass));
-				request = request.header("Authorization", &format!("Basic {}", auth));
+			if with_basic {
+				if let Some((user, pass)) = get_basic_credentials() {
+					let auth = base64_encode(&format!("{}:{}", user, pass));
+					request = request.header("Authorization", &format!("Basic {}", auth));
+				}
 			}
+
 			request.json_owned::<GraphQLResponse<T>>()
 		};
 
-		let response = send_req();
-
-		if response.is_err() {
-			if let Some((user, pass)) = settings::get_credentials() {
+		let do_login_html = || -> Result<()> {
+			if let Some((user, pass)) = get_basic_credentials() {
 				let form = format!("user={}&pass={}", url_encode(&user), url_encode(&pass));
-				let login_url = if base_url.ends_with('/') {
-					format!("{}login.html", base_url)
-				} else {
-					format!("{}/login.html", base_url)
-				};
-
-				let _ = Request::post(login_url)?
+				let _ = Request::post(format!("{base_url}/login.html"))?
 					.header("Content-Type", "application/x-www-form-urlencoded")
 					.body(form)
 					.send()
 					.ok();
-				return send_req();
+			}
+			Ok(())
+		};
+
+		match auth_mode.as_str() {
+			"none" => send_req(false),
+
+			"basic_auth" => send_req(true),
+
+			"simple_login" => {
+				do_login_html()?;
+				send_req(false)
+			}
+			_ => {
+				let resp = send_req(true);
+				if resp.is_err() {
+					do_login_html()?;
+					return send_req(true);
+				}
+				resp
 			}
 		}
-
-		response
 	}
 }
 
