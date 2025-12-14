@@ -97,6 +97,7 @@ version = "0.1.0"
 dependencies = [
  "aidoku",
  "aidoku-test",
+ "chrono",
  "iken",
  "serde",
  "serde_json",

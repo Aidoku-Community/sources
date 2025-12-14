@@ -8,7 +8,7 @@ use aidoku::{
 	prelude::*,
 };
 
-use crate::model::ApiResponse;
+use crate::model::{ComixChapter, ComixManga, ComixResponse};
 
 mod model;
 // use iken::{IKen, Impl, Params};
@@ -34,11 +34,61 @@ impl Source for Comix {
 
 	fn get_manga_update(
 		&self,
-		manga: Manga,
+		mut manga: Manga,
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		todo!()
+		if needs_details {}
+
+		if needs_chapters {
+			let limit: i64 = 500;
+			let url = format!(
+				"{API_URL}/manga/{}/chapters?limit={}&page={}&ordern[number]=desc",
+				limit, manga.key, 1
+			);
+			// .header("Referer", &format!("{}/", params.base_url))
+			let res = Request::get(url)?
+				.send()?
+				.get_json::<ComixResponse<ComixChapter>>()?;
+
+			let total = res.result.pagination.total;
+
+			let chapters: Vec<Chapter> = res
+				.result
+				.items
+				.into_iter()
+				.map(|item| {
+					let url = Some(item.url(&manga));
+					let mut ch: Chapter = item.into();
+					ch.url = url; // change 1 field (example)
+					ch
+				})
+				.collect();
+
+			let (mut chapters, total) = (chapters, total);
+			let pages = (total + limit - 1) / limit;
+
+			for page in 2..=pages {
+				let url = format!(
+					"{API_URL}/manga/{}/chapters?limit={limit}&page={page}&ordern[number]=desc",
+					manga.key
+				);
+
+				let res = Request::get(url)?
+					.send()?
+					.get_json::<ComixResponse<ComixChapter>>()?;
+
+				chapters.extend(res.result.items.into_iter().map(|item| {
+					let url = Some(item.url(&manga));
+					let mut ch: Chapter = item.into();
+					ch.url = url; // change 1 field (example)
+					ch
+				}));
+			}
+			manga.chapters = Some(chapters);
+		}
+
+		Ok(manga)
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
@@ -50,15 +100,16 @@ impl Home for Comix {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let url = format!("{API_URL}/manga?order[views_30d]=desc&limit=28");
 
-		let mangaResponse = Request::get(&url)?.send()?.get_json::<ApiResponse>()?;
-		let mangaList = mangaResponse
+		let mut manga_request = Request::get(&url)?.send()?;
+		let manga_response = manga_request.get_json::<ComixResponse<ComixManga>>()?;
+		let manga_list = manga_response
 			.result
 			.items
 			.into_iter()
 			.map(|item| Manga {
-				key: item.manga_id.to_string(),
+				key: item.hash_id.to_string(),
 				title: item.title,
-				cover: item.poster.medium.into(),
+				cover: Some(item.poster.medium.to_string()),
 				..Default::default()
 			})
 			.collect();
@@ -68,7 +119,7 @@ impl Home for Comix {
 				title: Some("Hot Updates".into()),
 				subtitle: None,
 				value: aidoku::HomeComponentValue::BigScroller {
-					entries: mangaList,
+					entries: manga_list,
 					auto_scroll_interval: None,
 				},
 			}],

@@ -8,6 +8,7 @@ aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
 iken = { path = "../../templates/iken" }
 serde = { version = "1.0.188", default-features = false, features = ["derive", "alloc"] }
 serde_json = { version = "1.0.105", default-features = false, features = ["alloc"] }
+chrono = { version = "0.4.30", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
