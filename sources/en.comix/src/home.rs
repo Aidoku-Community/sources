@@ -17,17 +17,12 @@ impl Home for Comix {
 
 		let mut manga_request = Request::get(&url)?.send()?;
 		let manga_response = manga_request.get_json::<ComixResponse<ComixManga>>()?;
-		println!("{:?}", manga_response);
+		// println!("{:?}", manga_response);
 		let manga_list = manga_response
 			.result
 			.items
 			.into_iter()
-			.map(|item| Manga {
-				key: item.hash_id.to_string(),
-				title: item.title,
-				cover: Some(item.poster.medium.to_string()),
-				..Default::default()
-			})
+			.map(Into::into)
 			.collect();
 
 		Ok(HomeLayout {

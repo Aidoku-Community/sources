@@ -149,63 +149,22 @@ impl ComixManga<'_> {
 	}
 
 	pub fn title(&self) -> Option<String> {
-		self.alt_titles
-			.first()
-			.map(|t| t.to_string())
-			.or_else(|| Some(self.title.clone()))
+		Some(self.title.clone())
 	}
 
 	pub fn description(&self) -> Option<String> {
-		Some(self.synopsis)
+		Some(self.synopsis.clone())
 	}
 
 	pub fn cover(&self) -> Option<String> {
-		// self.relationships.iter().find_map(|r| {
-		// 	if r.r#type == "cover_art" {
-		// 		Some(format!(
-		// 			"{COVER_URL}/covers/{}/{}{}",
-		// 			self.id,
-		// 			r.attributes
-		// 				.clone()
-		// 				.and_then(|v| v.get("fileName").map(|v| v.as_str().map(String::from)))
-		// 				.flatten()
-		// 				.unwrap_or_default(),
-		// 			settings::get_cover_quality()
-		// 		))
-		// 	} else {
-		// 		None
-		// 	}
-		// })
-		todo!()
+		Some(self.poster.medium.into())
 	}
 
 	pub fn authors(&self) -> Vec<String> {
-		// self.relationships
-		// 	.iter()
-		// 	.filter(|r| r.r#type == "author")
-		// 	.filter_map(|r| {
-		// 		r.attributes
-		// 			.as_ref()
-		// 			.map(|a| a.get("name").map(|v| v.as_str().map(String::from)))
-		// 	})
-		// 	.flatten()
-		// 	.flatten()
-		// 	.collect()
 		todo!()
 	}
 
 	pub fn artists(&self) -> Vec<String> {
-		// self.relationships
-		// 	.iter()
-		// 	.filter(|r| r.r#type == "artist")
-		// 	.filter_map(|r| {
-		// 		r.attributes
-		// 			.as_ref()
-		// 			.map(|a| a.get("name").map(|v| v.as_str().map(String::from)))
-		// 	})
-		// 	.flatten()
-		// 	.flatten()
-		// 	.collect()
 		todo!()
 	}
 
@@ -247,15 +206,15 @@ impl From<ComixManga<'_>> for Manga {
 			ComixTypeFilter::Manga => Viewer::RightToLeft,
 			ComixTypeFilter::Manhwa => Viewer::Webtoon,
 			ComixTypeFilter::Manhua => Viewer::Webtoon,
-			_ => Viewer::Webtoon,
+			_ => Viewer::RightToLeft,
 		};
 
 		Manga {
 			key: String::from(val.hash_id),
 			title: val.title().unwrap_or_default(),
 			cover: val.cover(),
-			artists: Some(val.artists()),
-			authors: Some(val.authors()),
+			// artists: Some(val.artists()),
+			// authors: Some(val.authors()),
 			description: val.description(),
 			url: Some(val.url()),
 			tags: Some(tags),
