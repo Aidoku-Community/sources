@@ -90,6 +90,23 @@ pub struct ComixChapter {
 }
 
 #[derive(Default, Debug, Clone, Deserialize)]
+pub struct ChapterResponse {
+	pub status: i64,
+	pub result: Option<Item>,
+}
+
+#[derive(Default, Debug, Clone, Deserialize)]
+pub struct Item {
+	pub chapter_id: i64,
+	pub images: Vec<Images>,
+}
+
+#[derive(Default, Debug, Clone, Deserialize)]
+pub struct Images {
+	pub url: String,
+}
+
+#[derive(Default, Debug, Clone, Deserialize)]
 pub struct ScanlationGroup {
 	pub scanlation_group_id: i64,
 	pub name: String,
@@ -139,7 +156,7 @@ impl ComixManga<'_> {
 	}
 
 	pub fn description(&self) -> Option<String> {
-		Some(self.synopsis.clone().into())
+		Some(self.synopsis)
 	}
 
 	pub fn cover(&self) -> Option<String> {
@@ -229,8 +246,8 @@ impl From<ComixManga<'_>> for Manga {
 		let viewer = match val.type_ {
 			ComixTypeFilter::Manga => Viewer::RightToLeft,
 			ComixTypeFilter::Manhwa => Viewer::Webtoon,
-			ComixTypeFilter::Manhua => Viewer::Vertical,
-			_ => Viewer::RightToLeft,
+			ComixTypeFilter::Manhua => Viewer::Webtoon,
+			_ => Viewer::Webtoon,
 		};
 
 		Manga {
@@ -295,7 +312,7 @@ impl From<ComixChapter> for Chapter {
 			volume_number,
 			date_uploaded: Some(val.updated_at),
 			scanlators: Some(val.scanlators()),
-			// url: Some(val.url()),
+			// url: Some(val.url),
 			language: Some(String::from(val.language)),
 			..Default::default()
 		}
@@ -315,7 +332,7 @@ pub enum ComixStatus {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "lowercase")]
 #[derive(Default)]
 pub enum ComixTypeFilter {
 	#[default]

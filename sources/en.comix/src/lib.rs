@@ -1,15 +1,16 @@
 #![no_std]
 use aidoku::{
-	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home,
-	HomeComponent, HomeLayout, ImageRequestProvider, Listing, ListingProvider, Manga,
+	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap,
+	Home, HomeComponent, HomeLayout, ImageRequestProvider, Listing, ListingProvider, Manga,
 	MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source, Viewer,
 	alloc::{String, Vec, borrow::ToOwned, fmt::format, string::ToString, vec},
-	imports::{html::Element, net::Request, std::send_partial_result},
+	imports::{html::Element, net::Request},
 	prelude::*,
 };
 
-use crate::model::{ComixChapter, ComixManga, ComixResponse};
+use crate::model::{ChapterResponse, ComixChapter, ComixManga, ComixResponse};
 
+mod home;
 mod model;
 // use iken::{IKen, Impl, Params};
 
@@ -17,6 +18,45 @@ const BASE_URL: &str = "https://comix.com";
 const API_URL: &str = "https://comix.to/api/v2";
 
 struct Comix;
+
+fn is_official_like(ch: &ComixChapter) -> bool {
+	ch.scanlation_group_id == 9275 || ch.is_official == 1
+}
+
+fn is_better(new_ch: &ComixChapter, cur: &ComixChapter) -> bool {
+	let official_new = is_official_like(new_ch);
+	let official_cur = is_official_like(cur);
+
+	if official_new && !official_cur {
+		return true;
+	}
+	if !official_new && official_cur {
+		return false;
+	}
+
+	if new_ch.votes > cur.votes {
+		return true;
+	}
+	if new_ch.votes < cur.votes {
+		return false;
+	}
+
+	new_ch.updated_at > cur.updated_at
+}
+
+fn dedup_insert(map: &mut HashMap<String, ComixChapter>, ch: ComixChapter) {
+	let key = ch.number.to_string();
+	match map.get(&key) {
+		None => {
+			map.insert(key, ch);
+		}
+		Some(current) => {
+			if is_better(&ch, current) {
+				map.insert(key, ch);
+			}
+		}
+	}
+}
 
 impl Source for Comix {
 	fn new() -> Self {
@@ -41,54 +81,49 @@ impl Source for Comix {
 		if needs_details {}
 
 		if needs_chapters {
-			let limit: i64 = 100;
-			let url = format!(
-				"{API_URL}/manga/{}/chapters?limit={}&page={}&order[number]=desc",
-				manga.key, limit, 1
-			);
+			let limit = 100;
+			let mut page = 1;
+			let mut chapter_map: HashMap<String, ComixChapter> = HashMap::new();
+			loop {
+				let url = format!(
+					"{API_URL}/manga/{}/chapters?limit={}&page={}&order[number]=desc",
+					manga.key, limit, page
+				);
 
-			// panic!("{}", url);
-			// .header("Referer", &format!("{}/", params.base_url))
-			let res = Request::get(url)?
-				.send()?
-				.get_json::<ComixResponse<ComixChapter>>()?;
+				let res = Request::get(url)?
+					.send()?
+					.get_json::<ComixResponse<ComixChapter>>()?;
 
-			let total = res.result.pagination.total;
+				// insert/dedup this page's items
+				for item in res.result.items {
+					dedup_insert(&mut chapter_map, item);
+				}
 
-			let chapters: Vec<Chapter> = res
-				.result
-				.items
-				.into_iter()
+				// stop condition
+				if res.result.pagination.current_page >= res.result.pagination.last_page {
+					break;
+				}
+
+				page += 1;
+			}
+
+			// convert to aidoku::Chapter and set url field
+			let mut chapters: Vec<Chapter> = chapter_map
+				.into_values()
 				.map(|item| {
 					let url = Some(item.url(&manga));
 					let mut ch: Chapter = item.into();
-					ch.url = url; // change 1 field (example)
+					ch.url = url;
 					ch
 				})
 				.collect();
 
-			let (mut chapters, total) = (chapters, total);
-			if (total > chapters.len() as i64) {
-				let pages = (total + limit - 1) / limit;
-
-				for page in 2..=pages {
-					let url = format!(
-						"{API_URL}/manga/{}/chapters?limit={limit}&page={page}&ordern[number]=desc",
-						manga.key
-					);
-
-					let res = Request::get(url)?
-						.send()?
-						.get_json::<ComixResponse<ComixChapter>>()?;
-
-					chapters.extend(res.result.items.into_iter().map(|item| {
-						let url = Some(item.url(&manga));
-						let mut ch: Chapter = item.into();
-						ch.url = url; // change 1 field (example)
-						ch
-					}));
-				}
-			}
+			// optional: keep deterministic ordering (desc by chapter number)
+			chapters.sort_by(|a, b| {
+				b.chapter_number
+					.partial_cmp(&a.chapter_number)
+					.unwrap_or(core::cmp::Ordering::Equal)
+			});
 
 			manga.chapters = Some(chapters);
 		}
@@ -97,38 +132,36 @@ impl Source for Comix {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		todo!()
-	}
-}
+		// let chapter_url = chapter.url.as_deref().unwrap_or("");
+		let chapter_id = chapter.key;
+		// Kotlin: val url = "${apiUrl}chapters/$chapterId"
+		let url = format!("{API_URL}/chapters/{}", chapter_id);
 
-impl Home for Comix {
-	fn get_home(&self) -> Result<HomeLayout> {
-		let url = format!("{API_URL}/manga?order[views_30d]=desc&limit=28");
+		// Kotlin: GET(url, headers) then parse JSON
+		let res = Request::get(url)?.send()?.get_json::<ChapterResponse>()?;
 
-		let mut manga_request = Request::get(&url)?.send()?;
-		let manga_response = manga_request.get_json::<ComixResponse<ComixManga>>()?;
-		let manga_list = manga_response
+		let result = res
 			.result
-			.items
+			.ok_or(error!("Chapter not found"))
+			.unwrap_or_default();
+
+		if result.images.is_empty() {
+			return Ok(vec![]);
+		}
+
+		// Kotlin: result.images.mapIndexed { index, img -> Page(index, imageUrl = img.url) }
+		let pages: Vec<Page> = result
+			.images
 			.into_iter()
-			.map(|item| Manga {
-				key: item.hash_id.to_string(),
-				title: item.title,
-				cover: Some(item.poster.medium.to_string()),
+			.enumerate()
+			.map(|(index, img)| Page {
+				// index: index as i32,
+				content: PageContent::url(img.url),
 				..Default::default()
 			})
 			.collect();
 
-		Ok(HomeLayout {
-			components: vec![HomeComponent {
-				title: Some("Hot Updates".into()),
-				subtitle: None,
-				value: aidoku::HomeComponentValue::BigScroller {
-					entries: manga_list,
-					auto_scroll_interval: None,
-				},
-			}],
-		})
+		Ok(pages)
 	}
 }
 
