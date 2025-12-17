@@ -4,7 +4,11 @@ use aidoku::{
 	Home, HomeComponent, HomeLayout, ImageRequestProvider, Listing, ListingProvider, Manga,
 	MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source, Viewer,
 	alloc::{String, Vec, borrow::ToOwned, fmt::format, string::ToString, vec},
-	imports::{html::Element, net::Request},
+	helpers::uri::QueryParameters,
+	imports::{
+		html::Element,
+		net::{Request, TimeUnit, set_rate_limit},
+	},
 	prelude::*,
 };
 
@@ -60,6 +64,7 @@ fn dedup_insert(map: &mut HashMap<String, ComixChapter>, ch: ComixChapter) {
 
 impl Source for Comix {
 	fn new() -> Self {
+		set_rate_limit(5, 1, TimeUnit::Seconds);
 		Self
 	}
 
@@ -69,6 +74,25 @@ impl Source for Comix {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
+		let mut qs = QueryParameters::new();
+		// for filter in filters {
+		// 	match filter {
+		// 		FilterValue::Text { id, value } => todo!(),
+		// 		FilterValue::Sort {
+		// 			id,
+		// 			index,
+		// 			ascending,
+		// 		} => todo!(),
+		// 		FilterValue::Check { id, value } => todo!(),
+		// 		FilterValue::Select { id, value } => todo!(),
+		// 		FilterValue::MultiSelect {
+		// 			id,
+		// 			included,
+		// 			excluded,
+		// 		} => todo!(),
+		// 		FilterValue::Range { id, from, to } => todo!(),
+		// 	}
+		// }
 		todo!()
 	}
 

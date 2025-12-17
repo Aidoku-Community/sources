@@ -48,12 +48,10 @@ pub struct ComixManga<'a> {
 
 	pub chapter_updated_at: i64,
 
-	pub start_date: i64,
-	pub end_date: String,
-
-	pub created_at: i64,
-	pub updated_at: i64,
-
+	// pub start_date: i64,
+	// // pub end_date: StringOrNumber,
+	// pub created_at: i64,
+	// pub updated_at: i64,
 	pub rated_avg: f64,
 	pub rated_count: i64,
 	pub follows_total: i64,
@@ -176,7 +174,7 @@ impl ComixManga<'_> {
 		self.term_ids
 			.iter()
 			// .filter_map(|t| t.attributes.name.get())
-			.map(|t| t.to_string())
+			.filter_map(|&t| Tag::from_id(t).map(|t| t.to_string()))
 			.collect()
 	}
 
@@ -535,7 +533,7 @@ impl Tag {
 			2 => Some(Tag::Shounen),
 			3 => Some(Tag::Josei),
 			4 => Some(Tag::Seinen),
-			39725 => Some(Tag::Fake),
+			// 39725 => Some(Tag::Fake),
 			_ => None,
 		}
 	}

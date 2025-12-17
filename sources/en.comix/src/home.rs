@@ -13,7 +13,7 @@ use crate::{
 
 impl Home for Comix {
 	fn get_home(&self) -> Result<HomeLayout> {
-		let url = format!("{API_URL}/manga?order[views_30d]=desc&limit=28");
+		let url = format!("{API_URL}/manga?order[views_30d]=desc&limit=50");
 
 		let mut manga_request = Request::get(&url)?.send()?;
 		let manga_response = manga_request.get_json::<ComixResponse<ComixManga>>()?;
@@ -27,7 +27,7 @@ impl Home for Comix {
 
 		Ok(HomeLayout {
 			components: vec![HomeComponent {
-				title: Some("Hot Updates".into()),
+				title: Some("Popular Releases".into()),
 				subtitle: None,
 				value: aidoku::HomeComponentValue::BigScroller {
 					entries: manga_list,
