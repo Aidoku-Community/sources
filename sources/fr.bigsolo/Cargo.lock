@@ -69,7 +69,6 @@ dependencies = [
  "aidoku-test",
  "regex",
  "serde",
- "serde_json",
 ]
 
 [[package]]

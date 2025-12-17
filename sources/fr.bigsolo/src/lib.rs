@@ -15,6 +15,8 @@ use aidoku::{
 mod models;
 use crate::models::{ChapterData, ChapterEndpointData, Series, SeriesList};
 
+const BASE_URL: &str = "https://bigsolo.org";
+
 struct BigSolo;
 
 impl Source for BigSolo {
@@ -28,9 +30,8 @@ impl Source for BigSolo {
 		_page: i32,
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let response = Request::get("https://bigsolo.org/data/series")?.string()?;
 		let series_list: SeriesList =
-			serde_json::from_str(&response).map_err(AidokuError::message)?;
+			Request::get(format!("{BASE_URL}/data/series"))?.json_owned::<SeriesList>()?;
 
 		let mut entries: Vec<Manga> = Vec::new();
 
@@ -60,21 +61,7 @@ impl Source for BigSolo {
 				continue;
 			}
 
-			let slug = series.slug.clone();
-			let manga = Manga {
-				key: series.slug.clone(),
-				title: series.title.clone(),
-				cover: Some(series.cover.url_lq.clone()),
-				authors: Some(vec![series.author]),
-				artists: Some(vec![series.artist]),
-				description: Some(series.description),
-				status: MangaStatus::Unknown,
-				tags: Some(series.tags),
-				url: Some(format!("https://bigsolo.org/{slug}")),
-				..Default::default()
-			};
-
-			entries.push(manga);
+			entries.push(series.into());
 		}
 
 		// process os array and add One-shot tag
@@ -83,22 +70,13 @@ impl Source for BigSolo {
 				continue;
 			}
 
-			let slug = series.slug.clone();
-			let mut tags = series.tags;
-			tags.push(String::from("One-shot"));
-
-			let manga = Manga {
-				key: series.slug.clone(),
-				title: series.title.clone(),
-				cover: Some(series.cover.url_lq.clone()),
-				authors: Some(vec![series.author]),
-				artists: Some(vec![series.artist]),
-				description: Some(series.description),
-				status: MangaStatus::Unknown,
-				tags: Some(tags),
-				url: Some(format!("https://bigsolo.org/{slug}")),
-				..Default::default()
-			};
+			let mut manga: Manga = series.into();
+			manga.status = MangaStatus::Unknown;
+			if let Some(tags) = manga.tags.as_mut() {
+				tags.push(String::from("One-shot"));
+			} else {
+				manga.tags = Some(vec![String::from("One-shot")]);
+			}
 
 			entries.push(manga);
 		}
@@ -115,9 +93,8 @@ impl Source for BigSolo {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let api_url = format!("https://bigsolo.org/data/series/{}", manga.key);
-		let response = Request::get(&api_url)?.string()?;
-		let series_data: Series = serde_json::from_str(&response).map_err(AidokuError::message)?;
+		let api_url = format!("{BASE_URL}/data/series/{}", manga.key);
+		let series_data: Series = Request::get(&api_url)?.json_owned::<Series>()?;
 
 		let title = series_data.title.clone();
 
@@ -133,7 +110,7 @@ impl Source for BigSolo {
 				tags.push(String::from("One-shot"));
 			}
 			manga.tags = Some(tags);
-			manga.url = Some(format!("https://bigsolo.org/{}", series_data.slug));
+			manga.url = Some(format!("{BASE_URL}/{}", series_data.slug));
 
 			if needs_chapters {
 				send_partial_result(&manga);
@@ -161,8 +138,8 @@ impl Source for BigSolo {
 							volume_number: chapter.volume.unwrap_or_default().parse().ok(),
 							date_uploaded: Some(chapter.timestamp),
 							url: Some(format!(
-								"https://bigsolo.org/{}/{}",
-								series_data.slug, chapter_key
+								"{BASE_URL}/{}/{}",
+								series_data.slug, chapter_key_str
 							)),
 							scanlators: Some(chapter.teams.clone()),
 							locked: chapter.licensed.unwrap_or(false),
@@ -177,14 +154,11 @@ impl Source for BigSolo {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let response = Request::get(format!(
-			"https://bigsolo.org/data/series/{}/{}",
+		let parsed = Request::get(format!(
+			"{BASE_URL}/data/series/{}/{}",
 			manga.key, chapter.key
 		))?
-		.string()?;
-
-		let parsed =
-			serde_json::from_str::<ChapterEndpointData>(&response).map_err(AidokuError::message)?;
+		.json_owned::<ChapterEndpointData>()?;
 
 		Ok(parsed
 			.images
@@ -209,30 +183,37 @@ impl BigSolo {
 	}
 }
 
+impl From<Series> for Manga {
+	fn from(series: Series) -> Self {
+		let url = Some(format!("{BASE_URL}/{}", series.slug));
+
+		Manga {
+			key: series.slug,
+			title: series.title,
+			cover: Some(series.cover.url_lq),
+			authors: Some(vec![series.author]),
+			artists: Some(vec![series.artist]),
+			description: Some(series.description),
+			status: BigSolo::map_bigsolo_status(&series.status),
+			tags: Some(series.tags),
+			url,
+			..Default::default()
+		}
+	}
+}
+
 impl Home for BigSolo {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let all_entries = self.get_search_manga_list(None, 1, Vec::new())?.entries;
 
-		let response = Request::get("https://bigsolo.org/data/series")?.string()?;
 		let home_data: SeriesList =
-			serde_json::from_str(&response).map_err(AidokuError::message)?;
+			Request::get(format!("{BASE_URL}/data/series"))?.json_owned::<SeriesList>()?;
 
 		let reco_entries = home_data
 			.reco
 			.into_iter()
-			.map(|series| Manga {
-				key: series.slug.clone(),
-				title: series.title.clone(),
-				cover: Some(series.cover.url_lq.clone()),
-				authors: Some(vec![series.author]),
-				artists: Some(vec![series.artist]),
-				description: Some(series.description),
-				status: BigSolo::map_bigsolo_status(&series.status),
-				tags: Some(series.tags),
-				url: Some(format!("https://bigsolo.org/{}", series.slug)),
-				..Default::default()
-			})
-			.collect();
+			.map(Into::into)
+			.collect::<Vec<Manga>>();
 
 		// get the latest chapters from the home data (series and os)
 		let mut latest_chapters: Vec<(String, String, ChapterData)> = home_data
@@ -263,10 +244,7 @@ impl Home for BigSolo {
 					chapter_number: chapter_key.parse().ok(),
 					volume_number: chapter_data.volume.unwrap_or_default().parse().ok(),
 					date_uploaded: Some(chapter_data.timestamp),
-					url: Some(format!(
-						"https://bigsolo.org/{}/{}",
-						series_slug, chapter_key
-					)),
+					url: Some(format!("{BASE_URL}/{}/{}", series_slug, chapter_key)),
 					scanlators: Some(chapter_data.teams.clone()),
 					locked: chapter_data.licensed.unwrap_or(false),
 					..Default::default()
@@ -343,23 +321,15 @@ impl Home for BigSolo {
 
 impl AlternateCoverProvider for BigSolo {
 	fn get_alternate_covers(&self, manga: Manga) -> Result<Vec<String>> {
-		let api_url = format!("https://bigsolo.org/data/series/{}", manga.key);
+		let api_url = format!("{BASE_URL}/data/series/{}", manga.key);
 
-		let response = match Request::get(&api_url).ok().and_then(|r| r.string().ok()) {
-			Some(r) => r,
-			None => return Ok(Vec::new()),
-		};
-
-		let series_data: Series = match serde_json::from_str(&response) {
-			Ok(data) => data,
-			Err(_) => return Ok(Vec::new()),
-		};
+		let series_data: Series = Request::get(&api_url)?.json_owned::<Series>()?;
 
 		// extract covers from covers_gallery
 		let covers: Vec<String> = series_data
 			.covers
 			.into_iter()
-			.map(|cover| cover.url_hq.clone())
+			.map(|cover| cover.url_hq)
 			.collect();
 
 		Ok(covers)
@@ -369,7 +339,7 @@ impl AlternateCoverProvider for BigSolo {
 impl DeepLinkHandler for BigSolo {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		// Strip protocol + domain
-		let path = match url.split("bigsolo.org").nth(1) {
+		let path = match url.split(BASE_URL).nth(1) {
 			Some(p) => p.trim_matches('/'),
 			None => return Ok(None),
 		};
@@ -408,7 +378,10 @@ impl ListingProvider for BigSolo {
 			// we need to sort by title because the catalogue is not sorted by title
 			let mut mangas = self.get_search_manga_list(None, page, Vec::new())?.entries;
 			mangas.sort_by(|a, b| a.title.cmp(&b.title));
-			Ok(MangaPageResult { entries: mangas, has_next_page: false })
+			Ok(MangaPageResult {
+				entries: mangas,
+				has_next_page: false,
+			})
 		} else {
 			Err(AidokuError::message("Unknown listing"))
 		}
@@ -418,9 +391,8 @@ impl ListingProvider for BigSolo {
 impl MigrationHandler for BigSolo {
 	fn handle_manga_migration(&self, old_key: String) -> Result<String> {
 		// fetch /data/series to find the series
-		let response = Request::get("https://bigsolo.org/data/series")?.string()?;
 		let series_list: SeriesList =
-			serde_json::from_str(&response).map_err(AidokuError::message)?;
+			Request::get(format!("{BASE_URL}/data/series"))?.json_owned::<SeriesList>()?;
 
 		// if old_key matches, return the slug as the new identifier
 		for series in series_list.series.iter().chain(series_list.os.iter()) {
