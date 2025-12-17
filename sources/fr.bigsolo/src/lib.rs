@@ -405,7 +405,10 @@ impl DeepLinkHandler for BigSolo {
 impl ListingProvider for BigSolo {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		if listing.id == "catalogue" {
-			self.get_search_manga_list(None, page, Vec::new())
+			// we need to sort by title because the catalogue is not sorted by title
+			let mut mangas = self.get_search_manga_list(None, page, Vec::new())?.entries;
+			mangas.sort_by(|a, b| a.title.cmp(&b.title));
+			Ok(MangaPageResult { entries: mangas, has_next_page: false })
 		} else {
 			Err(AidokuError::message("Unknown listing"))
 		}
