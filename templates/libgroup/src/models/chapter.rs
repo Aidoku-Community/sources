@@ -17,7 +17,7 @@ use crate::{
 
 use super::common::{LibGroupRestrictedView, LibGroupTeam};
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 pub struct LibGroupChapterBranch {
 	pub id: i32,
@@ -29,13 +29,13 @@ pub struct LibGroupChapterBranch {
 	pub moderation: Option<LibGroupModerated>,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 pub struct LibGroupChapterBranchUser {
 	pub username: String,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 #[serde(untagged)]
 enum LibGroupBranchesFormat {
 	Array(Vec<LibGroupChapterBranch>),
@@ -58,7 +58,7 @@ where
 	LibGroupBranchesFormat::deserialize(deserializer).map(|format| format.into_vec())
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 pub struct LibGroupChapterListItem {
 	pub volume: String,
@@ -68,36 +68,35 @@ pub struct LibGroupChapterListItem {
 	pub branches: Vec<LibGroupChapterBranch>,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupPage {
 	pub url: String,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize)]
 pub struct LibGroupImageChapter {
 	pub pages: Vec<LibGroupPage>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize)]
 pub struct LibGroupTextChapter {
 	pub content: LibGroupContentType,
 	pub attachments: Vec<LibGroupAttachment>,
 }
 
-#[derive(Debug, Clone)]
 pub enum LibGroupContentType {
 	Html(String),
 	Model(LibGroupContentModel),
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupContentModel {
 	pub content: Option<Vec<LibGroupContentNode>>,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupContentNode {
 	#[serde(rename = "type")]
@@ -106,33 +105,33 @@ pub struct LibGroupContentNode {
 	pub attrs: Option<LibGroupNodeAttrs>,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupTextNode {
 	pub text: Option<String>,
 	pub marks: Option<Vec<LibGroupMark>>,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupMark {
 	#[serde(rename = "type")]
 	pub mark_type: String,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupNodeAttrs {
 	pub images: Option<Vec<LibGroupImageAttr>>,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupImageAttr {
 	pub image: String,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupAttachment {
 	pub url: String,
@@ -140,7 +139,7 @@ pub struct LibGroupAttachment {
 	pub filename: Option<String>,
 }
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize)]
 #[serde(untagged)]
 pub enum LibGroupChapterData {
 	// Image chapter has "pages" field

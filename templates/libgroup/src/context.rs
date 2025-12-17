@@ -2,7 +2,6 @@ use aidoku::alloc::string::String;
 
 use crate::settings::{get_api_url, get_base_url, get_cover_quality_url};
 
-#[derive(Clone)]
 pub struct Context {
 	pub api_url: String,
 	pub base_url: String,

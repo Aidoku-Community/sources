@@ -2,10 +2,10 @@
 	"info": {
 		"id": "ru.hentailib",
 		"name": "HentaiLib",
-		"version": 2,
+		"version": 3,
 		"url": "https://hentailib.me",
 		"contentRating": 2,
-		"minAppVersion": "0.7.1",
+		"minAppVersion": "0.8",
 		"languages": ["ru"]
 	},
 	"listings": [
