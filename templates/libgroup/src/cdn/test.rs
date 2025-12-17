@@ -1,5 +1,5 @@
 use super::*;
-use aidoku::alloc::{String, string::ToString};
+use aidoku::alloc::{String, collections::btree_map::BTreeMap, string::ToString};
 use aidoku_test::aidoku_test;
 
 fn test_context() -> Context {
@@ -11,55 +11,48 @@ fn test_context() -> Context {
 	}
 }
 
-fn fake_now() -> i64 {
+fn mock_now() -> i64 {
 	1_000_000
 }
 
 fn make_cache_with_ttl(ttl: i64) -> ImageServerCache {
-	ImageServerCache::new_with_ttl(ttl, fake_now)
+	ImageServerCache::new_with_ttl(ttl, mock_now)
 }
 
 #[aidoku_test]
 fn cache_hit_returns_same_url() {
 	let cache = make_cache_with_ttl(3600);
-
 	let mut servers = BTreeMap::new();
 	let mut inner = BTreeMap::new();
 	inner.insert("server1".to_string(), "http://img.server/1".to_string());
 	servers.insert(1u8, inner);
 
-	// Seed cache with a fresh entry
 	{
 		let mut guard = cache.cache.write();
-		*guard = Some(CacheEntry::new(servers.clone(), fake_now()));
+		*guard = Some(CacheEntry::new(servers.clone(), mock_now()));
 	}
 
-	// extract_url directly from seeded map with explicit server_id
 	let url = cache.extract_url(&servers, &1u8, "server1");
 	assert_eq!(url, "http://img.server/1");
-
-	// For get_base_url, you'd need to ensure get_image_server_url() returns "server1"
-	// or test it separately
 }
 
 #[aidoku_test]
 fn expired_entry_detected() {
 	let ctx = test_context();
-	let cache = make_cache_with_ttl(1);
+	let cache = make_cache_with_ttl(1); // 1 second TTL
 
 	let mut servers = BTreeMap::new();
 	let mut inner = BTreeMap::new();
 	inner.insert("server1".to_string(), "http://img.server/1".to_string());
 	servers.insert(1u8, inner);
 
-	// seed with an expired timestamp
+	// Seed with time 10s in past (expired)
 	{
 		let mut guard = cache.cache.write();
-		*guard = Some(CacheEntry::new(servers.clone(), fake_now() - 10));
+		*guard = Some(CacheEntry::new(servers.clone(), mock_now() - 10));
 	}
 
-	// Since load_data will try to do a network request (and we can't mock it here),
-	// ensure get_base_url doesn't panic and returns either stale or empty string.
+	// Should not panic, should try network, fail, and handle safely
 	let _ = cache.get_base_url(&ctx);
 }
 

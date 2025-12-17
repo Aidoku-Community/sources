@@ -5,7 +5,6 @@ use aidoku::{
 };
 use chrono::{DateTime, Datelike, Utc};
 
-#[derive(Clone)]
 pub enum FilterId {
 	Sort,
 	GenresMatchMode,
