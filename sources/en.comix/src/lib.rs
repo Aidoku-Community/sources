@@ -178,7 +178,7 @@ impl Source for Comix {
 			.images
 			.into_iter()
 			.enumerate()
-			.map(|(index, img)| Page {
+			.map(|(_index, img)| Page {
 				// index: index as i32,
 				content: PageContent::url(img.url),
 				..Default::default()

@@ -1,6 +1,7 @@
+use aidoku::alloc::string::ToString;
 use aidoku::{
 	Home, HomeComponent, HomeLayout, Manga, Result,
-	alloc::{string::ToString, vec},
+	alloc::{Vec, vec},
 	imports::net::Request,
 	prelude::*,
 };
@@ -18,20 +19,22 @@ impl Home for Comix {
 		let mut manga_request = Request::get(&url)?.send()?;
 		let manga_response = manga_request.get_json::<ComixResponse<ComixManga>>()?;
 		// println!("{:?}", manga_response);
-		let manga_list = manga_response
+		let manga_list: Vec<Manga> = manga_response
 			.result
 			.items
 			.into_iter()
 			.map(Into::into)
 			.collect();
 
+		let first_ten_entries = manga_list.iter().take(10).cloned().collect();
+
 		Ok(HomeLayout {
 			components: vec![HomeComponent {
 				title: Some("Popular Releases".into()),
 				subtitle: None,
 				value: aidoku::HomeComponentValue::BigScroller {
-					entries: manga_list,
-					auto_scroll_interval: None,
+					entries: first_ten_entries,
+					auto_scroll_interval: Some(5.0),
 				},
 			}],
 		})
