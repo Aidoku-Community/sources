@@ -16,9 +16,9 @@ fn get_base_url() -> Result<String> {
 		.unwrap_or_default())
 }
 
-struct TruyenQQ;
+struct Truyen3Q;
 
-impl Impl for TruyenQQ {
+impl Impl for Truyen3Q {
 	fn new() -> Self {
 		Self
 	}
@@ -97,7 +97,7 @@ impl Impl for TruyenQQ {
 }
 
 register_source!(
-	WpComics<TruyenQQ>,
+	WpComics<Truyen3Q>,
 	ImageRequestProvider,
 	DeepLinkHandler,
 	Home
