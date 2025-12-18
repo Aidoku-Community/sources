@@ -1,0 +1,10 @@
+{
+  "info": {
+    "id": "vi.foxtruyen",
+    "name": "Fox truyện",
+    "version": 1,
+    "url": "https://foxtruyen.com",
+    "contentRating": 1,
+    "languages": ["vi"]
+  }
+}
