@@ -1,4 +1,4 @@
-use crate::helper::{extract_f32_from_string, find_first_f32, get_search_url, text_with_newlines};
+use crate::helper::{extract_f32_from_string, find_first_f32, text_with_newlines};
 
 use super::Params;
 use aidoku::{
@@ -413,7 +413,8 @@ pub trait Impl {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		self.get_manga_list(params, get_search_url(params, query, page, filters)?, None)
+		let url = { (params.get_search_url)(params, query, page, filters)? };
+		self.get_manga_list(params, url, None)
 	}
 
 	fn get_manga_update(
