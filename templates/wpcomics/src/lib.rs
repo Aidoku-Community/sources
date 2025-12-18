@@ -1,0 +1,267 @@
+#![no_std]
+use crate::helper::parse_chapter_date;
+use aidoku::{
+	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
+	Home, HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult, MangaStatus,
+	Page, PageContext, Result, Source, Viewer,
+	alloc::{String, Vec},
+	imports::net::Request,
+	prelude::*,
+};
+use core::cell::RefCell;
+
+pub mod helper;
+mod imp;
+
+pub use imp::Impl;
+
+pub struct Params {
+	pub base_url: String,
+	pub cookie: Option<String>,
+	pub status_mapping: fn(String) -> MangaStatus,
+	pub time_converter: fn(&Params, &str) -> i64,
+	pub nsfw: ContentRating,
+	pub viewer: Viewer,
+
+	pub next_page: &'static str,
+	pub manga_cell: &'static str,
+	pub manga_cell_url: &'static str,
+	pub manga_cell_title: &'static str,
+	pub manga_cell_image: &'static str,
+	pub manga_cell_image_attr: &'static str,
+	pub manga_parse_id: fn(String) -> String,
+
+	pub manga_details_title: &'static str,
+	pub manga_details_title_transformer: fn(String) -> String,
+	pub manga_details_cover: &'static str,
+	pub manga_details_cover_attr: &'static str,
+	pub manga_details_authors: &'static str,
+	pub manga_details_authors_transformer: fn(Vec<String>) -> Vec<String>,
+	pub manga_details_description: &'static str,
+	pub manga_details_tags: &'static str,
+	pub manga_details_tags_splitter: &'static str,
+	pub manga_details_status: &'static str,
+	pub manga_details_status_transformer: fn(String) -> String,
+
+	pub manga_details_chapters: &'static str,
+	pub chapter_skip_first: bool,
+	pub chapter_date_selector: &'static str,
+	pub chapter_anchor_selector: &'static str,
+	pub chapter_parse_id: fn(String) -> String,
+
+	pub manga_viewer_page: &'static str,
+	pub manga_viewer_page_url_suffix: &'static str,
+	pub page_url_transformer: fn(String) -> String,
+
+	pub user_agent: Option<&'static str>,
+
+	pub datetime_format: &'static str,
+	pub datetime_locale: &'static str,
+	pub datetime_timezone: &'static str,
+
+	pub genre_endpoint: &'static str,
+
+	pub cache_manga_id: Option<String>,
+	pub cache_manga_value: Option<Vec<u8>>,
+
+	pub search_page: fn(i32) -> String,
+	pub manga_page: fn(&Params, &Manga) -> String,
+	pub page_list_page: fn(&Params, &Manga, &Chapter) -> String,
+}
+
+impl Default for Params {
+	fn default() -> Self {
+		Self {
+			base_url: String::new(),
+			cookie: None,
+			status_mapping: |status| match status.as_str() {
+				"OnGoing"
+				| "Продолжается"
+				| "Updating"
+				| "Em Lançamento"
+				| "Em lançamento"
+				| "Em andamento"
+				| "Em Andamento"
+				| "En cours"
+				| "En Cours"
+				| "En cours de publication"
+				| "Ativo"
+				| "Lançando"
+				| "Đang Tiến Hành"
+				| "Devam Ediyor"
+				| "Devam ediyor"
+				| "In Corso"
+				| "In Arrivo"
+				| "مستمرة"
+				| "مستمر"
+				| "En Curso"
+				| "En curso"
+				| "Emision"
+				| "Curso"
+				| "En marcha"
+				| "Publicandose"
+				| "Publicándose"
+				| "En emision"
+				| "连载中"
+				| "Devam Ediyo"
+				| "Đang làm"
+				| "Em postagem"
+				| "Devam Eden"
+				| "Em progresso"
+				| "Em curso"
+				| "Atualizações Semanais" => MangaStatus::Ongoing,
+				"Completed" | "Completo" | "Completado" | "Concluído" | "Concluido"
+				| "Finalizado" | "Achevé" | "Terminé" | "Hoàn Thành" | "مكتملة" | "مكتمل"
+				| "已完结" | "Tamamlandı" | "Đã hoàn thành" | "Завершено" | "Tamamlanan"
+				| "Complété" => MangaStatus::Completed,
+				"Hiatus"
+				| "On Hold"
+				| "Pausado"
+				| "En espera"
+				| "Durduruldu"
+				| "Beklemede"
+				| "Đang chờ"
+				| "متوقف"
+				| "En Pause"
+				| "Заморожено"
+				| "En attente" => MangaStatus::Hiatus,
+				"Canceled" | "Cancelado" | "İptal Edildi" | "Güncel" | "Đã hủy" | "ملغي"
+				| "Abandonné" | "Заброшено" | "Annulé" => MangaStatus::Cancelled,
+				_ => MangaStatus::Unknown,
+			},
+			time_converter: |params, date| parse_chapter_date(params, &date),
+			nsfw: ContentRating::Safe,
+			viewer: Viewer::LeftToRight,
+
+			next_page: "li > a[rel=next]",
+			manga_cell: "div.items > div.row > div.item > figure.clearfix",
+			manga_cell_title: "figcaption > h3 > a",
+			manga_cell_url: "figcaption > h3 > a",
+			manga_cell_image: "div.image > a > img",
+			manga_cell_image_attr: "abs:data-original",
+			manga_parse_id: |url| url,
+
+			manga_details_title: "h1.title-detail",
+			manga_details_title_transformer: |title| title,
+			manga_details_cover: "div.col-image > img",
+			manga_details_cover_attr: "abs:src",
+			manga_details_authors: "ul.list-info > li.author > p.col-xs-8",
+			manga_details_authors_transformer: |titles| titles,
+			manga_details_description: "div.detail-content > p",
+			manga_details_tags: "li.kind.row > p.col-xs-8",
+			manga_details_tags_splitter: " - ",
+			manga_details_status: "li.status.row > p.col-xs-8",
+			manga_details_status_transformer: |title| title,
+			manga_details_chapters: "div.list-chapter > nav > ul > li",
+
+			chapter_skip_first: false,
+			chapter_anchor_selector: "div.chapter > a",
+			chapter_date_selector: "div.col-xs-4",
+			chapter_parse_id: |url| url,
+
+			manga_viewer_page: "div.page-chapter > img",
+			manga_viewer_page_url_suffix: "",
+			page_url_transformer: |url| url,
+
+			user_agent: None,
+
+			datetime_format: "MMMM dd, yyyy",
+			datetime_locale: "en_US_POSIX",
+			datetime_timezone: "current",
+
+			genre_endpoint: "tim-kiem-nang-cao.html",
+
+			cache_manga_id: None,
+			cache_manga_value: None,
+
+			search_page: |page| {
+				if page == 1 {
+					"".into()
+				} else {
+					format!("page/{page}/").into()
+				}
+			},
+			manga_page: |params, manga| format!("{}/{}", params.base_url, manga.key),
+			page_list_page: |params, manga, chapter| {
+				format!("{}/{}/{}", params.base_url, manga.key, chapter.key)
+			},
+		}
+	}
+}
+
+pub struct WpComics<T: Impl> {
+	inner: T,
+	params: RefCell<Params>,
+}
+
+impl<T: Impl> Source for WpComics<T> {
+	fn new() -> Self {
+		let inner = T::new();
+		let params = inner.params();
+		Self {
+			inner,
+			params: RefCell::new(params),
+		}
+	}
+
+	fn get_search_manga_list(
+		&self,
+		query: Option<String>,
+		page: i32,
+		filters: Vec<FilterValue>,
+	) -> Result<MangaPageResult> {
+		let mut params = self.params.borrow_mut();
+		self.inner
+			.get_search_manga_list(&mut params, query, page, filters)
+	}
+
+	fn get_manga_update(
+		&self,
+		manga: Manga,
+		needs_details: bool,
+		needs_chapters: bool,
+	) -> Result<Manga> {
+		let mut params = self.params.borrow_mut();
+		self.inner
+			.get_manga_update(&mut params, manga, needs_details, needs_chapters)
+	}
+
+	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+		let mut params = self.params.borrow_mut();
+		self.inner.get_page_list(&mut params, manga, chapter)
+	}
+}
+
+impl<T: Impl> ListingProvider for WpComics<T> {
+	fn get_manga_list(&self, _listing: aidoku::Listing, _page: i32) -> Result<MangaPageResult> {
+		todo!()
+	}
+}
+
+impl<T: Impl> Home for WpComics<T> {
+	fn get_home(&self) -> Result<HomeLayout> {
+		let mut params = self.params.borrow_mut();
+		self.inner.get_home(&mut params)
+	}
+}
+
+impl<T: Impl> DynamicFilters for WpComics<T> {
+	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
+		let mut params = self.params.borrow_mut();
+		self.inner.get_dynamic_filters(&mut params)
+	}
+}
+
+impl<T: Impl> ImageRequestProvider for WpComics<T> {
+	fn get_image_request(&self, url: String, context: Option<PageContext>) -> Result<Request> {
+		let mut params = self.params.borrow_mut();
+		self.inner.get_image_request(&mut params, url, context)
+	}
+}
+
+impl<T: Impl> DeepLinkHandler for WpComics<T> {
+	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
+		let mut params = self.params.borrow_mut();
+		self.inner.handle_deep_link(&mut params, url)
+	}
+}
