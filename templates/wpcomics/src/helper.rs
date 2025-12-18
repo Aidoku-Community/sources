@@ -1,0 +1,337 @@
+use aidoku::imports::std::{current_date, parse_date_with_options};
+use aidoku::{
+	ContentRating, FilterValue, Viewer,
+	alloc::{String, Vec, str, string::ToString},
+	helpers::uri::QueryParameters,
+	imports::html::{Element, Html},
+	prelude::format,
+};
+
+use crate::Params;
+
+pub fn trunc_trailing_comic(title: String) -> String {
+	let temp = title.chars().rev().collect::<String>();
+	if temp.find("cimoC") == Some(0) {
+		return temp
+			.replacen("cimoC", "", 1)
+			.chars()
+			.rev()
+			.collect::<String>();
+	} else {
+		return temp.chars().rev().collect::<String>();
+	}
+}
+
+pub fn extract_f32_from_string(title: String, text: String) -> Vec<f32> {
+	text.replace(&title, "")
+		.chars()
+		.filter(|a| (*a >= '0' && *a <= '9') || *a == ' ' || *a == '.' || *a == '+')
+		.collect::<String>()
+		.split(' ')
+		.collect::<Vec<&str>>()
+		.into_iter()
+		.map(|a: &str| a.parse::<f32>().unwrap_or(-1.0))
+		.filter(|a| *a >= 0.0)
+		.collect::<Vec<f32>>()
+}
+
+pub fn urlencode(string: String) -> String {
+	let mut result: Vec<u8> = Vec::with_capacity(string.len() * 3);
+	let hex = "0123456789abcdef".as_bytes();
+	let bytes = string.as_bytes();
+
+	for byte in bytes {
+		let curr = *byte;
+		if curr.is_ascii_alphanumeric() {
+			result.push(curr);
+		} else {
+			result.push(b'%');
+			result.push(hex[curr as usize >> 4]);
+			result.push(hex[curr as usize & 15]);
+		}
+	}
+
+	String::from_utf8(result).unwrap_or_default()
+}
+
+pub fn get_tag_id(genre: i64) -> String {
+	String::from(match genre {
+		1 => "marvel",
+		2 => "dc-comics",
+		3 => "action",
+		4 => "adventure",
+		5 => "anthology",
+		6 => "anthropomorphic",
+		7 => "biography",
+		8 => "children",
+		9 => "comedy",
+		10 => "crime",
+		11 => "cyborgs",
+		12 => "dark-horse",
+		13 => "demons",
+		14 => "drama",
+		15 => "fantasy",
+		16 => "family",
+		17 => "fighting",
+		18 => "gore",
+		19 => "graphic-novels",
+		20 => "historical",
+		21 => "horror",
+		22 => "leading-ladies",
+		23 => "literature",
+		24 => "magic",
+		25 => "manga",
+		26 => "martial-arts",
+		27 => "mature",
+		28 => "mecha",
+		29 => "military",
+		30 => "movie-cinematic-link",
+		31 => "mystery",
+		32 => "mythology",
+		33 => "psychological",
+		34 => "personal",
+		35 => "political",
+		36 => "post-apocalyptic",
+		37 => "pulp",
+		38 => "robots",
+		39 => "romance",
+		40 => "sci-fi",
+		41 => "slice-of-life",
+		42 => "science-fiction",
+		43 => "sport",
+		44 => "spy",
+		45 => "superhero",
+		46 => "supernatural",
+		47 => "suspense",
+		48 => "thriller",
+		49 => "vampires",
+		50 => "vertigo",
+		51 => "video-games",
+		52 => "war",
+		53 => "western",
+		54 => "zombies",
+		_ => "",
+	})
+}
+
+pub fn text_with_newlines(node: Element) -> String {
+	let html = node.html().unwrap_or("".to_string());
+	if !String::from(html.trim()).is_empty() {
+		if let Ok(node) = Html::parse(
+			format!(
+				"<div>{}</div>",
+				node.html()
+					.unwrap_or("".to_string())
+					.replace("<br>", "{{ .LINEBREAK }}")
+			)
+			.as_bytes(),
+		) {
+			node.select_first("div")
+				.and_then(|v| v.text())
+				.map(|t| t.replace("{{ .LINEBREAK }}", "\n"))
+				.unwrap_or("".to_string())
+		} else {
+			String::new()
+		}
+	} else {
+		String::new()
+	}
+}
+
+pub fn category_parser(
+	categories: &Vec<String>,
+	default_nsfw: ContentRating,
+	default_viewer: Viewer,
+) -> (ContentRating, Viewer) {
+	let mut nsfw = default_nsfw;
+	let mut viewer = default_viewer;
+	for category in categories {
+		match category.as_str() {
+			"Smut" | "Mature" | "18+" => nsfw = ContentRating::NSFW,
+			"Ecchi" | "16+" => {
+				nsfw = match nsfw {
+					ContentRating::NSFW => ContentRating::NSFW,
+					_ => ContentRating::Suggestive,
+				}
+			}
+			"Webtoon" | "Manhwa" | "Manhua" => viewer = Viewer::Webtoon,
+			_ => continue,
+		}
+	}
+	(nsfw, viewer)
+}
+
+pub fn get_search_url(
+	params: &Params,
+	query: Option<String>,
+	page: i32,
+	filters: Vec<FilterValue>,
+) -> aidoku::Result<String> {
+	let mut qs = QueryParameters::new();
+	qs.push("q", Some(&query.unwrap_or_default()));
+	qs.push("post_type", Some("wp-manga"));
+	for filter in filters {
+		match filter {
+			FilterValue::Text { id, value } => qs.push(&id, Some(&value)),
+			FilterValue::Sort { id, index, .. } => {
+				let value = match index {
+					0 => "",
+					1 => "latest",
+					2 => "alphabet",
+					3 => "rating",
+					4 => "trending",
+					5 => "views",
+					6 => "new-manga",
+					_ => "",
+				};
+				qs.push(&id, Some(value));
+			}
+			FilterValue::Select { id, value } => {
+				qs.push(&id, Some(&value));
+			}
+			FilterValue::MultiSelect { id, included, .. } => {
+				for tag in included {
+					qs.push(&id, Some(&tag));
+				}
+			}
+			_ => {}
+		}
+	}
+
+	Ok(format!(
+		"{}/{}{}{qs}",
+		params.base_url,
+		(params.search_page)(page),
+		if qs.is_empty() { "" } else { "?" }
+	))
+}
+
+pub fn find_first_f32(s: &str) -> Option<f32> {
+	let mut num = String::new();
+	let mut found_digit = false;
+	let mut dot_found = false;
+
+	for c in s.chars() {
+		if c.is_ascii_digit() {
+			num.push(c);
+			found_digit = true;
+		} else if c == '.' && found_digit && !dot_found {
+			num.push(c);
+			dot_found = true;
+		} else if found_digit {
+			break;
+		}
+	}
+
+	if found_digit {
+		num.parse::<f32>().ok()
+	} else {
+		None
+	}
+}
+
+pub fn parse_chapter_date(params: &Params, date: &str) -> i64 {
+	let result = parse_date_with_options(
+		date,
+		&params.datetime_format,
+		&params.datetime_locale,
+		&params.datetime_timezone,
+	);
+	if let Some(result) = result {
+		return result;
+	}
+
+	let now = current_date();
+
+	if date.contains("today") {
+		return now;
+	}
+
+	if date.contains("yesterday") || date.contains("يوم واحد") {
+		return now - 60 * 60 * 24;
+	}
+
+	if date.contains("يوم وايومين") {
+		return now - 2 * 60 * 60 * 24; // day before yesterday
+	}
+
+	// fall back to parsing relative date
+	// returns current date if not a relative date / it fails to parse
+	parse_relative_date(date, now)
+}
+
+// parses a relative date string (e.g. "21 horas ago")
+pub fn parse_relative_date(date: &str, current_date: i64) -> i64 {
+	// extract the first number found in the string
+	let number = date
+		.split_whitespace()
+		.find_map(|word| word.parse::<i64>().ok())
+		.unwrap_or(0);
+
+	let date_lc = date.to_lowercase();
+
+	// check if any word in a set is present in the string
+	fn any_word_in(haystack: &str, words: &[&str]) -> bool {
+		words.iter().any(|&w| haystack.contains(w))
+	}
+
+	const SECOND: i64 = 1;
+	const MINUTE: i64 = 60 * SECOND;
+	const HOUR: i64 = 60 * MINUTE;
+	const DAY: i64 = 24 * HOUR;
+	const WEEK: i64 = 7 * DAY;
+	const MONTH: i64 = 30 * DAY;
+	const YEAR: i64 = 365 * DAY;
+
+	let offset = if any_word_in(
+		&date_lc,
+		&[
+			"hari",
+			"gün",
+			"jour",
+			"día",
+			"dia",
+			"day",
+			"วัน",
+			"ngày",
+			"giorni",
+			"أيام",
+			"天",
+		],
+	) {
+		number * DAY
+	} else if any_word_in(
+		&date_lc,
+		&[
+			"jam",
+			"saat",
+			"heure",
+			"hora",
+			"hour",
+			"ชั่วโมง",
+			"giờ",
+			"ore",
+			"ساعة",
+			"小时",
+		],
+	) {
+		number * HOUR
+	} else if any_word_in(
+		&date_lc,
+		&["menit", "dakika", "min", "minute", "minuto", "นาที", "دقائق"],
+	) {
+		number * MINUTE
+	} else if any_word_in(&date_lc, &["detik", "segundo", "second", "วินาที"]) {
+		number * SECOND
+	} else if any_word_in(&date_lc, &["week", "semana"]) {
+		number * WEEK
+	} else if any_word_in(&date_lc, &["month", "mes"]) {
+		number * MONTH
+	} else if any_word_in(&date_lc, &["year", "año"]) {
+		number * YEAR
+	} else {
+		0
+	};
+
+	current_date - offset
+}
