@@ -1,0 +1,20 @@
+[
+	{
+		"type": "group",
+		"title": "Settings",
+		"items": [
+			{
+				"type": "text",
+				"placeholder": "Base URL",
+				"key": "baseURL",
+				"default": "https://truyenqq.online"
+			},
+			{
+				"type": "text",
+				"placeholder": "Visit Read ID",
+				"key": "visitReadId",
+				"default": "6806034e0db74-6806034e0db79"
+			}
+		]
+	}
+]
