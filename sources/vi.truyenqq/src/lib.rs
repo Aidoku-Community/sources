@@ -133,7 +133,7 @@ impl Impl for TruyenQQ {
 				}
 
 				Ok(format!(
-					"{}/tim-kiem-nang-cao/trang-{}.html?category={}&notcategory={}{}",
+					"{}/tim-kiem-nang-cao/trang-{}.html?category={}&notcategory={}&{}",
 					params.base_url,
 					page,
 					included_tags.join(","),
