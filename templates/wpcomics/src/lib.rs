@@ -1,5 +1,5 @@
 #![no_std]
-use crate::helper::parse_chapter_date;
+use crate::helper::{get_search_url, parse_chapter_date};
 use aidoku::{
 	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
 	Home, HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult, MangaStatus,
@@ -67,6 +67,13 @@ pub struct Params {
 	pub search_page: fn(i32) -> String,
 	pub manga_page: fn(&Params, &Manga) -> String,
 	pub page_list_page: fn(&Params, &Manga, &Chapter) -> String,
+
+	pub get_search_url: fn(
+		params: &Params,
+		query: Option<String>,
+		page: i32,
+		filters: Vec<FilterValue>,
+	) -> Result<String>,
 }
 
 impl Default for Params {
@@ -184,6 +191,10 @@ impl Default for Params {
 			manga_page: |params, manga| format!("{}/{}", params.base_url, manga.key),
 			page_list_page: |params, manga, chapter| {
 				format!("{}/{}/{}", params.base_url, manga.key, chapter.key)
+			},
+
+			get_search_url: |params, query, page, filters| {
+				get_search_url(params, query, page, filters)
 			},
 		}
 	}
