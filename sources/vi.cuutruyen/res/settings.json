@@ -1,0 +1,9 @@
+[
+  {
+    "type": "text",
+    "key": "proxy_url",
+    "placeholder": "HTTP Proxy URL",
+    "title": "Proxy URL",
+    "default": "https://hard-emu-60.deno.dev"
+  }
+]
