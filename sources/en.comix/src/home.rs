@@ -1,4 +1,5 @@
 use aidoku::alloc::string::ToString;
+use aidoku::helpers::uri::QueryParameters;
 use aidoku::{
 	Home, HomeComponent, HomeLayout, Manga, Result,
 	alloc::{Vec, vec},
@@ -6,19 +7,21 @@ use aidoku::{
 	prelude::*,
 };
 
-use crate::Comix;
 use crate::{
 	API_URL,
-	model::{ComixChapter, ComixManga, ComixResponse},
+	model::{ComixChapter, ComixManga, ComixResponse, ResultData},
 };
+use crate::{Comix, INCLUDES};
 
 impl Home for Comix {
 	fn get_home(&self) -> Result<HomeLayout> {
-		let url = format!("{API_URL}/manga?order[views_30d]=desc&limit=50");
-
+		let mut qs = QueryParameters::new();
+		for item in INCLUDES {
+			qs.push("includes[]", Some(item));
+		}
+		let url = format!("{API_URL}/manga?order[views_30d]=desc&limit=50&{qs}");
 		let mut manga_request = Request::get(&url)?.send()?;
-		let manga_response = manga_request.get_json::<ComixResponse<ComixManga>>()?;
-		// println!("{:?}", manga_response);
+		let manga_response = manga_request.get_json::<ComixResponse<ResultData<ComixManga>>>()?;
 		let manga_list: Vec<Manga> = manga_response
 			.result
 			.items

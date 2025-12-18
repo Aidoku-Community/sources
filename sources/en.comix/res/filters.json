@@ -34,7 +34,6 @@
     "type": "multi-select",
     "title": "Status",
     "id": "status",
-    "canExclude": true,
     "options": [
       "Finished",
       "Releasing",
@@ -54,7 +53,6 @@
     "type": "multi-select",
     "title": "Type",
     "id": "type",
-    "canExclude": true,
     "options": ["Manga", "Manhwa", "Manhua", "Other"],
     "ids": ["manga", "manhwa", "manhua", "other"]
   },
@@ -71,6 +69,7 @@
     "id": "demographic",
     "title": "Demographic",
     "usesTagStyle": true,
+    "canExclude": true,
     "options": ["Shounen", "Shoujo", "Seinen", "Josei"],
     "ids": ["2", "1", "4", "3"]
   },
