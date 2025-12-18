@@ -1,0 +1,105 @@
+#![no_std]
+use aidoku::{
+	FilterValue, Result, Source, Viewer,
+	alloc::{string::ToString, *},
+	helpers::uri::QueryParameters,
+	imports::defaults::defaults_get,
+	prelude::*,
+};
+use wpcomics::{Impl, Params, WpComics};
+
+const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
+
+fn get_base_url() -> Result<String> {
+	Ok(defaults_get::<String>("baseURL")
+		.map(|v| v.trim_end_matches('/').to_string())
+		.unwrap_or_default())
+}
+
+struct FoxTruyen;
+
+impl Impl for FoxTruyen {
+	fn new() -> Self {
+		Self
+	}
+
+	fn params(&self) -> Params {
+		Params {
+			base_url: String::from(get_base_url().unwrap_or_default()),
+
+			next_page: "li.active + li > a[title*=\"kết quả\"]",
+			viewer: Viewer::RightToLeft,
+
+			manga_parse_id: |url| {
+				String::from(
+					url.split("truyen-tranh/")
+						.nth(1)
+						.and_then(|s| s.split('/').next())
+						.unwrap_or_default(),
+				)
+			},
+			chapter_parse_id: |url| {
+				String::from(url.trim_end_matches('/').rsplit('/').next().unwrap())
+			},
+
+			user_agent: Some(USER_AGENT),
+			manga_details_description: "div.detail-content > .shortened",
+
+			manga_page: |params, manga| format!("{}/truyen-tranh/{}", params.base_url, manga.key),
+			page_list_page: |params, manga, chapter| {
+				format!(
+					"{}/truyen-tranh/{}/{}",
+					params.base_url, manga.key, chapter.key
+				)
+			},
+
+			get_search_url: |params, q, page, filters| {
+				let mut query = QueryParameters::new();
+				query.push("keyword", Some(&q.unwrap_or_default()));
+				query.push("post_type", Some("wp-manga"));
+				query.push("page", Some(&page.to_string()));
+
+				if filters.len() == 0 {
+					return Ok(format!(
+						"{}/{}{query}",
+						params.base_url,
+						if query.is_empty() { "" } else { "?" }
+					));
+				}
+
+				let mut tag = "".to_string();
+
+				for filter in filters {
+					match filter {
+						FilterValue::Select { id, value } => {
+							if id == "tag" {
+								tag = value.clone();
+							} else {
+								query.push(&id, Some(&value));
+							}
+						}
+						FilterValue::Sort { id, index, .. } => {
+							query.push(&id, Some(&index.to_string()));
+						}
+						_ => {}
+					}
+				}
+
+				Ok(format!(
+					"{}/tim-truyen/{}{}{query}",
+					params.base_url,
+					tag,
+					if query.is_empty() { "" } else { "?" }
+				))
+			},
+			..Default::default()
+		}
+	}
+}
+
+register_source!(
+	WpComics<FoxTruyen>,
+	ImageRequestProvider,
+	DeepLinkHandler,
+	Home
+);
