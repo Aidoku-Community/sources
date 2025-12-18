@@ -1,7 +1,8 @@
 #![no_std]
 use aidoku::{
-	BaseUrlProvider, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Manga,
-	MangaPageResult, MangaStatus, MigrationHandler, Page, PageContent, Result, Source, Viewer,
+	BaseUrlProvider, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue,
+	ImageRequestProvider, Manga, MangaPageResult, MangaStatus, MigrationHandler, Page, PageContent,
+	PageContext, Result, Source, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::QueryParameters,
 	imports::{defaults::defaults_get, net::Request, std::current_date},
@@ -393,6 +394,12 @@ impl DeepLinkHandler for BatoTo {
 	}
 }
 
+impl ImageRequestProvider for BatoTo {
+	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
+		Ok(Request::get(url.replace("//k", "//n"))?)
+	}
+}
+
 impl BaseUrlProvider for BatoTo {
 	fn get_base_url(&self) -> Result<String> {
 		Ok(defaults_get::<String>("url").unwrap_or_default())
@@ -415,4 +422,10 @@ impl MigrationHandler for BatoTo {
 	}
 }
 
-register_source!(BatoTo, DeepLinkHandler, BaseUrlProvider, MigrationHandler);
+register_source!(
+	BatoTo,
+	ImageRequestProvider,
+	DeepLinkHandler,
+	BaseUrlProvider,
+	MigrationHandler
+);
