@@ -93,8 +93,6 @@ pub trait Impl {
 			}
 		}
 
-		println!("categor = {:?}", categories);
-		println!("viewer = {:?}", viewer);
 		(nsfw, viewer)
 	}
 	fn get_manga_list(
