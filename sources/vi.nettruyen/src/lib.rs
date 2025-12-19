@@ -1,20 +1,14 @@
 #![no_std]
 use aidoku::{
-	FilterValue, Result, Source, Viewer,
+	FilterValue, Source, Viewer,
 	alloc::{string::ToString, *},
 	helpers::uri::QueryParameters,
-	imports::defaults::defaults_get,
 	prelude::*,
 };
 use wpcomics::{Impl, Params, WpComics};
 
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
-
-fn get_base_url() -> Result<String> {
-	Ok(defaults_get::<String>("baseURL")
-		.map(|v| v.trim_end_matches('/').to_string())
-		.unwrap_or_default())
-}
+const BASE_URL: &str = "https://nettruyenviet1.com";
 
 struct FoxTruyen;
 
@@ -25,7 +19,7 @@ impl Impl for FoxTruyen {
 
 	fn params(&self) -> Params {
 		Params {
-			base_url: String::from(get_base_url().unwrap_or_default()),
+			base_url: String::from(BASE_URL),
 
 			next_page: "li.active + li > a[title*=\"kết quả\"]",
 			viewer: Viewer::RightToLeft,
