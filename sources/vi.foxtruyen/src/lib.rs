@@ -55,7 +55,7 @@ impl Impl for FoxTruyen {
 			},
 			manga_viewer_page: ".content_detail_manga img",
 
-			manga_details_authors: "li.author.row p.col-xs-9",
+			manga_details_authors: ".org",
 			manga_details_description: "div.story-detail-info.detail-content",
 			manga_details_tags: "ul.list01 > li",
 			manga_details_tags_splitter: "",
@@ -130,8 +130,6 @@ impl Impl for FoxTruyen {
 					query
 				))
 			},
-
-			manga_details_authors: ".org",
 
 			home_manga_link: ".book_name, .fs14",
 			home_chapter_link: ".cl99",
