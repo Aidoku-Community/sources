@@ -1,9 +1,21 @@
 [
-  {
-    "type": "text",
-    "key": "proxy_url",
-    "placeholder": "HTTP Proxy URL",
-    "title": "Proxy URL",
-    "default": "https://hard-emu-60.deno.dev"
-  }
+	{
+		"type": "group",
+		"title": "Cài đặt",
+		"items": [
+			{
+				"type": "select",
+				"key": "proxy_url",
+				"title": "Proxy",
+				"titles": [
+					"Tắt",
+					"Shin Proxy"
+				],
+				"values": [
+					"",
+					"https://hard-emu-60.deno.dev"
+				]
+			}
+		]
+	}
 ]
