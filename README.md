@@ -6,7 +6,7 @@ This repository hosts unofficial sources maintained by community members that ar
 
 On a device with Aidoku (0.7+) installed, you can open [https://aidoku-community.github.io/sources/](https://aidoku-community.github.io/sources/) and click the "Add Repository" button to add the source list directly to the app.
 
-Otherwise, navigate to the settings tab, and under the source lists page add `https://aidoku-community.github.io/sources/index.min.json`.
+Otherwise, navigate to the settings tab, and under the source lists page add `https://tachibana-shin.github.io/aidoku-sources-next/index.min.json`.
 
 If a source is not working, or you want to request a source that isn't available in this source list, feel free to [create a new issue](https://github.com/Aidoku-Community/sources/issues).
 
