@@ -163,7 +163,8 @@ pub trait Impl {
 		let cover = details
 			.select(params.manga_details_cover)
 			.and_then(|n| n.first())
-			.and_then(|n| n.attr(params.manga_details_cover_attr));
+			.and_then(|n| n.attr(params.manga_details_cover_attr))
+			.map(params.manga_details_cover_transformer);
 
 		let authors = Some((params.manga_details_authors_transformer)(
 			details
@@ -281,12 +282,10 @@ pub trait Impl {
 				let splitter2 = format!("#{}", chapter_number);
 				if chapter_title.contains(&splitter) {
 					let split = chapter_title.splitn(2, &splitter).collect::<Vec<&str>>();
-					chapter_title =
-						String::from(split[1]).replacen([':', '-'], "", 1);
+					chapter_title = String::from(split[1]).replacen([':', '-'], "", 1);
 				} else if chapter_title.contains(&splitter2) {
 					let split = chapter_title.splitn(2, &splitter2).collect::<Vec<&str>>();
-					chapter_title =
-						String::from(split[1]).replacen([':', '-'], "", 1);
+					chapter_title = String::from(split[1]).replacen([':', '-'], "", 1);
 				}
 			}
 			let date_updated = (params.time_converter)(
@@ -455,23 +454,39 @@ pub trait Impl {
 
 		let mut components = Vec::new();
 
-		let parse_manga = |el: &Element| -> Option<Manga> {
+		let parse_manga = |el: &Element, slider: bool| -> Option<Manga> {
 			let manga_link = el
 				.select_first(params.home_manga_link)
 				.or_else(|| el.select_first(".widget-title a"))?;
+			let cover = el
+				.select_first(params.home_manga_cover_selector)
+				.and_then(|img| {
+					img.attr(if slider {
+						params
+							.home_manga_cover_slider_attr
+							.unwrap_or(params.home_manga_cover_attr)
+					} else {
+						params.home_manga_cover_attr
+					})
+					.or_else(|| img.attr("data-cfsrc"))
+				})
+				.map(|src| {
+					if slider {
+						(params.home_manga_cover_slider_transformer)(src)
+					} else {
+						src
+					}
+				});
 			Some(Manga {
 				key: (params.manga_parse_id)(manga_link.attr("abs:href")?),
 				title: manga_link.text()?,
-				cover: el.select_first("img").and_then(|img| {
-					img.attr(params.home_manga_cover_attr)
-						.or_else(|| img.attr("data-cfsrc"))
-				}),
+				cover,
 				url: manga_link.attr("href"),
 				..Default::default()
 			})
 		};
 		let parse_manga_with_chapter = |el: &Element| -> Option<MangaWithChapter> {
-			let manga = parse_manga(el)?;
+			let manga = parse_manga(el, false)?;
 			let chapter_link = el.select_first(params.home_chapter_link)?;
 			let title_text = chapter_link.text()?;
 			let chapter_number = find_first_f32(&title_text);
@@ -510,7 +525,10 @@ pub trait Impl {
 					.and_then(|el| el.text());
 				let items = popular_slider
 					.select(params.home_sliders_item_selector)
-					.map(|els| els.filter_map(|el| parse_manga(&el)).collect::<Vec<_>>())
+					.map(|els| {
+						els.filter_map(|el| parse_manga(&el, true))
+							.collect::<Vec<_>>()
+					})
 					.unwrap_or_default();
 				if !items.is_empty() {
 					components.push(HomeComponent {

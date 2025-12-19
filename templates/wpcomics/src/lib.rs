@@ -35,6 +35,7 @@ pub struct Params {
 	pub manga_details_title_transformer: fn(String) -> String,
 	pub manga_details_cover: &'static str,
 	pub manga_details_cover_attr: &'static str,
+	pub manga_details_cover_transformer: fn(String) -> String,
 	pub manga_details_authors: &'static str,
 	pub manga_details_authors_transformer: fn(Vec<String>) -> Vec<String>,
 	pub manga_details_description: &'static str,
@@ -88,7 +89,10 @@ pub struct Params {
 	pub home_grids_title_selector: &'static str,
 	pub home_grids_item_selector: &'static str,
 
+	pub home_manga_cover_selector: &'static str,
 	pub home_manga_cover_attr: &'static str,
+	pub home_manga_cover_slider_attr: Option<&'static str>,
+	pub home_manga_cover_slider_transformer: fn(String) -> String,
 	pub time_formats: Option<Vec<&'static str>>,
 }
 
@@ -168,6 +172,7 @@ impl Default for Params {
 			manga_details_title_transformer: |title| title,
 			manga_details_cover: "div.col-image > img",
 			manga_details_cover_attr: "abs:src",
+			manga_details_cover_transformer: |src| src,
 			manga_details_authors: "ul.list-info > li.author > p.col-xs-8",
 			manga_details_authors_transformer: |titles| titles,
 			manga_details_description: "div.detail-content > p",
@@ -226,7 +231,10 @@ impl Default for Params {
 			home_grids_title_selector: "h1",
 			home_grids_item_selector: "li",
 
+			home_manga_cover_selector: "img",
 			home_manga_cover_attr: "abs:src",
+			home_manga_cover_slider_attr: None,
+			home_manga_cover_slider_transformer: |src| src,
 			time_formats: None,
 		}
 	}
