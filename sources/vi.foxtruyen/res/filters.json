@@ -4,7 +4,7 @@
     "id": "status",
     "name": "Tình trạng",
     "options": ["Tất cả", "Đang tiến hành", "Đã hoàn thành"],
-    "ids": [-1, 0, 2]
+    "ids": ["-1", "0", "2"]
   },
   {
     "type": "sort",
