@@ -86,7 +86,7 @@ impl Impl for TruyenQQ2 {
 				query.push("page", Some(&page.to_string()));
 				query.push("post_type", Some("wp-manga"));
 
-				if filters.len() == 0 {
+				if filters.is_empty() {
 					return Ok(format!(
 						"{}/tim-kiem{}{query}",
 						params.base_url,

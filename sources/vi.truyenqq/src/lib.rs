@@ -72,7 +72,7 @@ impl Impl for TruyenQQ {
 			page_url_transformer: |url| url,
 			user_agent: Some(USER_AGENT),
 
-			search_page: |page| format!("tim-kiem/trang-{}.html", page).into(),
+			search_page: |page| format!("tim-kiem/trang-{}.html", page),
 			manga_page: |params, manga| format!("{}/truyen-tranh/{}", params.base_url, manga.key),
 			page_list_page: |params, manga, chapter| {
 				format!(
@@ -88,7 +88,7 @@ impl Impl for TruyenQQ {
 				query.push("q", Some(&q.unwrap_or_default()));
 				query.push("post_type", Some("wp-manga"));
 
-				if filters.len() == 0 {
+				if filters.is_empty() {
 					return Ok(format!(
 						"{}/{}{}{query}",
 						params.base_url,
