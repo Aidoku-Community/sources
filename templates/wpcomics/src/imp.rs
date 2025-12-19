@@ -6,7 +6,6 @@ use aidoku::{
 	MangaPageResult, MangaWithChapter, MultiSelectFilter, Page, PageContent, PageContext, Result,
 	Viewer,
 	alloc::{String, Vec, string::ToString, vec},
-	helpers::string::StripPrefixOrSelf,
 	imports::{
 		html::{Element, Html},
 		net::{HttpMethod, Request},
@@ -457,33 +456,28 @@ pub trait Impl {
 
 		let parse_manga = |el: &Element| -> Option<Manga> {
 			let manga_link = el
-				.select_first(".book_info a")
+				.select_first(params.home_manga_link)
 				.or_else(|| el.select_first(".widget-title a"))?;
 			Some(Manga {
-				key: manga_link
-					.attr("href")?
-					.strip_prefix_or_self(base_url)
-					.into(),
+				key: (params.manga_parse_id)(manga_link.attr("abs:href")?).into(),
 				title: manga_link.text()?,
-				cover: el
-					.select_first("img")
-					.and_then(|img| img.attr("abs:src").or_else(|| img.attr("data-cfsrc"))),
+				cover: el.select_first("img").and_then(|img| {
+					img.attr(params.home_manga_cover_attr)
+						.or_else(|| img.attr("data-cfsrc"))
+				}),
 				url: manga_link.attr("href"),
 				..Default::default()
 			})
 		};
 		let parse_manga_with_chapter = |el: &Element| -> Option<MangaWithChapter> {
 			let manga = parse_manga(el)?;
-			let chapter_link = el.select_first(".last_chapter a, .chapter-item a")?;
+			let chapter_link = el.select_first(params.home_chapter_link)?;
 			let title_text = chapter_link.text()?;
 			let chapter_number = find_first_f32(&title_text);
 			Some(MangaWithChapter {
 				manga,
 				chapter: Chapter {
-					key: chapter_link
-						.attr("href")?
-						.strip_prefix_or_self(base_url)
-						.into(),
+					key: (params.chapter_parse_id)(chapter_link.attr("abs:href")?).into(),
 					title: if title_text.contains("-") {
 						title_text
 							.split_once('-')
@@ -493,8 +487,14 @@ pub trait Impl {
 					},
 					chapter_number,
 					date_uploaded: el
-						.select_first(".time-ago, .timediff a")
-						.and_then(|el| el.attr("title"))
+						.select_first(params.home_date_uploaded)
+						.and_then(|el| {
+							if params.home_date_uploaded_attr == "text" {
+								el.text()
+							} else {
+								el.attr(params.home_date_uploaded_attr)
+							}
+						})
 						.map(|date| (params.time_converter)(&params, &date)),
 					url: chapter_link.attr("href"),
 					..Default::default()
@@ -502,11 +502,13 @@ pub trait Impl {
 			})
 		};
 
-		if let Some(popular_sliders) = html.select(".homepage_suggest") {
+		if let Some(popular_sliders) = html.select(params.home_sliders_selector) {
 			for popular_slider in popular_sliders {
-				let title = popular_slider.select_first("h2").and_then(|el| el.text());
+				let title = popular_slider
+					.select_first(params.home_sliders_title_selector)
+					.and_then(|el| el.text());
 				let items = popular_slider
-					.select("li")
+					.select(params.home_sliders_item_selector)
 					.map(|els| els.filter_map(|el| parse_manga(&el)).collect::<Vec<_>>())
 					.unwrap_or_default();
 				if !items.is_empty() {
@@ -522,11 +524,13 @@ pub trait Impl {
 			}
 		}
 
-		if let Some(main_cols) = html.select(".list_grid_out") {
+		if let Some(main_cols) = html.select(params.home_grids_selector) {
 			for main_col in main_cols {
-				let title = main_col.select_first("h1").and_then(|el| el.text());
+				let title = main_col
+					.select_first(params.home_grids_title_selector)
+					.and_then(|el| el.text());
 				let last_updates = main_col
-					.select("li")
+					.select(params.home_grids_item_selector)
 					.map(|els| {
 						els.filter_map(|el| parse_manga_with_chapter(&el))
 							.collect::<Vec<_>>()

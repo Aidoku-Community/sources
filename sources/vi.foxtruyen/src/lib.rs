@@ -66,7 +66,7 @@ impl Impl for FoxTruyen {
 			manga_details_tags: "ul.list01 > li",
 			manga_details_tags_splitter: "",
 			manga_details_status: "li.status.row p.col-xs-9",
-		
+
 			chapter_skip_first: false,
 			page_url_transformer: |url| url,
 			user_agent: Some(USER_AGENT),
@@ -136,6 +136,25 @@ impl Impl for FoxTruyen {
 					query
 				))
 			},
+
+			manga_details_authors: ".org",
+
+			home_manga_link: ".book_name, .fs14",
+			home_chapter_link: ".cl99",
+			home_date_uploaded: ".time-ago, .timediff a",
+			home_date_uploaded_attr: "text",
+
+			home_sliders_selector: ".homepage_suggest",
+			home_sliders_title_selector: "h2",
+			home_sliders_item_selector: "li",
+
+			home_grids_selector: "section > div > .col-md-6, .container > section:nth-child(1)",
+			home_grids_title_selector: ".title_cate",
+			home_grids_item_selector: ".item_home",
+
+			home_manga_cover_attr: "abs:data-src",
+			time_formats: Some(["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"].to_vec()),
+
 			..Default::default()
 		}
 	}
