@@ -1,20 +1,14 @@
 #![no_std]
 use aidoku::{
-	FilterValue, Result, Source, Viewer,
+	FilterValue, Source, Viewer,
 	alloc::{string::ToString, *},
 	helpers::uri::QueryParameters,
-	imports::defaults::defaults_get,
 	prelude::*,
 };
 use wpcomics::{Impl, Params, WpComics};
 
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
-
-fn get_base_url() -> Result<String> {
-	Ok(defaults_get::<String>("baseURL")
-		.map(|v| v.trim_end_matches('/').to_string())
-		.unwrap_or_default())
-}
+const BASE_URL: &str = "https://truyentranh3qr.com";
 
 struct Truyen3Q;
 
@@ -25,7 +19,7 @@ impl Impl for Truyen3Q {
 
 	fn params(&self) -> Params {
 		Params {
-			base_url: String::from(get_base_url().unwrap_or_default()),
+			base_url: String::from(BASE_URL),
 			viewer: Viewer::RightToLeft,
 
 			next_page: ".page_redirect > a:nth-last-child(2) > p:not(.active)",
@@ -91,6 +85,23 @@ impl Impl for Truyen3Q {
 					query
 				))
 			},
+
+			home_manga_link: "h3 > a",
+			home_chapter_link: ".last_chapter > a",
+			home_date_uploaded: ".time-ago",
+			home_date_uploaded_attr: "text",
+
+			home_sliders_selector: ".homepage_suggest",
+			home_sliders_title_selector: "h2",
+			home_sliders_item_selector: ".item",
+
+			home_grids_selector: "#main_homepage",
+			home_grids_title_selector: "h1",
+			home_grids_item_selector: "ul > li",
+
+			home_manga_cover_attr: "abs:src",
+			time_formats: Some(["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"].to_vec()),
+
 			..Default::default()
 		}
 	}

@@ -1,20 +1,14 @@
 #![no_std]
 use aidoku::{
-	FilterValue, Result, Source, Viewer,
 	alloc::{string::ToString, *},
 	helpers::uri::QueryParameters,
-	imports::defaults::defaults_get,
 	prelude::*,
+	FilterValue, Source, Viewer,
 };
-use wpcomics::{Impl, Params, WpComics, helper::urlencode};
+use wpcomics::{helper::urlencode, Impl, Params, WpComics};
 
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
-
-fn get_base_url() -> Result<String> {
-	Ok(defaults_get::<String>("baseURL")
-		.map(|v| v.trim_end_matches('/').to_string())
-		.unwrap_or_default())
-}
+const BASE_URL: &str = "https://foxtruyen.com";
 
 struct FoxTruyen;
 
@@ -25,7 +19,7 @@ impl Impl for FoxTruyen {
 
 	fn params(&self) -> Params {
 		Params {
-			base_url: String::from(get_base_url().unwrap_or_default()),
+			base_url: String::from(BASE_URL),
 			cookie: Some("type_book=1".to_string()),
 			next_page: ".page_redirect > a:nth-last-child(2) > p:not(.active)",
 			viewer: Viewer::RightToLeft,
@@ -61,17 +55,17 @@ impl Impl for FoxTruyen {
 			},
 			manga_viewer_page: ".content_detail_manga img",
 
-			manga_details_authors: "li.author.row p.col-xs-9",
+			manga_details_authors: ".org",
 			manga_details_description: "div.story-detail-info.detail-content",
 			manga_details_tags: "ul.list01 > li",
 			manga_details_tags_splitter: "",
 			manga_details_status: "li.status.row p.col-xs-9",
-		
+
 			chapter_skip_first: false,
 			page_url_transformer: |url| url,
 			user_agent: Some(USER_AGENT),
 
-			search_page: |page| format!("tim-kiem/trang-{}.html", page).into(),
+			search_page: |page| format!("tim-kiem/trang-{}.html", page),
 			manga_page: |params, manga| format!("{}/truyen-tranh/{}", params.base_url, manga.key),
 			page_list_page: |params, manga, chapter| {
 				format!(
@@ -87,7 +81,7 @@ impl Impl for FoxTruyen {
 				query.push("q", Some(&q.unwrap_or_default()));
 				query.push("post_type", Some("wp-manga"));
 
-				if filters.len() == 0 {
+				if filters.is_empty() {
 					return Ok(format!(
 						"{}/{}{}{query}",
 						params.base_url,
@@ -136,6 +130,23 @@ impl Impl for FoxTruyen {
 					query
 				))
 			},
+
+			home_manga_link: ".book_name, .fs14",
+			home_chapter_link: ".cl99",
+			home_date_uploaded: ".time-ago, .timediff a",
+			home_date_uploaded_attr: "text",
+
+			home_sliders_selector: ".homepage_suggest",
+			home_sliders_title_selector: "h2",
+			home_sliders_item_selector: "li",
+
+			home_grids_selector: "section > div > .col-md-6, .container > section:nth-child(1)",
+			home_grids_title_selector: ".title_cate",
+			home_grids_item_selector: ".item_home",
+
+			home_manga_cover_attr: "abs:data-src",
+			time_formats: Some(["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"].to_vec()),
+
 			..Default::default()
 		}
 	}

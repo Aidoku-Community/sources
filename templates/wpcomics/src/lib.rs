@@ -74,6 +74,22 @@ pub struct Params {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<String>,
+
+	pub home_manga_link: &'static str,
+	pub home_chapter_link: &'static str,
+	pub home_date_uploaded: &'static str,
+	pub home_date_uploaded_attr: &'static str,
+
+	pub home_sliders_selector: &'static str,
+	pub home_sliders_title_selector: &'static str,
+	pub home_sliders_item_selector: &'static str,
+
+	pub home_grids_selector: &'static str,
+	pub home_grids_title_selector: &'static str,
+	pub home_grids_item_selector: &'static str,
+
+	pub home_manga_cover_attr: &'static str,
+	pub time_formats: Option<Vec<&'static str>>,
 }
 
 impl Default for Params {
@@ -136,7 +152,7 @@ impl Default for Params {
 				| "Abandonné" | "Заброшено" | "Annulé" => MangaStatus::Cancelled,
 				_ => MangaStatus::Unknown,
 			},
-			time_converter: |params, date| parse_chapter_date(params, &date),
+			time_converter: |params, date| parse_chapter_date(params, date),
 			nsfw: ContentRating::Safe,
 			viewer: Viewer::LeftToRight,
 
@@ -185,7 +201,7 @@ impl Default for Params {
 				if page == 1 {
 					"".into()
 				} else {
-					format!("page/{page}/").into()
+					format!("page/{page}/")
 				}
 			},
 			manga_page: |params, manga| format!("{}/{}", params.base_url, manga.key),
@@ -196,6 +212,22 @@ impl Default for Params {
 			get_search_url: |params, query, page, filters| {
 				get_search_url(params, query, page, filters)
 			},
+
+			home_manga_link: ".book_info a",
+			home_chapter_link: ".last_chapter a, .chapter-item a",
+			home_date_uploaded: ".time-ago, .timediff a",
+			home_date_uploaded_attr: "title",
+
+			home_sliders_selector: ".homepage_suggest",
+			home_sliders_title_selector: "h2",
+			home_sliders_item_selector: "li",
+
+			home_grids_selector: ".list_grid_out",
+			home_grids_title_selector: "h1",
+			home_grids_item_selector: "li",
+
+			home_manga_cover_attr: "abs:src",
+			time_formats: None,
 		}
 	}
 }

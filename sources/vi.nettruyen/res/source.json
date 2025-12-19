@@ -1,10 +1,12 @@
 {
-  "info": {
-    "id": "vi.nettruyen",
-    "name": "Net truyện",
-    "version": 1,
-    "url": "https://nettruyenviet1.com",
-    "contentRating": 1,
-    "languages": ["vi"]
-  }
+	"info": {
+		"id": "vi.nettruyen",
+		"name": "Net truyện",
+		"version": 2,
+		"url": "https://nettruyenviet1.com",
+		"contentRating": 1,
+		"languages": [
+			"vi"
+		]
+	}
 }

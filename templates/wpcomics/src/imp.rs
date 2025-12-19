@@ -6,7 +6,6 @@ use aidoku::{
 	MangaPageResult, MangaWithChapter, MultiSelectFilter, Page, PageContent, PageContext, Result,
 	Viewer,
 	alloc::{String, Vec, string::ToString, vec},
-	helpers::string::StripPrefixOrSelf,
 	imports::{
 		html::{Element, Html},
 		net::{HttpMethod, Request},
@@ -68,7 +67,7 @@ pub trait Impl {
 				req = req.header(key, value);
 			}
 		}
-		Ok(self.modify_request(params, req)?)
+		self.modify_request(params, req)
 	}
 
 	fn category_parser(
@@ -81,7 +80,7 @@ pub trait Impl {
 		#[allow(clippy::needless_match)]
 		let mut viewer = params.viewer;
 		for category in categories {
-			match category.to_ascii_uppercase().as_str() {
+			match category.to_ascii_lowercase().as_str() {
 				"smut" | "mature" | "18+" | "adult" => nsfw = ContentRating::NSFW,
 				"ecchi" | "16+" => {
 					nsfw = match nsfw {
@@ -93,6 +92,9 @@ pub trait Impl {
 				_ => continue,
 			}
 		}
+
+		println!("categor = {:?}", categories);
+		println!("viewer = {:?}", viewer);
 		(nsfw, viewer)
 	}
 	fn get_manga_list(
@@ -202,7 +204,7 @@ pub trait Impl {
 
 				if let Some(split) = split {
 					for node in split {
-						tags.push(String::from(node));
+						tags.push(node);
 					}
 				}
 			}
@@ -282,21 +284,21 @@ pub trait Impl {
 				if chapter_title.contains(&splitter) {
 					let split = chapter_title.splitn(2, &splitter).collect::<Vec<&str>>();
 					chapter_title =
-						String::from(split[1]).replacen(|char| char == ':' || char == '-', "", 1);
+						String::from(split[1]).replacen([':', '-'], "", 1);
 				} else if chapter_title.contains(&splitter2) {
 					let split = chapter_title.splitn(2, &splitter2).collect::<Vec<&str>>();
 					chapter_title =
-						String::from(split[1]).replacen(|char| char == ':' || char == '-', "", 1);
+						String::from(split[1]).replacen([':', '-'], "", 1);
 				}
 			}
 			let date_updated = (params.time_converter)(
-				&params,
+				params,
 				&chapter_node
 					.select(params.chapter_date_selector)
 					.unwrap()
 					.text()
 					.unwrap_or_default(),
-			) as i64;
+			);
 
 			chapter_title = chapter_title.trim().to_string();
 			chapter_title = String::from(if chapter_title.is_empty() {
@@ -457,33 +459,28 @@ pub trait Impl {
 
 		let parse_manga = |el: &Element| -> Option<Manga> {
 			let manga_link = el
-				.select_first(".book_info a")
+				.select_first(params.home_manga_link)
 				.or_else(|| el.select_first(".widget-title a"))?;
 			Some(Manga {
-				key: manga_link
-					.attr("href")?
-					.strip_prefix_or_self(base_url)
-					.into(),
+				key: (params.manga_parse_id)(manga_link.attr("abs:href")?),
 				title: manga_link.text()?,
-				cover: el
-					.select_first("img")
-					.and_then(|img| img.attr("abs:src").or_else(|| img.attr("data-cfsrc"))),
+				cover: el.select_first("img").and_then(|img| {
+					img.attr(params.home_manga_cover_attr)
+						.or_else(|| img.attr("data-cfsrc"))
+				}),
 				url: manga_link.attr("href"),
 				..Default::default()
 			})
 		};
 		let parse_manga_with_chapter = |el: &Element| -> Option<MangaWithChapter> {
 			let manga = parse_manga(el)?;
-			let chapter_link = el.select_first(".last_chapter a, .chapter-item a")?;
+			let chapter_link = el.select_first(params.home_chapter_link)?;
 			let title_text = chapter_link.text()?;
 			let chapter_number = find_first_f32(&title_text);
 			Some(MangaWithChapter {
 				manga,
 				chapter: Chapter {
-					key: chapter_link
-						.attr("href")?
-						.strip_prefix_or_self(base_url)
-						.into(),
+					key: (params.chapter_parse_id)(chapter_link.attr("abs:href")?),
 					title: if title_text.contains("-") {
 						title_text
 							.split_once('-')
@@ -493,20 +490,28 @@ pub trait Impl {
 					},
 					chapter_number,
 					date_uploaded: el
-						.select_first(".time-ago, .timediff a")
-						.and_then(|el| el.attr("title"))
-						.map(|date| (params.time_converter)(&params, &date)),
+						.select_first(params.home_date_uploaded)
+						.and_then(|el| {
+							if params.home_date_uploaded_attr == "text" {
+								el.text()
+							} else {
+								el.attr(params.home_date_uploaded_attr)
+							}
+						})
+						.map(|date| (params.time_converter)(params, &date)),
 					url: chapter_link.attr("href"),
 					..Default::default()
 				},
 			})
 		};
 
-		if let Some(popular_sliders) = html.select(".homepage_suggest") {
+		if let Some(popular_sliders) = html.select(params.home_sliders_selector) {
 			for popular_slider in popular_sliders {
-				let title = popular_slider.select_first("h2").and_then(|el| el.text());
+				let title = popular_slider
+					.select_first(params.home_sliders_title_selector)
+					.and_then(|el| el.text());
 				let items = popular_slider
-					.select("li")
+					.select(params.home_sliders_item_selector)
 					.map(|els| els.filter_map(|el| parse_manga(&el)).collect::<Vec<_>>())
 					.unwrap_or_default();
 				if !items.is_empty() {
@@ -522,11 +527,13 @@ pub trait Impl {
 			}
 		}
 
-		if let Some(main_cols) = html.select(".list_grid_out") {
+		if let Some(main_cols) = html.select(params.home_grids_selector) {
 			for main_col in main_cols {
-				let title = main_col.select_first("h1").and_then(|el| el.text());
+				let title = main_col
+					.select_first(params.home_grids_title_selector)
+					.and_then(|el| el.text());
 				let last_updates = main_col
-					.select("li")
+					.select(params.home_grids_item_selector)
 					.map(|els| {
 						els.filter_map(|el| parse_manga_with_chapter(&el))
 							.collect::<Vec<_>>()

@@ -6,19 +6,20 @@ use aidoku::{
 	imports::html::{Element, Html},
 	prelude::format,
 };
+use chrono::{NaiveDate, NaiveDateTime};
 
 use crate::Params;
 
 pub fn trunc_trailing_comic(title: String) -> String {
 	let temp = title.chars().rev().collect::<String>();
 	if temp.find("cimoC") == Some(0) {
-		return temp
+		temp
 			.replacen("cimoC", "", 1)
 			.chars()
 			.rev()
-			.collect::<String>();
+			.collect::<String>()
 	} else {
-		return temp.chars().rev().collect::<String>();
+		temp.chars().rev().collect::<String>()
 	}
 }
 
@@ -231,11 +232,13 @@ pub fn find_first_f32(s: &str) -> Option<f32> {
 }
 
 pub fn parse_chapter_date(params: &Params, date: &str) -> i64 {
+	let date = date.trim();
+
 	let result = parse_date_with_options(
 		date,
-		&params.datetime_format,
-		&params.datetime_locale,
-		&params.datetime_timezone,
+		params.datetime_format,
+		params.datetime_locale,
+		params.datetime_timezone,
 	);
 	if let Some(result) = result {
 		return result;
@@ -247,7 +250,7 @@ pub fn parse_chapter_date(params: &Params, date: &str) -> i64 {
 		return now;
 	}
 
-	if date.contains("yesterday") || date.contains("يوم واحد") {
+	if date.contains("yesterday") || date.contains("qua") || date.contains("يوم واحد") {
 		return now - 60 * 60 * 24;
 	}
 
@@ -257,11 +260,25 @@ pub fn parse_chapter_date(params: &Params, date: &str) -> i64 {
 
 	// fall back to parsing relative date
 	// returns current date if not a relative date / it fails to parse
-	parse_relative_date(date, now)
+	parse_relative_date(date, now, params.time_formats.as_deref())
 }
 
 // parses a relative date string (e.g. "21 horas ago")
-pub fn parse_relative_date(date: &str, current_date: i64) -> i64 {
+pub fn parse_relative_date(
+	date: &str,
+	current_date: i64,
+	absolute_formats: Option<&[&str]>,
+) -> i64 {
+	let absolute_formats: &[&str] =
+		absolute_formats.unwrap_or(&["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"]);
+
+	for fmt in absolute_formats {
+		if let Ok(d) = NaiveDate::parse_from_str(date, fmt) {
+			let dt = NaiveDateTime::new(d, chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+			return dt.and_utc().timestamp();
+		}
+	}
+
 	// extract the first number found in the string
 	let number = date
 		.split_whitespace()
@@ -286,48 +303,52 @@ pub fn parse_relative_date(date: &str, current_date: i64) -> i64 {
 	let offset = if any_word_in(
 		&date_lc,
 		&[
-			"hari",
-			"gün",
-			"jour",
-			"día",
-			"dia",
-			"day",
-			"วัน",
-			"ngày",
-			"giorni",
-			"أيام",
-			"天",
+			"day", "hari", "jour", "día", "dia", "gün", "ngày", "日", "日前", "天", "أيام",
 		],
 	) {
 		number * DAY
 	} else if any_word_in(
 		&date_lc,
 		&[
-			"jam",
-			"saat",
+			"hour",
 			"heure",
 			"hora",
-			"hour",
-			"ชั่วโมง",
+			"jam",
+			"saat",
 			"giờ",
-			"ore",
-			"ساعة",
+			"時間",
+			"時間前",
 			"小时",
+			"ساعة",
 		],
 	) {
 		number * HOUR
 	} else if any_word_in(
 		&date_lc,
-		&["menit", "dakika", "min", "minute", "minuto", "นาที", "دقائق"],
+		&[
+			"minute",
+			"min",
+			"minuto",
+			"menit",
+			"dakika",
+			"phút",
+			"分",
+			"分前",
+			"นาที",
+			"دقائق",
+		],
 	) {
 		number * MINUTE
-	} else if any_word_in(&date_lc, &["detik", "segundo", "second", "วินาที"]) {
+	} else if any_word_in(
+		&date_lc,
+		&["second", "segundo", "detik", "giây", "秒", "秒前", "วินาที"],
+	) {
 		number * SECOND
-	} else if any_word_in(&date_lc, &["week", "semana"]) {
+	} else if any_word_in(&date_lc, &["week", "semana", "tuần", "週間"]) {
 		number * WEEK
-	} else if any_word_in(&date_lc, &["month", "mes"]) {
+	} else if any_word_in(&date_lc, &["month", "mes", "tháng", "ヶ月", "か月"]) {
 		number * MONTH
-	} else if any_word_in(&date_lc, &["year", "año"]) {
+	} else if any_word_in(&date_lc, &["year", "año", "năm", "年"]) {
 		number * YEAR
 	} else {
 		0
