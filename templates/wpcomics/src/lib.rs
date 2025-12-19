@@ -152,7 +152,7 @@ impl Default for Params {
 				| "Abandonné" | "Заброшено" | "Annulé" => MangaStatus::Cancelled,
 				_ => MangaStatus::Unknown,
 			},
-			time_converter: |params, date| parse_chapter_date(params, &date),
+			time_converter: |params, date| parse_chapter_date(params, date),
 			nsfw: ContentRating::Safe,
 			viewer: Viewer::LeftToRight,
 
@@ -201,7 +201,7 @@ impl Default for Params {
 				if page == 1 {
 					"".into()
 				} else {
-					format!("page/{page}/").into()
+					format!("page/{page}/")
 				}
 			},
 			manga_page: |params, manga| format!("{}/{}", params.base_url, manga.key),

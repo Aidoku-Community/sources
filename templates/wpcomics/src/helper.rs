@@ -13,13 +13,13 @@ use crate::Params;
 pub fn trunc_trailing_comic(title: String) -> String {
 	let temp = title.chars().rev().collect::<String>();
 	if temp.find("cimoC") == Some(0) {
-		return temp
+		temp
 			.replacen("cimoC", "", 1)
 			.chars()
 			.rev()
-			.collect::<String>();
+			.collect::<String>()
 	} else {
-		return temp.chars().rev().collect::<String>();
+		temp.chars().rev().collect::<String>()
 	}
 }
 
@@ -236,9 +236,9 @@ pub fn parse_chapter_date(params: &Params, date: &str) -> i64 {
 
 	let result = parse_date_with_options(
 		date,
-		&params.datetime_format,
-		&params.datetime_locale,
-		&params.datetime_timezone,
+		params.datetime_format,
+		params.datetime_locale,
+		params.datetime_timezone,
 	);
 	if let Some(result) = result {
 		return result;

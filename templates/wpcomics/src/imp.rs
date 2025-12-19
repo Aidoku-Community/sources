@@ -67,7 +67,7 @@ pub trait Impl {
 				req = req.header(key, value);
 			}
 		}
-		Ok(self.modify_request(params, req)?)
+		self.modify_request(params, req)
 	}
 
 	fn category_parser(
@@ -204,7 +204,7 @@ pub trait Impl {
 
 				if let Some(split) = split {
 					for node in split {
-						tags.push(String::from(node));
+						tags.push(node);
 					}
 				}
 			}
@@ -284,21 +284,21 @@ pub trait Impl {
 				if chapter_title.contains(&splitter) {
 					let split = chapter_title.splitn(2, &splitter).collect::<Vec<&str>>();
 					chapter_title =
-						String::from(split[1]).replacen(|char| char == ':' || char == '-', "", 1);
+						String::from(split[1]).replacen([':', '-'], "", 1);
 				} else if chapter_title.contains(&splitter2) {
 					let split = chapter_title.splitn(2, &splitter2).collect::<Vec<&str>>();
 					chapter_title =
-						String::from(split[1]).replacen(|char| char == ':' || char == '-', "", 1);
+						String::from(split[1]).replacen([':', '-'], "", 1);
 				}
 			}
 			let date_updated = (params.time_converter)(
-				&params,
+				params,
 				&chapter_node
 					.select(params.chapter_date_selector)
 					.unwrap()
 					.text()
 					.unwrap_or_default(),
-			) as i64;
+			);
 
 			chapter_title = chapter_title.trim().to_string();
 			chapter_title = String::from(if chapter_title.is_empty() {
@@ -462,7 +462,7 @@ pub trait Impl {
 				.select_first(params.home_manga_link)
 				.or_else(|| el.select_first(".widget-title a"))?;
 			Some(Manga {
-				key: (params.manga_parse_id)(manga_link.attr("abs:href")?).into(),
+				key: (params.manga_parse_id)(manga_link.attr("abs:href")?),
 				title: manga_link.text()?,
 				cover: el.select_first("img").and_then(|img| {
 					img.attr(params.home_manga_cover_attr)
@@ -480,7 +480,7 @@ pub trait Impl {
 			Some(MangaWithChapter {
 				manga,
 				chapter: Chapter {
-					key: (params.chapter_parse_id)(chapter_link.attr("abs:href")?).into(),
+					key: (params.chapter_parse_id)(chapter_link.attr("abs:href")?),
 					title: if title_text.contains("-") {
 						title_text
 							.split_once('-')
@@ -498,7 +498,7 @@ pub trait Impl {
 								el.attr(params.home_date_uploaded_attr)
 							}
 						})
-						.map(|date| (params.time_converter)(&params, &date)),
+						.map(|date| (params.time_converter)(params, &date)),
 					url: chapter_link.attr("href"),
 					..Default::default()
 				},
