@@ -3,8 +3,16 @@
 		"type": "select",
 		"id": "status",
 		"name": "Tình trạng",
-		"options": ["Tất cả", "Đang tiến hành", "Đã hoàn thành"],
-		"ids": ["-1", "0", "2"]
+		"options": [
+			"Tất cả",
+			"Đang tiến hành",
+			"Đã hoàn thành"
+		],
+		"ids": [
+			"-1",
+			"0",
+			"2"
+		]
 	},
 	{
 		"type": "sort",
@@ -18,7 +26,14 @@
 			"Lượt xem giảm dần",
 			"Lượt xem tăng dần"
 		],
-		"ids": ["0", "1", "2", "3", "4", "5"]
+		"ids": [
+			"0",
+			"1",
+			"2",
+			"3",
+			"4",
+			"5"
+		]
 	},
 	{
 		"type": "multi-select",

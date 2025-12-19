@@ -3,8 +3,16 @@
 		"type": "select",
 		"id": "status",
 		"name": "Tình trạng",
-		"options": ["Tất cả", "Đang tiến hành", "Đã hoàn thành"],
-		"ids": ["", "1", "2"]
+		"options": [
+			"Tất cả",
+			"Đang tiến hành",
+			"Đã hoàn thành"
+		],
+		"ids": [
+			"",
+			"1",
+			"2"
+		]
 	},
 	{
 		"type": "sort",
@@ -22,7 +30,18 @@
 			"Số chapter",
 			"Top Follow"
 		],
-		"ids": ["", "15", "10", "11", "12", "13", "20", "25", "30", "19"]
+		"ids": [
+			"",
+			"15",
+			"10",
+			"11",
+			"12",
+			"13",
+			"20",
+			"25",
+			"30",
+			"19"
+		]
 	},
 	{
 		"type": "select",
