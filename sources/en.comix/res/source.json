@@ -1,0 +1,18 @@
+{
+	"info": {
+		"id": "en.comix",
+		"name": "Comix",
+		"version": 1,
+		"url": "https://comix.to",
+		"contentRating": 1,
+		"languages": ["en"]
+	},
+	"listings": [
+		{
+			"id": "Trending Webtoon"
+		},
+		{
+			"id": "Trending Manga"
+		}
+	]
+}
