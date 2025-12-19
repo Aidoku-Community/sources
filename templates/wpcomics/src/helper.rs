@@ -234,7 +234,6 @@ pub fn find_first_f32(s: &str) -> Option<f32> {
 pub fn parse_chapter_date(params: &Params, date: &str) -> i64 {
 	let date = date.trim();
 
-	aidoku::println!("date = {}", date);
 	let result = parse_date_with_options(
 		date,
 		&params.datetime_format,

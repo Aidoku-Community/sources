@@ -80,7 +80,7 @@ pub trait Impl {
 		#[allow(clippy::needless_match)]
 		let mut viewer = params.viewer;
 		for category in categories {
-			match category.to_ascii_uppercase().as_str() {
+			match category.to_ascii_lowercase().as_str() {
 				"smut" | "mature" | "18+" | "adult" => nsfw = ContentRating::NSFW,
 				"ecchi" | "16+" => {
 					nsfw = match nsfw {
@@ -92,6 +92,9 @@ pub trait Impl {
 				_ => continue,
 			}
 		}
+
+		println!("categor = {:?}", categories);
+		println!("viewer = {:?}", viewer);
 		(nsfw, viewer)
 	}
 	fn get_manga_list(
