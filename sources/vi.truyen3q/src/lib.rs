@@ -91,6 +91,23 @@ impl Impl for Truyen3Q {
 					query
 				))
 			},
+
+			home_manga_link: "h3 > a",
+			home_chapter_link: ".last_chapter > a",
+			home_date_uploaded: ".time-ago",
+			home_date_uploaded_attr: "text",
+
+			home_sliders_selector: ".homepage_suggest",
+			home_sliders_title_selector: "h2",
+			home_sliders_item_selector: ".item",
+
+			home_grids_selector: "#main_homepage",
+			home_grids_title_selector: "h1",
+			home_grids_item_selector: "ul > li",
+
+			home_manga_cover_attr: "abs:src",
+			time_formats: Some(["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"].to_vec()),
+
 			..Default::default()
 		}
 	}
