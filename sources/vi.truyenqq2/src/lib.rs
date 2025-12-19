@@ -9,12 +9,8 @@ use aidoku::{
 use wpcomics::{Impl, Params, WpComics, helper::urlencode};
 
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
+const BASE_URL: &str = "https://truyenqq.online";
 
-fn get_base_url() -> Result<String> {
-	Ok(defaults_get::<String>("baseURL")
-		.map(|v| v.trim_end_matches('/').to_string())
-		.unwrap_or_default())
-}
 fn get_visit_read_id() -> Result<String> {
 	Ok(defaults_get::<String>("visitReadId")
 		.map(|v| v.trim_end_matches('/').to_string())
@@ -35,7 +31,7 @@ impl Impl for TruyenQQ2 {
 		));
 
 		Params {
-			base_url: String::from(get_base_url().unwrap_or_default()),
+			base_url: String::from(BASE_URL),
 			cookie,
 			viewer: Viewer::RightToLeft,
 
@@ -131,6 +127,9 @@ impl Impl for TruyenQQ2 {
 					query
 				))
 			},
+
+			time_formats: Some(["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"].to_vec()),
+
 			..Default::default()
 		}
 	}
