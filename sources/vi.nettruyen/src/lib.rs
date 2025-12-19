@@ -92,6 +92,23 @@ impl Impl for FoxTruyen {
 					if query.is_empty() { "" } else { "?" }
 				))
 			},
+
+			home_manga_link: "h3 > a",
+			home_chapter_link: ".slide-caption > a, .chapter > a",
+			home_date_uploaded: ".time",
+			home_date_uploaded_attr: "text",
+
+			home_sliders_selector: ".owl-carousel",
+			home_sliders_title_selector: "h2",
+			home_sliders_item_selector: ".item",
+
+			home_grids_selector: ".items",
+			home_grids_title_selector: ".page-title",
+			home_grids_item_selector: ".item",
+
+			home_manga_cover_attr: "abs:data-original",
+			time_formats: Some(["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"].to_vec()),
+
 			..Default::default()
 		}
 	}
