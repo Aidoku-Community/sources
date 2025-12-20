@@ -1,4 +1,4 @@
-use crate::helper::{extract_f32_from_string, find_first_f32, text_with_newlines};
+use crate::helpers::{extract_f32_from_string, find_first_f32, text_with_newlines};
 
 use super::Params;
 use aidoku::{

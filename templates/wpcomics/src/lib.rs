@@ -1,11 +1,11 @@
 #![no_std]
-use crate::helper::{get_search_url, parse_chapter_date};
+use crate::helpers::{get_search_url, parse_chapter_date};
 use aidoku::{
 	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Home, HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult, MangaStatus, Page, PageContext, Result, Source, Viewer, alloc::{String, Vec, borrow::Cow}, imports::net::Request, prelude::*
 };
 use core::cell::RefCell;
 
-pub mod helper;
+pub mod helpers;
 mod imp;
 
 pub use imp::Impl;
