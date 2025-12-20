@@ -154,7 +154,7 @@ pub trait Impl {
 		self.cache_manga_page(params, url.as_str())?;
 
 		let html = self.get_cache_manga_value(params).unwrap();
-		let details = Html::parse_with_url(html, url.clone())?;
+		let details = Html::parse_with_url(html, &url)?;
 
 		let title = details
 			.select(params.manga_details_title)
