@@ -4,37 +4,21 @@
 		"title": "Bộ Truyện",
 		"canExclude": true,
 		"isGenre": true,
-		"options": [
-			"Manga",
-			"Manhua",
-			"Manhwa",
-			"Web Comic",
-			"Webtoon"
-		]
+		"options": ["Manga", "Manhua", "Manhwa", "Web Comic", "Webtoon"]
 	},
 	{
 		"type": "multi-select",
 		"title": "Trạng trái",
 		"isGenre": true,
 		"usesTagStyle": true,
-		"options": [
-			"Đang Tiến Hành",
-			"Đã Hoàn Thành",
-			"Tạm Ngưng",
-			"Drop"
-		]
+		"options": ["Đang Tiến Hành", "Đã Hoàn Thành", "Tạm Ngưng", "Drop"]
 	},
 	{
 		"type": "multi-select",
 		"title": "Nhân khẩu học",
 		"isGenre": true,
 		"usesTagStyle": true,
-		"options": [
-			"Shounen",
-			"Shoujo",
-			"Seinen",
-			"Josei"
-		]
+		"options": ["Shounen", "Shoujo", "Seinen", "Josei"]
 	},
 	{
 		"type": "multi-select",

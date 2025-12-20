@@ -5,9 +5,7 @@
 		"version": 2,
 		"url": "https://manga.io.vn",
 		"contentRating": 1,
-		"languages": [
-			"vi"
-		]
+		"languages": ["vi"]
 	},
 	"listings": [
 		{

@@ -33,16 +33,7 @@
 			">=400",
 			">=500"
 		],
-		"ids": [
-			"0",
-			"30",
-			"50",
-			"100",
-			"200",
-			"300",
-			"400",
-			"500"
-		]
+		"ids": ["0", "30", "50", "100", "200", "300", "400", "500"]
 	},
 	{
 		"type": "select",
@@ -55,28 +46,14 @@
 			"Tạm ngưng",
 			"Đã hủy"
 		],
-		"ids": [
-			"",
-			"completed",
-			"on-going",
-			"on-hold",
-			"canceled"
-		]
+		"ids": ["", "completed", "on-going", "on-hold", "canceled"]
 	},
 	{
 		"type": "select",
 		"id": "sex",
 		"title": "Giới tính",
-		"options": [
-			"Tất cả",
-			"Con trai",
-			"Con gái"
-		],
-		"ids": [
-			"All",
-			"Boy",
-			"Girl"
-		]
+		"options": ["Tất cả", "Con trai", "Con gái"],
+		"ids": ["All", "Boy", "Girl"]
 	},
 	{
 		"type": "multi-select",

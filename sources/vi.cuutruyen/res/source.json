@@ -2,7 +2,7 @@
 	"info": {
 		"id": "vi.cuutruyen",
 		"name": "Cứu Truyện",
-		"version": 3,
+		"version": 2,
 		"urls": [
 			"https://cuutruyen.net",
 			"https://hetcuutruyen.net",
@@ -11,9 +11,7 @@
 		],
 		"contentRating": 1,
 		"minAppVersion": "0.7.1",
-		"languages": [
-			"vi"
-		]
+		"languages": ["vi"]
 	},
 	"listings": [
 		{
