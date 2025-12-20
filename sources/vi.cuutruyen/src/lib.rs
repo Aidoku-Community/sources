@@ -348,7 +348,7 @@ impl DeepLinkHandler for CuuTruyen {
 impl BaseUrlProvider for CuuTruyen {
 	fn get_base_url(&self) -> Result<String> {
 		let url = defaults_get::<String>("url").unwrap_or_default();
-		let proxy_url = defaults_get::<String>("proxy_url").unwrap_or("".to_string());
+		let proxy_url = defaults_get::<String>("proxy_url").unwrap_or_default();
 
 		if proxy_url.is_empty() {
 			Ok(url)
