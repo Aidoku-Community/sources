@@ -1,12 +1,7 @@
 #![no_std]
 use crate::helper::{get_search_url, parse_chapter_date};
 use aidoku::{
-	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
-	Home, HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult, MangaStatus,
-	Page, PageContext, Result, Source, Viewer,
-	alloc::{String, Vec, borrow::Cow},
-	imports::net::Request,
-	prelude::*,
+	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Home, HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult, MangaStatus, Page, PageContext, Result, Source, Viewer, alloc::{String, Vec, borrow::Cow}, imports::net::Request, prelude::*
 };
 use core::cell::RefCell;
 
@@ -285,7 +280,7 @@ impl<T: Impl> Source for WpComics<T> {
 
 impl<T: Impl> ListingProvider for WpComics<T> {
 	fn get_manga_list(&self, _listing: aidoku::Listing, _page: i32) -> Result<MangaPageResult> {
-		AidokuError::Unimplemented
+		Err(AidokuError::Unimplemented)
 	}
 }
 
