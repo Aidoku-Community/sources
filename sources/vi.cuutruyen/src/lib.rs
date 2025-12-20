@@ -1,10 +1,7 @@
 // a source made by @c0ntens
 #![no_std]
 use aidoku::{
-	BaseUrlProvider, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageResponse, Listing,
-	ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext, PageImageProcessor,
-	Result, Source,
-	alloc::{String, Vec, string::ToString, vec},
+	alloc::{string::ToString, vec, String, Vec},
 	helpers::uri::QueryParameters,
 	imports::{
 		canvas::{Canvas, ImageRef, Rect},
@@ -14,12 +11,15 @@ use aidoku::{
 		std::send_partial_result,
 	},
 	prelude::*,
+	BaseUrlProvider, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageResponse, Listing,
+	ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext, PageImageProcessor,
+	Result, Source,
 };
 
 mod home;
 mod models;
 
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use models::*;
 
 struct CuuTruyen;
@@ -347,14 +347,7 @@ impl DeepLinkHandler for CuuTruyen {
 
 impl BaseUrlProvider for CuuTruyen {
 	fn get_base_url(&self) -> Result<String> {
-		let url = defaults_get::<String>("url").unwrap_or_default();
-		let proxy_url = defaults_get::<String>("proxy_url").unwrap_or("".to_string());
-
-		if proxy_url.is_empty() {
-			Ok(url)
-		} else {
-			Ok(format!("{}/?url={}", proxy_url, url))
-		}
+		Ok(defaults_get::<String>("url").unwrap_or_default())
 	}
 }
 register_source!(
