@@ -285,7 +285,7 @@ impl<T: Impl> Source for WpComics<T> {
 
 impl<T: Impl> ListingProvider for WpComics<T> {
 	fn get_manga_list(&self, _listing: aidoku::Listing, _page: i32) -> Result<MangaPageResult> {
-		todo!()
+		AidokuError::Unimplemented
 	}
 }
 

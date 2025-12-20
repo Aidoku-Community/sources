@@ -83,9 +83,8 @@ pub trait Impl {
 			match category.to_ascii_lowercase().as_str() {
 				"smut" | "mature" | "18+" | "adult" => nsfw = ContentRating::NSFW,
 				"ecchi" | "16+" => {
-					nsfw = match nsfw {
-						ContentRating::NSFW => ContentRating::NSFW,
-						_ => ContentRating::Suggestive,
+					if nsfw != ContentRating::NSFW {
+						nsfw = ContentRating::Suggestive
 					}
 				}
 				"webtoon" | "manhwa" | "manhua" => viewer = Viewer::Webtoon,
@@ -154,7 +153,7 @@ pub trait Impl {
 		self.cache_manga_page(params, url.as_str())?;
 
 		let html = self.get_cache_manga_value(params).unwrap();
-		let details = Html::parse_with_url(html, url.clone())?;
+		let details = Html::parse_with_url(html, &url)?;
 
 		let title = details
 			.select(params.manga_details_title)
