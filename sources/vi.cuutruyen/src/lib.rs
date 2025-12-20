@@ -353,7 +353,7 @@ impl BaseUrlProvider for CuuTruyen {
 		if proxy_url.is_empty() {
 			Ok(url)
 		} else {
-			Ok(format!("{}/?url={}", proxy_url, url))
+			Ok(format!("{proxy_url}/?url={url}"))
 		}
 	}
 }
