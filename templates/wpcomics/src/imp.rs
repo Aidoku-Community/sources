@@ -83,9 +83,8 @@ pub trait Impl {
 			match category.to_ascii_lowercase().as_str() {
 				"smut" | "mature" | "18+" | "adult" => nsfw = ContentRating::NSFW,
 				"ecchi" | "16+" => {
-					nsfw = match nsfw {
-						ContentRating::NSFW => ContentRating::NSFW,
-						_ => ContentRating::Suggestive,
+					if nsfw != ContentRating::NSFW {
+						nsfw = ContentRating::Suggestive
 					}
 				}
 				"webtoon" | "manhwa" | "manhua" => viewer = Viewer::Webtoon,
