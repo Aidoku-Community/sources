@@ -358,7 +358,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "truyenqq"
+name = "truyen3q"
 version = "0.1.0"
 dependencies = [
  "aidoku",
