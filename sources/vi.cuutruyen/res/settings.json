@@ -1,7 +1,7 @@
 [
 	{
 		"type": "group",
-		"title": "Cài đặt",
+		"title": "SETTINGS",
 		"items": [
 			{
 				"type": "select",
