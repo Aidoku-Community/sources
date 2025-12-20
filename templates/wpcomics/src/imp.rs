@@ -33,11 +33,13 @@ pub trait Impl {
 		params.cache_manga_value = value;
 	}
 
-	fn cache_manga_page(&self, params: &mut Params, url: &str) -> Result<()> {
+	fn cache_manga_page<'a>(&self, params: &'a mut Params, url: &str) -> Result<&'a [u8]> {
 		let cached_id = self.get_cache_manga_id(params);
 
 		if cached_id == Some(url.to_string()) {
-			return Ok(());
+			return self
+				.get_cache_manga_value(params)
+				.ok_or(error!("Cache value not found"));
 		}
 
 		let req = self.create_request(params, url, None)?;
@@ -45,7 +47,8 @@ pub trait Impl {
 		self.set_cache_manga_value(params, Some(req.data()?));
 		self.set_cache_manga_id(params, Some(url.to_string()));
 
-		Ok(())
+		self.get_cache_manga_value(params)
+			.ok_or(error!("Failed to cache manga value"))
 	}
 
 	fn create_request(
@@ -150,9 +153,7 @@ pub trait Impl {
 	}
 
 	fn parse_manga_element(&self, params: &mut Params, url: String) -> Result<Manga> {
-		self.cache_manga_page(params, url.as_str())?;
-
-		let html = self.get_cache_manga_value(params).unwrap();
+		let html = self.cache_manga_page(params, url.as_str())?;
 		let details = Html::parse_with_url(html, &url)?;
 
 		let title = details
@@ -229,12 +230,7 @@ pub trait Impl {
 	}
 
 	fn get_chapter_list(&self, params: &mut Params, url: String) -> Result<Vec<Chapter>> {
-		let mut skipped_first = false;
-		let mut chapters: Vec<Chapter> = Vec::new();
-
-		self.cache_manga_page(params, url.as_str())?;
-
-		let html = self.get_cache_manga_value(params).unwrap();
+		let html = self.cache_manga_page(params, url.as_str())?;
 
 		let html = Html::parse_with_url(html, url)?;
 		let title_untrimmed = (params.manga_details_title_transformer)(
@@ -243,83 +239,89 @@ pub trait Impl {
 				.unwrap_or_default(),
 		);
 		let title = title_untrimmed.trim();
-		for chapter_node in html.select(params.manga_details_chapters).unwrap() {
-			if params.chapter_skip_first && !skipped_first {
-				skipped_first = true;
-				continue;
-			}
-			let chapter_url = chapter_node
-				.select_first(params.chapter_anchor_selector)
-				.unwrap()
-				.attr("abs:href")
-				.unwrap();
+		let mut skipped_first = false;
 
-			let chapter_id = (params.chapter_parse_id)(chapter_url.clone());
-			let mut chapter_title = chapter_node
-				.select(params.chapter_anchor_selector)
-				.unwrap()
-				.text()
-				.unwrap_or_default();
-			let title_raw = chapter_title.clone();
-			let numbers =
-				extract_f32_from_string(String::from(title), String::from(&chapter_title));
-			let (volume_number, chapter_number) =
-				if numbers.len() > 1 && chapter_title.to_ascii_lowercase().contains("vol") {
-					(numbers[0], numbers[1])
-				} else if !numbers.is_empty() {
-					(-1.0, numbers[0])
-				} else {
-					(-1.0, -1.0)
-				};
-			if chapter_number >= 0.0 {
-				let splitter = format!(" {}", chapter_number);
-				let splitter2 = format!("#{}", chapter_number);
-				if chapter_title.contains(&splitter) {
-					let split = chapter_title.splitn(2, &splitter).collect::<Vec<&str>>();
-					chapter_title = String::from(split[1]).replacen([':', '-'], "", 1);
-				} else if chapter_title.contains(&splitter2) {
-					let split = chapter_title.splitn(2, &splitter2).collect::<Vec<&str>>();
-					chapter_title = String::from(split[1]).replacen([':', '-'], "", 1);
+		let Some(chapters_iter) = html.select(params.manga_details_chapters) else {
+			return Ok(vec![]);
+		};
+
+		let chapters = chapters_iter
+			.filter_map(|chapter_node| {
+				if params.chapter_skip_first && !skipped_first {
+					skipped_first = true;
+					return None;
 				}
-			}
-			let date_updated = (params.time_converter)(
-				params,
-				&chapter_node
-					.select(params.chapter_date_selector)
-					.unwrap()
+
+				let chapter_url = chapter_node
+					.select_first(params.chapter_anchor_selector)?
+					.attr("abs:href")?;
+
+				let chapter_id = (params.chapter_parse_id)(chapter_url.clone());
+				let mut chapter_title = chapter_node
+					.select(params.chapter_anchor_selector)?
 					.text()
-					.unwrap_or_default(),
-			);
+					.unwrap_or_default();
+				let title_raw = chapter_title.clone();
+				let numbers =
+					extract_f32_from_string(String::from(title), String::from(&chapter_title));
+				let (volume_number, chapter_number) =
+					if numbers.len() > 1 && chapter_title.to_ascii_lowercase().contains("vol") {
+						(numbers[0], numbers[1])
+					} else if !numbers.is_empty() {
+						(-1.0, numbers[0])
+					} else {
+						(-1.0, -1.0)
+					};
+				if chapter_number >= 0.0 {
+					let splitter = format!(" {}", chapter_number);
+					let splitter2 = format!("#{}", chapter_number);
+					if chapter_title.contains(&splitter) {
+						let split = chapter_title.splitn(2, &splitter).collect::<Vec<&str>>();
+						chapter_title = String::from(split[1]).replacen([':', '-'], "", 1);
+					} else if chapter_title.contains(&splitter2) {
+						let split = chapter_title.splitn(2, &splitter2).collect::<Vec<&str>>();
+						chapter_title = String::from(split[1]).replacen([':', '-'], "", 1);
+					}
+				}
+				let date_updated = (params.time_converter)(
+					params,
+					&chapter_node
+						.select(params.chapter_date_selector)?
+						.text()
+						.unwrap_or_default(),
+				);
 
-			chapter_title = chapter_title.trim().to_string();
-			chapter_title = String::from(if chapter_title.is_empty() {
-				title_raw.trim()
-			} else {
-				&chapter_title
-			});
+				chapter_title = chapter_title.trim().to_string();
+				chapter_title = String::from(if chapter_title.is_empty() {
+					title_raw.trim()
+				} else {
+					&chapter_title
+				});
 
-			chapters.push(Chapter {
-				key: chapter_id,
-				title: if chapter_title.is_empty() {
-					None
-				} else {
-					Some(chapter_title)
-				},
-				volume_number: if volume_number < 0.0 {
-					None
-				} else {
-					Some(volume_number)
-				},
-				chapter_number: if chapter_number < 0.0 && volume_number >= 0.0 {
-					None
-				} else {
-					Some(chapter_number)
-				},
-				date_uploaded: Some(date_updated),
-				url: Some(chapter_url),
-				..Default::default()
-			});
-		}
+				Some(Chapter {
+					key: chapter_id,
+					title: if chapter_title.is_empty() {
+						None
+					} else {
+						Some(chapter_title)
+					},
+					volume_number: if volume_number < 0.0 {
+						None
+					} else {
+						Some(volume_number)
+					},
+					chapter_number: if chapter_number < 0.0 && volume_number >= 0.0 {
+						None
+					} else {
+						Some(chapter_number)
+					},
+					date_uploaded: Some(date_updated),
+					url: Some(chapter_url),
+					..Default::default()
+				})
+			})
+			.collect();
+
 		Ok(chapters)
 	}
 
@@ -332,7 +334,10 @@ pub trait Impl {
 		let mut pages: Vec<Page> = Vec::new();
 		let url = (params.page_list_page)(params, &manga, &chapter);
 		let html = self.create_request(params, &url, None)?.html()?;
-		for page_node in html.select(params.manga_viewer_page).unwrap() {
+		let Some(page_nodes) = html.select(params.manga_viewer_page) else {
+			return Ok(pages);
+		};
+		for page_node in page_nodes {
 			let mut page_url = if page_node.has_attr("data-original") {
 				page_node.attr("abs:data-original")
 			} else {
@@ -375,18 +380,16 @@ pub trait Impl {
 	}
 
 	fn handle_deep_link(&self, params: &mut Params, url: String) -> Result<Option<DeepLinkResult>> {
-		self.cache_manga_page(params, url.as_str())?;
-
-		let html = self.get_cache_manga_value(params).unwrap();
+		let html = self.cache_manga_page(params, url.as_str())?;
 		let html = Html::parse_with_url(html, url.clone())?;
 		if html.select(params.manga_viewer_page).is_none() {
-			let breadcrumbs = html.select(".breadcrumb li").unwrap();
+			let Some(breadcrumbs) = html.select(".breadcrumb li") else {
+				return Ok(None);
+			};
 			let manga_id = breadcrumbs
 				.get(breadcrumbs.size() / 2 - 2)
-				.expect("node array")
-				.select_first("a")
-				.unwrap()
-				.attr("abs:href")
+				.and_then(|el| el.select_first("a"))
+				.and_then(|el| el.attr("abs:href"))
 				.unwrap_or_default();
 			Ok(Some(DeepLinkResult::Chapter {
 				manga_key: (params.manga_parse_id)(manga_id),
