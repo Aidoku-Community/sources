@@ -4,7 +4,7 @@ use aidoku::{
 	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
 	Home, HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult, MangaStatus,
 	Page, PageContext, Result, Source, Viewer,
-	alloc::{String, Vec},
+	alloc::{String, Vec, borrow::Cow},
 	imports::net::Request,
 	prelude::*,
 };
@@ -16,7 +16,7 @@ mod imp;
 pub use imp::Impl;
 
 pub struct Params {
-	pub base_url: String,
+	pub base_url: Cow<'static, str>,
 	pub cookie: Option<String>,
 	pub status_mapping: fn(String) -> MangaStatus,
 	pub time_converter: fn(&Params, &str) -> i64,
@@ -99,7 +99,7 @@ pub struct Params {
 impl Default for Params {
 	fn default() -> Self {
 		Self {
-			base_url: String::new(),
+			base_url: "".into(),
 			cookie: None,
 			status_mapping: |status| match status.as_str() {
 				"OnGoing"

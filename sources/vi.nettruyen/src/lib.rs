@@ -19,7 +19,7 @@ impl Impl for FoxTruyen {
 
 	fn params(&self) -> Params {
 		Params {
-			base_url: String::from(BASE_URL),
+			base_url: BASE_URL.into(),
 
 			next_page: "li.active + li > a[title*=\"kết quả\"]",
 			viewer: Viewer::RightToLeft,

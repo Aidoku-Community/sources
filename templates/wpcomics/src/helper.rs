@@ -10,19 +10,6 @@ use chrono::{NaiveDate, NaiveDateTime};
 
 use crate::Params;
 
-pub fn trunc_trailing_comic(title: String) -> String {
-	let temp = title.chars().rev().collect::<String>();
-	if temp.find("cimoC") == Some(0) {
-		temp
-			.replacen("cimoC", "", 1)
-			.chars()
-			.rev()
-			.collect::<String>()
-	} else {
-		temp.chars().rev().collect::<String>()
-	}
-}
-
 pub fn extract_f32_from_string(title: String, text: String) -> Vec<f32> {
 	text.replace(&title, "")
 		.chars()
@@ -37,22 +24,7 @@ pub fn extract_f32_from_string(title: String, text: String) -> Vec<f32> {
 }
 
 pub fn urlencode(string: String) -> String {
-	let mut result: Vec<u8> = Vec::with_capacity(string.len() * 3);
-	let hex = "0123456789abcdef".as_bytes();
-	let bytes = string.as_bytes();
-
-	for byte in bytes {
-		let curr = *byte;
-		if curr.is_ascii_alphanumeric() {
-			result.push(curr);
-		} else {
-			result.push(b'%');
-			result.push(hex[curr as usize >> 4]);
-			result.push(hex[curr as usize & 15]);
-		}
-	}
-
-	String::from_utf8(result).unwrap_or_default()
+	aidoku::helpers::uri::encode_uri_component(string)
 }
 
 pub fn get_tag_id(genre: i64) -> String {

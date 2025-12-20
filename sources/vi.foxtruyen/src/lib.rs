@@ -19,7 +19,7 @@ impl Impl for FoxTruyen {
 
 	fn params(&self) -> Params {
 		Params {
-			base_url: String::from(BASE_URL),
+			base_url: BASE_URL.into(),
 			cookie: Some("type_book=1".to_string()),
 			next_page: ".page_redirect > a:nth-last-child(2) > p:not(.active)",
 			viewer: Viewer::RightToLeft,

@@ -1,6 +1,6 @@
 #![no_std]
 use aidoku::{
-	FilterValue, Result, Source, Viewer,
+	FilterValue, Source, Viewer,
 	alloc::{string::ToString, *},
 	helpers::uri::QueryParameters,
 	imports::defaults::defaults_get,
@@ -11,10 +11,10 @@ use wpcomics::{Impl, Params, WpComics, helper::urlencode};
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
 const BASE_URL: &str = "https://truyenqqno.com";
 
-fn get_visit_read_id() -> Result<String> {
-	Ok(defaults_get::<String>("visitReadId")
+fn get_visit_read_id() -> String {
+	defaults_get::<String>("visitReadId")
 		.map(|v| v.trim_end_matches('/').to_string())
-		.unwrap_or_default())
+		.unwrap_or_default()
 }
 
 struct TruyenQQ;
@@ -27,11 +27,11 @@ impl Impl for TruyenQQ {
 	fn params(&self) -> Params {
 		let cookie = Some(format!(
 			"visit-read={}",
-			get_visit_read_id().unwrap_or_default()
+			get_visit_read_id()
 		));
 
 		Params {
-			base_url: String::from(BASE_URL),
+			base_url: BASE_URL.into(),
 			cookie,
 			viewer: Viewer::RightToLeft,
 
@@ -52,7 +52,7 @@ impl Impl for TruyenQQ {
 				String::from(
 					url.rsplit_once("-chap-")
 						.map(|(_, tail)| tail.trim_end_matches(".html"))
-						.unwrap(),
+						.unwrap_or_default(),
 				)
 			},
 
@@ -85,7 +85,7 @@ impl Impl for TruyenQQ {
 				let mut excluded_tags: Vec<String> = Vec::new();
 				let mut included_tags: Vec<String> = Vec::new();
 				let mut query = QueryParameters::new();
-				query.push("q", Some(&q.unwrap_or_default()));
+				query.push("q", q.as_deref());
 				query.push("post_type", Some("wp-manga"));
 
 				if filters.is_empty() {

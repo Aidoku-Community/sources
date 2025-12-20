@@ -1,1 +1,1 @@
-Array.from(temp2.querySelectorAll(".genre-item")).map(i => i.innerText)
+Array.from(temp1.querySelectorAll(".genre-item")).map((i) => i.innerText);

@@ -19,7 +19,7 @@ impl Impl for Truyen3Q {
 
 	fn params(&self) -> Params {
 		Params {
-			base_url: String::from(BASE_URL),
+			base_url: BASE_URL.into(),
 			viewer: Viewer::RightToLeft,
 
 			next_page: ".page_redirect > a:nth-last-child(2) > p:not(.active)",

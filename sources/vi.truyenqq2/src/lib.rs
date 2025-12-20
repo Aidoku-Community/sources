@@ -31,7 +31,7 @@ impl Impl for TruyenQQ2 {
 		));
 
 		Params {
-			base_url: String::from(BASE_URL),
+			base_url: BASE_URL.into(),
 			cookie,
 			viewer: Viewer::RightToLeft,
 

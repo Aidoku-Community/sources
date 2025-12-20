@@ -8,7 +8,7 @@ use aidoku::{
 	alloc::{String, Vec, string::ToString, vec},
 	imports::{
 		html::{Element, Html},
-		net::{HttpMethod, Request},
+		net::Request,
 		std::send_partial_result,
 	},
 	prelude::*,
@@ -26,15 +26,15 @@ pub trait Impl {
 		params.cache_manga_id = value;
 	}
 
-	fn get_cache_manga_value(&self, params: &mut Params) -> Option<Vec<u8>> {
-		params.cache_manga_value.clone()
+	fn get_cache_manga_value<'a>(&self, params: &'a mut Params) -> Option<&'a [u8]> {
+		params.cache_manga_value.as_deref()
 	}
 	fn set_cache_manga_value(&self, params: &mut Params, value: Option<Vec<u8>>) {
 		params.cache_manga_value = value;
 	}
 
 	fn cache_manga_page(&self, params: &mut Params, url: &str) -> Result<()> {
-		let cached_id = self.get_cache_manga_id(params).clone();
+		let cached_id = self.get_cache_manga_id(params);
 
 		if cached_id == Some(url.to_string()) {
 			return Ok(());
@@ -55,7 +55,7 @@ pub trait Impl {
 		headers: Option<&[(&str, &str)]>,
 	) -> Result<Request> {
 		// 通常のリクエスト
-		let mut req = Request::new(url, HttpMethod::Get)?;
+		let mut req = Request::get(url)?;
 		if let Some(cookie) = &params.cookie {
 			req = req.header("Cookie", cookie);
 		}
@@ -101,8 +101,6 @@ pub trait Impl {
 		search_url: String,
 		headers: Option<&[(&str, &str)]>,
 	) -> Result<MangaPageResult> {
-		let mut has_next_page = !params.next_page.is_empty();
-
 		let html = self.create_request(params, &search_url, headers)?.html()?;
 
 		let Some(elems) = html.select(params.manga_cell) else {
@@ -111,8 +109,7 @@ pub trait Impl {
 				has_next_page: false,
 			});
 		};
-		let mut entries: Vec<Manga> = Vec::with_capacity(elems.size());
-		for item_node in elems {
+		let entries = elems.into_iter().map(|item_node| {
 			let title = item_node
 				.select(params.manga_cell_title)
 				.and_then(|node| node.first())
@@ -121,7 +118,7 @@ pub trait Impl {
 				.select(params.manga_cell_url)
 				.and_then(|node| node.first())
 				.and_then(|n| n.attr("abs:href"))
-				.unwrap_or("".to_string());
+				.unwrap_or_default();
 
 			let cover = if !params.manga_cell_image.is_empty() {
 				item_node
@@ -131,20 +128,22 @@ pub trait Impl {
 			} else {
 				None
 			};
-			entries.push(Manga {
-				key: (params.manga_parse_id)(url).to_string(),
+
+			Manga {
+				key: (params.manga_parse_id)(url),
 				cover,
-				title: (params.manga_details_title_transformer)(title.unwrap_or("".to_string()))
-					.to_string(),
+				title: (params.manga_details_title_transformer)(title.unwrap_or_default()),
 				..Default::default()
-			});
-		}
-		if !params.next_page.is_empty() {
-			has_next_page = html
-				.select(params.next_page)
+			}
+		});
+		let entries: Vec<Manga> = entries.collect();
+		let has_next_page = if !params.next_page.is_empty() {
+			html.select(params.next_page)
 				.map(|v| v.size() > 0)
-				.unwrap_or(false);
-		}
+				.unwrap_or(false)
+		} else {
+			true
+		};
 		Ok(MangaPageResult {
 			entries,
 			has_next_page,
@@ -170,7 +169,7 @@ pub trait Impl {
 			details
 				.select(params.manga_details_authors)
 				.map(|l| {
-					l.map(|node| String::from(node.text().unwrap_or("".to_string()).trim()))
+					l.map(|node| String::from(node.text().unwrap_or_default().trim()))
 						.filter(|s| !s.is_empty())
 						.collect()
 				})
@@ -187,7 +186,7 @@ pub trait Impl {
 				tags = details
 					.select(params.manga_details_tags)
 					.map(|list| {
-						list.map(|elem| elem.text().unwrap_or("".to_string()))
+						list.map(|elem| elem.text().unwrap_or_default())
 							.collect::<Vec<_>>()
 					})
 					.unwrap_or(vec![]);
@@ -209,20 +208,16 @@ pub trait Impl {
 			}
 		}
 		let (content_rating, viewer) = self.category_parser(params, &tags);
-		let status = (params.status_mapping)(
-			(params.manga_details_status_transformer)(
-				details
-					.select(params.manga_details_status)
-					.and_then(|v| v.text())
-					.unwrap_or("".to_string()),
-			)
-			.to_string(),
-		);
+		let status = (params.status_mapping)((params.manga_details_status_transformer)(
+			details
+				.select(params.manga_details_status)
+				.and_then(|v| v.text())
+				.unwrap_or_default(),
+		));
 		Ok(Manga {
-			key: (params.manga_parse_id)(url.clone()).to_string(),
+			key: (params.manga_parse_id)(url.clone()),
 			cover,
-			title: (params.manga_details_title_transformer)(title.unwrap_or("".to_string()))
-				.to_string(),
+			title: (params.manga_details_title_transformer)(title.unwrap_or_default()),
 			authors,
 			description,
 			url: Some(url),
@@ -246,7 +241,7 @@ pub trait Impl {
 		let title_untrimmed = (params.manga_details_title_transformer)(
 			html.select(params.manga_details_title)
 				.and_then(|v| v.text())
-				.unwrap_or("".to_string()),
+				.unwrap_or_default(),
 		);
 		let title = title_untrimmed.trim();
 		for chapter_node in html.select(params.manga_details_chapters).unwrap() {
@@ -305,7 +300,7 @@ pub trait Impl {
 			});
 
 			chapters.push(Chapter {
-				key: chapter_id.to_string(),
+				key: chapter_id,
 				title: if chapter_title.is_empty() {
 					None
 				} else {
@@ -369,7 +364,7 @@ pub trait Impl {
 
 			pages.push(Page {
 				content: PageContent::Url(
-					(params.page_url_transformer)(page_url.unwrap_or_default()).to_string(),
+					(params.page_url_transformer)(page_url.unwrap_or_default()),
 					None,
 				),
 				has_description: false,
@@ -395,12 +390,12 @@ pub trait Impl {
 				.attr("abs:href")
 				.unwrap_or_default();
 			Ok(Some(DeepLinkResult::Chapter {
-				manga_key: (params.manga_parse_id)(manga_id).to_string(),
-				key: (params.chapter_parse_id)(url.clone()).to_string(),
+				manga_key: (params.manga_parse_id)(manga_id),
+				key: (params.chapter_parse_id)(url.clone()),
 			}))
 		} else {
 			Ok(Some(DeepLinkResult::Manga {
-				key: (params.manga_parse_id)(url).to_string(),
+				key: (params.manga_parse_id)(url),
 			}))
 		}
 	}
