@@ -338,33 +338,17 @@ pub trait Impl {
 			return Ok(pages);
 		};
 		for page_node in page_nodes {
-			let mut page_url = if page_node.has_attr("data-original") {
+			let page_url = if page_node.has_attr("data-original") {
 				page_node.attr("abs:data-original")
+			} else if page_node.has_attr("data-cdn") {
+				page_node.attr("abs:data-cdn")
+			} else if page_node.has_attr("data-src") {
+				page_node.attr("data-src")
+			} else if page_node.has_attr("src") {
+				page_node.attr("src")
 			} else {
 				None
 			};
-
-			if page_url.is_none() {
-				page_url = if page_node.has_attr("data-cdn") {
-					page_node.attr("abs:data-cdn")
-				} else {
-					page_url
-				}
-			}
-			if page_url.is_none() {
-				page_url = if page_node.has_attr("data-src") {
-					page_node.attr("data-src")
-				} else {
-					page_url
-				}
-			}
-			if page_url.is_none() {
-				page_url = if page_node.has_attr("src") {
-					page_node.attr("src")
-				} else {
-					page_url
-				}
-			}
 
 			pages.push(Page {
 				content: PageContent::Url(
