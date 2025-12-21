@@ -5,7 +5,7 @@ use aidoku::{
 	FilterValue, Home, HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult,
 	MangaStatus, Page, PageContext, Result, Source, Viewer,
 	alloc::{String, Vec, borrow::Cow},
-	imports::net::Request,
+	imports::{html::Element, net::Request},
 	prelude::*,
 };
 use core::cell::RefCell;
@@ -29,6 +29,7 @@ pub struct Params {
 	pub manga_cell_title: &'static str,
 	pub manga_cell_image: &'static str,
 	pub manga_cell_image_attr: &'static str,
+	pub manga_cell_no_data: fn(&Element) -> bool,
 	pub manga_parse_id: fn(String) -> String,
 
 	pub manga_details_title: &'static str,
@@ -163,6 +164,7 @@ impl Default for Params {
 			manga_cell_url: "figcaption > h3 > a",
 			manga_cell_image: "div.image > a > img",
 			manga_cell_image_attr: "abs:data-original",
+			manga_cell_no_data: |_| false,
 			manga_parse_id: |url| url,
 
 			manga_details_title: "h1.title-detail",

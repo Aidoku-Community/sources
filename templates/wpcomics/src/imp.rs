@@ -105,7 +105,11 @@ pub trait Impl {
 				has_next_page: false,
 			});
 		};
-		let entries = elems.into_iter().map(|item_node| {
+		let entries = elems.into_iter().filter_map(|item_node| {
+			if (params.manga_cell_no_data)(&item_node) {
+				return None;
+			}
+
 			let title = item_node
 				.select(params.manga_cell_title)
 				.and_then(|node| node.first())
@@ -125,12 +129,12 @@ pub trait Impl {
 				None
 			};
 
-			Manga {
+			Some(Manga {
 				key: (params.manga_parse_id)(url),
 				cover,
 				title: (params.manga_details_title_transformer)(title.unwrap_or_default()),
 				..Default::default()
-			}
+			})
 		});
 		let entries: Vec<Manga> = entries.collect();
 		let has_next_page = if !params.next_page.is_empty() {
@@ -393,6 +397,7 @@ pub trait Impl {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let url = (params.get_search_url)(params, query, page, filters)?;
+		println!("url = {url}");
 		self.get_manga_list(cache, params, url, None)
 	}
 

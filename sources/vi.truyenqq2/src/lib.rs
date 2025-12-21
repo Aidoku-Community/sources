@@ -41,6 +41,11 @@ impl Impl for TruyenQQ2 {
 			manga_cell_url: ".book_info .qtip a",
 			manga_cell_image: ".book_avatar img",
 			manga_cell_image_attr: "abs:src",
+			manga_cell_no_data: |node| {
+				node.text()
+					.map(|s| s.contains("Chưa có dữ liệu"))
+					.unwrap_or(false)
+			},
 			manga_parse_id: |url| {
 				url.split("truyen-tranh/")
 					.nth(1)
