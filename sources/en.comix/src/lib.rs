@@ -166,7 +166,6 @@ impl Source for Comix {
 		qs.push("page", Some(&page.to_string()));
 
 		let url = format!("{API_URL}/manga?{qs}");
-		println!("{}", url);
 		let (entries, has_next_page) = Request::get(url)?
 			.send()?
 			.get_json::<ComixResponse<ResultData<ComixManga>>>()
