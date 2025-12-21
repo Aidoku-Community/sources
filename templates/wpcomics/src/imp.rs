@@ -230,9 +230,8 @@ pub trait Impl {
 	}
 
 	fn get_chapter_list(&self, params: &mut Params, url: String) -> Result<Vec<Chapter>> {
-		let html = self.cache_manga_page(params, url.as_str())?;
-
-		let html = Html::parse_with_url(html, url)?;
+		let html_data = self.cache_manga_page(params, &url)?;
+		let html = Html::parse_with_url(html_data, url)?;
 		let title_untrimmed = (params.manga_details_title_transformer)(
 			html.select(params.manga_details_title)
 				.and_then(|v| v.text())
