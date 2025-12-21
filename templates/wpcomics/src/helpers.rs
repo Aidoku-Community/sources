@@ -1,7 +1,7 @@
 use aidoku::imports::std::{current_date, parse_date_with_options};
 use aidoku::{
-	ContentRating, FilterValue, Viewer,
-	alloc::{String, Vec, str, string::ToString},
+	FilterValue,
+	alloc::{String, Vec},
 	helpers::uri::QueryParameters,
 	imports::html::{Element, Html},
 	prelude::format,
@@ -84,50 +84,20 @@ pub fn get_tag_id(genre: i64) -> String {
 }
 
 pub fn text_with_newlines(node: Element) -> String {
-	let html = node.html().unwrap_or("".to_string());
-	if !String::from(html.trim()).is_empty() {
-		if let Ok(node) = Html::parse(
-			format!(
-				"<div>{}</div>",
-				node.html()
-					.unwrap_or("".to_string())
-					.replace("<br>", "{{ .LINEBREAK }}")
-			)
-			.as_bytes(),
-		) {
-			node.select_first("div")
+	let html = node.html().unwrap_or_default();
+	if html.trim().is_empty() {
+		return String::new();
+	}
+
+	Html::parse(format!("<div>{}</div>", html.replace("<br>", "{{ .LINEBREAK }}")).as_bytes())
+		.ok()
+		.and_then(|parsed_node| {
+			parsed_node
+				.select_first("div")
 				.and_then(|v| v.text())
 				.map(|t| t.replace("{{ .LINEBREAK }}", "\n"))
-				.unwrap_or("".to_string())
-		} else {
-			String::new()
-		}
-	} else {
-		String::new()
-	}
-}
-
-pub fn category_parser(
-	categories: &Vec<String>,
-	default_nsfw: ContentRating,
-	default_viewer: Viewer,
-) -> (ContentRating, Viewer) {
-	let mut nsfw = default_nsfw;
-	let mut viewer = default_viewer;
-	for category in categories {
-		match category.as_str() {
-			"Smut" | "Mature" | "18+" => nsfw = ContentRating::NSFW,
-			"Ecchi" | "16+" => {
-				nsfw = match nsfw {
-					ContentRating::NSFW => ContentRating::NSFW,
-					_ => ContentRating::Suggestive,
-				}
-			}
-			"Webtoon" | "Manhwa" | "Manhua" => viewer = Viewer::Webtoon,
-			_ => continue,
-		}
-	}
-	(nsfw, viewer)
+		})
+		.unwrap_or_default()
 }
 
 pub fn get_search_url(

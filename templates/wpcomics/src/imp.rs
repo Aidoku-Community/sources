@@ -76,22 +76,22 @@ pub trait Impl {
 	fn category_parser(
 		&self,
 		params: &mut Params,
-		categories: &Vec<String>,
+		categories: &Option<Vec<String>>,
 	) -> (ContentRating, Viewer) {
-		#[allow(clippy::needless_match)]
 		let mut nsfw = params.nsfw;
-		#[allow(clippy::needless_match)]
 		let mut viewer = params.viewer;
-		for category in categories {
-			match category.to_ascii_lowercase().as_str() {
-				"smut" | "mature" | "18+" | "adult" => nsfw = ContentRating::NSFW,
-				"ecchi" | "16+" => {
-					if nsfw != ContentRating::NSFW {
-						nsfw = ContentRating::Suggestive
+		if let Some(categories) = categories {
+			for category in categories {
+				match category.to_ascii_lowercase().as_str() {
+					"smut" | "mature" | "18+" | "adult" => nsfw = ContentRating::NSFW,
+					"ecchi" | "16+" => {
+						if nsfw != ContentRating::NSFW {
+							nsfw = ContentRating::Suggestive
+						}
 					}
+					"webtoon" | "manhwa" | "manhua" => viewer = Viewer::Webtoon,
+					_ => continue,
 				}
-				"webtoon" | "manhwa" | "manhua" => viewer = Viewer::Webtoon,
-				_ => continue,
 			}
 		}
 
@@ -107,7 +107,7 @@ pub trait Impl {
 
 		let Some(elems) = html.select(params.manga_cell) else {
 			return Ok(MangaPageResult {
-				entries: vec![],
+				entries: Vec::new(),
 				has_next_page: false,
 			});
 		};
@@ -179,17 +179,14 @@ pub trait Impl {
 			.select(params.manga_details_description)
 			.and_then(|l| l.first())
 			.map(text_with_newlines);
-		let mut tags = Vec::new();
+		let mut tags: Option<Vec<String>> = None;
 
 		if !params.manga_details_tags.is_empty() {
 			if params.manga_details_tags_splitter.is_empty() {
-				tags = details
-					.select(params.manga_details_tags)
-					.map(|list| {
-						list.map(|elem| elem.text().unwrap_or_default())
-							.collect::<Vec<_>>()
-					})
-					.unwrap_or(vec![]);
+				tags = details.select(params.manga_details_tags).map(|list| {
+					list.map(|elem| elem.text().unwrap_or_default())
+						.collect::<Vec<_>>()
+				});
 			} else {
 				let split = details.select(params.manga_details_tags).map(|l| {
 					l.text()
@@ -200,11 +197,7 @@ pub trait Impl {
 						.collect::<Vec<String>>()
 				});
 
-				if let Some(split) = split {
-					for node in split {
-						tags.push(node);
-					}
-				}
+				tags = Some(split.into_iter().flatten().collect());
 			}
 		}
 		let (content_rating, viewer) = self.category_parser(params, &tags);
@@ -221,7 +214,7 @@ pub trait Impl {
 			authors,
 			description,
 			url: Some(url),
-			tags: Some(tags),
+			tags: tags,
 			status,
 			content_rating,
 			viewer,
@@ -290,11 +283,9 @@ pub trait Impl {
 				);
 
 				chapter_title = chapter_title.trim().to_string();
-				chapter_title = String::from(if chapter_title.is_empty() {
-					title_raw.trim()
-				} else {
-					&chapter_title
-				});
+				if chapter_title.is_empty() {
+					chapter_title = title_raw.trim().to_string();
+				}
 
 				Some(Chapter {
 					key: chapter_id,
@@ -349,10 +340,9 @@ pub trait Impl {
 			};
 
 			pages.push(Page {
-				content: PageContent::Url(
-					(params.page_url_transformer)(page_url.unwrap_or_default()),
-					None,
-				),
+				content: PageContent::url((params.page_url_transformer)(
+					page_url.unwrap_or_default(),
+				)),
 				has_description: false,
 				..Default::default()
 			});
@@ -391,7 +381,7 @@ pub trait Impl {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let url = { (params.get_search_url)(params, query, page, filters)? };
+		let url = (params.get_search_url)(params, query, page, filters)?;
 		self.get_manga_list(params, url, None)
 	}
 
@@ -407,15 +397,7 @@ pub trait Impl {
 		if needs_details {
 			let new_manga = self.parse_manga_element(params, url.clone())?;
 
-			manga.cover = new_manga.cover;
-			manga.title = new_manga.title;
-			manga.authors = new_manga.authors;
-			manga.description = new_manga.description;
-			manga.url = new_manga.url;
-			manga.tags = new_manga.tags;
-			manga.status = new_manga.status;
-			manga.content_rating = new_manga.content_rating;
-			manga.viewer = new_manga.viewer;
+			manga.copy_from(new_manga);
 
 			send_partial_result(&manga);
 		}
@@ -429,7 +411,7 @@ pub trait Impl {
 
 	fn get_home(&self, params: &mut Params) -> Result<HomeLayout> {
 		let base_url = &params.base_url.clone();
-		let html = { self.create_request(params, base_url, None)?.html()? };
+		let html = self.create_request(params, base_url, None)?.html()?;
 
 		let mut components = Vec::new();
 
