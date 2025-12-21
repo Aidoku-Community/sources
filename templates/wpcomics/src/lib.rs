@@ -1,7 +1,12 @@
 #![no_std]
 use crate::helpers::{get_search_url, parse_chapter_date};
 use aidoku::{
-	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Home, HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult, MangaStatus, Page, PageContext, Result, Source, Viewer, alloc::{String, Vec, borrow::Cow}, imports::net::Request, prelude::*
+	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter,
+	FilterValue, Home, HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult,
+	MangaStatus, Page, PageContext, Result, Source, Viewer,
+	alloc::{String, Vec, borrow::Cow},
+	imports::net::Request,
+	prelude::*,
 };
 use core::cell::RefCell;
 
@@ -56,9 +61,6 @@ pub struct Params {
 	pub datetime_timezone: &'static str,
 
 	pub genre_endpoint: &'static str,
-
-	pub cache_manga_id: Option<String>,
-	pub cache_manga_value: Option<Vec<u8>>,
 
 	pub search_page: fn(i32) -> String,
 	pub manga_page: fn(&Params, &Manga) -> String,
@@ -194,9 +196,6 @@ impl Default for Params {
 
 			genre_endpoint: "tim-kiem-nang-cao.html",
 
-			cache_manga_id: None,
-			cache_manga_value: None,
-
 			search_page: |page| {
 				if page == 1 {
 					"".into()
@@ -235,9 +234,15 @@ impl Default for Params {
 	}
 }
 
+pub struct Cache {
+	manga_id: String,
+	manga_value: Vec<u8>,
+}
 pub struct WpComics<T: Impl> {
 	inner: T,
-	params: RefCell<Params>,
+	params: Params,
+
+	cache: RefCell<Option<Cache>>,
 }
 
 impl<T: Impl> Source for WpComics<T> {
@@ -246,7 +251,8 @@ impl<T: Impl> Source for WpComics<T> {
 		let params = inner.params();
 		Self {
 			inner,
-			params: RefCell::new(params),
+			params,
+			cache: RefCell::new(None),
 		}
 	}
 
@@ -256,9 +262,9 @@ impl<T: Impl> Source for WpComics<T> {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let mut params = self.params.borrow_mut();
+		let mut cache = self.cache.borrow_mut();
 		self.inner
-			.get_search_manga_list(&mut params, query, page, filters)
+			.get_search_manga_list(&mut cache, &self.params, query, page, filters)
 	}
 
 	fn get_manga_update(
@@ -267,14 +273,20 @@ impl<T: Impl> Source for WpComics<T> {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let mut params = self.params.borrow_mut();
-		self.inner
-			.get_manga_update(&mut params, manga, needs_details, needs_chapters)
+		let mut cache = self.cache.borrow_mut();
+		self.inner.get_manga_update(
+			&mut cache,
+			&self.params,
+			manga,
+			needs_details,
+			needs_chapters,
+		)
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let mut params = self.params.borrow_mut();
-		self.inner.get_page_list(&mut params, manga, chapter)
+		let mut cache = self.cache.borrow_mut();
+		self.inner
+			.get_page_list(&mut cache, &self.params, manga, chapter)
 	}
 }
 
@@ -286,28 +298,29 @@ impl<T: Impl> ListingProvider for WpComics<T> {
 
 impl<T: Impl> Home for WpComics<T> {
 	fn get_home(&self) -> Result<HomeLayout> {
-		let mut params = self.params.borrow_mut();
-		self.inner.get_home(&mut params)
+		let mut cache = self.cache.borrow_mut();
+		self.inner.get_home(&mut cache, &self.params)
 	}
 }
 
 impl<T: Impl> DynamicFilters for WpComics<T> {
 	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
-		let mut params = self.params.borrow_mut();
-		self.inner.get_dynamic_filters(&mut params)
+		let mut cache = self.cache.borrow_mut();
+		self.inner.get_dynamic_filters(&mut cache, &self.params)
 	}
 }
 
 impl<T: Impl> ImageRequestProvider for WpComics<T> {
 	fn get_image_request(&self, url: String, context: Option<PageContext>) -> Result<Request> {
-		let mut params = self.params.borrow_mut();
-		self.inner.get_image_request(&mut params, url, context)
+		let mut cache = self.cache.borrow_mut();
+		self.inner
+			.get_image_request(&mut cache, &self.params, url, context)
 	}
 }
 
 impl<T: Impl> DeepLinkHandler for WpComics<T> {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let mut params = self.params.borrow_mut();
-		self.inner.handle_deep_link(&mut params, url)
+		let mut cache = self.cache.borrow_mut();
+		self.inner.handle_deep_link(&mut cache, &self.params, url)
 	}
 }

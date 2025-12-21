@@ -18,42 +18,33 @@ pub trait Impl {
 	fn new() -> Self;
 
 	fn params(&self) -> Params;
-
-	fn get_cache_manga_id<'a>(&self, params: &'a mut Params) -> Option<&'a str> {
-		params.cache_manga_id.as_deref()
-	}
-	fn set_cache_manga_id(&self, params: &mut Params, value: Option<String>) {
-		params.cache_manga_id = value;
-	}
-
-	fn get_cache_manga_value<'a>(&self, params: &'a mut Params) -> Option<&'a [u8]> {
-		params.cache_manga_value.as_deref()
-	}
-	fn set_cache_manga_value(&self, params: &mut Params, value: Option<Vec<u8>>) {
-		params.cache_manga_value = value;
-	}
-
-	fn cache_manga_page<'a>(&self, params: &'a mut Params, url: &str) -> Result<&'a [u8]> {
-		let cached_id = self.get_cache_manga_id(params);
-
-		if cached_id == Some(url) {
-			return self
-				.get_cache_manga_value(params)
-				.ok_or(error!("Cache value not found"));
+	fn cache_manga_page(
+		&self,
+		cache: &mut Option<crate::Cache>,
+		params: &Params,
+		url: &str,
+	) -> Result<Vec<u8>> {
+		if let Some(cached) = cache.as_ref() {
+			if cached.manga_id == url {
+				// need .clone() avoid lifetime issues. not request change
+				return Ok(cached.manga_value.clone());
+			}
 		}
 
-		let req = self.create_request(params, url, None)?;
-
-		self.set_cache_manga_value(params, Some(req.data()?));
-		self.set_cache_manga_id(params, Some(url.to_string()));
-
-		self.get_cache_manga_value(params)
-			.ok_or(error!("Failed to cache manga value"))
+		let req = self.create_request(cache, params, url, None)?;
+		let data = req.data()?;
+		*cache = Some(crate::Cache {
+			manga_id: url.to_string(),
+			// need .clone() avoid lifetime issues. not request change
+			manga_value: data.clone(),
+		});
+		Ok(data)
 	}
 
 	fn create_request(
 		&self,
-		params: &mut Params,
+		cache: &mut Option<crate::Cache>,
+		params: &Params,
 		url: &str,
 		headers: Option<&[(&str, &str)]>,
 	) -> Result<Request> {
@@ -70,12 +61,12 @@ pub trait Impl {
 				req = req.header(key, value);
 			}
 		}
-		self.modify_request(params, req)
+		self.modify_request(cache, params, req)
 	}
 
 	fn category_parser(
 		&self,
-		params: &mut Params,
+		params: &Params,
 		categories: &Option<Vec<String>>,
 	) -> (ContentRating, Viewer) {
 		let mut nsfw = params.nsfw;
@@ -99,11 +90,14 @@ pub trait Impl {
 	}
 	fn get_manga_list(
 		&self,
-		params: &mut Params,
+		cache: &mut Option<crate::Cache>,
+		params: &Params,
 		search_url: String,
 		headers: Option<&[(&str, &str)]>,
 	) -> Result<MangaPageResult> {
-		let html = self.create_request(params, &search_url, headers)?.html()?;
+		let html = self
+			.create_request(cache, params, &search_url, headers)?
+			.html()?;
 
 		let Some(elems) = html.select(params.manga_cell) else {
 			return Ok(MangaPageResult {
@@ -152,8 +146,13 @@ pub trait Impl {
 		})
 	}
 
-	fn parse_manga_element(&self, params: &mut Params, url: String) -> Result<Manga> {
-		let html = self.cache_manga_page(params, url.as_str())?;
+	fn parse_manga_element(
+		&self,
+		cache: &mut Option<crate::Cache>,
+		params: &Params,
+		url: String,
+	) -> Result<Manga> {
+		let html = self.cache_manga_page(cache, params, url.as_str())?;
 		let details = Html::parse_with_url(html, &url)?;
 
 		let title = details
@@ -222,8 +221,13 @@ pub trait Impl {
 		})
 	}
 
-	fn get_chapter_list(&self, params: &mut Params, url: String) -> Result<Vec<Chapter>> {
-		let html_data = self.cache_manga_page(params, &url)?;
+	fn get_chapter_list(
+		&self,
+		cache: &mut Option<crate::Cache>,
+		params: &Params,
+		url: String,
+	) -> Result<Vec<Chapter>> {
+		let html_data = self.cache_manga_page(cache, params, &url)?;
 		let html = Html::parse_with_url(html_data, url)?;
 		let title_untrimmed = (params.manga_details_title_transformer)(
 			html.select(params.manga_details_title)
@@ -316,13 +320,14 @@ pub trait Impl {
 
 	fn get_page_list(
 		&self,
-		params: &mut Params,
+		cache: &mut Option<crate::Cache>,
+		params: &Params,
 		manga: Manga,
 		chapter: Chapter,
 	) -> Result<Vec<Page>> {
 		let mut pages: Vec<Page> = Vec::new();
 		let url = (params.page_list_page)(params, &manga, &chapter);
-		let html = self.create_request(params, &url, None)?.html()?;
+		let html = self.create_request(cache, params, &url, None)?.html()?;
 		let Some(page_nodes) = html.select(params.manga_viewer_page) else {
 			return Ok(pages);
 		};
@@ -351,8 +356,13 @@ pub trait Impl {
 		Ok(pages)
 	}
 
-	fn handle_deep_link(&self, params: &mut Params, url: String) -> Result<Option<DeepLinkResult>> {
-		let html_data = self.cache_manga_page(params, &url)?;
+	fn handle_deep_link(
+		&self,
+		cache: &mut Option<crate::Cache>,
+		params: &Params,
+		url: String,
+	) -> Result<Option<DeepLinkResult>> {
+		let html_data = self.cache_manga_page(cache, params, &url)?;
 		let html = Html::parse_with_url(html_data, &url)?;
 		if html.select(params.manga_viewer_page).is_none() {
 			let Some(breadcrumbs) = html.select(".breadcrumb li") else {
@@ -376,18 +386,20 @@ pub trait Impl {
 
 	fn get_search_manga_list(
 		&self,
-		params: &mut Params,
+		cache: &mut Option<crate::Cache>,
+		params: &Params,
 		query: Option<String>,
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let url = (params.get_search_url)(params, query, page, filters)?;
-		self.get_manga_list(params, url, None)
+		self.get_manga_list(cache, params, url, None)
 	}
 
 	fn get_manga_update(
 		&self,
-		params: &mut Params,
+		cache: &mut Option<crate::Cache>,
+		params: &Params,
 		mut manga: Manga,
 		needs_details: bool,
 		needs_chapters: bool,
@@ -395,7 +407,7 @@ pub trait Impl {
 		let url = (params.manga_page)(params, &manga);
 
 		if needs_details {
-			let new_manga = self.parse_manga_element(params, url.clone())?;
+			let new_manga = self.parse_manga_element(cache, params, url.clone())?;
 
 			manga.copy_from(new_manga);
 
@@ -403,15 +415,15 @@ pub trait Impl {
 		}
 
 		if needs_chapters {
-			manga.chapters = Some(self.get_chapter_list(params, url)?);
+			manga.chapters = Some(self.get_chapter_list(cache, params, url)?);
 		}
 
 		Ok(manga)
 	}
 
-	fn get_home(&self, params: &mut Params) -> Result<HomeLayout> {
+	fn get_home(&self, cache: &mut Option<crate::Cache>, params: &Params) -> Result<HomeLayout> {
 		let base_url = &params.base_url.clone();
-		let html = self.create_request(params, base_url, None)?.html()?;
+		let html = self.create_request(cache, params, base_url, None)?.html()?;
 
 		let mut components = Vec::new();
 
@@ -533,8 +545,13 @@ pub trait Impl {
 		Ok(HomeLayout { components })
 	}
 
-	fn get_dynamic_filters(&self, params: &mut Params) -> Result<Vec<Filter>> {
+	fn get_dynamic_filters(
+		&self,
+		cache: &mut Option<crate::Cache>,
+		params: &Params,
+	) -> Result<Vec<Filter>> {
 		let request = self.create_request(
+			cache,
 			params,
 			&format!("{}{}", params.base_url, params.genre_endpoint),
 			None,
@@ -569,7 +586,8 @@ pub trait Impl {
 
 	fn get_image_request(
 		&self,
-		params: &mut Params,
+		cache: &mut Option<crate::Cache>,
+		params: &Params,
 		url: String,
 		context: Option<PageContext>,
 	) -> Result<Request> {
@@ -577,9 +595,10 @@ pub trait Impl {
 			if let Some(context) = context
 				&& let Some(referer) = context.get("Referer")
 			{
-				self.modify_request(params, Request::get(url)?.header("Referer", referer))?
+				self.modify_request(cache, params, Request::get(url)?.header("Referer", referer))?
 			} else {
 				self.modify_request(
+					cache,
 					params,
 					Request::get(url)?.header("Referer", &format!("{}/", params.base_url)),
 				)?
@@ -593,7 +612,12 @@ pub trait Impl {
 		Ok(request)
 	}
 
-	fn modify_request(&self, _params: &mut Params, request: Request) -> Result<Request> {
+	fn modify_request(
+		&self,
+		_cache: &mut Option<crate::Cache>,
+		_params: &Params,
+		request: Request,
+	) -> Result<Request> {
 		Ok(request)
 	}
 }
