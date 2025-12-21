@@ -242,7 +242,7 @@ pub trait Impl {
 		let mut skipped_first = false;
 
 		let Some(chapters_iter) = html.select(params.manga_details_chapters) else {
-			return Ok(vec![]);
+			return Ok(Vec::new());
 		};
 
 		let chapters = chapters_iter
