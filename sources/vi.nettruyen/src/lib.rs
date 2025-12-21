@@ -55,7 +55,7 @@ impl Impl for FoxTruyen {
 
 				if filters.is_empty() {
 					return Ok(format!(
-						"{}/{}{query}",
+						"{}/tim-truyen{}{query}",
 						params.base_url,
 						if query.is_empty() { "" } else { "?" }
 					));
