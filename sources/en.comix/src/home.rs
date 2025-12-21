@@ -22,7 +22,7 @@ impl Home for Comix {
 
 		if settings::get_nsfw() {
 			for item in NSFW_GENRE_IDS {
-				qs.push("includes[]", Some(&format!("-{item}")));
+				qs.push("genres[]", Some(&format!("-{item}")));
 			}
 		}
 		let url = format!("{API_URL}/manga?order[views_30d]=desc&limit=50&{qs}");
@@ -61,7 +61,7 @@ impl ListingProvider for Comix {
 
 				if settings::get_nsfw() {
 					for item in NSFW_GENRE_IDS {
-						qs.push("includes[]", Some(&format!("-{item}")));
+						qs.push("gernes[]", Some(&format!("-{item}")));
 					}
 				}
 				let url = format!(

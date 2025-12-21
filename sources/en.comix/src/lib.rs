@@ -158,7 +158,7 @@ impl Source for Comix {
 
 		if settings::get_nsfw() {
 			for item in NSFW_GENRE_IDS {
-				qs.push("includes[]", Some(&format!("-{item}")));
+				qs.push("gernes[]", Some(&format!("-{item}")));
 			}
 		}
 

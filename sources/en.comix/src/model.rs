@@ -35,7 +35,7 @@ pub struct ComixManga<'a> {
 	pub poster: Poster<'a>,
 
 	pub original_language: Option<String>,
-	pub status: ComixStatus,
+	pub status: Option<String>,
 
 	pub final_volume: f64,
 	pub final_chapter: f64,
@@ -203,12 +203,13 @@ impl ComixManga<'_> {
 	}
 
 	pub fn status(&self) -> MangaStatus {
-		match self.status {
-			ComixStatus::Releasing => MangaStatus::Ongoing,
-			ComixStatus::Finished => MangaStatus::Completed,
-			ComixStatus::OnHiatus => MangaStatus::Hiatus,
-			ComixStatus::Discontinued => MangaStatus::Cancelled,
-			ComixStatus::NotYetReleased => MangaStatus::Unknown,
+		match self.status.as_deref() {
+			Some("releasing") => MangaStatus::Ongoing,
+			Some("finished") => MangaStatus::Completed,
+			Some("on hiatus") => MangaStatus::Hiatus,
+			Some("discontinued") => MangaStatus::Cancelled,
+			Some("not_yet_released") => MangaStatus::Unknown,
+			_ => MangaStatus::Unknown,
 		}
 	}
 
