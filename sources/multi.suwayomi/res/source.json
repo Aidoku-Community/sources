@@ -2,16 +2,11 @@
 	"info": {
 		"id": "multi.suwayomi",
 		"name": "Suwayomi",
-		"version": 1,
+		"version": 3,
 		"url": "https://github.com/Suwayomi",
 		"contentRating": 0,
 		"languages": [
 			"multi"
 		]
-	},
-	"listings": [
-		{
-			"id": "Library"
-		}
-	]
+	}
 }

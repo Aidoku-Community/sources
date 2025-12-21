@@ -5,14 +5,16 @@ mod graphql;
 mod models;
 mod settings;
 
+const CATEGORY_FILTER_ID: &str = "CATEGORY";
+
 use crate::models::{
-	FetchChapterPagesResponse, GraphQLResponse, MangaOnlyDescriptionResponse, MultipleChapters,
-	MultipleMangas,
+	FetchChapterPagesResponse, GraphQLResponse, MangaOnlyDescriptionResponse, MultipleCategories,
+	MultipleChapters, MultipleMangas,
 };
 use aidoku::imports::std::send_partial_result;
 use aidoku::{
-	AidokuError, BaseUrlProvider, Chapter, FilterValue, Listing, ListingProvider, Manga,
-	MangaPageResult, Page, PageContent, Result, Source,
+	AidokuError, BaseUrlProvider, Chapter, DynamicListings, FilterValue, Listing, ListingProvider,
+	Manga, MangaPageResult, Page, PageContent, Result, Source,
 	alloc::{String, Vec},
 	imports::net::Request,
 	prelude::*,
@@ -21,6 +23,39 @@ use alloc::string::ToString;
 use alloc::vec;
 
 struct Suwayomi;
+
+impl Suwayomi {
+	fn graphql_request<T>(&self, body: serde_json::Value) -> Result<GraphQLResponse<T>>
+	where
+		T: serde::de::DeserializeOwned,
+	{
+		let base_url = settings::get_base_url()?;
+		Request::post(format!("{base_url}/api/graphql"))?
+			.header("Content-Type", "application/json")
+			.body(body.to_string())
+			.json_owned::<GraphQLResponse<T>>()
+	}
+
+	fn execute_query<T>(
+		&self,
+		gql: graphql::GraphQLQuery,
+		variables: Option<serde_json::Value>,
+	) -> Result<GraphQLResponse<T>>
+	where
+		T: serde::de::DeserializeOwned,
+	{
+		let mut body = serde_json::json!({
+			"operationName": gql.operation_name,
+			"query": gql.query,
+		});
+
+		if let Some(vars) = variables {
+			body["variables"] = vars;
+		}
+
+		self.graphql_request(body)
+	}
+}
 
 impl Source for Suwayomi {
 	fn new() -> Self {
@@ -55,6 +90,18 @@ impl Source for Suwayomi {
 						"byType": if ascending { "ASC" } else { "DESC" }
 					}));
 				}
+				FilterValue::Check { id, value } => {
+					if id == CATEGORY_FILTER_ID {
+						// This is special cased since the "Default" category means you don't have
+						// any categories attached to the manga.
+						let filter_value = if value == 0 {
+							serde_json::json!({"isNull": true})
+						} else {
+							serde_json::json!({"equalTo": value})
+						};
+						manga_filter.insert("categoryId".to_string(), filter_value);
+					}
+				}
 				_ => continue,
 			}
 		}
@@ -81,21 +128,10 @@ impl Source for Suwayomi {
 
 		let json_value = serde_json::Value::Object(variables);
 
-		let gql = graphql::GraphQLQuery::SEARCH_MANGA_LIST;
-		let body = serde_json::json!({
-			"operationName": gql.operation_name,
-			"query": gql.query,
-			"variables": json_value,
-		});
-
-		let base_url = settings::get_base_url()?;
-		let data = Request::post(format!("{base_url}/api/graphql"))?
-			.header("Content-Type", "application/json")
-			.body(body.to_string())
-			.data()?;
-
-		let response = serde_json::from_slice::<GraphQLResponse<MultipleMangas>>(&data)
-			.map_err(|_| AidokuError::JsonParseError)?;
+		let response = self.execute_query::<MultipleMangas>(
+			graphql::GraphQLQuery::SEARCH_MANGA_LIST,
+			Some(json_value),
+		)?;
 
 		let base_url = settings::get_base_url()?;
 		Ok(MangaPageResult {
@@ -116,28 +152,17 @@ impl Source for Suwayomi {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let manga_id = manga.key.parse::<i32>().expect("Invalid number");
-		let base_url = settings::get_base_url()?;
+		let manga_id = manga
+			.key
+			.parse::<i32>()
+			.map_err(|_| AidokuError::DeserializeError)?;
 		if needs_details {
-			let gql = graphql::GraphQLQuery::MANGA_DESCRIPTION;
-			let variables = serde_json::json!({
-				"mangaId": manga_id
-			});
-
-			let body = serde_json::json!({
-				"operationName": gql.operation_name,
-				"query": gql.query,
-				"variables": variables,
-			});
-
-			let data = Request::post(format!("{base_url}/api/graphql"))?
-				.header("Content-Type", "application/json")
-				.body(body.to_string())
-				.data()?;
-
-			let response =
-				serde_json::from_slice::<GraphQLResponse<MangaOnlyDescriptionResponse>>(&data)
-					.map_err(|_| AidokuError::JsonParseError)?;
+			let response = self.execute_query::<MangaOnlyDescriptionResponse>(
+				graphql::GraphQLQuery::MANGA_DESCRIPTION,
+				Some(serde_json::json!({
+					"mangaId": manga_id
+				})),
+			)?;
 
 			manga.description = Some(response.data.manga.description);
 
@@ -146,25 +171,14 @@ impl Source for Suwayomi {
 			}
 		}
 		if needs_chapters {
-			let gql = graphql::GraphQLQuery::MANGA_CHAPTERS;
-			let variables = serde_json::json!({
-				"mangaId": manga_id
-			});
+			let response = self.execute_query::<MultipleChapters>(
+				graphql::GraphQLQuery::MANGA_CHAPTERS,
+				Some(serde_json::json!({
+					"mangaId": manga_id
+				})),
+			)?;
 
-			let body = serde_json::json!({
-				"operationName": gql.operation_name,
-				"query": gql.query,
-				"variables": variables,
-			});
-
-			let data = Request::post(format!("{base_url}/api/graphql"))?
-				.header("Content-Type", "application/json")
-				.body(body.to_string())
-				.data()?;
-
-			let response = serde_json::from_slice::<GraphQLResponse<MultipleChapters>>(&data)
-				.map_err(|_| AidokuError::JsonParseError)?;
-
+			let base_url = settings::get_base_url()?;
 			manga.chapters = Some(
 				response
 					.data
@@ -180,29 +194,19 @@ impl Source for Suwayomi {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let chapter_id = chapter.key.parse::<i32>().expect("Invalid chapter ID");
+		let chapter_id = chapter
+			.key
+			.parse::<i32>()
+			.map_err(|_| AidokuError::DeserializeError)?;
 
-		let gql = graphql::GraphQLQuery::CHAPTER_PAGES;
-		let variables = serde_json::json!({
-			"input": {
-				"chapterId": chapter_id
-			}
-		});
-
-		let body = serde_json::json!({
-			"operationName": gql.operation_name,
-			"query": gql.query,
-			"variables": variables,
-		});
-
-		let base_url = settings::get_base_url()?;
-		let data = Request::post(format!("{base_url}/api/graphql"))?
-			.header("Content-Type", "application/json")
-			.body(body.to_string())
-			.data()?;
-
-		let response = serde_json::from_slice::<GraphQLResponse<FetchChapterPagesResponse>>(&data)
-			.map_err(|_| AidokuError::JsonParseError)?;
+		let response = self.execute_query::<FetchChapterPagesResponse>(
+			graphql::GraphQLQuery::CHAPTER_PAGES,
+			Some(serde_json::json!({
+				"input": {
+					"chapterId": chapter_id
+				}
+			})),
+		)?;
 
 		let base_url = settings::get_base_url()?;
 		Ok(response
@@ -223,18 +227,41 @@ impl Source for Suwayomi {
 
 impl ListingProvider for Suwayomi {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		match listing.id.as_str() {
-			"Library" => self.get_search_manga_list(
-				None,
-				page,
-				vec![FilterValue::Sort {
+		let category_id = listing
+			.id
+			.parse::<i32>()
+			.map_err(|_| AidokuError::DeserializeError)?;
+
+		self.get_search_manga_list(
+			None,
+			page,
+			vec![
+				FilterValue::Sort {
 					id: String::default(),
 					index: 0,
 					ascending: true,
-				}],
-			),
-			_ => Err(AidokuError::Unimplemented),
-		}
+				},
+				FilterValue::Check {
+					id: CATEGORY_FILTER_ID.to_string(),
+					value: category_id,
+				},
+			],
+		)
+	}
+}
+
+impl DynamicListings for Suwayomi {
+	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
+		let response =
+			self.execute_query::<MultipleCategories>(graphql::GraphQLQuery::CATEGORIES, None)?;
+
+		let categories = response.data.categories.nodes;
+		let total_count = categories.len();
+
+		Ok(categories
+			.into_iter()
+			.map(|c| c.into_listing(total_count))
+			.collect())
 	}
 }
 
@@ -244,4 +271,4 @@ impl BaseUrlProvider for Suwayomi {
 	}
 }
 
-register_source!(Suwayomi, ListingProvider, BaseUrlProvider);
+register_source!(Suwayomi, ListingProvider, BaseUrlProvider, DynamicListings);

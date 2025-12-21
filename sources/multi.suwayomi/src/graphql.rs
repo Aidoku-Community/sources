@@ -35,7 +35,7 @@ const GET_MANGA_CHAPTERS: &str = r#"query GET_MANGA_CHAPTERS($mangaId: Int!) {
 	}
 }"#;
 
-const GET_CHAPTER_PAGES: &str = r#"mutation GET_PAGE_LIST($input: FetchChapterPagesInput!) {
+const GET_CHAPTER_PAGES: &str = r#"mutation GET_CHAPTER_PAGES($input: FetchChapterPagesInput!) {
 	fetchChapterPages(input: $input) {
 		pages
 	}
@@ -47,6 +47,15 @@ const GET_MANGA_DESCRIPTION: &str = r#"query GET_MANGA_DESCRIPTION($mangaId: Int
 	}
 }
 "#;
+
+const GET_CATEGORIES: &str = r#"query GET_CATEGORIES {
+	categories {
+		nodes {
+			name
+			id
+		}
+	}
+}"#;
 
 impl GraphQLQuery {
 	pub const SEARCH_MANGA_LIST: Self = Self {
@@ -60,12 +69,17 @@ impl GraphQLQuery {
 	};
 
 	pub const CHAPTER_PAGES: Self = Self {
-		operation_name: "GET_PAGE_LIST",
+		operation_name: "GET_CHAPTER_PAGES",
 		query: GET_CHAPTER_PAGES,
 	};
 
 	pub const MANGA_DESCRIPTION: Self = Self {
 		operation_name: "GET_MANGA_DESCRIPTION",
 		query: GET_MANGA_DESCRIPTION,
+	};
+
+	pub const CATEGORIES: Self = Self {
+		operation_name: "GET_CATEGORIES",
+		query: GET_CATEGORIES,
 	};
 }

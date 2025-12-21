@@ -74,15 +74,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "chrono"
-version = "0.4.42"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "145052bdd345b87320e369255277e3fb5152762ad123a901ef5c262dd38fe8d2"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "cobs"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -97,10 +88,7 @@ version = "0.1.0"
 dependencies = [
  "aidoku",
  "aidoku-test",
- "chrono",
- "iken",
  "serde",
- "serde_json",
 ]
 
 [[package]]
@@ -162,16 +150,6 @@ dependencies = [
  "serde",
  "spin",
  "stable_deref_trait",
-]
-
-[[package]]
-name = "iken"
-version = "0.1.0"
-dependencies = [
- "aidoku",
- "chrono",
- "serde",
- "serde_json",
 ]
 
 [[package]]

@@ -1,4 +1,9 @@
-use aidoku::alloc::string::String;
+use aidoku::alloc::{string::String, vec::Vec};
+
+/// Checks if the given base url is a v4-only domain.
+pub fn is_v4(url: &str) -> bool {
+	["https://bato.si", "https://bato.ing"].contains(&url)
+}
 
 /// Extracts a substring between two given strings.
 pub fn extract_between<'a>(s: &'a str, start: &str, end: &str) -> Option<&'a str> {
@@ -11,7 +16,7 @@ pub fn extract_between<'a>(s: &'a str, start: &str, end: &str) -> Option<&'a str
 /// Returns the ID of a manga from a URL.
 pub fn get_manga_key(url: &str) -> Option<String> {
 	// remove query parameters
-	let path = url.split('?').next().unwrap_or(url);
+	let path = url.split_once('?').map(|t| t.0).unwrap_or(url);
 
 	// find the segment after "title"
 	let manga_segment = path
@@ -25,6 +30,22 @@ pub fn get_manga_key(url: &str) -> Option<String> {
 		Some(prefix.into())
 	} else {
 		Some(manga_segment.into())
+	}
+}
+
+/// Returns the ID of a chapter from a URL
+pub fn get_chapter_key(url: &str) -> Option<String> {
+	let path = url.split_once('?').map(|t| t.0).unwrap_or(url);
+
+	// find the last segment (the chapter part)
+	let chapter_segment = path.rsplit('/').next()?;
+
+	// get the part before the first '-'
+	if let Some(dash_pos) = chapter_segment.find('-') {
+		let prefix = &chapter_segment[..dash_pos];
+		Some(prefix.into())
+	} else {
+		Some(chapter_segment.into())
 	}
 }
 
@@ -101,6 +122,51 @@ pub fn parse_chapter_title(input: &str) -> ChapterInfo {
 		chapter,
 		title,
 	}
+}
+
+/// Extracts the cdn page images from a qwik/json script.
+pub fn extract_image_urls(input: &str) -> Vec<String> {
+	let mut urls = Vec::new();
+	let pattern = "https://";
+	let mut start = 0;
+
+	// find the first occurrence of a url
+	while let Some(pos) = input[start..].find(pattern) {
+		let abs_pos = start + pos;
+
+		// check if this is the start of a quoted, comma-separated value
+		// (either at the start, or after a comma, and preceded by a quote)
+		let is_valid_start = abs_pos == 0
+			|| input[..abs_pos].ends_with(",\"")
+			|| input[..abs_pos].ends_with("[\"")
+			|| input[..abs_pos].ends_with(" \"");
+
+		if is_valid_start {
+			// find the end quote
+			let after = &input[abs_pos..];
+			if let Some(end_quote) = after.find('"') {
+				let candidate = &after[..end_quote];
+				// check for "https://{letter}{digit}{digit}." (cdn url)
+				let bytes = candidate.as_bytes();
+				if bytes.len() > 12
+					&& bytes[8].is_ascii_alphabetic()
+					&& bytes[9].is_ascii_digit()
+					&& bytes[10].is_ascii_digit()
+					&& bytes[11] == b'.'
+				{
+					urls.push(candidate.into());
+					// move start to after this quote
+					start = abs_pos + end_quote + 1;
+					// continue to next url
+					continue;
+				}
+			}
+		}
+		// if not valid, move past this url and keep searching
+		start = abs_pos + pattern.len();
+	}
+
+	urls
 }
 
 pub fn get_language_iso(language: &str) -> &str {
@@ -324,6 +390,22 @@ mod tests {
 			get_manga_key("https://bato.to/title/181119-a-familiar-feeling/3249793-ch_1")
 				.as_deref(),
 			Some("181119")
+		);
+	}
+
+	#[aidoku_test]
+	fn test_chapter_keys() {
+		assert_eq!(
+			get_chapter_key(
+				"https://bato.to/title/209639-en-concubine-official-uncensored/4001767-ch_18"
+			)
+			.as_deref(),
+			Some("4001767")
+		);
+		assert_eq!(
+			get_chapter_key("https://bato.to/title/181119-a-familiar-feeling/3249793-ch_1")
+				.as_deref(),
+			Some("3249793")
 		);
 	}
 

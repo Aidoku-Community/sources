@@ -1,4 +1,5 @@
 use aidoku::helpers::uri::QueryParameters;
+use aidoku::imports::std::print;
 use aidoku::{AidokuError, Link, Listing, ListingProvider, MangaPageResult};
 use aidoku::{
 	Home, HomeComponent, HomeLayout, Manga, Result,
@@ -68,6 +69,7 @@ impl ListingProvider for Comix {
 				let url = format!(
 					"{API_URL}/manga?order[chapter_updated_at]=desc&limit=50&{qs}&page={page}"
 				);
+				println!("{url}");
 				let (entries, has_next_page) = Request::get(url)?
 					.send()?
 					.get_json::<ComixResponse<ResultData<ComixManga>>>()
@@ -86,7 +88,7 @@ impl ListingProvider for Comix {
 					has_next_page,
 				})
 			}
-			_ => return Err(AidokuError::Message(("Invalid listing id".into()))),
+			_ => return Err(AidokuError::Message("Invalid listing id".into())),
 		}
 	}
 }
