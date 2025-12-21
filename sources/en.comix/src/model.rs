@@ -1,13 +1,8 @@
-// use crate::Params;
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaStatus, Viewer,
-	alloc::{String, Vec, fmt, string::ToString, vec},
-	helpers::element::ElementHelpers,
-	imports::html::Html,
+	alloc::{String, Vec, string::ToString, vec},
 	prelude::*,
 };
-use chrono::DateTime;
-use serde::de::{self, Deserializer, Visitor};
 use serde::{self, Deserialize};
 
 use crate::BASE_URL;
@@ -87,7 +82,6 @@ pub struct ComixChapter {
 
 	pub scanlation_group_id: i64,
 
-	/// In your JSON it's `0`/`1` (number), not `true`/`false`.
 	pub is_official: i64,
 
 	pub number: f64,
@@ -277,9 +271,6 @@ impl From<ComixChapter> for Chapter {
 		let chapter_number = Some(val.number as f32);
 		let volume_number = Some(val.volume as f32);
 
-		// As per MangaDex upload guidelines, if the volume and chapter are both null or
-		// for serialized entries, the volume is 0 and chapter is null, it's a oneshot.
-		// They should have a title of "Oneshot" but some don't, so we'll add it if it's missing.
 		let title = if (volume_number == Some(0.0)) && val.name.is_empty() {
 			Some("".into())
 		} else {

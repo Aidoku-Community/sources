@@ -1,14 +1,10 @@
 #![no_std]
 use aidoku::{
-	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap,
-	Home, HomeComponent, HomeLayout, ImageRequestProvider, Listing, ListingProvider, Manga,
-	MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source, Viewer,
-	alloc::{String, Vec, borrow::ToOwned, fmt::format, string::ToString, vec},
+	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Listing,
+	ListingKind, Manga, MangaPageResult, Page, PageContent, Result, Source,
+	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::QueryParameters,
-	imports::{
-		html::Element,
-		net::{Request, TimeUnit, set_rate_limit},
-	},
+	imports::net::{Request, TimeUnit, set_rate_limit},
 	prelude::*,
 };
 
@@ -16,7 +12,6 @@ use crate::model::{ChapterResponse, ComixChapter, ComixManga, ComixResponse, Res
 
 mod home;
 mod model;
-// use iken::{IKen, Impl, Params};
 
 const BASE_URL: &str = "https://comix.com";
 const API_URL: &str = "https://comix.to/api/v2";
@@ -112,8 +107,6 @@ impl Source for Comix {
 					);
 					qs.push(&key, Some(if ascending { "asc" } else { "desc" }));
 				}
-				// FilterValue::Check { id, value } => todo!(),
-				// FilterValue::Select { id, value } => todo!(),
 				FilterValue::MultiSelect {
 					id,
 					included,
@@ -151,7 +144,6 @@ impl Source for Comix {
 						));
 					}
 				},
-				// FilterValue::Range { id, from, to } => continue,
 				_ => continue,
 			}
 		}
@@ -180,13 +172,11 @@ impl Source for Comix {
 					res.result.pagination.current_page < res.result.pagination.last_page,
 				)
 			})?;
-		// let has_next_page = results.pagination.current_page < results.pagination.last_page;
 
 		Ok(MangaPageResult {
 			entries,
 			has_next_page,
 		})
-		// todo!()
 	}
 
 	fn get_manga_update(
@@ -225,12 +215,10 @@ impl Source for Comix {
 					.send()?
 					.get_json::<ComixResponse<ResultData<ComixChapter>>>()?;
 
-				// insert/dedup this page's items
 				for item in res.result.items {
 					dedup_insert(&mut chapter_map, item);
 				}
 
-				// stop condition
 				if res.result.pagination.current_page >= res.result.pagination.last_page {
 					break;
 				}
@@ -238,7 +226,6 @@ impl Source for Comix {
 				page += 1;
 			}
 
-			// convert to aidoku::Chapter and set url field
 			let mut chapters: Vec<Chapter> = chapter_map
 				.into_values()
 				.map(|item| {
@@ -249,7 +236,6 @@ impl Source for Comix {
 				})
 				.collect();
 
-			// optional: keep deterministic ordering (desc by chapter number)
 			chapters.sort_by(|a, b| {
 				b.chapter_number
 					.partial_cmp(&a.chapter_number)
@@ -263,12 +249,9 @@ impl Source for Comix {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		// let chapter_url = chapter.url.as_deref().unwrap_or("");
 		let chapter_id = chapter.key;
-		// Kotlin: val url = "${apiUrl}chapters/$chapterId"
 		let url = format!("{API_URL}/chapters/{}", chapter_id);
 
-		// Kotlin: GET(url, headers) then parse JSON
 		let res = Request::get(url)?.send()?.get_json::<ChapterResponse>()?;
 
 		let result = res
@@ -280,13 +263,11 @@ impl Source for Comix {
 			return Ok(vec![]);
 		}
 
-		// Kotlin: result.images.mapIndexed { index, img -> Page(index, imageUrl = img.url) }
 		let pages: Vec<Page> = result
 			.images
 			.into_iter()
 			.enumerate()
 			.map(|(_index, img)| Page {
-				// index: index as i32,
 				content: PageContent::url(img.url),
 				..Default::default()
 			})
@@ -298,8 +279,48 @@ impl Source for Comix {
 
 impl DeepLinkHandler for Comix {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		todo!()
+		if !url.starts_with(BASE_URL) {
+			return Ok(None);
+		}
+
+		let key = &url[BASE_URL.len()..];
+		const LATEST_QUERY: &str = "order[chapter_updated_at]";
+		let sections: Vec<&str> = key.split('/').filter(|s| !s.is_empty()).collect();
+		if key.contains(LATEST_QUERY) {
+			Ok(Some(DeepLinkResult::Listing(Listing {
+				id: "latest".to_string(),
+				name: "Latest Releases".to_string(),
+				kind: ListingKind::Default,
+			})))
+		} else if sections.len() == 2 && sections[0] == "title" {
+			// ex: https://comix.to/title/rm7l-after-becoming-financially-free-they-offered-their-loyalty
+			let full_slug = sections[1];
+
+			if let Some(id) = full_slug.split('-').next() {
+				return Ok(Some(DeepLinkResult::Manga {
+					key: id.to_string(),
+				}));
+			} else {
+				Ok(None)
+			}
+		} else if sections.len() == 3 && sections[0] == "title" {
+			// ex: https://comix.to/title/rm7l-after-becoming.../7206380-chapter-63
+
+			let manga_id = sections[1].split('-').next();
+			let chapter_id = sections[2].split('-').next();
+
+			if let (Some(m_id), Some(c_id)) = (manga_id, chapter_id) {
+				Ok(Some(DeepLinkResult::Chapter {
+					manga_key: m_id.to_string(),
+					key: c_id.to_string(),
+				}))
+			} else {
+				Ok(None)
+			}
+		} else {
+			Ok(None)
+		}
 	}
 }
 
-register_source!(Comix, Home, DeepLinkHandler);
+register_source!(Comix, Home, ListingProvider, DeepLinkHandler);

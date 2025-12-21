@@ -1,0 +1,15 @@
+[
+	{
+		"type": "group",
+		"title": "Thumbnail Quality",
+		"items": [
+			{
+				"type": "select",
+				"title": "Show Guide",
+				"key": "thumbnailQuality",
+				"default": true,
+				"refreshes": ["content"]
+			}
+		]
+	}
+]
