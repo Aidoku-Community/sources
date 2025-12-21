@@ -364,8 +364,8 @@ pub trait Impl {
 	}
 
 	fn handle_deep_link(&self, params: &mut Params, url: String) -> Result<Option<DeepLinkResult>> {
-		let html = self.cache_manga_page(params, url.as_str())?;
-		let html = Html::parse_with_url(html, url.clone())?;
+		let html_data = self.cache_manga_page(params, &url)?;
+		let html = Html::parse_with_url(html_data, &url)?;
 		if html.select(params.manga_viewer_page).is_none() {
 			let Some(breadcrumbs) = html.select(".breadcrumb li") else {
 				return Ok(None);
