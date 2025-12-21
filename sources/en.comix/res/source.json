@@ -9,10 +9,8 @@
 	},
 	"listings": [
 		{
-			"id": "Trending Webtoon"
-		},
-		{
-			"id": "Trending Manga"
+			"id": "latest",
+			"name": "Latest Releases"
 		}
 	]
 }

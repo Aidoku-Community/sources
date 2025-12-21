@@ -1,31 +1,76 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout,
-	HomePartialResult, Link, LinkValue, Listing, ListingProvider, Manga, MangaPageResult,
-	MangaWithChapter, Page, Result, Source,
+	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Listing,
+	ListingKind, Manga, MangaPageResult, Page, PageContent, Result, Source,
 	alloc::{String, Vec, string::ToString, vec},
-	helpers::uri::{QueryParameters, encode_uri_component},
-	imports::{
-		net::{Request, RequestError, Response},
-		std::send_partial_result,
-	},
+	helpers::uri::QueryParameters,
+	imports::net::{Request, TimeUnit, set_rate_limit},
 	prelude::*,
 };
 
-mod models;
+use crate::model::{ChapterResponse, ComixChapter, ComixManga, ComixResponse, ResultData};
+
+mod home;
+mod model;
 mod settings;
 
-use models::*;
-
-const BASE_URL: &str = "https://comix.to";
+const BASE_URL: &str = "https://comix.com";
 const API_URL: &str = "https://comix.to/api/v2";
 
-const NSFW_GENRE_IDS: &[&str] = &["87264", "8", "87265", "13", "87266", "87268"];
+const NSFW_GENRE_IDS: [&str; 6] = ["87264", "8", "87265", "13", "87266", "87268"];
+const INCLUDES: [&str; 6] = [
+	"demographic",
+	"genre",
+	"theme",
+	"author",
+	"artist",
+	"publisher",
+];
 
 struct Comix;
 
+fn is_official_like(ch: &ComixChapter) -> bool {
+	ch.scanlation_group_id == 9275 || ch.is_official == 1
+}
+
+fn is_better(new_ch: &ComixChapter, cur: &ComixChapter) -> bool {
+	let official_new = is_official_like(new_ch);
+	let official_cur = is_official_like(cur);
+
+	if official_new && !official_cur {
+		return true;
+	}
+	if !official_new && official_cur {
+		return false;
+	}
+
+	if new_ch.votes > cur.votes {
+		return true;
+	}
+	if new_ch.votes < cur.votes {
+		return false;
+	}
+
+	new_ch.updated_at > cur.updated_at
+}
+
+fn dedup_insert(map: &mut HashMap<String, ComixChapter>, ch: ComixChapter) {
+	let key = ch.number.to_string();
+	match map.get(&key) {
+		None => {
+			map.insert(key, ch);
+		}
+		Some(current) => {
+			if is_better(&ch, current) {
+				map.insert(key, ch);
+			}
+		}
+	}
+}
+
 impl Source for Comix {
 	fn new() -> Self {
+		set_rate_limit(5, 1, TimeUnit::Seconds);
 		Self
 	}
 
@@ -36,93 +81,109 @@ impl Source for Comix {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let mut qs = QueryParameters::new();
-		qs.push("page", Some(&page.to_string()));
-		if query.is_some() {
-			qs.push("keyword", query.as_deref());
-		}
-
-		let mut has_sort_filter = false;
-
 		for filter in filters {
 			match filter {
-				FilterValue::Text { id, value } => {
-					let url = format!(
-						"{API_URL}/terms?type={id}&keyword={}&limit=1",
-						encode_uri_component(value)
-					);
-					let id = Request::get(url)?
-						.json_owned::<TermResponse>()?
-						.result
-						.items
-						.first()
-						.map(|t| t.term_id)
-						.ok_or_else(|| error!("No matching {id}s"))?;
-					qs.push(&format!("{id}s[]"), Some(&id.to_string()));
-				}
+				FilterValue::Text { id, value } => match id.as_str() {
+					"author" => todo!(),
+					_ => return Err(AidokuError::Message(("Invalid text filter id".into()))),
+				},
 				FilterValue::Sort {
-					id,
-					index,
-					ascending,
+					index, ascending, ..
 				} => {
-					qs.push(
-						&format!(
-							"{id}[{}]",
-							match index {
-								0 => "relevance",
-								1 => "chapter_updated_at",
-								2 => "created_at",
-								3 => "title",
-								4 => "year",
-								5 => "score",
-								6 => "views_7d",
-								7 => "views_30d",
-								8 => "views_90d",
-								9 => "views_total",
-								10 => "follows_total",
-								_ => "relevance",
-							}
-						),
-						Some(if (index == 3 && !ascending) || (index != 3 && ascending) {
-							"asc"
-						} else {
-							"desc"
-						}),
+					let key = format!(
+						"order[{}]",
+						match index {
+							0 => "relevance",
+							1 => "views_30d",
+							2 => "chapter_updated_at",
+							3 => "created_at",
+							4 => "title",
+							5 => "year",
+							6 => "views_total",
+							7 => "follows_total",
+							_ =>
+								return Err(AidokuError::Message(
+									"Invalid sort filter index".into()
+								)),
+						}
 					);
-					has_sort_filter = true;
-				}
-				FilterValue::Select { id, value } => {
-					qs.push(&id, Some(&value));
+					qs.push(&key, Some(if ascending { "asc" } else { "desc" }));
 				}
 				FilterValue::MultiSelect {
 					id,
 					included,
 					excluded,
-				} => {
-					for value in included {
-						qs.push(&id, Some(&value));
+				} => match id.as_str() {
+					"status" => {
+						for id in included {
+							qs.push("statuses[]", Some(&id));
+						}
 					}
-					for value in excluded {
-						qs.push(&id, Some(&format!("-{value}")));
+					"type" => {
+						for id in included {
+							qs.push("types[]", Some(&id));
+						}
 					}
-				}
+					"genre" => {
+						for id in included {
+							qs.push("genres[]", Some(&id));
+						}
+						for id in excluded {
+							qs.push("genres[]", Some(&format!("-{}", id)));
+						}
+					}
+					"demographic" => {
+						for id in included {
+							qs.push("demographics[]", Some(&id));
+						}
+						for id in excluded {
+							qs.push("demographics[]", Some(&format!("-{}", id)));
+						}
+					}
+					_ => {
+						return Err(AidokuError::Message(
+							("Invalid multi-select filter id".into()),
+						));
+					}
+				},
 				_ => continue,
 			}
 		}
 
-		if !has_sort_filter {
-			qs.push("order[relevance]", Some("desc"));
+		if let Some(query) = query {
+			qs.push("keyword", Some(&query));
+			qs.remove_all("order[views_30d]");
+			qs.set("order[relevance]", Some("desc".into()));
 		}
 
-		if settings::hide_nsfw() {
-			for genre_id in NSFW_GENRE_IDS {
-				qs.push("genres[]", Some(&format!("-{genre_id}")));
+		if settings::get_nsfw() {
+			for item in NSFW_GENRE_IDS {
+				qs.push("gernes[]", Some(&format!("-{item}")));
 			}
 		}
 
+		qs.push("limit", Some("50".into()));
+		qs.push("page", Some(&page.to_string()));
+
 		let url = format!("{API_URL}/manga?{qs}");
-		Request::get(url)?
-			.json_owned::<SearchResponse>()
-			.map(Into::into)
+		let (entries, has_next_page) = Request::get(url)?
+			.send()?
+			.get_json::<ComixResponse<ResultData<ComixManga>>>()
+			.map(|res| {
+				(
+					res.result
+						.items
+						.into_iter()
+						.map(Into::into)
+						.collect::<Vec<Manga>>(),
+					res.result.pagination.current_page < res.result.pagination.last_page,
+				)
+			})?;
+
+		Ok(MangaPageResult {
+			entries,
+			has_next_page,
+		})
 	}
 
 	fn get_manga_update(
@@ -131,50 +192,76 @@ impl Source for Comix {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
+		let base_url = format!("{API_URL}/manga");
 		if needs_details {
-			let url = format!(
-				"{API_URL}/manga/{}/?includes[]=demographic\
-									&includes[]=genre\
-									&includes[]=theme\
-									&includes[]=author\
-									&includes[]=artist\
-									&includes[]=publisher",
-				manga.key
-			);
-			let json: SingleMangaResponse = Request::get(&url)?.json_owned()?;
-
-			manga.copy_from(json.result.into());
-
-			if needs_chapters {
-				send_partial_result(&manga);
+			let mut qs = QueryParameters::new();
+			for item in INCLUDES {
+				qs.push("includes[]", Some(item));
 			}
+			let url = format!("{base_url}/{}?{qs}", manga.key);
+			manga.copy_from(
+				Request::get(url)?
+					.send()?
+					.get_json::<ComixResponse<ComixManga>>()?
+					.result
+					.into(),
+			);
 		}
 
 		if needs_chapters {
-			let chapters_url = format!(
-				"{API_URL}/manga/{}/chapters/?order[number]=desc&limit=100",
-				manga.key
-			);
-			let mut current_page = 1;
-			let (last_page, mut chapters) =
-				Request::get(format!("{chapters_url}&page={current_page}"))?
-					.json_owned::<ChapterDetailsResponse>()
-					.map(|json| {
-						(
-							json.result.pagination.last_page,
-							json.result.into_chapters(&manga.key),
-						)
-					})?;
-
-			while current_page < last_page {
-				current_page += 1;
-				chapters.extend(
-					Request::get(format!("{chapters_url}&page={current_page}"))?
-						.json_owned::<ChapterDetailsResponse>()?
-						.result
-						.into_chapters(&manga.key),
+			let limit = 100;
+			let mut page = 1;
+			let deduplicate = settings::get_dedupchapter();
+			let mut chapter_map: HashMap<String, ComixChapter> = HashMap::new();
+			let mut chapter_list: Vec<ComixChapter> = Vec::new();
+			loop {
+				let url = format!(
+					"{base_url}/{}/chapters?limit={}&page={}&order[number]=desc",
+					manga.key, limit, page
 				);
+
+				let res = Request::get(url)?
+					.send()?
+					.get_json::<ComixResponse<ResultData<ComixChapter>>>()?;
+
+				let items = res.result.items;
+
+				if deduplicate {
+					for item in items {
+						dedup_insert(&mut chapter_map, item);
+					}
+				} else {
+					chapter_list.extend(items);
+				}
+
+				if res.result.pagination.current_page >= res.result.pagination.last_page {
+					break;
+				}
+
+				page += 1;
 			}
+
+			let raw_chapters = if deduplicate {
+				chapter_map.into_values().collect::<Vec<_>>()
+			} else {
+				chapter_list
+			};
+
+			let mut chapters: Vec<Chapter> = raw_chapters
+				.into_iter()
+				.map(|item| {
+					let url = Some(item.url(&manga));
+					let mut ch: Chapter = item.into();
+					ch.url = url;
+					ch
+				})
+				.collect();
+
+			chapters.sort_by(|a, b| {
+				b.chapter_number
+					.partial_cmp(&a.chapter_number)
+					.unwrap_or(core::cmp::Ordering::Equal)
+			});
 
 			manga.chapters = Some(chapters);
 		}
@@ -182,202 +269,78 @@ impl Source for Comix {
 		Ok(manga)
 	}
 
-	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let url = format!("{API_URL}/chapters/{}", chapter.key);
-		let json: ChapterResponse = Request::get(url)?.json_owned()?;
+	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+		let chapter_id = chapter.key;
+		let url = format!("{API_URL}/chapters/{}", chapter_id);
 
-		let Some(result) = json.result else {
-			bail!("Missing chapter")
-		};
+		let res = Request::get(url)?.send()?.get_json::<ChapterResponse>()?;
 
-		Ok(result.images.into_iter().map(Into::into).collect())
-	}
-}
+		let result = res
+			.result
+			.ok_or(error!("Chapter not found"))
+			.unwrap_or_default();
 
-impl Home for Comix {
-	fn get_home(&self) -> Result<HomeLayout> {
-		// send basic layout
-		send_partial_result(&HomePartialResult::Layout(HomeLayout {
-			components: vec![
-				HomeComponent {
-					title: Some("Most Recent Popular".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_scroller(),
-				},
-				HomeComponent {
-					title: Some("Most Follows New Comics".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_scroller(),
-				},
-				HomeComponent {
-					title: Some("Latest Updates (Hot)".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_scroller(),
-				},
-				HomeComponent {
-					title: Some("Recently Added".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_manga_chapter_list(),
-				},
-			],
-		}));
-
-		let extra_qs = if settings::hide_nsfw() {
-			NSFW_GENRE_IDS
-				.iter()
-				.map(|id| format!("&genres[]=-{id}"))
-				.collect::<String>()
-		} else {
-			Default::default()
-		};
-
-		let responses: [core::result::Result<Response, RequestError>; 4] = Request::send_all([
-			// most recent popular
-			Request::get(format!(
-				"{API_URL}/top?type=trending&days=1&limit=20{extra_qs}"
-			))?,
-			// most follows new comics
-			Request::get(format!(
-				"{API_URL}/top?type=follows&days=1&limit=20{extra_qs}"
-			))?,
-			// latest updates (hot)
-			Request::get(format!(
-				"{API_URL}/manga?scope=hot&limit=30&order[chapter_updated_at]=desc&page=1{extra_qs}"
-			))?,
-			// recently added
-			Request::get(format!(
-				"{API_URL}/manga?order[created_at]=desc&limit=10&page=1{extra_qs}"
-			))?,
-		])
-		.try_into()
-		.expect("requests vec length should be 4");
-
-		let [popular_res, follows_res, latest_res, recent_res] = responses;
-
-		for (response, title) in [
-			(popular_res, "Most Recent Popular"),
-			(follows_res, "Most Follows New Comics"),
-			(latest_res, "Latest Updates (Hot)"),
-		] {
-			let entries = response?
-				.get_json::<SearchResponse>()?
-				.result
-				.items
-				.into_iter()
-				.map(|m| {
-					let manga = Manga::from(m);
-					Link {
-						title: manga.title.clone(),
-						subtitle: None,
-						image_url: manga.cover.clone(),
-						value: Some(LinkValue::Manga(manga)),
-					}
-				})
-				.collect();
-			send_partial_result(&HomePartialResult::Component(HomeComponent {
-				title: Some(title.into()),
-				subtitle: None,
-				value: aidoku::HomeComponentValue::Scroller {
-					entries,
-					listing: None,
-				},
-			}));
+		if result.images.is_empty() {
+			return Ok(vec![]);
 		}
 
-		{
-			let entries = recent_res?
-				.get_json::<SearchResponse>()?
-				.result
-				.items
-				.into_iter()
-				.map(|m| {
-					let chapter_number = m.latest_chapter;
-					let date_uploaded = m.chapter_updated_at;
-					let manga = Manga::from(m);
-					MangaWithChapter {
-						manga,
-						chapter: Chapter {
-							chapter_number,
-							date_uploaded,
-							..Default::default()
-						},
-					}
-				})
-				.collect();
-			send_partial_result(&HomePartialResult::Component(HomeComponent {
-				title: Some("Recently Added".into()),
-				subtitle: None,
-				value: aidoku::HomeComponentValue::MangaChapterList {
-					page_size: None,
-					entries,
-					listing: None,
-				},
-			}));
-		}
+		let pages: Vec<Page> = result
+			.images
+			.into_iter()
+			.enumerate()
+			.map(|(_index, img)| Page {
+				content: PageContent::url(img.url),
+				..Default::default()
+			})
+			.collect();
 
-		Ok(HomeLayout::default())
-	}
-}
-
-impl ListingProvider for Comix {
-	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		let trending = |types: Vec<String>| {
-			self.get_search_manga_list(
-				None,
-				page,
-				vec![
-					FilterValue::Sort {
-						id: "order".into(),
-						index: 8, // most views 1mo
-						ascending: false,
-					},
-					FilterValue::MultiSelect {
-						id: "types[]".into(),
-						included: types,
-						excluded: Default::default(),
-					},
-				],
-			)
-		};
-
-		match listing.id.as_str() {
-			"Trending Webtoon" => trending(vec!["manhua".into(), "manhwa".into()]),
-			"Trending Manga" => trending(vec!["manga".into()]),
-			_ => bail!("Unknown listing"),
-		}
+		Ok(pages)
 	}
 }
 
 impl DeepLinkHandler for Comix {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let Some(path) = url.strip_prefix(BASE_URL) else {
+		if !url.starts_with(BASE_URL) {
 			return Ok(None);
-		};
-
-		// ex: https://comix.to/title/pvry-one-piece
-		// ex: https://comix.to/title/pvry-one-piece/5498414-chapter-1
-
-		let mut segments = path.split('/');
-
-		if let (Some("title"), Some(manga_segment)) = (segments.next(), segments.next()) {
-			// ex: pvry-one-piece -> pvry
-			let manga_key = manga_segment.split('-').next().unwrap_or(manga_segment);
-
-			if let Some(chapter_segment) = segments.next() {
-				// ex: 5498414-chapter-1 -> 5498414
-				let chapter_key = chapter_segment.split('-').next().unwrap_or("");
-				return Ok(Some(DeepLinkResult::Chapter {
-					manga_key: manga_key.to_string(),
-					key: chapter_key.to_string(),
-				}));
-			} else {
-				return Ok(Some(DeepLinkResult::Manga {
-					key: manga_key.to_string(),
-				}));
-			}
 		}
 
-		Ok(None)
+		let key = &url[BASE_URL.len()..];
+		const LATEST_QUERY: &str = "order[chapter_updated_at]";
+		let sections: Vec<&str> = key.split('/').filter(|s| !s.is_empty()).collect();
+		if key.contains(LATEST_QUERY) {
+			Ok(Some(DeepLinkResult::Listing(Listing {
+				id: "latest".to_string(),
+				name: "Latest Releases".to_string(),
+				kind: ListingKind::Default,
+			})))
+		} else if sections.len() == 2 && sections[0] == "title" {
+			// ex: https://comix.to/title/rm7l-after-becoming-financially-free-they-offered-their-loyalty
+			let full_slug = sections[1];
+
+			if let Some(id) = full_slug.split('-').next() {
+				return Ok(Some(DeepLinkResult::Manga {
+					key: id.to_string(),
+				}));
+			} else {
+				Ok(None)
+			}
+		} else if sections.len() == 3 && sections[0] == "title" {
+			// ex: https://comix.to/title/rm7l-after-becoming.../7206380-chapter-63
+
+			let manga_id = sections[1].split('-').next();
+			let chapter_id = sections[2].split('-').next();
+
+			if let (Some(m_id), Some(c_id)) = (manga_id, chapter_id) {
+				Ok(Some(DeepLinkResult::Chapter {
+					manga_key: m_id.to_string(),
+					key: c_id.to_string(),
+				}))
+			} else {
+				Ok(None)
+			}
+		} else {
+			Ok(None)
+		}
 	}
 }
 
