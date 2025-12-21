@@ -214,7 +214,7 @@ pub trait Impl {
 			authors,
 			description,
 			url: Some(url),
-			tags: tags,
+			tags,
 			status,
 			content_rating,
 			viewer,
@@ -254,7 +254,7 @@ pub trait Impl {
 					.text()
 					.unwrap_or_default();
 				let title_raw = chapter_title.clone();
-				let numbers = extract_f32_from_string(&title, &chapter_title);
+				let numbers = extract_f32_from_string(title, &chapter_title);
 				let (volume_number, chapter_number) =
 					if numbers.len() > 1 && chapter_title.to_ascii_lowercase().contains("vol") {
 						(numbers[0], numbers[1])

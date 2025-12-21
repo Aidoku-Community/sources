@@ -11,7 +11,7 @@ use chrono::{NaiveDate, NaiveDateTime};
 use crate::Params;
 
 pub fn extract_f32_from_string(title: &str, text: &str) -> Vec<f32> {
-	text.replace(&title, "")
+	text.replace(title, "")
 		.chars()
 		.filter(|a| (*a >= '0' && *a <= '9') || *a == ' ' || *a == '.' || *a == '+')
 		.collect::<String>()
