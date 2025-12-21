@@ -24,12 +24,11 @@ pub trait Impl {
 		params: &Params,
 		url: &str,
 	) -> Result<Vec<u8>> {
-		if let Some(cached) = cache.as_ref() {
-			if cached.manga_id == url {
+		if let Some(cached) = cache.as_ref()
+			&& cached.manga_id == url {
 				// need .clone() avoid lifetime issues. not request change
 				return Ok(cached.manga_value.clone());
 			}
-		}
 
 		let req = self.create_request(cache, params, url, None)?;
 		let data = req.data()?;
