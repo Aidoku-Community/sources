@@ -1,5 +1,5 @@
 use aidoku::helpers::uri::QueryParameters;
-use aidoku::{AidokuError, Listing, ListingProvider, MangaPageResult};
+use aidoku::{AidokuError, Link, Listing, ListingProvider, MangaPageResult};
 use aidoku::{
 	Home, HomeComponent, HomeLayout, Manga, Result,
 	alloc::{Vec, vec},
@@ -28,22 +28,23 @@ impl Home for Comix {
 		let url = format!("{API_URL}/manga?order[views_30d]=desc&limit=50&{qs}");
 		let mut manga_request = Request::get(&url)?.send()?;
 		let manga_response = manga_request.get_json::<ComixResponse<ResultData<ComixManga>>>()?;
-		let manga_list: Vec<Manga> = manga_response
+		let manga_list = manga_response
 			.result
 			.items
 			.into_iter()
-			.map(Into::into)
-			.collect();
-
-		let first_ten_entries = manga_list.iter().take(10).cloned().collect();
+			.map(Manga::from)
+			.map(Link::from)
+			.collect::<Vec<Link>>();
 
 		Ok(HomeLayout {
 			components: vec![HomeComponent {
 				title: Some("Popular Releases".into()),
 				subtitle: None,
-				value: aidoku::HomeComponentValue::BigScroller {
-					entries: first_ten_entries,
-					auto_scroll_interval: Some(5.0),
+				value: aidoku::HomeComponentValue::MangaList {
+					ranking: false,
+					page_size: None,
+					entries: manga_list,
+					listing: None,
 				},
 			}],
 		})

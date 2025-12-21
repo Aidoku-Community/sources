@@ -299,18 +299,6 @@ impl From<ComixChapter> for Chapter {
 }
 
 #[derive(Deserialize, Debug, Clone)]
-#[serde(rename_all = "snake_case")]
-#[derive(Default)]
-pub enum ComixStatus {
-	Releasing,
-	#[default]
-	Finished,
-	OnHiatus,
-	Discontinued,
-	NotYetReleased,
-}
-
-#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "lowercase")]
 #[derive(Default)]
 pub enum ComixTypeFilter {
