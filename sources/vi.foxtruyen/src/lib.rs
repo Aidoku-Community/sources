@@ -1,11 +1,11 @@
 #![no_std]
 use aidoku::{
+	FilterValue, Source, Viewer,
 	alloc::{string::ToString, *},
 	helpers::uri::QueryParameters,
 	prelude::*,
-	FilterValue, Source, Viewer,
 };
-use wpcomics::{helpers::urlencode, Impl, Params, WpComics};
+use wpcomics::{Impl, Params, WpComics};
 
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
 const BASE_URL: &str = "https://foxtruyen.com";
@@ -36,22 +36,20 @@ impl Impl for FoxTruyen {
 			chapter_date_selector: "em",
 
 			manga_parse_id: |url| {
-				String::from(
-					url.split("truyen-tranh/")
-						.nth(1)
-						.and_then(|s| s.split('/').next())
-						.unwrap_or_default()
-						.trim_end_matches(".html"),
-				)
+				url.split("truyen-tranh/")
+					.nth(1)
+					.and_then(|s| s.split('/').next())
+					.unwrap_or_default()
+					.trim_end_matches(".html")
+					.into()
 			},
 			chapter_parse_id: |url| {
-				String::from(
-					url.trim_end_matches('/')
-						.rsplit("-chap-")
-						.next()
-						.unwrap()
-						.trim_end_matches(".html"),
-				)
+				url.trim_end_matches('/')
+					.rsplit("-chap-")
+					.next()
+					.unwrap()
+					.trim_end_matches(".html")
+					.into()
 			},
 			manga_viewer_page: ".content_detail_manga img",
 
@@ -61,8 +59,6 @@ impl Impl for FoxTruyen {
 			manga_details_tags_splitter: "",
 			manga_details_status: "li.status.row p.col-xs-9",
 
-			chapter_skip_first: false,
-			page_url_transformer: |url| url,
 			user_agent: Some(USER_AGENT),
 
 			search_page: |page| format!("tim-kiem/trang-{}.html", page),
@@ -93,7 +89,7 @@ impl Impl for FoxTruyen {
 				for filter in filters {
 					match filter {
 						FilterValue::Text { value, .. } => {
-							let title = urlencode(value);
+							let title = aidoku::helpers::uri::encode_uri_component(value);
 							if !title.is_empty() {
 								return Ok(format!(
 									"{}/tim-kiem/trang-{page}.html?q={title}",

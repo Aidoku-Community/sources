@@ -19,8 +19,8 @@ pub trait Impl {
 
 	fn params(&self) -> Params;
 
-	fn get_cache_manga_id(&self, params: &mut Params) -> Option<String> {
-		params.cache_manga_id.clone()
+	fn get_cache_manga_id<'a>(&self, params: &'a mut Params) -> Option<&'a str> {
+		params.cache_manga_id.as_deref()
 	}
 	fn set_cache_manga_id(&self, params: &mut Params, value: Option<String>) {
 		params.cache_manga_id = value;
@@ -36,7 +36,7 @@ pub trait Impl {
 	fn cache_manga_page<'a>(&self, params: &'a mut Params, url: &str) -> Result<&'a [u8]> {
 		let cached_id = self.get_cache_manga_id(params);
 
-		if cached_id == Some(url.to_string()) {
+		if cached_id == Some(url) {
 			return self
 				.get_cache_manga_value(params)
 				.ok_or(error!("Cache value not found"));
@@ -262,8 +262,7 @@ pub trait Impl {
 					.text()
 					.unwrap_or_default();
 				let title_raw = chapter_title.clone();
-				let numbers =
-					extract_f32_from_string(String::from(title), String::from(&chapter_title));
+				let numbers = extract_f32_from_string(&title, &chapter_title);
 				let (volume_number, chapter_number) =
 					if numbers.len() > 1 && chapter_title.to_ascii_lowercase().contains("vol") {
 						(numbers[0], numbers[1])

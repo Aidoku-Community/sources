@@ -6,7 +6,7 @@ use aidoku::{
 	imports::defaults::defaults_get,
 	prelude::*,
 };
-use wpcomics::{Impl, Params, WpComics, helpers::urlencode};
+use wpcomics::{Impl, Params, WpComics};
 
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
 const BASE_URL: &str = "https://truyenqqno.com";
@@ -25,10 +25,7 @@ impl Impl for TruyenQQ {
 	}
 
 	fn params(&self) -> Params {
-		let cookie = Some(format!(
-			"visit-read={}",
-			get_visit_read_id()
-		));
+		let cookie = Some(format!("visit-read={}", get_visit_read_id()));
 
 		Params {
 			base_url: BASE_URL.into(),
@@ -100,7 +97,7 @@ impl Impl for TruyenQQ {
 				for filter in filters {
 					match filter {
 						FilterValue::Text { value, .. } => {
-							let title = urlencode(value);
+							let title = aidoku::helpers::uri::encode_uri_component(value);
 							if !title.is_empty() {
 								return Ok(format!(
 									"{}/tim-kiem/trang-{page}.html?q={title}",
@@ -128,13 +125,28 @@ impl Impl for TruyenQQ {
 					}
 				}
 
+				let include = included_tags.join(",");
+				let exclude = excluded_tags.join(",");
+				query.push(
+					"category",
+					if included_tags.is_empty() {
+						None
+					} else {
+						Some(&include)
+					},
+				);
+				query.push(
+					"notcategory",
+					if excluded_tags.is_empty() {
+						None
+					} else {
+						Some(&exclude)
+					},
+				);
+
 				Ok(format!(
-					"{}/tim-kiem-nang-cao/trang-{}.html?category={}&notcategory={}&{}",
-					params.base_url,
-					page,
-					included_tags.join(","),
-					excluded_tags.join(","),
-					query
+					"{}/tim-kiem-nang-cao/trang-{}.html?={}",
+					params.base_url, page, query
 				))
 			},
 

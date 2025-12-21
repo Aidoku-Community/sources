@@ -10,7 +10,7 @@ use chrono::{NaiveDate, NaiveDateTime};
 
 use crate::Params;
 
-pub fn extract_f32_from_string(title: String, text: String) -> Vec<f32> {
+pub fn extract_f32_from_string(title: &str, text: &str) -> Vec<f32> {
 	text.replace(&title, "")
 		.chars()
 		.filter(|a| (*a >= '0' && *a <= '9') || *a == ' ' || *a == '.' || *a == '+')
@@ -21,10 +21,6 @@ pub fn extract_f32_from_string(title: String, text: String) -> Vec<f32> {
 		.map(|a: &str| a.parse::<f32>().unwrap_or(-1.0))
 		.filter(|a| *a >= 0.0)
 		.collect::<Vec<f32>>()
-}
-
-pub fn urlencode(string: String) -> String {
-	aidoku::helpers::uri::encode_uri_component(string)
 }
 
 pub fn get_tag_id(genre: i64) -> String {
