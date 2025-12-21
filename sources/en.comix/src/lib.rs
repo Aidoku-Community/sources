@@ -85,7 +85,7 @@ impl Source for Comix {
 			match filter {
 				FilterValue::Text { id, value } => match id.as_str() {
 					"author" => todo!(),
-					_ => return Err(AidokuError::Message(("Invalid text filter id".into()))),
+					_ => return Err(AidokuError::Message("Invalid text filter id".into())),
 				},
 				FilterValue::Sort {
 					index, ascending, ..
@@ -142,7 +142,7 @@ impl Source for Comix {
 					}
 					_ => {
 						return Err(AidokuError::Message(
-							("Invalid multi-select filter id".into()),
+							"Invalid multi-select filter id".into(),
 						));
 					}
 				},
