@@ -12,10 +12,12 @@ use crate::model::{ChapterResponse, ComixChapter, ComixManga, ComixResponse, Res
 
 mod home;
 mod model;
+mod settings;
 
 const BASE_URL: &str = "https://comix.com";
 const API_URL: &str = "https://comix.to/api/v2";
 
+const NSFW_GENRE_IDS: [&str; 6] = ["87264", "8", "87265", "13", "87266", "87268"];
 const INCLUDES: [&str; 6] = [
 	"demographic",
 	"genre",
@@ -154,6 +156,12 @@ impl Source for Comix {
 			qs.set("order[relevance]", Some("desc".into()));
 		}
 
+		if settings::get_nsfw() {
+			for item in NSFW_GENRE_IDS {
+				qs.push("includes[]", Some(&format!("-{item}")));
+			}
+		}
+
 		qs.push("limit", Some("50".into()));
 		qs.push("page", Some(&page.to_string()));
 
@@ -204,7 +212,9 @@ impl Source for Comix {
 		if needs_chapters {
 			let limit = 100;
 			let mut page = 1;
+			let deduplicate = settings::get_dedupchapter();
 			let mut chapter_map: HashMap<String, ComixChapter> = HashMap::new();
+			let mut chapter_list: Vec<ComixChapter> = Vec::new();
 			loop {
 				let url = format!(
 					"{base_url}/{}/chapters?limit={}&page={}&order[number]=desc",
@@ -215,8 +225,14 @@ impl Source for Comix {
 					.send()?
 					.get_json::<ComixResponse<ResultData<ComixChapter>>>()?;
 
-				for item in res.result.items {
-					dedup_insert(&mut chapter_map, item);
+				let items = res.result.items;
+
+				if deduplicate {
+					for item in items {
+						dedup_insert(&mut chapter_map, item);
+					}
+				} else {
+					chapter_list.extend(items);
 				}
 
 				if res.result.pagination.current_page >= res.result.pagination.last_page {
@@ -226,8 +242,14 @@ impl Source for Comix {
 				page += 1;
 			}
 
-			let mut chapters: Vec<Chapter> = chapter_map
-				.into_values()
+			let raw_chapters = if deduplicate {
+				chapter_map.into_values().collect::<Vec<_>>()
+			} else {
+				chapter_list
+			};
+
+			let mut chapters: Vec<Chapter> = raw_chapters
+				.into_iter()
 				.map(|item| {
 					let url = Some(item.url(&manga));
 					let mut ch: Chapter = item.into();

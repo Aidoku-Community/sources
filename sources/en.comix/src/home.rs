@@ -11,13 +11,19 @@ use crate::{
 	API_URL,
 	model::{ComixManga, ComixResponse, ResultData},
 };
-use crate::{Comix, INCLUDES};
+use crate::{Comix, INCLUDES, NSFW_GENRE_IDS, settings};
 
 impl Home for Comix {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let mut qs = QueryParameters::new();
 		for item in INCLUDES {
 			qs.push("includes[]", Some(item));
+		}
+
+		if settings::get_nsfw() {
+			for item in NSFW_GENRE_IDS {
+				qs.push("includes[]", Some(&format!("-{item}")));
+			}
 		}
 		let url = format!("{API_URL}/manga?order[views_30d]=desc&limit=50&{qs}");
 		let mut manga_request = Request::get(&url)?.send()?;
@@ -51,6 +57,12 @@ impl ListingProvider for Comix {
 				let mut qs = QueryParameters::new();
 				for item in INCLUDES {
 					qs.push("includes[]", Some(item));
+				}
+
+				if settings::get_nsfw() {
+					for item in NSFW_GENRE_IDS {
+						qs.push("includes[]", Some(&format!("-{item}")));
+					}
 				}
 				let url = format!(
 					"{API_URL}/manga?order[chapter_updated_at]=desc&limit=50&{qs}&page={page}"

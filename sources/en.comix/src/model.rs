@@ -5,7 +5,7 @@ use aidoku::{
 };
 use serde::{self, Deserialize};
 
-use crate::BASE_URL;
+use crate::{BASE_URL, settings};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -165,7 +165,13 @@ impl ComixManga<'_> {
 	}
 
 	pub fn cover(&self) -> Option<String> {
-		Some(self.poster.medium.into())
+		let thumbnail_quality = settings::get_image_quality();
+		match thumbnail_quality.as_str() {
+			"small" => Some(self.poster.small.into()),
+			"medium" => Some(self.poster.medium.into()),
+			"large" => Some(self.poster.large.into()),
+			_ => None,
+		}
 	}
 
 	pub fn authors(&self) -> Vec<String> {
