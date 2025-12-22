@@ -212,7 +212,7 @@ pub fn parse_relative_date(
 
 	for fmt in absolute_formats {
 		if let Ok(d) = NaiveDate::parse_from_str(date, fmt) {
-			let dt = NaiveDateTime::new(d, chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+			let dt = NaiveDateTime::new(d, chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default());
 			return dt.and_utc().timestamp();
 		}
 	}

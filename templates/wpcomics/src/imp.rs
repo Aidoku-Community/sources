@@ -1,4 +1,7 @@
-use crate::helpers::{extract_f32_from_string, find_first_f32, text_with_newlines};
+use crate::{
+	Cache,
+	helpers::{extract_f32_from_string, find_first_f32, text_with_newlines},
+};
 
 use super::Params;
 use aidoku::{
@@ -20,7 +23,7 @@ pub trait Impl {
 	fn params(&self) -> Params;
 	fn cache_manga_page(
 		&self,
-		cache: &mut Option<crate::Cache>,
+		cache: &mut Option<Cache>,
 		params: &Params,
 		url: &str,
 	) -> Result<Vec<u8>> {
@@ -33,7 +36,7 @@ pub trait Impl {
 
 		let req = self.create_request(cache, params, url, None)?;
 		let data = req.data()?;
-		*cache = Some(crate::Cache {
+		*cache = Some(Cache {
 			manga_id: url.to_string(),
 			// need .clone() avoid lifetime issues. not request change
 			manga_value: data.clone(),
@@ -43,7 +46,7 @@ pub trait Impl {
 
 	fn create_request(
 		&self,
-		cache: &mut Option<crate::Cache>,
+		cache: &mut Option<Cache>,
 		params: &Params,
 		url: &str,
 		headers: Option<&[(&str, &str)]>,
@@ -90,7 +93,7 @@ pub trait Impl {
 	}
 	fn get_manga_list(
 		&self,
-		cache: &mut Option<crate::Cache>,
+		cache: &mut Option<Cache>,
 		params: &Params,
 		search_url: String,
 		headers: Option<&[(&str, &str)]>,
@@ -152,7 +155,7 @@ pub trait Impl {
 
 	fn parse_manga_element(
 		&self,
-		cache: &mut Option<crate::Cache>,
+		cache: &mut Option<Cache>,
 		params: &Params,
 		url: String,
 	) -> Result<Manga> {
@@ -227,7 +230,7 @@ pub trait Impl {
 
 	fn get_chapter_list(
 		&self,
-		cache: &mut Option<crate::Cache>,
+		cache: &mut Option<Cache>,
 		params: &Params,
 		url: String,
 	) -> Result<Vec<Chapter>> {
@@ -324,7 +327,7 @@ pub trait Impl {
 
 	fn get_page_list(
 		&self,
-		cache: &mut Option<crate::Cache>,
+		cache: &mut Option<Cache>,
 		params: &Params,
 		manga: Manga,
 		chapter: Chapter,
@@ -362,7 +365,7 @@ pub trait Impl {
 
 	fn handle_deep_link(
 		&self,
-		cache: &mut Option<crate::Cache>,
+		cache: &mut Option<Cache>,
 		params: &Params,
 		url: String,
 	) -> Result<Option<DeepLinkResult>> {
@@ -390,7 +393,7 @@ pub trait Impl {
 
 	fn get_search_manga_list(
 		&self,
-		cache: &mut Option<crate::Cache>,
+		cache: &mut Option<Cache>,
 		params: &Params,
 		query: Option<String>,
 		page: i32,
@@ -402,7 +405,7 @@ pub trait Impl {
 
 	fn get_manga_update(
 		&self,
-		cache: &mut Option<crate::Cache>,
+		cache: &mut Option<Cache>,
 		params: &Params,
 		mut manga: Manga,
 		needs_details: bool,
@@ -427,7 +430,7 @@ pub trait Impl {
 		Ok(manga)
 	}
 
-	fn get_home(&self, cache: &mut Option<crate::Cache>, params: &Params) -> Result<HomeLayout> {
+	fn get_home(&self, cache: &mut Option<Cache>, params: &Params) -> Result<HomeLayout> {
 		let base_url = &params.base_url.clone();
 		let html = self.create_request(cache, params, base_url, None)?.html()?;
 
@@ -553,7 +556,7 @@ pub trait Impl {
 
 	fn get_dynamic_filters(
 		&self,
-		cache: &mut Option<crate::Cache>,
+		cache: &mut Option<Cache>,
 		params: &Params,
 	) -> Result<Vec<Filter>> {
 		let request = self.create_request(
@@ -592,7 +595,7 @@ pub trait Impl {
 
 	fn get_image_request(
 		&self,
-		cache: &mut Option<crate::Cache>,
+		cache: &mut Option<Cache>,
 		params: &Params,
 		url: String,
 		context: Option<PageContext>,
@@ -620,7 +623,7 @@ pub trait Impl {
 
 	fn modify_request(
 		&self,
-		_cache: &mut Option<crate::Cache>,
+		_cache: &mut Option<Cache>,
 		_params: &Params,
 		request: Request,
 	) -> Result<Request> {

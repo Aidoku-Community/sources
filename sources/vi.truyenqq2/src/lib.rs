@@ -56,7 +56,7 @@ impl Impl for TruyenQQ2 {
 			chapter_parse_id: |url| {
 				url.rsplit_once("chapter/")
 					.map(|(_, tail)| tail.trim_end_matches(".html"))
-					.unwrap()
+					.unwrap_or_default()
 					.into()
 			},
 

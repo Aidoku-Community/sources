@@ -33,7 +33,7 @@ impl Impl for FoxTruyen {
 				)
 			},
 			chapter_parse_id: |url| {
-				String::from(url.trim_end_matches('/').rsplit('/').next().unwrap())
+				String::from(url.trim_end_matches('/').rsplit('/').next().unwrap_or_default())
 			},
 
 			user_agent: Some(USER_AGENT),

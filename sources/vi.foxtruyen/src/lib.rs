@@ -47,7 +47,7 @@ impl Impl for FoxTruyen {
 				url.trim_end_matches('/')
 					.rsplit("-chap-")
 					.next()
-					.unwrap()
+					.unwrap_or_default()
 					.trim_end_matches(".html")
 					.into()
 			},
