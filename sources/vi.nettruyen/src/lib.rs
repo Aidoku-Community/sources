@@ -61,13 +61,13 @@ impl Impl for FoxTruyen {
 					));
 				}
 
-				let mut tag = "".to_string();
+				let mut tag = None;
 
 				for filter in filters {
 					match filter {
 						FilterValue::Select { id, value } => {
 							if id == "tag" {
-								tag = value.clone();
+								tag = Some(value);
 							} else {
 								query.push(&id, Some(&value));
 							}
@@ -82,7 +82,7 @@ impl Impl for FoxTruyen {
 				Ok(format!(
 					"{}/tim-truyen/{}{}{query}",
 					params.base_url,
-					tag,
+					tag.as_deref().unwrap_or_default(),
 					if query.is_empty() { "" } else { "?" }
 				))
 			},
