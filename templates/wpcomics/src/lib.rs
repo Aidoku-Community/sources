@@ -236,15 +236,16 @@ impl Default for Params {
 	}
 }
 
+#[derive(Default)]
 pub struct Cache {
-	manga_id: String,
-	manga_value: Vec<u8>,
+	manga_id: Option<String>,
+	manga_value: Option<Vec<u8>>,
 }
+
 pub struct WpComics<T: Impl> {
 	inner: T,
 	params: Params,
-
-	cache: RefCell<Option<Cache>>,
+	cache: RefCell<Cache>,
 }
 
 impl<T: Impl> Source for WpComics<T> {
@@ -254,7 +255,7 @@ impl<T: Impl> Source for WpComics<T> {
 		Self {
 			inner,
 			params,
-			cache: RefCell::new(None),
+			cache: RefCell::new(Cache::default()),
 		}
 	}
 
