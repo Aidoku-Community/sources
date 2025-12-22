@@ -416,7 +416,9 @@ pub trait Impl {
 
 			manga.copy_from(new_manga);
 
-			send_partial_result(&manga);
+			if needs_chapters {
+				send_partial_result(&manga);
+			}
 		}
 
 		if needs_chapters {
