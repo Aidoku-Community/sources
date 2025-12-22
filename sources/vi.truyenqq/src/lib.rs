@@ -79,8 +79,6 @@ impl Impl for TruyenQQ {
 			},
 
 			get_search_url: |params, q, page, filters| {
-				let mut excluded_tags: Vec<String> = Vec::new();
-				let mut included_tags: Vec<String> = Vec::new();
 				let mut query = QueryParameters::new();
 				query.push("q", q.as_deref());
 				query.push("post_type", Some("wp-manga"));
@@ -108,12 +106,8 @@ impl Impl for TruyenQQ {
 						FilterValue::MultiSelect {
 							included, excluded, ..
 						} => {
-							for tag in included {
-								included_tags.push(tag);
-							}
-							for tag in excluded {
-								excluded_tags.push(tag);
-							}
+							query.push("category", Some(&included.join(",")));
+							query.push("notcategory", Some(&excluded.join(",")));
 						}
 						FilterValue::Select { id, value } => {
 							query.push(&id, Some(&value));
@@ -125,32 +119,13 @@ impl Impl for TruyenQQ {
 					}
 				}
 
-				let include = included_tags.join(",");
-				let exclude = excluded_tags.join(",");
-				query.push(
-					"category",
-					if included_tags.is_empty() {
-						None
-					} else {
-						Some(&include)
-					},
-				);
-				query.push(
-					"notcategory",
-					if excluded_tags.is_empty() {
-						None
-					} else {
-						Some(&exclude)
-					},
-				);
-
 				Ok(format!(
 					"{}/tim-kiem-nang-cao/trang-{}.html?={}",
 					params.base_url, page, query
 				))
 			},
 
-			time_formats: Some(["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"].to_vec()),
+			time_formats: Some(vec!["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"]),
 
 			..Default::default()
 		}

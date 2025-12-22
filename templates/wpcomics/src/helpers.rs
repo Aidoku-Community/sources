@@ -1,14 +1,15 @@
-use aidoku::imports::std::{current_date, parse_date_with_options};
+use crate::Params;
 use aidoku::{
 	FilterValue,
 	alloc::{String, Vec},
 	helpers::uri::QueryParameters,
-	imports::html::{Element, Html},
+	imports::{
+		html::{Element, Html},
+		std::{current_date, parse_date_with_options},
+	},
 	prelude::format,
 };
 use chrono::{NaiveDate, NaiveDateTime};
-
-use crate::Params;
 
 pub fn extract_f32_from_string(title: &str, text: &str) -> Vec<f32> {
 	text.replace(title, "")
@@ -212,7 +213,10 @@ pub fn parse_relative_date(
 
 	for fmt in absolute_formats {
 		if let Ok(d) = NaiveDate::parse_from_str(date, fmt) {
-			let dt = NaiveDateTime::new(d, chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default());
+			let dt = NaiveDateTime::new(
+				d,
+				chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap_or_default(),
+			);
 			return dt.and_utc().timestamp();
 		}
 	}

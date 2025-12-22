@@ -71,18 +71,15 @@ impl Impl for FoxTruyen {
 			},
 
 			get_search_url: |params, q, page, filters| {
-				let mut excluded_tags: Vec<String> = Vec::new();
-				let mut included_tags: Vec<String> = Vec::new();
 				let mut query = QueryParameters::new();
-				query.push("q", Some(&q.unwrap_or_default()));
+				query.push("q", q.as_deref());
 				query.push("post_type", Some("wp-manga"));
 
 				if filters.is_empty() {
 					return Ok(format!(
-						"{}/{}{}{query}",
+						"{}/{}?{query}",
 						params.base_url,
-						(params.search_page)(page),
-						if query.is_empty() { "" } else { "?" }
+						(params.search_page)(page)
 					));
 				}
 
@@ -100,12 +97,8 @@ impl Impl for FoxTruyen {
 						FilterValue::MultiSelect {
 							included, excluded, ..
 						} => {
-							for tag in included {
-								included_tags.push(tag);
-							}
-							for tag in excluded {
-								excluded_tags.push(tag);
-							}
+							query.push("category", Some(&included.join(",")));
+							query.push("notcategory", Some(&excluded.join(",")));
 						}
 						FilterValue::Select { id, value } => {
 							query.push(&id, Some(&value));
@@ -118,12 +111,8 @@ impl Impl for FoxTruyen {
 				}
 
 				Ok(format!(
-					"{}/tim-kiem-nang-cao/trang-{}.html?category={}&notcategory={}&{}",
-					params.base_url,
-					page,
-					included_tags.join(","),
-					excluded_tags.join(","),
-					query
+					"{}/tim-kiem-nang-cao/trang-{page}.html?{query}",
+					params.base_url
 				))
 			},
 

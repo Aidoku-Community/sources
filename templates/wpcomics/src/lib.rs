@@ -1,5 +1,4 @@
 #![no_std]
-use crate::helpers::{get_search_url, parse_chapter_date};
 use aidoku::{
 	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter,
 	FilterValue, Home, HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult,
@@ -9,6 +8,7 @@ use aidoku::{
 	prelude::*,
 };
 use core::cell::RefCell;
+use helpers::{get_search_url, parse_chapter_date};
 
 pub mod helpers;
 mod imp;
@@ -30,7 +30,7 @@ pub struct Params {
 	pub manga_cell_image: &'static str,
 	pub manga_cell_image_attr: &'static str,
 	pub manga_cell_no_data: fn(&Element) -> bool,
-	pub manga_parse_id: fn(String) -> String,
+	pub manga_parse_id: fn(&str) -> String,
 
 	pub manga_details_title: &'static str,
 	pub manga_details_title_transformer: fn(String) -> String,
@@ -165,7 +165,7 @@ impl Default for Params {
 			manga_cell_image: "div.image > a > img",
 			manga_cell_image_attr: "abs:data-original",
 			manga_cell_no_data: |_| false,
-			manga_parse_id: |url| url,
+			manga_parse_id: |url| url.into(),
 
 			manga_details_title: "h1.title-detail",
 			manga_details_title_transformer: |title| title,
@@ -200,7 +200,7 @@ impl Default for Params {
 
 			search_page: |page| {
 				if page == 1 {
-					"".into()
+					String::new()
 				} else {
 					format!("page/{page}/")
 				}

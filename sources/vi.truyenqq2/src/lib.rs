@@ -1,6 +1,6 @@
 #![no_std]
 use aidoku::{
-	FilterValue, Result, Source, Viewer,
+	FilterValue, Source, Viewer,
 	alloc::{string::ToString, *},
 	helpers::uri::QueryParameters,
 	imports::defaults::defaults_get,
@@ -11,10 +11,10 @@ use wpcomics::{Impl, Params, WpComics};
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
 const BASE_URL: &str = "https://truyenqq.online";
 
-fn get_visit_read_id() -> Result<String> {
-	Ok(defaults_get::<String>("visitReadId")
+fn get_visit_read_id() -> String {
+	defaults_get::<String>("visitReadId")
 		.map(|v| v.trim_end_matches('/').to_string())
-		.unwrap_or_default())
+		.unwrap_or_default()
 }
 
 struct TruyenQQ2;
@@ -25,10 +25,7 @@ impl Impl for TruyenQQ2 {
 	}
 
 	fn params(&self) -> Params {
-		let cookie = Some(format!(
-			"visit-read={}",
-			get_visit_read_id().unwrap_or_default()
-		));
+		let cookie = Some(format!("visit-read={}", get_visit_read_id()));
 
 		Params {
 			base_url: BASE_URL.into(),
@@ -85,18 +82,13 @@ impl Impl for TruyenQQ2 {
 			},
 
 			get_search_url: |params, q, page, filters| {
-				let mut included_tags: Vec<String> = Vec::new();
 				let mut query = QueryParameters::new();
-				query.push("q", Some(&q.unwrap_or_default()));
+				query.push("q", q.as_deref());
 				query.push("page", Some(&page.to_string()));
 				query.push("post_type", Some("wp-manga"));
 
 				if filters.is_empty() {
-					return Ok(format!(
-						"{}/tim-kiem{}{query}",
-						params.base_url,
-						if query.is_empty() { "" } else { "?" }
-					));
+					return Ok(format!("{}/tim-kiem?{query}", params.base_url));
 				}
 
 				for filter in filters {
@@ -111,9 +103,7 @@ impl Impl for TruyenQQ2 {
 							}
 						}
 						FilterValue::MultiSelect { included, .. } => {
-							for tag in included {
-								included_tags.push(tag);
-							}
+							query.push("categories", Some(&included.join(",")));
 						}
 						FilterValue::Select { id, value } => {
 							query.push(&id, Some(&value));
@@ -125,15 +115,10 @@ impl Impl for TruyenQQ2 {
 					}
 				}
 
-				Ok(format!(
-					"{}/tim-kiem-nang-cao?categories={}&{}",
-					params.base_url,
-					included_tags.join(","),
-					query
-				))
+				Ok(format!("{}/tim-kiem-nang-cao?{query}", params.base_url))
 			},
 
-			time_formats: Some(["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"].to_vec()),
+			time_formats: Some(vec!["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"]),
 
 			..Default::default()
 		}

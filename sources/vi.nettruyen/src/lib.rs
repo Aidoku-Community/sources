@@ -10,9 +10,9 @@ use wpcomics::{Impl, Params, WpComics};
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
 const BASE_URL: &str = "https://nettruyenviet1.com";
 
-struct FoxTruyen;
+struct NetTruyen;
 
-impl Impl for FoxTruyen {
+impl Impl for NetTruyen {
 	fn new() -> Self {
 		Self
 	}
@@ -33,7 +33,12 @@ impl Impl for FoxTruyen {
 				)
 			},
 			chapter_parse_id: |url| {
-				String::from(url.trim_end_matches('/').rsplit('/').next().unwrap_or_default())
+				String::from(
+					url.trim_end_matches('/')
+						.rsplit('/')
+						.next()
+						.unwrap_or_default(),
+				)
 			},
 
 			user_agent: Some(USER_AGENT),
@@ -54,11 +59,7 @@ impl Impl for FoxTruyen {
 				query.push("page", Some(&page.to_string()));
 
 				if filters.is_empty() {
-					return Ok(format!(
-						"{}/tim-truyen{}{query}",
-						params.base_url,
-						if query.is_empty() { "" } else { "?" }
-					));
+					return Ok(format!("{}/tim-truyen?{query}", params.base_url));
 				}
 
 				let mut tag = None;
@@ -80,10 +81,9 @@ impl Impl for FoxTruyen {
 				}
 
 				Ok(format!(
-					"{}/tim-truyen/{}{}{query}",
+					"{}/tim-truyen/{}?{query}",
 					params.base_url,
-					tag.as_deref().unwrap_or_default(),
-					if query.is_empty() { "" } else { "?" }
+					tag.as_deref().unwrap_or_default()
 				))
 			},
 
@@ -101,7 +101,7 @@ impl Impl for FoxTruyen {
 			home_grids_item_selector: ".item",
 
 			home_manga_cover_attr: "abs:data-original",
-			time_formats: Some(["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"].to_vec()),
+			time_formats: Some(vec!["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"]),
 
 			..Default::default()
 		}
@@ -109,7 +109,7 @@ impl Impl for FoxTruyen {
 }
 
 register_source!(
-	WpComics<FoxTruyen>,
+	WpComics<NetTruyen>,
 	ImageRequestProvider,
 	DeepLinkHandler,
 	Home

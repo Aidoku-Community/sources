@@ -42,16 +42,14 @@ impl Impl for Truyen3Q {
 			chapter_skip_first: false,
 			chapter_anchor_selector: "div.name-chap a",
 			chapter_date_selector: "div.time-chap",
-			chapter_parse_id: |url| String::from(url.split("/").last().unwrap_or_default()),
+			chapter_parse_id: |url| url.split("/").last().unwrap_or_default().into(),
 
 			page_url_transformer: |url| url,
 			user_agent: Some(USER_AGENT),
 
 			get_search_url: |params, q, page, filters| {
-				let mut excluded_tags: Vec<String> = Vec::new();
-				let mut included_tags: Vec<String> = Vec::new();
 				let mut query = QueryParameters::new();
-				query.push("keyword", Some(&q.unwrap_or_default()));
+				query.push("keyword", q.as_deref());
 				query.push("page", Some(&page.to_string()));
 				query.push("post_type", Some("wp-manga"));
 
@@ -60,12 +58,8 @@ impl Impl for Truyen3Q {
 						FilterValue::MultiSelect {
 							included, excluded, ..
 						} => {
-							for tag in included {
-								included_tags.push(tag);
-							}
-							for tag in excluded {
-								excluded_tags.push(tag);
-							}
+							query.push("category", Some(&included.join(",")));
+							query.push("notcategory", Some(&excluded.join(",")));
 						}
 						FilterValue::Select { id, value } => {
 							query.push(&id, Some(&value));
@@ -77,13 +71,7 @@ impl Impl for Truyen3Q {
 					}
 				}
 
-				Ok(format!(
-					"{}/tim-kiem-nang-cao/?categories={}&nocategories={}&{}",
-					params.base_url,
-					included_tags.join(","),
-					excluded_tags.join(","),
-					query
-				))
+				Ok(format!("{}/tim-kiem-nang-cao/?{query}", params.base_url))
 			},
 
 			home_manga_link: "h3 > a",
@@ -100,7 +88,7 @@ impl Impl for Truyen3Q {
 			home_grids_item_selector: "ul > li",
 
 			home_manga_cover_attr: "abs:src",
-			time_formats: Some(["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"].to_vec()),
+			time_formats: Some(vec!["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"]),
 
 			..Default::default()
 		}

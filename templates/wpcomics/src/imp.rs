@@ -52,7 +52,6 @@ pub trait Impl {
 		url: &str,
 		headers: Option<&[(&str, &str)]>,
 	) -> Result<Request> {
-		// 通常のリクエスト
 		let mut req = Request::get(url)?;
 		if let Some(cookie) = &params.cookie {
 			req = req.header("Cookie", cookie);
@@ -92,6 +91,7 @@ pub trait Impl {
 
 		(nsfw, viewer)
 	}
+
 	fn get_manga_list(
 		&self,
 		cache: &mut Cache,
@@ -109,38 +109,40 @@ pub trait Impl {
 				has_next_page: false,
 			});
 		};
-		let entries = elems.into_iter().filter_map(|item_node| {
-			if (params.manga_cell_no_data)(&item_node) {
-				return None;
-			}
+		let entries = elems
+			.into_iter()
+			.filter_map(|item_node| {
+				if (params.manga_cell_no_data)(&item_node) {
+					return None;
+				}
 
-			let title = item_node
-				.select(params.manga_cell_title)
-				.and_then(|node| node.first())
-				.and_then(|n| n.text());
-			let url = item_node
-				.select(params.manga_cell_url)
-				.and_then(|node| node.first())
-				.and_then(|n| n.attr("abs:href"))
-				.unwrap_or_default();
+				let title = item_node
+					.select(params.manga_cell_title)
+					.and_then(|node| node.first())
+					.and_then(|n| n.text());
+				let url = item_node
+					.select(params.manga_cell_url)
+					.and_then(|node| node.first())
+					.and_then(|n| n.attr("abs:href"))
+					.unwrap_or_default();
 
-			let cover = if !params.manga_cell_image.is_empty() {
-				item_node
-					.select(params.manga_cell_image)
-					.and_then(|v| v.first())
-					.and_then(|n| n.attr(params.manga_cell_image_attr))
-			} else {
-				None
-			};
+				let cover = if !params.manga_cell_image.is_empty() {
+					item_node
+						.select(params.manga_cell_image)
+						.and_then(|v| v.first())
+						.and_then(|n| n.attr(params.manga_cell_image_attr))
+				} else {
+					None
+				};
 
-			Some(Manga {
-				key: (params.manga_parse_id)(url),
-				cover,
-				title: (params.manga_details_title_transformer)(title.unwrap_or_default()),
-				..Default::default()
+				Some(Manga {
+					key: (params.manga_parse_id)(&url),
+					cover,
+					title: (params.manga_details_title_transformer)(title.unwrap_or_default()),
+					..Default::default()
+				})
 			})
-		});
-		let entries: Vec<Manga> = entries.collect();
+			.collect();
 		let has_next_page = if !params.next_page.is_empty() {
 			html.select(params.next_page)
 				.map(|v| v.size() > 0)
@@ -186,27 +188,27 @@ pub trait Impl {
 			.select(params.manga_details_description)
 			.and_then(|l| l.first())
 			.map(text_with_newlines);
-		let mut tags: Option<Vec<String>> = None;
 
-		if !params.manga_details_tags.is_empty() {
+		let tags = if !params.manga_details_tags.is_empty() {
 			if params.manga_details_tags_splitter.is_empty() {
-				tags = details.select(params.manga_details_tags).map(|list| {
+				details.select(params.manga_details_tags).map(|list| {
 					list.map(|elem| elem.text().unwrap_or_default())
 						.collect::<Vec<_>>()
-				});
+				})
 			} else {
-				let split = details.select(params.manga_details_tags).map(|l| {
+				details.select(params.manga_details_tags).map(|l| {
 					l.text()
 						.unwrap_or_default()
 						.split(params.manga_details_tags_splitter)
 						.map(|s| s.trim().to_string())
 						.filter(|s| !s.is_empty())
-						.collect::<Vec<String>>()
-				});
-
-				tags = Some(split.into_iter().flatten().collect());
+						.collect::<Vec<_>>()
+				})
 			}
-		}
+		} else {
+			None
+		};
+
 		let (content_rating, viewer) = self.category_parser(params, &tags);
 		let status = (params.status_mapping)((params.manga_details_status_transformer)(
 			details
@@ -215,7 +217,7 @@ pub trait Impl {
 				.unwrap_or_default(),
 		));
 		Ok(Manga {
-			key: (params.manga_parse_id)(url.clone()),
+			key: (params.manga_parse_id)(&url),
 			cover,
 			title: (params.manga_details_title_transformer)(title.unwrap_or_default()),
 			authors,
@@ -261,29 +263,36 @@ pub trait Impl {
 					.attr("abs:href")?;
 
 				let chapter_id = (params.chapter_parse_id)(chapter_url.clone());
-				let mut chapter_title = chapter_node
+				let raw_chapter_title = chapter_node
 					.select(params.chapter_anchor_selector)?
 					.text()
 					.unwrap_or_default();
-				let title_raw = chapter_title.clone();
-				let numbers = extract_f32_from_string(title, &chapter_title);
-				let (volume_number, chapter_number) =
-					if numbers.len() > 1 && chapter_title.to_ascii_lowercase().contains("vol") {
-						(numbers[0], numbers[1])
-					} else if !numbers.is_empty() {
-						(-1.0, numbers[0])
-					} else {
-						(-1.0, -1.0)
-					};
+				let numbers = extract_f32_from_string(title, &raw_chapter_title);
+				let (volume_number, chapter_number) = if numbers.len() > 1
+					&& raw_chapter_title.to_ascii_lowercase().contains("vol")
+				{
+					(numbers[0], numbers[1])
+				} else if !numbers.is_empty() {
+					(-1.0, numbers[0])
+				} else {
+					(-1.0, -1.0)
+				};
+				let mut new_chapter_title = None;
 				if chapter_number >= 0.0 {
 					let splitter = format!(" {}", chapter_number);
 					let splitter2 = format!("#{}", chapter_number);
-					if chapter_title.contains(&splitter) {
-						let split = chapter_title.splitn(2, &splitter).collect::<Vec<&str>>();
-						chapter_title = String::from(split[1]).replacen([':', '-'], "", 1);
-					} else if chapter_title.contains(&splitter2) {
-						let split = chapter_title.splitn(2, &splitter2).collect::<Vec<&str>>();
-						chapter_title = String::from(split[1]).replacen([':', '-'], "", 1);
+					if raw_chapter_title.contains(&splitter) {
+						let split = raw_chapter_title
+							.splitn(2, &splitter)
+							.collect::<Vec<&str>>();
+						new_chapter_title =
+							Some(String::from(split[1]).replacen([':', '-'], "", 1));
+					} else if raw_chapter_title.contains(&splitter2) {
+						let split = raw_chapter_title
+							.splitn(2, &splitter2)
+							.collect::<Vec<&str>>();
+						new_chapter_title =
+							Some(String::from(split[1]).replacen([':', '-'], "", 1));
 					}
 				}
 				let date_updated = (params.time_converter)(
@@ -294,18 +303,20 @@ pub trait Impl {
 						.unwrap_or_default(),
 				);
 
-				chapter_title = chapter_title.trim().to_string();
-				if chapter_title.is_empty() {
-					chapter_title = title_raw.trim().to_string();
-				}
+				let chapter_title = new_chapter_title
+					.and_then(|s| {
+						let trimmed = s.trim();
+						if trimmed.is_empty() {
+							None
+						} else {
+							Some(trimmed.into())
+						}
+					})
+					.or_else(|| Some(raw_chapter_title.trim().into()));
 
 				Some(Chapter {
 					key: chapter_id,
-					title: if chapter_title.is_empty() {
-						None
-					} else {
-						Some(chapter_title)
-					},
+					title: chapter_title,
 					volume_number: if volume_number < 0.0 {
 						None
 					} else {
@@ -382,12 +393,12 @@ pub trait Impl {
 				.and_then(|el| el.attr("abs:href"))
 				.unwrap_or_default();
 			Ok(Some(DeepLinkResult::Chapter {
-				manga_key: (params.manga_parse_id)(manga_id),
-				key: (params.chapter_parse_id)(url.clone()),
+				manga_key: (params.manga_parse_id)(&manga_id),
+				key: (params.chapter_parse_id)(url),
 			}))
 		} else {
 			Ok(Some(DeepLinkResult::Manga {
-				key: (params.manga_parse_id)(url),
+				key: (params.manga_parse_id)(&url),
 			}))
 		}
 	}
@@ -460,11 +471,12 @@ pub trait Impl {
 						src
 					}
 				});
+			let url = manga_link.attr("abs:href")?;
 			Some(Manga {
-				key: (params.manga_parse_id)(manga_link.attr("abs:href")?),
+				key: (params.manga_parse_id)(&url),
 				title: manga_link.text()?,
 				cover,
-				url: manga_link.attr("href"),
+				url: Some(url),
 				..Default::default()
 			})
 		};
