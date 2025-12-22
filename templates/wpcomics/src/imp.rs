@@ -397,7 +397,6 @@ pub trait Impl {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let url = (params.get_search_url)(params, query, page, filters)?;
-		println!("url = {url}");
 		self.get_manga_list(cache, params, url, None)
 	}
 
