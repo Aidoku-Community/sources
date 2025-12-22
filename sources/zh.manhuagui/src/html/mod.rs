@@ -1,8 +1,7 @@
 use crate::{USER_AGENT, decoder::Decoder};
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Viewer,
-	Page, PageContent, Result,
-	SelectFilter,
+	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
+	SelectFilter, Viewer,
 	alloc::{String, Vec, borrow::Cow, vec},
 	helpers::uri::encode_uri,
 	imports::{
@@ -164,8 +163,8 @@ impl MangaPage for Document {
 			}
 		}
 
-		let country = if let Some(country_element) = self
-			.select_first("ul.detail-list li:nth-child(1) span:nth-child(2) a")
+		let country = if let Some(country_element) =
+			self.select_first("ul.detail-list li:nth-child(1) span:nth-child(2) a")
 		{
 			country_element.text()
 		} else {
@@ -174,7 +173,7 @@ impl MangaPage for Document {
 
 		let mut all_tags = Vec::new();
 		if let Some(ref c) = country {
-		  		all_tags.push(c.clone());
+			all_tags.push(c.clone());
 		}
 		all_tags.extend(categories);
 		manga.tags = Some(all_tags);
@@ -258,9 +257,13 @@ impl ChapterPage for Document {
 								.select_first("a")
 								.ok_or_else(|| error!("Failed to select a"))?;
 							let url = a_element
+								.attr("abs:href")
+								.ok_or_else(|| error!("Failed to get abs:href"))?;
+							let id = a_element
 								.attr("href")
-								.ok_or_else(|| error!("Failed to get href"))?;
-							let id = url.clone().replace("/comic/", "").replace(".html", "");
+								.ok_or_else(|| error!("Failed to get href"))?
+								.replace("/comic/", "")
+								.replace(".html", "");
 							let chapter_id = match id.split('/').next_back() {
 								Some(id) => String::from(id),
 								None => String::new(),
