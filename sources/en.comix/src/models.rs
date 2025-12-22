@@ -1,4 +1,4 @@
-use crate::BASE_URL;
+use crate::{BASE_URL, settings};
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
@@ -105,7 +105,12 @@ impl From<ComixManga> for Manga {
 		Self {
 			key: value.hash_id,
 			title: value.title,
-			cover: Some(value.poster.medium),
+			cover: match settings::get_image_quality().as_str() {
+				"small" => Some(value.poster.small.into()),
+				"medium" => Some(value.poster.medium.into()),
+				"large" => Some(value.poster.large.into()),
+				_ => None,
+			},
 			artists: value
 				.artist
 				.map(|v| v.into_iter().map(|t| t.title).collect()),
@@ -143,10 +148,10 @@ impl From<ComixManga> for Manga {
 #[derive(Deserialize)]
 pub struct ComixChapter {
 	pub chapter_id: i32,
-	// pub scanlation_group_id: i32,
+	pub scanlation_group_id: i32,
 	pub number: f32,
 	pub name: String,
-	// pub votes: i32,
+	pub votes: i32,
 	pub updated_at: i64,
 	pub scanlation_group: Option<ScanlationGroup>,
 	pub is_official: i32,

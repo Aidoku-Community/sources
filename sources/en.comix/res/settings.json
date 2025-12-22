@@ -1,16 +1,33 @@
 [
-	{
-		"type": "group",
-		"title": "SETTINGS",
-		"footer": "Hide NSFW content from the home page and searching.",
-		"items": [
-			{
-				"type": "switch",
-				"title": "Hide NSFW Content",
-				"key": "hideNSFW",
-				"default": true,
-				"refreshes": ["content"]
-			}
-		]
-	}
+  {
+    "type": "group",
+    "title": "SETTINGS",
+    "items": [
+      {
+        "type": "select",
+        "title": "Thumbnail Quality",
+        "key": "thumbnailQuality",
+        "values": ["small", "medium", "large"],
+        "titles": ["Small", "Medium", "Large"],
+        "default": "large",
+        "refreshes": ["content"]
+      },
+      {
+        "type": "switch",
+        "title": "Hide NSFW Content",
+        "key": "hideNSFW",
+        "default": true,
+        "refreshes": ["content"],
+        "footer": "Hide NSFW content from the home page and searching."
+      },
+      {
+        "type": "switch",
+        "title": "Deduplicate Chapters",
+        "key": "dedupedChapter",
+        "default": false,
+        "refreshes": ["content"],
+        "footer": "Remove duplicate chapters from the chapter list.\n Official chapters (Comix-marked) are preferred, followed by the highest-voted or most recent.\nWarning: It can be slow on large lists."
+      }
+    ]
+  }
 ]

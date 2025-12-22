@@ -1,8 +1,8 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout,
-	HomePartialResult, Link, LinkValue, Listing, ListingProvider, Manga, MangaPageResult,
-	MangaWithChapter, Page, Result, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeComponent,
+	HomeLayout, HomePartialResult, Link, LinkValue, Listing, ListingProvider, Manga,
+	MangaPageResult, MangaWithChapter, Page, Result, Source,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -23,6 +23,45 @@ const API_URL: &str = "https://comix.to/api/v2";
 const NSFW_GENRE_IDS: &[&str] = &["87264", "8", "87265", "13", "87266", "87268"];
 
 struct Comix;
+
+fn is_official_like(ch: &ComixChapter) -> bool {
+	ch.scanlation_group_id == 9275 || ch.is_official == 1
+}
+
+fn is_better(new_ch: &ComixChapter, cur: &ComixChapter) -> bool {
+	let official_new = is_official_like(new_ch);
+	let official_cur = is_official_like(cur);
+
+	if official_new && !official_cur {
+		return true;
+	}
+	if !official_new && official_cur {
+		return false;
+	}
+
+	if new_ch.votes > cur.votes {
+		return true;
+	}
+	if new_ch.votes < cur.votes {
+		return false;
+	}
+
+	new_ch.updated_at > cur.updated_at
+}
+
+fn dedup_insert(map: &mut HashMap<String, ComixChapter>, ch: ComixChapter) {
+	let key = ch.number.to_string();
+	match map.get(&key) {
+		None => {
+			map.insert(key, ch);
+		}
+		Some(current) => {
+			if is_better(&ch, current) {
+				map.insert(key, ch);
+			}
+		}
+	}
+}
 
 impl Source for Comix {
 	fn new() -> Self {
@@ -151,30 +190,52 @@ impl Source for Comix {
 		}
 
 		if needs_chapters {
-			let chapters_url = format!(
-				"{API_URL}/manga/{}/chapters/?order[number]=desc&limit=100",
-				manga.key
-			);
-			let mut current_page = 1;
-			let (last_page, mut chapters) =
-				Request::get(format!("{chapters_url}&page={current_page}"))?
-					.json_owned::<ChapterDetailsResponse>()
-					.map(|json| {
-						(
-							json.result.pagination.last_page,
-							json.result.into_chapters(&manga.key),
-						)
-					})?;
-
-			while current_page < last_page {
-				current_page += 1;
-				chapters.extend(
-					Request::get(format!("{chapters_url}&page={current_page}"))?
-						.json_owned::<ChapterDetailsResponse>()?
-						.result
-						.into_chapters(&manga.key),
+			let limit = 100;
+			let mut page = 1;
+			let deduplicate = settings::get_dedupchapter();
+			let mut chapter_map: HashMap<String, ComixChapter> = HashMap::new();
+			let mut chapter_list: Vec<ComixChapter> = Vec::new();
+			loop {
+				let url = format!(
+					"{API_URL}/manga/{}/chapters?limit={}&page={}&order[number]=desc",
+					manga.key, limit, page
 				);
+
+				let res = Request::get(url)?.json_owned::<ChapterDetailsResponse>()?;
+
+				let items = res.result.items;
+
+				if deduplicate {
+					for item in items {
+						dedup_insert(&mut chapter_map, item);
+					}
+				} else {
+					chapter_list.extend(items);
+				}
+
+				if res.result.pagination.current_page >= res.result.pagination.last_page {
+					break;
+				}
+
+				page += 1;
 			}
+
+			let raw_chapters = if deduplicate {
+				chapter_map.into_values().collect::<Vec<_>>()
+			} else {
+				chapter_list
+			};
+
+			let mut chapters: Vec<Chapter> = raw_chapters
+				.into_iter()
+				.map(|item| item.into_chapter(&manga.key))
+				.collect();
+
+			chapters.sort_by(|a, b| {
+				b.chapter_number
+					.partial_cmp(&a.chapter_number)
+					.unwrap_or(core::cmp::Ordering::Equal)
+			});
 
 			manga.chapters = Some(chapters);
 		}
