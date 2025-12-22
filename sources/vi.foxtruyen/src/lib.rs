@@ -141,7 +141,7 @@ impl Impl for FoxTruyen {
 			home_grids_item_selector: ".item_home",
 
 			home_manga_cover_attr: "abs:data-src",
-			time_formats: Some(["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"].to_vec()),
+			time_formats: Some(vec!["%d/%m/%Y", "%m-%d-%Y", "%Y-%d-%m"]),
 
 			..Default::default()
 		}
