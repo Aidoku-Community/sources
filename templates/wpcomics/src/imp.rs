@@ -156,7 +156,7 @@ pub trait Impl {
 		params: &Params,
 		url: String,
 	) -> Result<Manga> {
-		let html = self.cache_manga_page(cache, params, url.as_str())?;
+		let html = self.cache_manga_page(cache, params, &url)?;
 		let details = Html::parse_with_url(html, &url)?;
 
 		let title = details
