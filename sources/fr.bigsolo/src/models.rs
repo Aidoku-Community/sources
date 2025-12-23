@@ -1,8 +1,10 @@
 use aidoku::{
-	HashMap,
-	alloc::{String, Vec},
+	HashMap, Manga, MangaStatus,
+	alloc::{String, Vec, format, vec},
 };
 use serde::Deserialize;
+
+use crate::BASE_URL;
 
 #[derive(Default, Deserialize, Debug, Clone)]
 pub struct ChapterData {
@@ -50,4 +52,33 @@ pub struct SeriesList {
 	pub series: Vec<Series>,
 	pub os: Vec<Series>,
 	pub reco: Vec<Series>,
+}
+
+pub fn map_bigsolo_status(status: &str) -> MangaStatus {
+	match status {
+		"En cours" => MangaStatus::Ongoing,
+		"Fini" | "Finis" => MangaStatus::Completed,
+		"En pause" => MangaStatus::Hiatus,
+		"Annulé" => MangaStatus::Cancelled,
+		_ => MangaStatus::Unknown,
+	}
+}
+
+impl From<Series> for Manga {
+	fn from(series: Series) -> Self {
+		let url = Some(format!("{BASE_URL}/{}", series.slug));
+
+		Manga {
+			key: series.slug,
+			title: series.title,
+			cover: Some(series.cover.url_lq),
+			authors: Some(vec![series.author]),
+			artists: Some(vec![series.artist]),
+			description: Some(series.description),
+			status: map_bigsolo_status(&series.status),
+			tags: Some(series.tags),
+			url,
+			..Default::default()
+		}
+	}
 }

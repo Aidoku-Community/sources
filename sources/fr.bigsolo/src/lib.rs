@@ -4,16 +4,16 @@
 
 #![no_std]
 use aidoku::{
-	AidokuError, AlternateCoverProvider, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue,
-	Home, HomeComponent, HomeLayout, Listing, ListingKind, ListingProvider, Manga, MangaPageResult,
-	MangaStatus, MangaWithChapter, MigrationHandler, Page, PageContent, Result, Source,
+	AlternateCoverProvider, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home,
+	HomeComponent, HomeLayout, Listing, ListingKind, ListingProvider, Manga, MangaPageResult,
+	MangaWithChapter, Page, PageContent, Result, Source,
 	alloc::{String, Vec, string::ToString, vec},
 	imports::{net::Request, std::send_partial_result},
 	prelude::*,
 };
 
 mod models;
-use crate::models::{ChapterData, ChapterEndpointData, Series, SeriesList};
+use crate::models::{ChapterData, ChapterEndpointData, Series, SeriesList, map_bigsolo_status};
 
 const BASE_URL: &str = "https://bigsolo.org";
 
@@ -71,7 +71,6 @@ impl Source for BigSolo {
 			}
 
 			let mut manga: Manga = series.into();
-			manga.status = MangaStatus::Unknown;
 			if let Some(tags) = manga.tags.as_mut() {
 				tags.push(String::from("One-shot"));
 			} else {
@@ -104,7 +103,7 @@ impl Source for BigSolo {
 			manga.authors = Some(vec![series_data.author.clone()]);
 			manga.artists = Some(vec![series_data.artist.clone()]);
 			manga.description = Some(series_data.description.clone());
-			manga.status = BigSolo::map_bigsolo_status(&series_data.status);
+			manga.status = map_bigsolo_status(&series_data.status);
 			let mut tags = series_data.tags.clone();
 			if series_data.os.unwrap_or(false) {
 				tags.push(String::from("One-shot"));
@@ -130,18 +129,16 @@ impl Source for BigSolo {
 				chapter_vec
 					.into_iter()
 					.map(|(chapter_key, chapter)| {
-						let chapter_key_str = chapter_key.as_str();
+						let chapter_number = chapter_key.parse().ok();
+						let url = format!("{BASE_URL}/{}/{}", series_data.slug, chapter_key);
 						Chapter {
-							key: chapter_key.clone(),
+							key: chapter_key,
 							title: Some(chapter.title),
-							chapter_number: chapter_key_str.parse().ok(),
+							chapter_number,
 							volume_number: chapter.volume.unwrap_or_default().parse().ok(),
 							date_uploaded: Some(chapter.timestamp),
-							url: Some(format!(
-								"{BASE_URL}/{}/{}",
-								series_data.slug, chapter_key_str
-							)),
-							scanlators: Some(chapter.teams.clone()),
+							url: Some(url),
+							scanlators: Some(chapter.teams),
 							locked: chapter.licensed.unwrap_or(false),
 							..Default::default()
 						}
@@ -168,37 +165,6 @@ impl Source for BigSolo {
 				..Default::default()
 			})
 			.collect())
-	}
-}
-
-impl BigSolo {
-	fn map_bigsolo_status(status: &str) -> MangaStatus {
-		match status {
-			"En cours" => MangaStatus::Ongoing,
-			"Fini" | "Finis" => MangaStatus::Completed,
-			"En pause" => MangaStatus::Hiatus,
-			"Annulé" => MangaStatus::Cancelled,
-			_ => MangaStatus::Unknown,
-		}
-	}
-}
-
-impl From<Series> for Manga {
-	fn from(series: Series) -> Self {
-		let url = Some(format!("{BASE_URL}/{}", series.slug));
-
-		Manga {
-			key: series.slug,
-			title: series.title,
-			cover: Some(series.cover.url_lq),
-			authors: Some(vec![series.author]),
-			artists: Some(vec![series.artist]),
-			description: Some(series.description),
-			status: BigSolo::map_bigsolo_status(&series.status),
-			tags: Some(series.tags),
-			url,
-			..Default::default()
-		}
 	}
 }
 
@@ -238,14 +204,16 @@ impl Home for BigSolo {
 				// Find the manga for this chapter
 				let manga = all_entries.iter().find(|m| m.key == series_slug)?.clone();
 
+				let chapter_number = chapter_key.parse().ok().unwrap_or_default();
+				let url = format!("{BASE_URL}/{}/{}", series_slug, chapter_key);
 				let chapter = Chapter {
-					key: chapter_key.clone(),
-					title: Some(chapter_data.title.clone()),
-					chapter_number: chapter_key.parse().ok(),
+					key: chapter_key,
+					title: Some(chapter_data.title),
+					chapter_number: Some(chapter_number),
 					volume_number: chapter_data.volume.unwrap_or_default().parse().ok(),
 					date_uploaded: Some(chapter_data.timestamp),
-					url: Some(format!("{BASE_URL}/{}/{}", series_slug, chapter_key)),
-					scanlators: Some(chapter_data.teams.clone()),
+					url: Some(url),
+					scanlators: Some(chapter_data.teams),
 					locked: chapter_data.licensed.unwrap_or(false),
 					..Default::default()
 				};
@@ -383,34 +351,8 @@ impl ListingProvider for BigSolo {
 				has_next_page: false,
 			})
 		} else {
-			Err(AidokuError::message("Unknown listing"))
+			bail!("Unknown listing")
 		}
-	}
-}
-
-impl MigrationHandler for BigSolo {
-	fn handle_manga_migration(&self, old_key: String) -> Result<String> {
-		// fetch /data/series to find the series
-		let series_list: SeriesList =
-			Request::get(format!("{BASE_URL}/data/series"))?.json_owned::<SeriesList>()?;
-
-		// if old_key matches, return the slug as the new identifier
-		for series in series_list.series.iter().chain(series_list.os.iter()) {
-			if series.key == old_key {
-				return Ok(series.slug.clone());
-			}
-		}
-
-		Err(AidokuError::message(format!(
-			"Could not find manga with old key '{}' for migration",
-			old_key
-		)))
-	}
-
-	fn handle_chapter_migration(&self, _manga_key: String, chapter_key: String) -> Result<String> {
-		// the old chapter ids are not available anymore,
-		// we cannot do a match like in handle_manga_migration.
-		Ok(chapter_key)
 	}
 }
 
@@ -419,6 +361,5 @@ register_source!(
 	Home,
 	AlternateCoverProvider,
 	ListingProvider,
-	MigrationHandler,
 	DeepLinkHandler
 );
