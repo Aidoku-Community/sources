@@ -2,7 +2,7 @@
 	{
 		"type": "select",
 		"id": "status",
-		"name": "Tình trạng",
+		"title": "Tình trạng",
 		"options": [
 			"Tất cả",
 			"Đang tiến hành",
@@ -17,7 +17,7 @@
 	{
 		"type": "sort",
 		"id": "sort",
-		"name": "Sắp xếp theo",
+		"title": "Sắp xếp theo",
 		"options": [
 			"Ngày cập nhật",
 			"Truyện mới",
@@ -46,7 +46,7 @@
 	{
 		"type": "select",
 		"id": "tag",
-		"name": "Thể loại",
+		"title": "Thể loại",
 		"options": [
 			"Tất cả",
 			"Action",

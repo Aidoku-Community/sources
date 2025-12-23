@@ -2,7 +2,7 @@
 	{
 		"type": "select",
 		"id": "status",
-		"name": "Tình trạng",
+		"title": "Tình trạng",
 		"options": [
 			"Tất cả",
 			"Đang tiến hành",
@@ -17,7 +17,7 @@
 	{
 		"type": "sort",
 		"id": "sort",
-		"name": "Sắp xếp theo",
+		"title": "Sắp xếp theo",
 		"options": [
 			"Ngày đăng giảm dần",
 			"Ngày đăng tăng dần",
@@ -38,7 +38,7 @@
 	{
 		"type": "multi-select",
 		"id": "tags[]",
-		"name": "Thể loại",
+		"title": "Thể loại",
 		"isGenre": true,
 		"canExclude": true,
 		"options": [

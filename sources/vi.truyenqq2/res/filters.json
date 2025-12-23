@@ -2,7 +2,7 @@
 	{
 		"type": "select",
 		"id": "minchapter",
-		"name": "Số lượng chapter",
+		"title": "Số lượng chapter",
 		"options": [
 			"> 0 chapter",
 			">= 50 chapters",
@@ -25,7 +25,7 @@
 	{
 		"type": "select",
 		"id": "status",
-		"name": "Tình trạng",
+		"title": "Tình trạng",
 		"options": [
 			"Tất cả",
 			"Đang tiến hành",
@@ -40,7 +40,7 @@
 	{
 		"type": "select",
 		"id": "coutry",
-		"name": "Quốc gia",
+		"title": "Quốc gia",
 		"options": [
 			"Tất cả",
 			"Trung Quốc",
@@ -61,7 +61,7 @@
 	{
 		"type": "sort",
 		"id": "m_orderby",
-		"name": "Sắp xếp theo",
+		"title": "Sắp xếp theo",
 		"options": [
 			"Ngày đăng giảm dần",
 			"Ngày đăng tăng dần",
@@ -74,7 +74,7 @@
 	{
 		"type": "multi-select",
 		"id": "tags[]",
-		"name": "Thể loại",
+		"title": "Thể loại",
 		"isGenre": true,
 		"canExclude": false,
 		"options": [
