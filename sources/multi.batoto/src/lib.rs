@@ -1,7 +1,8 @@
 #![no_std]
 use aidoku::{
-	BaseUrlProvider, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Manga,
-	MangaPageResult, MangaStatus, MigrationHandler, Page, PageContent, Result, Source, Viewer,
+	BaseUrlProvider, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue,
+	ImageRequestProvider, Manga, MangaPageResult, MangaStatus, MigrationHandler, Page, PageContent,
+	PageContext, Result, Source, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::QueryParameters,
 	imports::{defaults::defaults_get, net::Request, std::current_date},
@@ -108,34 +109,82 @@ impl Source for BatoTo {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let base_url = self.get_base_url()?;
-		let url = format!("{base_url}/series/{}", manga.key);
+		let is_v4 = helpers::is_v4(&base_url);
+		let url = format!(
+			"{base_url}/{}/{}",
+			if is_v4 { "title" } else { "series" },
+			manga.key
+		);
 		let html = Request::get(&url)?.html()?;
 
 		if needs_details {
+			let details_selector: &str;
+			let title_selector: &str;
+			let cover_selector: &str;
+			let artist_selector: &str;
+			let author_selector: &str;
+			let tag_selector: &str;
+			let status_selector: &str;
+			let bato_status_selector: &str;
+			let viewer_selector: &str;
+			if is_v4 {
+				details_selector = "main > div";
+				title_selector = "h3 > a";
+				cover_selector = "img";
+				artist_selector = ".space-y-2:not(.hidden) > div > a[href^=\"/artist\"]";
+				author_selector = ".space-y-2:not(.hidden) > div > a[href^=\"/author\"]";
+				tag_selector = "main > div .grid > .space-y-2:not(.hidden) > .flex > span > span.whitespace-nowrap";
+				status_selector = ".grid > .space-y-2:not(.hidden) > div > span:contains(original publication) + span";
+				bato_status_selector =
+					".grid > .space-y-2:not(.hidden) > div > span:contains(upload status) + span";
+				viewer_selector =
+					".grid > .space-y-2:not(.hidden) > div > span:contains(read direction) + span";
+			} else {
+				details_selector = "div#mainer div.container-fluid";
+				title_selector = ".item-title";
+				cover_selector = "div.attr-cover img";
+				artist_selector = "div.attr-item:contains(artist) > span > a";
+				author_selector = "div.attr-item:contains(author) > span > a";
+				tag_selector = "div.attr-item b:contains(genres) + span > span";
+				status_selector = "div.attr-item:contains(original work) span";
+				bato_status_selector = "div.attr-item:contains(upload status) span";
+				viewer_selector = "div.attr-item:contains(read direction) span";
+			}
 			let info_element = html
-				.select_first("div#mainer div.container-fluid")
+				.select_first(details_selector)
 				.ok_or_else(|| error!("Missing details element"))?;
 			manga.title = info_element
-				.select_first(".item-title")
+				.select_first(title_selector)
 				.and_then(|el| el.text())
 				.unwrap_or(manga.title);
 			manga.cover = html
-				.select_first("div.attr-cover img")
+				.select_first(cover_selector)
 				.and_then(|el| el.attr("abs:src"));
 			manga.artists = html
-				.select("div.attr-item:contains(artist) > span > a")
+				.select(artist_selector)
 				.map(|els| els.filter_map(|el| el.text()).collect());
-			manga.authors = html
-				.select("div.attr-item:contains(author) > span > a")
-				.map(|els| els.filter_map(|el| el.text()).collect());
+			manga.authors = html.select(author_selector).map(|els| {
+				els.filter_map(|el| el.text())
+					.map(|s| {
+						if is_v4 {
+							s.trim_end_matches("(Story&Art)")
+								.trim_end_matches("(Story)")
+								.trim_end_matches("(Art)")
+								.into()
+						} else {
+							s
+						}
+					})
+					.collect()
+			});
 			manga.description = html.select_first(".limit-html").and_then(|el| el.text());
 			manga.url = Some(url);
 			manga.tags = html
-				.select("div.attr-item b:contains(genres) + span > span")
+				.select(tag_selector)
 				.map(|els| els.filter_map(|el| el.text()).collect());
 			manga.status = html
-				.select_first("div.attr-item:contains(original work) span")
-				.or_else(|| html.select_first("div.attr-item:contains(upload status) span"))
+				.select_first(status_selector)
+				.or_else(|| html.select_first(bato_status_selector))
 				.and_then(|el| el.text())
 				.map(|s| {
 					if s.contains("Ongoing") {
@@ -151,23 +200,30 @@ impl Source for BatoTo {
 					}
 				})
 				.unwrap_or_default();
-			manga.content_rating = if html.select_first(".alert.alert-warning span b").is_some() {
+			let tags = manga.tags.as_deref().unwrap_or_default();
+			manga.content_rating = if html.select_first(".alert.alert-warning span b").is_some()
+				|| tags
+					.iter()
+					.any(|e| matches!(e.as_str(), "Adult" | "Mature" | "Smut" | "Hentai"))
+			{
 				ContentRating::NSFW
+			} else if tags.iter().any(|e| e == "Ecchi") {
+				ContentRating::Suggestive
 			} else {
 				ContentRating::Safe
 			};
-			let tags = manga.tags.as_deref().unwrap_or_default();
 			manga.viewer = if tags
 				.iter()
 				.any(|s| matches!(s.as_str(), "Manhwa" | "Webtoon"))
 			{
 				Viewer::Webtoon
 			} else {
-				html.select_first("div.attr-item:contains(read direction) span")
+				html.select_first(viewer_selector)
 					.and_then(|el| el.text())
 					.map(|s| match s.as_str() {
 						"Left to Right" => Viewer::LeftToRight,
 						"Right to Left" => Viewer::RightToLeft,
+						"Top to Bottom" => Viewer::Webtoon,
 						_ => Viewer::Unknown,
 					})
 					.unwrap_or_default()
@@ -175,32 +231,66 @@ impl Source for BatoTo {
 		}
 
 		if needs_chapters {
+			let language_selector: &str;
+			let chapter_selector: &str;
+			let link_selector: &str;
+			let date_selector: &str;
+			let scanlator_selector: &str;
+			if is_v4 {
+				language_selector = "main > div .grid > .space-y-2:not(.hidden) > div.whitespace-nowrap > span + span";
+				chapter_selector =
+					"div[data-name=\"chapter-list\"] > div.space-y-3 > div.border > div.flex > div";
+				link_selector = "a";
+				date_selector = "span[data-passed]";
+				scanlator_selector = "a > span.text-ellipsis";
+			} else {
+				language_selector = "div.attr-item:contains(translated language) span";
+				chapter_selector = "div.main div.p-2";
+				link_selector = "a.chapt";
+				date_selector = ".extra i.ps-3";
+				scanlator_selector = "div.extra a";
+			}
+
 			let language: Option<String> = html
-				.select_first("div.attr-item:contains(translated language) span")
+				.select_first(language_selector)
 				.and_then(|el| el.text())
 				.map(|s| helpers::get_language_iso(&s).into());
-			manga.chapters = html.select("div.main div.p-2").map(|els| {
+			manga.chapters = html.select(chapter_selector).map(|els| {
 				els.filter_map(|el| {
-					let link = el.select_first("a.chapt")?;
+					let link = el.select_first(link_selector)?;
 					let url = link.attr("abs:href")?;
-					let key = url
-						.strip_prefix(&base_url)?
-						.trim_start_matches("/chapter/")
-						.into();
+					let key = if is_v4 {
+						helpers::get_chapter_key(&url)?
+					} else {
+						url.strip_prefix(&base_url)?
+							.trim_start_matches("/chapter/")
+							.into()
+					};
 					let info = helpers::parse_chapter_title(&link.text().unwrap_or_default());
 					let now = current_date();
-					let date_uploaded = el
-						.select_first(".extra i.ps-3")
-						.and_then(|el| el.text())
-						.and_then(|s| {
-							if s.ends_with("days ago") {
-								s.split_whitespace()
-									.next()
-									.and_then(|s| s.parse::<i64>().ok())
-									.map(|days_ago| now - days_ago * 24 * 60 * 60)
+					let date_el = el.select_first(date_selector);
+					let date_uploaded = date_el
+						.as_ref()
+						.and_then(|el| {
+							if el.has_attr("data-passed") {
+								el.attr("data-passed")
+									.and_then(|data| data.parse::<i64>().ok())
+									.map(|sec_ago| now - sec_ago)
 							} else {
 								None
 							}
+						})
+						.or_else(|| {
+							date_el.and_then(|el| el.text()).and_then(|s| {
+								if s.ends_with("days ago") {
+									s.split_whitespace()
+										.next()
+										.and_then(|s| s.parse::<i64>().ok())
+										.map(|days_ago| now - days_ago * 24 * 60 * 60)
+								} else {
+									None
+								}
+							})
 						})
 						.or(Some(now));
 					Some(Chapter {
@@ -210,7 +300,7 @@ impl Source for BatoTo {
 						chapter_number: info.chapter,
 						date_uploaded,
 						scanlators: html
-							.select_first("div.extra a")
+							.select_first(scanlator_selector)
 							.and_then(|el| el.text())
 							.map(|s| vec![s]),
 						url: Some(url),
@@ -225,36 +315,54 @@ impl Source for BatoTo {
 		Ok(manga)
 	}
 
-	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let base_url = self.get_base_url()?;
-		let url = format!("{base_url}/chapter/{}", chapter.key);
+		let is_v4 = helpers::is_v4(&base_url);
+		let url = if is_v4 {
+			format!("{base_url}/title/{}/{}", manga.key, chapter.key)
+		} else {
+			format!("{base_url}/chapter/{}", chapter.key)
+		};
 		let html = Request::get(url)?.html()?;
 
 		let mut pages = Vec::new();
 
 		for script in html
-			.select("body script")
+			.select(if is_v4 {
+				"script[type=\"qwik/json\"]"
+			} else {
+				"body script"
+			})
 			.ok_or_else(|| error!("No script elements"))?
 		{
 			let script_text = script.data();
 			let Some(script_text) = script_text else {
 				continue;
 			};
-			if !script_text.contains("your_email") {
-				continue;
-			}
+			if is_v4 {
+				for url in helpers::extract_image_urls(&script_text) {
+					pages.push(Page {
+						content: PageContent::url(url),
+						..Default::default()
+					});
+				}
+			} else {
+				if !script_text.contains("your_email") {
+					continue;
+				}
 
-			let Some(img_str) =
-				helpers::extract_between(&script_text, "const imgHttps = [\"", "\"];")
-			else {
-				continue;
-			};
+				let Some(img_str) =
+					helpers::extract_between(&script_text, "const imgHttps = [\"", "\"];")
+				else {
+					continue;
+				};
 
-			for url in img_str.split("\",\"") {
-				pages.push(Page {
-					content: PageContent::url(url),
-					..Default::default()
-				});
+				for url in img_str.split("\",\"") {
+					pages.push(Page {
+						content: PageContent::url(url),
+						..Default::default()
+					});
+				}
 			}
 		}
 
@@ -286,6 +394,12 @@ impl DeepLinkHandler for BatoTo {
 	}
 }
 
+impl ImageRequestProvider for BatoTo {
+	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
+		Ok(Request::get(url.replace("//k", "//n"))?)
+	}
+}
+
 impl BaseUrlProvider for BatoTo {
 	fn get_base_url(&self) -> Result<String> {
 		Ok(defaults_get::<String>("url").unwrap_or_default())
@@ -308,4 +422,10 @@ impl MigrationHandler for BatoTo {
 	}
 }
 
-register_source!(BatoTo, DeepLinkHandler, BaseUrlProvider, MigrationHandler);
+register_source!(
+	BatoTo,
+	ImageRequestProvider,
+	DeepLinkHandler,
+	BaseUrlProvider,
+	MigrationHandler
+);

@@ -1,0 +1,21 @@
+[
+	{
+		"type": "group",
+		"title": "SETTINGS",
+		"items": [
+			{
+				"type": "select",
+				"key": "proxy_url",
+				"title": "Proxy",
+				"titles": [
+					"Tắt",
+					"Shin Proxy"
+				],
+				"values": [
+					"",
+					"https://hard-emu-60.deno.dev"
+				]
+			}
+		]
+	}
+]

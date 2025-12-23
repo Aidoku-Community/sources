@@ -1,0 +1,16 @@
+[
+	{
+		"type": "group",
+		"title": "SETTINGS",
+		"footer": "Hide NSFW content from the home page and searching.",
+		"items": [
+			{
+				"type": "switch",
+				"title": "Hide NSFW Content",
+				"key": "hideNSFW",
+				"default": true,
+				"refreshes": ["content"]
+			}
+		]
+	}
+]

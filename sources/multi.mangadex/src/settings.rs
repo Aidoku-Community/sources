@@ -1,16 +1,17 @@
 use crate::TokenResponse;
 use aidoku::{
+	Result,
 	alloc::{string::String, vec::Vec},
 	imports::{
-		defaults::{defaults_get, defaults_get_json, defaults_set, DefaultValue},
+		defaults::{DefaultValue, defaults_get, defaults_get_json, defaults_set},
 		error::AidokuError,
 	},
-	Result,
 };
 use core::fmt::Write;
 
 // settings keys
 const LANGUAGES_KEY: &str = "languages";
+const TITLE_PREFERENCE_KEY: &str = "titlePreference";
 const COVER_QUALITY_KEY: &str = "coverQuality";
 const CONTENT_RATING_KEY: &str = "contentRating";
 const BLOCKED_UUIDS_KEY: &str = "blockedUUIDs";
@@ -45,6 +46,29 @@ pub fn get_languages_with_key(key: &str) -> Result<String> {
 			let _ = write!(output, "&{key}[]={lang}");
 			output
 		}))
+}
+
+#[derive(PartialEq, Eq)]
+pub enum TitlePreference {
+	Primary,
+	SelectedLanguage,
+	English,
+	Romaji,
+	Japanese,
+}
+
+pub fn get_title_preference() -> TitlePreference {
+	match defaults_get::<String>(TITLE_PREFERENCE_KEY)
+		.as_deref()
+		.unwrap_or_default()
+	{
+		"" => TitlePreference::Primary,
+		"select" => TitlePreference::SelectedLanguage,
+		"en" => TitlePreference::English,
+		"ro" => TitlePreference::Romaji,
+		"ja" => TitlePreference::Japanese,
+		_ => TitlePreference::Primary,
+	}
 }
 
 pub fn get_content_ratings() -> Result<String> {

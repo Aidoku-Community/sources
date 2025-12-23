@@ -2,11 +2,8 @@
 	"info": {
 		"id": "zh.manhuagui",
 		"name": "Manhuagui",
-		"version": 7,
-		"urls": [
-			"https://www.manhuagui.com", 
-			"https://tw.manhuagui.com"
-		],
+		"version": 8,
+		"urls": ["https://www.manhuagui.com", "https://tw.manhuagui.com"],
 		"contentRating": 1,
 		"languages": ["zh"]
 	},
