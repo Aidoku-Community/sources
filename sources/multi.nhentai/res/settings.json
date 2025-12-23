@@ -13,7 +13,7 @@
 	},
 	{
 		"type": "group",
-		"title": "Title Preferences",
+		"title": "Localization",
 		"items": [
 			{
 				"type": "select",
@@ -21,6 +21,22 @@
 				"title": "Preferred Title Language",
 				"values": ["english", "japanese"],
 				"titles": ["English", "Japanese"],
+				"default": "english"
+			},
+			{
+				"type": "select",
+				"key": "tagLanguage",
+				"title": "Tag Language",
+				"values": ["english", "chinese"],
+				"titles": ["English", "中文"],
+				"default": "english"
+			},
+			{
+				"type": "select",
+				"key": "metadataLanguage",
+				"title": "Metadata Language",
+				"values": ["english", "chinese"],
+				"titles": ["English", "中文"],
 				"default": "english"
 			}
 		]
@@ -37,6 +53,21 @@
 				"inline": true,
 				"placeholder": "Tag to block",
 				"default": ["example"],
+				"refreshes": ["content"]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Favorite Tags",
+		"items": [
+			{
+				"type": "editable-list",
+				"key": "favoriteTags",
+				"title": "Add Favorite Tag",
+				"lineLimit": 1,
+				"inline": true,
+				"placeholder": "Tag to Favorite(English)",
 				"refreshes": ["content"]
 			}
 		]

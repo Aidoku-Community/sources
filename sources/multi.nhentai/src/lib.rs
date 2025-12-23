@@ -9,6 +9,7 @@ use aidoku::{
 };
 
 mod home;
+mod localization_cn;
 mod models;
 mod settings;
 
@@ -87,16 +88,19 @@ impl Source for NHentai {
 				} => {
 					if id == "tags" {
 						for tag in included {
-							query_parts.push(format!("tag:\"{tag}\""));
+							let eng_tag = reverse_translate_tag(&tag);
+							query_parts.push(format!("tag:\"{eng_tag}\""));
 						}
 						for tag in excluded {
-							query_parts.push(format!("-tag:\"{tag}\""));
+							let eng_tag = reverse_translate_tag(&tag);
+							query_parts.push(format!("-tag:\"{eng_tag}\""));
 						}
 					}
 				}
 				FilterValue::Select { id, value } => {
 					if id == "genre" {
-						query_parts.push(format!("tag:\"{value}\""));
+						let eng_value = reverse_translate_tag(&value);
+						query_parts.push(format!("tag:\"{eng_value}\""));
 					}
 				}
 				_ => continue,

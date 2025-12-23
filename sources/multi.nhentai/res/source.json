@@ -1,8 +1,8 @@
 {
 	"info": {
-		"id": "multi.nhentai",
+		"id": "multi.nhentai-test",
 		"name": "nhentai",
-		"version": 15,
+		"version": 2,
 		"url": "https://nhentai.net",
 		"contentRating": 2,
 		"languages": ["All", "en", "ja", "zh"]

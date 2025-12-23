@@ -1,14 +1,81 @@
-use crate::settings::{get_title_preference, TitlePreference};
+use crate::localization_cn::*;
+use crate::settings::{self, TitlePreference};
 use aidoku::{
+	ContentRating, Manga, MangaStatus, UpdateStrategy, Viewer,
 	alloc::{
-		string::{String, ToString},
 		Vec,
+		string::{String, ToString},
 	},
 	prelude::*,
-	ContentRating, Manga, MangaStatus, UpdateStrategy, Viewer,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+fn get_tag_map(lang: &str) -> Option<&'static phf::Map<&'static str, &'static str>> {
+	match lang {
+		"chinese" => Some(&CN_TAG),
+		_ => None,
+	}
+}
+
+fn get_parody_map(lang: &str) -> Option<&'static phf::Map<&'static str, &'static str>> {
+	match lang {
+		"chinese" => Some(&CN_PARODY),
+		_ => None,
+	}
+}
+
+fn get_character_map(lang: &str) -> Option<&'static phf::Map<&'static str, &'static str>> {
+	match lang {
+		"chinese" => Some(&CN_CHARACTER),
+		_ => None,
+	}
+}
+
+fn get_group_map(lang: &str) -> Option<&'static phf::Map<&'static str, &'static str>> {
+	match lang {
+		"chinese" => Some(&CN_GROUP),
+		_ => None,
+	}
+}
+
+fn get_artist_map(lang: &str) -> Option<&'static phf::Map<&'static str, &'static str>> {
+	match lang {
+		"chinese" => Some(&CN_ARTIST),
+		_ => None,
+	}
+}
+
+/// Translate a name using PHF map (O(1) lookup)
+#[inline]
+fn translate_name(name: &str, map: Option<&phf::Map<&'static str, &'static str>>) -> String {
+	match map {
+		Some(m) => {
+			let lower = name.to_lowercase();
+			m.get(lower.as_str())
+				.map(|s| (*s).to_string())
+				.unwrap_or_else(|| name.to_string())
+		}
+		None => name.to_string(),
+	}
+}
+
+/// Reverse translate a localized tag to English (for search)
+pub fn reverse_translate_tag(query: &str) -> String {
+	let lang = settings::get_tag_language();
+	if lang == "english" {
+		return query.to_string();
+	}
+
+	let lower = query.to_lowercase();
+	match lang.as_str() {
+		"chinese" => CN_TAG_REVERSE
+			.get(lower.as_str())
+			.map(|s| (*s).to_string())
+			.unwrap_or_else(|| query.to_string()),
+		_ => query.to_string(),
+	}
+}
 
 pub fn extension_from_type(t: &str) -> &str {
 	match t {
@@ -16,7 +83,7 @@ pub fn extension_from_type(t: &str) -> &str {
 		"p" => "png",
 		"w" => "webp",
 		"g" => "gif",
-		_ => "jpg", // default to jpg
+		_ => "jpg",
 	}
 }
 
@@ -81,23 +148,46 @@ impl NHentaiGallery {
 
 impl From<NHentaiGallery> for Manga {
 	fn from(value: NHentaiGallery) -> Self {
+		let tag_lang = settings::get_tag_language();
+		let metadata_lang = settings::get_metadata_language();
+		let title_preference = settings::get_title_preference();
+
 		let mut tags = Vec::new();
 		let mut artists = Vec::new();
 		let mut groups = Vec::new();
 		let mut parodies = Vec::new();
 		let mut characters = Vec::new();
 
+		let tag_map = get_tag_map(&tag_lang);
+		let artist_map = get_artist_map(&metadata_lang).or_else(|| get_artist_map(&tag_lang));
+		let group_map = get_group_map(&metadata_lang).or_else(|| get_group_map(&tag_lang));
+		let parody_map = get_parody_map(&metadata_lang).or_else(|| get_parody_map(&tag_lang));
+		let character_map = get_character_map(&metadata_lang).or_else(|| get_character_map(&tag_lang));
+
 		for tag in &value.tags {
 			match tag.r#type.as_str() {
-				"tag" => tags.push((tag.name.clone(), tag.count)),
-				"artist" => artists.push((tag.name.clone(), tag.count)),
-				"group" => groups.push((tag.name.clone(), tag.count)),
+				"tag" => {
+					let name = translate_name(&tag.name, tag_map);
+					tags.push((name, tag.count));
+				}
+				"artist" => {
+					let name = translate_name(&tag.name, artist_map);
+					artists.push((name, tag.count));
+				}
+				"group" => {
+					let name = translate_name(&tag.name, group_map);
+					groups.push((name, tag.count));
+				}
 				"parody" => {
 					if tag.name != "original" && tag.name != "various" {
-						parodies.push((tag.name.clone(), tag.count));
+						let name = translate_name(&tag.name, parody_map);
+						parodies.push((name, tag.count));
 					}
 				}
-				"character" => characters.push((tag.name.clone(), tag.count)),
+				"character" => {
+					let name = translate_name(&tag.name, character_map);
+					characters.push((name, tag.count));
+				}
 				_ => {}
 			}
 		}
@@ -110,20 +200,11 @@ impl From<NHentaiGallery> for Manga {
 		characters.sort_by(|a, b| b.1.cmp(&a.1));
 
 		// Extract names
-		let tags = tags.into_iter().map(|(name, _)| name).collect::<Vec<_>>();
-		let groups = groups.into_iter().map(|(name, _)| name).collect::<Vec<_>>();
-		let artists = artists
-			.into_iter()
-			.map(|(name, _)| name)
-			.collect::<Vec<_>>();
-		let parodies = parodies
-			.into_iter()
-			.map(|(name, _)| name)
-			.collect::<Vec<_>>();
-		let characters = characters
-			.into_iter()
-			.map(|(name, _)| name)
-			.collect::<Vec<_>>();
+		let tags: Vec<_> = tags.into_iter().map(|(name, _)| name).collect();
+		let groups: Vec<_> = groups.into_iter().map(|(name, _)| name).collect();
+		let artists: Vec<_> = artists.into_iter().map(|(name, _)| name).collect();
+		let parodies: Vec<_> = parodies.into_iter().map(|(name, _)| name).collect();
+		let characters: Vec<_> = characters.into_iter().map(|(name, _)| name).collect();
 
 		let description = {
 			let mut info_parts = Vec::new();
@@ -141,7 +222,6 @@ impl From<NHentaiGallery> for Manga {
 			info_parts.join("  \n")
 		};
 
-		let title_preference = get_title_preference();
 		let title = match title_preference {
 			TitlePreference::Japanese => value
 				.title

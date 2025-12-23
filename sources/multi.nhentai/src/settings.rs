@@ -6,6 +6,8 @@ const TITLE_PREFERENCE_KEY: &str = "titlePreference";
 const LANGUAGE_KEY: &str = "language";
 const BLOCKLIST_KEY: &str = "blocklist";
 const LIST_VIEWER_KEY: &str = "isListView";
+const METADATA_LANGUAGE_KEY: &str = "metadataLanguage";
+const TAG_LANGUAGE_KEY: &str = "tagLanguage";
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum TitlePreference {
@@ -37,6 +39,14 @@ pub fn get_language() -> Option<String> {
 		"zh" => Some("chinese".into()),
 		_ => None,
 	})
+}
+
+pub fn get_metadata_language() -> String {
+	defaults_get::<String>(METADATA_LANGUAGE_KEY).unwrap_or_else(|| "english".into())
+}
+
+pub fn get_tag_language() -> String {
+	defaults_get::<String>(TAG_LANGUAGE_KEY).unwrap_or_else(|| "english".into())
 }
 
 pub fn get_blocklist() -> Vec<String> {

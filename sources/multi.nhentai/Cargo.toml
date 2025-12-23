@@ -8,7 +8,8 @@ aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", f
 serde = { version = "1.0.188", default-features = false, features = ["derive", "alloc"] }
 serde_json = { version = "1.0.105", default-features = false, features = ["alloc"] }
 chrono = { version = "0.4.30", default-features = false, features = ["alloc"] }
-hashbrown = "0.13.2"
+hashbrown = { version = "0.14", features = ["serde"] }
+phf = { version = "0.11", default-features = false, features = ["macros"] }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
