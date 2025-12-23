@@ -8,12 +8,20 @@
 				"key": "isListView",
 				"title": "Home Detail View",
 				"options": ["Grid", "List"]
+			},
+			{
+				"type": "switch",
+				"key": "sortTagsAlphabetically",
+				"title": "Sort Tags Alphabetically",
+				"subtitle": "Re-open source to apply",
+				"default": true
 			}
 		]
 	},
 	{
 		"type": "group",
 		"title": "Localization",
+		"footer": "Tag & Metadata Translation may affect performance",
 		"items": [
 			{
 				"type": "select",
@@ -29,7 +37,8 @@
 				"title": "Tag Language",
 				"values": ["english", "chinese"],
 				"titles": ["English", "中文"],
-				"default": "english"
+				"default": "english",
+				"refreshes": ["filters"]
 			},
 			{
 				"type": "select",
@@ -38,6 +47,22 @@
 				"values": ["english", "chinese"],
 				"titles": ["English", "中文"],
 				"default": "english"
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Favorite Tags",
+		"footer": "Re-open source to apply",
+		"items": [
+			{
+				"type": "editable-list",
+				"key": "favoriteTags",
+				"title": "Add Favorite Tag",
+				"lineLimit": 1,
+				"inline": true,
+				"placeholder": "Tag to Favorite(English)",
+				"refreshes": ["filters"]
 			}
 		]
 	},
@@ -53,21 +78,6 @@
 				"inline": true,
 				"placeholder": "Tag to block",
 				"default": ["example"],
-				"refreshes": ["content"]
-			}
-		]
-	},
-	{
-		"type": "group",
-		"title": "Favorite Tags",
-		"items": [
-			{
-				"type": "editable-list",
-				"key": "favoriteTags",
-				"title": "Add Favorite Tag",
-				"lineLimit": 1,
-				"inline": true,
-				"placeholder": "Tag to Favorite(English)",
 				"refreshes": ["content"]
 			}
 		]

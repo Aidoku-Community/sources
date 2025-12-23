@@ -1,8 +1,9 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider, Manga,
-	MangaPageResult, Page, PageContent, Result, Source,
-	alloc::{String, Vec, string::ToString, vec},
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Listing,
+	ListingProvider, Manga, MangaPageResult, MultiSelectFilter, Page, PageContent, Result, Source,
+	SortFilter, TextFilter,
+	alloc::{String, Vec, borrow::Cow, string::ToString, vec},
 	helpers::uri::encode_uri_component,
 	imports::{error::AidokuError, net::Request},
 	prelude::*,
@@ -12,8 +13,18 @@ mod home;
 mod localization_cn;
 mod models;
 mod settings;
+mod tags;
 
 use models::*;
+use tags::TAGS_EN;
+
+/// Convert blocklist tags to English for matching
+fn normalize_blocklist(blocklist: Vec<String>) -> Vec<String> {
+	blocklist
+		.into_iter()
+		.map(|tag| reverse_translate_tag(&tag).to_lowercase())
+		.collect()
+}
 
 const BASE_URL: &str = "https://nhentai.net";
 const API_URL: &str = "https://nhentai.net/api";
@@ -86,7 +97,7 @@ impl Source for NHentai {
 					excluded,
 					..
 				} => {
-					if id == "tags" {
+					if id == "tags" || id == "favorite_tags" {
 						for tag in included {
 							let eng_tag = reverse_translate_tag(&tag);
 							query_parts.push(format!("tag:\"{eng_tag}\""));
@@ -124,7 +135,7 @@ impl Source for NHentai {
 			.header("User-Agent", USER_AGENT)
 			.json_owned()?;
 
-		let blocklist = settings::get_blocklist();
+		let blocklist = normalize_blocklist(settings::get_blocklist());
 
 		let entries = response
 			.result
@@ -285,4 +296,109 @@ impl DeepLinkHandler for NHentai {
 	}
 }
 
-register_source!(NHentai, Home, ListingProvider, DeepLinkHandler);
+impl DynamicFilters for NHentai {
+	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
+		let favorite_tags = settings::get_favorite_tags();
+		let tag_lang = settings::get_tag_language();
+
+		let mut filters: Vec<Filter> = Vec::new();
+
+		// Artist filter
+		filters.push(
+			TextFilter {
+				id: Cow::Borrowed("artist"),
+				title: Some(Cow::Borrowed("Artist")),
+				placeholder: Some(Cow::Borrowed("Artist name")),
+				..Default::default()
+			}
+			.into(),
+		);
+
+		// Group filter
+		filters.push(
+			TextFilter {
+				id: Cow::Borrowed("groups"),
+				title: Some(Cow::Borrowed("Group")),
+				placeholder: Some(Cow::Borrowed("Group name")),
+				..Default::default()
+			}
+			.into(),
+		);
+
+		// Sort filter
+		filters.push(
+			SortFilter {
+				id: Cow::Borrowed("sort"),
+				title: Some(Cow::Borrowed("Sort")),
+				can_ascend: false,
+				options: vec![
+					Cow::Borrowed("Latest"),
+					Cow::Borrowed("Popular Today"),
+					Cow::Borrowed("Popular Week"),
+					Cow::Borrowed("Popular All"),
+				],
+				..Default::default()
+			}
+			.into(),
+		);
+
+		// Favorite tags filter (only show if user has favorite tags)
+		if !favorite_tags.is_empty() {
+			let translated_fav_tags: Vec<Cow<'static, str>> = if tag_lang != "english" {
+				favorite_tags
+					.iter()
+					.map(|tag| Cow::Owned(translate_tag(tag, &tag_lang)))
+					.collect()
+			} else {
+				favorite_tags.into_iter().map(Cow::Owned).collect()
+			};
+
+			filters.push(
+				MultiSelectFilter {
+					id: Cow::Borrowed("favorite_tags"),
+					title: Some(Cow::Borrowed("Favorite Tags")),
+					is_genre: true,
+					can_exclude: true,
+					uses_tag_style: true,
+					options: translated_fav_tags,
+					..Default::default()
+				}
+				.into(),
+			);
+		}
+
+		// All tags filter - translate if needed
+		let sort_alphabetically = settings::get_sort_tags_alphabetically();
+
+		let mut all_tags: Vec<Cow<'static, str>> = if tag_lang != "english" {
+			TAGS_EN
+				.iter()
+				.map(|tag| Cow::Owned(translate_tag(tag, &tag_lang)))
+				.collect()
+		} else {
+			TAGS_EN.iter().map(|&s| Cow::Borrowed(s)).collect()
+		};
+
+		// Sort alphabetically if user enabled the option
+		if sort_alphabetically {
+			all_tags.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+		}
+
+		filters.push(
+			MultiSelectFilter {
+				id: Cow::Borrowed("tags"),
+				title: Some(Cow::Borrowed("Tags")),
+				is_genre: true,
+				can_exclude: true,
+				uses_tag_style: true,
+				options: all_tags,
+				..Default::default()
+			}
+			.into(),
+		);
+
+		Ok(filters)
+	}
+}
+
+register_source!(NHentai, Home, ListingProvider, DeepLinkHandler, DynamicFilters);

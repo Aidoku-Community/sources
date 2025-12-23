@@ -77,6 +77,16 @@ pub fn reverse_translate_tag(query: &str) -> String {
 	}
 }
 
+/// Translate an English tag to localized version (for display)
+pub fn translate_tag(tag: &str, lang: &str) -> String {
+	if lang == "english" {
+		return tag.to_string();
+	}
+
+	let map = get_tag_map(lang);
+	translate_name(tag, map)
+}
+
 pub fn extension_from_type(t: &str) -> &str {
 	match t {
 		"j" => "jpg",

@@ -1,4 +1,6 @@
-use crate::{models::NHentaiSearchResponse, settings, NHentai, API_URL};
+use crate::{
+	models::NHentaiSearchResponse, normalize_blocklist, settings, NHentai, API_URL,
+};
 use aidoku::{
 	alloc::{vec, Vec},
 	helpers::uri::encode_uri_component,
@@ -38,7 +40,7 @@ impl Home for NHentai {
 			],
 		}));
 
-		let blocklist = settings::get_blocklist();
+		let blocklist = normalize_blocklist(settings::get_blocklist());
 		let query = encode_uri_component(
 			settings::get_language()
 				.map(|language| format!("language:{language}"))
