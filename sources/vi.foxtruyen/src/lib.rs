@@ -54,7 +54,7 @@ impl Impl for FoxTruyen {
 			manga_viewer_page: ".content_detail_manga img",
 
 			manga_details_authors: ".org",
-			manga_details_description: "div.story-detail-info.detail-content",
+			manga_details_description: "div.story-detail-info",
 			manga_details_tags: ".info_tale .clblue",
 			manga_details_tags_splitter: "",
 			manga_details_status: "li.status.row p.col-xs-9",
