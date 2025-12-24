@@ -67,15 +67,6 @@ pub struct ChapterItems {
 	pub pagination: Pagination,
 }
 
-impl ChapterItems {
-	pub fn into_chapters(self, manga_id: &str) -> Vec<Chapter> {
-		self.items
-			.into_iter()
-			.map(|c| c.into_chapter(manga_id))
-			.collect()
-	}
-}
-
 #[derive(Deserialize)]
 pub struct TermItems {
 	pub items: Vec<Term>,
@@ -106,9 +97,9 @@ impl From<ComixManga> for Manga {
 			key: value.hash_id,
 			title: value.title,
 			cover: match settings::get_image_quality().as_str() {
-				"small" => Some(value.poster.small.into()),
-				"medium" => Some(value.poster.medium.into()),
-				"large" => Some(value.poster.large.into()),
+				"small" => Some(value.poster.small),
+				"medium" => Some(value.poster.medium),
+				"large" => Some(value.poster.large),
 				_ => None,
 			},
 			artists: value
