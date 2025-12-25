@@ -99,7 +99,7 @@ impl Default for Params {
 		Self {
 			base_url: "".into(),
 			cookie: None,
-			status_mapping: |status| match status.to_ascii_lowercase().as_str() {
+			status_mapping: |status| match status.to_lowercase().as_str() {
 				"ongoing"
 				| "продолжается"
 				| "updating"

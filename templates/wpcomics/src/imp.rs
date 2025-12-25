@@ -76,7 +76,7 @@ pub trait Impl {
 		let mut viewer = params.viewer;
 		if let Some(categories) = categories {
 			for category in categories {
-				match category.to_ascii_lowercase().as_str() {
+				match category.to_lowercase().as_str() {
 					"smut" | "mature" | "18+" | "adult" => nsfw = ContentRating::NSFW,
 					"ecchi" | "16+" => {
 						if nsfw != ContentRating::NSFW {
