@@ -18,6 +18,7 @@ pub use imp::Impl;
 pub struct Params {
 	pub base_url: Cow<'static, str>,
 	pub cookie: Option<String>,
+	pub custom_headers: Option<Vec<(&'static str, &'static str)>>,
 	pub status_mapping: fn(String) -> MangaStatus,
 	pub time_converter: fn(&Params, &str) -> i64,
 	pub nsfw: ContentRating,
@@ -99,6 +100,7 @@ impl Default for Params {
 		Self {
 			base_url: "".into(),
 			cookie: None,
+			custom_headers: None,
 			status_mapping: |status| match status.to_lowercase().as_str() {
 				"ongoing"
 				| "продолжается"

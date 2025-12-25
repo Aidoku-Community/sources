@@ -7,7 +7,7 @@ use aidoku::{
 	Chapter, ContentRating, DeepLinkResult, Filter, FilterValue, HomeComponent, HomeLayout, Manga,
 	MangaPageResult, MangaWithChapter, MultiSelectFilter, Page, PageContent, PageContext, Result,
 	Viewer,
-	alloc::{String, Vec, string::ToString, vec},
+	alloc::{String, Vec, borrow::ToOwned, string::ToString, vec},
 	imports::{
 		html::{Element, Html},
 		net::Request,
@@ -50,7 +50,7 @@ pub trait Impl {
 		cache: &mut Cache,
 		params: &Params,
 		url: &str,
-		headers: Option<&[(&str, &str)]>,
+		headers: Option<&Vec<(&'static str, &'static str)>>,
 	) -> Result<Request> {
 		let mut req = Request::get(url)?;
 		if let Some(cookie) = &params.cookie {
@@ -59,7 +59,7 @@ pub trait Impl {
 		if let Some(user_agent) = params.user_agent {
 			req = req.header("User-Agent", user_agent);
 		}
-		if let Some(extra_headers) = headers {
+		if let Some(extra_headers) = headers.to_owned().or(params.custom_headers.as_ref()) {
 			for (key, value) in extra_headers {
 				req = req.header(key, value);
 			}
@@ -97,10 +97,9 @@ pub trait Impl {
 		cache: &mut Cache,
 		params: &Params,
 		search_url: String,
-		headers: Option<&[(&str, &str)]>,
 	) -> Result<MangaPageResult> {
 		let html = self
-			.create_request(cache, params, &search_url, headers)?
+			.create_request(cache, params, &search_url, None)?
 			.html()?;
 
 		let Some(elems) = html.select(params.manga_cell) else {
@@ -412,7 +411,7 @@ pub trait Impl {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let url = (params.get_search_url)(params, query, page, filters)?;
-		self.get_manga_list(cache, params, url, None)
+		self.get_manga_list(cache, params, url)
 	}
 
 	fn get_manga_update(
