@@ -192,7 +192,6 @@ impl Impl for DiLib {
 											);
 										}
 									}
-									let date_updated = -1;
 
 									let chapter_title = new_chapter_title
 										.and_then(|s| {
@@ -220,7 +219,6 @@ impl Impl for DiLib {
 										} else {
 											Some(chapter_number)
 										},
-										date_uploaded: Some(date_updated),
 										url: Some(format!(
 											"{}-chap-{}.html",
 											url.trim_end_matches(".html")
