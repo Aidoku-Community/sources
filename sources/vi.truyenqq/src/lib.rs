@@ -120,7 +120,7 @@ impl Impl for TruyenQQ {
 				}
 
 				Ok(format!(
-					"{}/tim-kiem-nang-cao/trang-{}.html?={}",
+					"{}/tim-kiem-nang-cao/trang-{}.html?{}",
 					params.base_url, page, query
 				))
 			},
