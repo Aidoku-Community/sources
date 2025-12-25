@@ -356,9 +356,9 @@ pub trait Impl {
 			} else if page_node.has_attr("data-cdn") {
 				page_node.attr("abs:data-cdn")
 			} else if page_node.has_attr("data-src") {
-				page_node.attr("data-src")
+				page_node.attr("abs:data-src")
 			} else if page_node.has_attr("src") {
-				page_node.attr("src")
+				page_node.attr("abs:src")
 			} else {
 				None
 			};
