@@ -21,6 +21,11 @@ impl Impl for DiLib {
 	fn params(&self) -> Params {
 		Params {
 			base_url: BASE_URL.into(),
+			custom_headers: Some(vec![(
+				"accept-language",
+				// should accept maybe > 0.5
+				"vi-VN,vi;q=0.9,en;q=0.8,ja;q=0.7",
+			)]),
 			viewer: Viewer::RightToLeft,
 
 			next_page: ".end_link:not(.pagecurrent)",
@@ -94,7 +99,10 @@ impl Impl for DiLib {
 
 			manga_page: |_, manga| format!("{}/{}.html", BASE_URL, manga.key).into(),
 			page_list_page: |_, manga, chapter| {
-				format!("{}/truyen-tranh/{}-chap-{}.html", BASE_URL, manga.key, chapter.key)
+				format!(
+					"{}/truyen-tranh/{}-chap-{}.html",
+					BASE_URL, manga.key, chapter.key
+				)
 			},
 
 			home_manga_link: "a:nth-child(2)",
@@ -139,7 +147,7 @@ impl Impl for DiLib {
 				let html = Html::parse_with_url(html_data, url)?;
 
 				if let Some(url) = html
-					.select_first("a:contains(Chương Mới Nhất)")
+					.select_first("#primary > a[target=_blank].button1")
 					.and_then(|node| node.attr("abs:href"))
 				{
 					let html_data = self.cache_manga_page(cache, params, &url)?;

@@ -2,7 +2,7 @@
   "info": {
     "id": "vi.dilib",
     "name": "Digital Library",
-    "version":1,
+    "version": 2,
     "contentRating": 1,
     "languages": ["vi"]
   }
