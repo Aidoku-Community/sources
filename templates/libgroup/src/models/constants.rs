@@ -1,7 +1,7 @@
 use aidoku::alloc::{String, Vec};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-#[derive(Default, Deserialize, Serialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupImageServer {
 	pub id: String,
@@ -10,7 +10,7 @@ pub struct LibGroupImageServer {
 	pub site_ids: Vec<u8>,
 }
 
-#[derive(Default, Deserialize, Serialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupConstantsData {
 	#[serde(rename = "imageServers")]

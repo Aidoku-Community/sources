@@ -3,6 +3,7 @@ use crate::context::Context;
 use crate::models::chapter::LibGroupChapterListItem;
 use aidoku::alloc::{string::ToString, vec};
 use aidoku_test::aidoku_test;
+use core::sync::atomic::{AtomicI64, Ordering};
 
 fn test_context() -> Context {
 	Context {
@@ -13,12 +14,16 @@ fn test_context() -> Context {
 	}
 }
 
-fn fake_now() -> i64 {
-	1_000_000
+// Thread-safe atomic mock time
+static MOCK_TIME: AtomicI64 = AtomicI64::new(1_000_000);
+
+fn mock_now() -> i64 {
+	MOCK_TIME.load(Ordering::SeqCst)
 }
 
 fn make_cache_with_ttl(ttl: Option<i64>) -> ChaptersCache {
-	ChaptersCache::new_with_ttl(ttl, fake_now)
+	MOCK_TIME.store(1_000_000, Ordering::SeqCst);
+	ChaptersCache::new_with_ttl(ttl, mock_now)
 }
 
 fn make_item(id: &str) -> LibGroupChapterListItem {
@@ -36,11 +41,13 @@ fn cache_hit_returns_same_data() {
 	let cache = make_cache_with_ttl(None);
 	let manga_key = "manga1";
 
-	let mut guard = cache.cache.write();
-	guard.insert(
-		manga_key.to_string(),
-		TimedVec::new(vec![make_item("ch1")], fake_now()),
-	);
+	{
+		let mut guard = cache.cache.write();
+		guard.insert(
+			manga_key.to_string(),
+			TimedVec::new(vec![make_item("ch1")], mock_now()),
+		);
+	}
 
 	let chapters = cache.get_chapters(manga_key, &ctx);
 	assert!(chapters.is_ok());
@@ -51,26 +58,26 @@ fn cache_hit_returns_same_data() {
 
 #[aidoku_test]
 fn ttl_expiration_detected() {
-	static mut CURRENT_TIME: i64 = 1_000_000;
-	let cache = ChaptersCache::new_with_ttl(Some(10), || unsafe { CURRENT_TIME });
-
+	let cache = make_cache_with_ttl(Some(10));
 	let manga_key = "manga2";
-	unsafe { CURRENT_TIME = 1_000_000 };
+
 	{
 		let mut guard = cache.cache.write();
 		guard.insert(
 			manga_key.to_string(),
-			TimedVec::new(vec![make_item("old")], unsafe { CURRENT_TIME }),
+			TimedVec::new(vec![make_item("old")], mock_now()),
 		);
 	}
 
-	unsafe { CURRENT_TIME += 20 };
+	// Advance atomic time by 20 seconds
+	MOCK_TIME.fetch_add(20, Ordering::SeqCst);
 
+	// Manually check expiration logic
 	let guard = cache.cache.read();
 	let expired = guard
 		.get(manga_key)
 		.unwrap()
-		.is_expired(unsafe { CURRENT_TIME }, Some(10));
+		.is_expired(mock_now(), Some(10));
 	assert!(expired);
 }
 
@@ -83,7 +90,7 @@ fn clear_removes_all_entries() {
 		let mut guard = cache.cache.write();
 		guard.insert(
 			manga_key.to_string(),
-			TimedVec::new(vec![make_item("ch1")], fake_now()),
+			TimedVec::new(vec![make_item("ch1")], mock_now()),
 		);
 	}
 
