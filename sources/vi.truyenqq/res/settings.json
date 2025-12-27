@@ -1,0 +1,14 @@
+[
+	{
+		"type": "group",
+		"title": "Settings",
+		"items": [
+			{
+				"type": "text",
+				"placeholder": "Visit Read ID",
+				"key": "visitReadId",
+				"default": "6806034e0db74-6806034e0db79"
+			}
+		]
+	}
+]

@@ -1,8 +1,8 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout,
-	HomePartialResult, Link, LinkValue, Listing, ListingProvider, Manga, MangaPageResult,
-	MangaWithChapter, Page, Result, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeComponent,
+	HomeLayout, HomePartialResult, Link, LinkValue, Listing, ListingProvider, Manga,
+	MangaPageResult, MangaWithChapter, Page, Result, Source,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -12,6 +12,7 @@ use aidoku::{
 	prelude::*,
 };
 
+mod helpers;
 mod models;
 mod settings;
 
@@ -151,29 +152,54 @@ impl Source for Comix {
 		}
 
 		if needs_chapters {
-			let chapters_url = format!(
-				"{API_URL}/manga/{}/chapters/?order[number]=desc&limit=100",
-				manga.key
-			);
-			let mut current_page = 1;
-			let (last_page, mut chapters) =
-				Request::get(format!("{chapters_url}&page={current_page}"))?
-					.json_owned::<ChapterDetailsResponse>()
-					.map(|json| {
-						(
-							json.result.pagination.last_page,
-							json.result.into_chapters(&manga.key),
-						)
-					})?;
-
-			while current_page < last_page {
-				current_page += 1;
-				chapters.extend(
-					Request::get(format!("{chapters_url}&page={current_page}"))?
-						.json_owned::<ChapterDetailsResponse>()?
-						.result
-						.into_chapters(&manga.key),
+			let limit = 100;
+			let mut page = 1;
+			let deduplicate = settings::get_dedupchapter();
+			let mut chapter_map: HashMap<String, ComixChapter> = HashMap::new();
+			let mut chapter_list: Vec<ComixChapter> = Vec::new();
+			loop {
+				let url = format!(
+					"{API_URL}/manga/{}/chapters?limit={limit}&page={page}&order[number]=desc",
+					manga.key
 				);
+
+				let res = Request::get(url)?.json_owned::<ChapterDetailsResponse>()?;
+
+				let items = res.result.items;
+
+				if deduplicate {
+					for item in items {
+						helpers::dedup_insert(&mut chapter_map, item);
+					}
+				} else {
+					chapter_list.extend(items);
+				}
+
+				if res.result.pagination.current_page >= res.result.pagination.last_page {
+					break;
+				}
+
+				page += 1;
+			}
+
+			let mut chapters: Vec<Chapter> = if deduplicate {
+				chapter_map
+					.into_values()
+					.map(|item| item.into_chapter(&manga.key))
+					.collect()
+			} else {
+				chapter_list
+					.into_iter()
+					.map(|item| item.into_chapter(&manga.key))
+					.collect()
+			};
+
+			if deduplicate {
+				chapters.sort_by(|a, b| {
+					b.chapter_number
+						.partial_cmp(&a.chapter_number)
+						.unwrap_or(core::cmp::Ordering::Equal)
+				});
 			}
 
 			manga.chapters = Some(chapters);

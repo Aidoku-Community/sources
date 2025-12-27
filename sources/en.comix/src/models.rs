@@ -1,4 +1,4 @@
-use crate::BASE_URL;
+use crate::{BASE_URL, settings};
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
@@ -67,15 +67,6 @@ pub struct ChapterItems {
 	pub pagination: Pagination,
 }
 
-impl ChapterItems {
-	pub fn into_chapters(self, manga_id: &str) -> Vec<Chapter> {
-		self.items
-			.into_iter()
-			.map(|c| c.into_chapter(manga_id))
-			.collect()
-	}
-}
-
 #[derive(Deserialize)]
 pub struct TermItems {
 	pub items: Vec<Term>,
@@ -105,7 +96,12 @@ impl From<ComixManga> for Manga {
 		Self {
 			key: value.hash_id,
 			title: value.title,
-			cover: Some(value.poster.medium),
+			cover: match settings::get_image_quality().as_str() {
+				"small" => Some(value.poster.small),
+				"medium" => Some(value.poster.medium),
+				"large" => Some(value.poster.large),
+				_ => None,
+			},
 			artists: value
 				.artist
 				.map(|v| v.into_iter().map(|t| t.title).collect()),
@@ -143,10 +139,10 @@ impl From<ComixManga> for Manga {
 #[derive(Deserialize)]
 pub struct ComixChapter {
 	pub chapter_id: i32,
-	// pub scanlation_group_id: i32,
+	pub scanlation_group_id: i32,
 	pub number: f32,
 	pub name: String,
-	// pub votes: i32,
+	pub votes: i32,
 	pub updated_at: i64,
 	pub scanlation_group: Option<ScanlationGroup>,
 	pub is_official: i32,
