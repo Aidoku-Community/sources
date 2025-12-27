@@ -1,0 +1,11 @@
+{
+	"info": {
+		"id": "vi.dilib",
+		"name": "Digital Library",
+		"version": 3,
+		"contentRating": 1,
+		"languages": [
+			"vi"
+		]
+	}
+}
