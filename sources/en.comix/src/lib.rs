@@ -366,9 +366,22 @@ impl ListingProvider for Comix {
 			)
 		};
 
+		let recent = {
+			self.get_search_manga_list(
+				None,
+				page,
+				vec![FilterValue::Sort {
+					id: "order".into(),
+					index: 1, // recent update
+					ascending: false,
+				}],
+			)
+		};
+
 		match listing.id.as_str() {
 			"Trending Webtoon" => trending(vec!["manhua".into(), "manhwa".into()]),
 			"Trending Manga" => trending(vec!["manga".into()]),
+			"Latest" => recent,
 			_ => bail!("Unknown listing"),
 		}
 	}
