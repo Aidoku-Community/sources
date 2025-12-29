@@ -43,7 +43,6 @@ impl Home for CManga {
 			],
 		}));
 
-		println!("s");
 		send_partial_result(&HomePartialResult::Component(HomeComponent {
 			title: Some(String::from("Truyện Nổi Bật")),
 			subtitle: None,
@@ -61,7 +60,6 @@ impl Home for CManga {
 				auto_scroll_interval: Some(10.0),
 			},
 		}));
-		println!("s");
 
 		send_partial_result(&HomePartialResult::Component(HomeComponent {
 			title: Some(String::from("VIP")),
@@ -81,7 +79,6 @@ impl Home for CManga {
 				listing: None,
 			},
 		}));
-		println!("s");
 
 		send_partial_result(&HomePartialResult::Component(HomeComponent {
 			title: Some(String::from("Mới Cập Nhật")),
@@ -100,7 +97,6 @@ impl Home for CManga {
 				listing: None,
 			},
 		}));
-		println!("s");
 
 		send_partial_result(&HomePartialResult::Component(HomeComponent {
 			title: Some(String::from("Đề Cử")),
@@ -119,7 +115,7 @@ impl Home for CManga {
 				listing: None,
 			},
 		}));
-		println!("ssfeg");
+
 		send_partial_result(&HomePartialResult::Component(HomeComponent {
 			title: Some(String::from("Khoá")),
 			subtitle: None,
@@ -137,7 +133,7 @@ impl Home for CManga {
 				listing: None,
 			},
 		}));
-		println!("sy564654");
+
 		send_partial_result(&HomePartialResult::Component(HomeComponent {
 			title: Some(String::from("Độc Quyền")),
 			subtitle: None,
@@ -155,7 +151,6 @@ impl Home for CManga {
 				listing: None,
 			},
 		}));
-		println!("s");
 		send_partial_result(&HomePartialResult::Component(HomeComponent {
 			title: Some(String::from("Hot")),
 			subtitle: None,
@@ -173,7 +168,6 @@ impl Home for CManga {
 				listing: None,
 			},
 		}));
-		println!("s");
 		send_partial_result(&HomePartialResult::Component(HomeComponent {
 			title: Some(String::from("Mới")),
 			subtitle: None,
@@ -191,7 +185,6 @@ impl Home for CManga {
 				listing: None,
 			},
 		}));
-		println!("s");
 		send_partial_result(&HomePartialResult::Component(HomeComponent {
 			title: Some(String::from("Hoàn Thành")),
 			subtitle: None,
@@ -209,7 +202,6 @@ impl Home for CManga {
 				listing: None,
 			},
 		}));
-		println!("s");
 
 		Ok(HomeLayout::default())
 	}
