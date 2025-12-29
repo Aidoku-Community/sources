@@ -82,7 +82,7 @@ impl Impl for DiLib {
 				for filter in filters {
 					match filter {
 						FilterValue::Text { id, value, .. } => {
-							query.push(&id, core::prelude::v1::Some(&value));
+							query.push(&id, Some(&value));
 						}
 						FilterValue::Select { id, value } => {
 							query.push(&id, Some(&value));
