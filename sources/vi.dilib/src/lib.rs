@@ -97,7 +97,7 @@ impl Impl for DiLib {
 				Ok(format!("{}/search.php?{}", params.base_url, query))
 			},
 
-			manga_page: |_, manga| format!("{}/{}.html", BASE_URL, manga.key).into(),
+			manga_page: |_, manga| format!("{}/{}.html", BASE_URL, manga.key),
 			page_list_page: |_, manga, chapter| {
 				format!(
 					"{}/truyen-tranh/{}-chap-{}.html",
