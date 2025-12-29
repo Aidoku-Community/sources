@@ -245,7 +245,7 @@ impl Source for CManga {
 				.get_json::<MangaResults>()
 				.map(|res| {
 					(
-						res.data.into_iter().map(|v| Manga::from(v)).collect(),
+						res.data.into_iter().map(Manga::from).collect(),
 						res.total > (page * 20).into(),
 					)
 				})?;

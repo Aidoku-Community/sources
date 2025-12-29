@@ -51,7 +51,7 @@ where
 
 	match v {
 		serde_json::Value::String(s) => Ok(s.parse::<i64>().ok().unwrap_or(-1)),
-		serde_json::Value::Number(n) => Ok(n.as_i64().map(|v| v as i64).unwrap_or(0)),
+		serde_json::Value::Number(n) => Ok(n.as_i64().unwrap_or(0)),
 		serde_json::Value::Bool(b) => Ok(if b { 1 } else { 0 }),
 		serde_json::Value::Null => Ok(0),
 		_ => Err(serde::de::Error::custom("expected string or number")),
@@ -150,7 +150,7 @@ impl From<MangaInfo> for Manga {
 			.collect::<Vec<_>>();
 		let (content_rating, viewer) = get_viewer(&tags);
 		Self {
-			key: format!("{}", value.id),
+			key: value.id.to_string(),
 			title: capitalize(&value.name),
 			cover: format!("{}/assets/tmp/album/{}", BASE_URL, value.avatar).into(),
 			artists: value.source.map(|v| [v].to_vec()),
@@ -180,12 +180,12 @@ impl From<MangaItem> for Manga {
 impl From<MangaItem> for MangaWithChapter {
 	fn from(value: MangaItem) -> Self {
 		let id = value.info.chapter.id.clone();
-		let last = value.info.chapter.last.clone();
+		let last = value.info.chapter.last;
 
 		Self {
 			manga: value.into(),
 			chapter: Chapter {
-				key: format!("{}", id),
+				key: id.to_string(),
 				chapter_number: Some(last),
 				..Default::default()
 			},
