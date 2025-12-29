@@ -76,7 +76,7 @@ impl Impl for DiLib {
 
 			get_search_url: |params, q, page, filters| {
 				let mut query = QueryParameters::new();
-				query.push("find", Some(&q.to_owned().unwrap_or_default()));
+				query.push("find", q.as_deref());
 				query.push("page", Some(&page.to_string()));
 
 				for filter in filters {
