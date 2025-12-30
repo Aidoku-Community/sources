@@ -1,7 +1,6 @@
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaStatus, MangaWithChapter, Viewer,
 	alloc::{
-		borrow::ToOwned,
 		format,
 		string::{String, ToString},
 		vec::Vec,
