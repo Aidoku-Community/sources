@@ -185,7 +185,7 @@ impl From<MangaItem> for MangaWithChapter {
 		Self {
 			manga: value.into(),
 			chapter: Chapter {
-				key: id.to_string(),
+				key: id,
 				chapter_number: Some(last),
 				..Default::default()
 			},
