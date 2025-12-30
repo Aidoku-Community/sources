@@ -246,7 +246,6 @@ impl From<MChapter> for Chapter {
 			chapter_number: value.info.num.parse::<f32>().ok(),
 			date_uploaded: parse_datetime_to_timestamp(&value.info.last_update),
 			url: None,
-			language: Some("vi".to_owned()),
 			locked: value.info.lock.is_some(),
 			..Default::default()
 		}
