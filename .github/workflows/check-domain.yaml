@@ -28,26 +28,20 @@ jobs:
         run: |
           cd check-domains
           deno task start
-          cd ..
-
-          RESULT=$(cat check-domain-output.json)
-
-          # export to env for next steps
-          echo "RESULT=$OUTPUT" >> $GITHUB_ENV
 
       - name: Create issues per domain
         uses: actions/github-script@v7
-        env:
-          RESULT: ${{ env.RESULT }}
         with:
           script: |
             const fs = require("fs");
-            const data = fs.readFileSync("check-domain-output.json", "utf8");
+
+            const data = JSON.parse(fs.readFileSync("check-domains/check-domain-output.json", "utf8"));
 
             const deiced = data?.deiced || {};
             const changed = data?.changed || {};
 
-            const createIssue = async (title, body) => {
+            // Helper to create issue with labels
+            const createIssue = async (title, body, extraLabels = []) => {
               const issues = await github.rest.issues.listForRepo({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -60,11 +54,14 @@ jobs:
                 return;
               }
 
+              const labels = ["ci", "domain", ...extraLabels];
+
               await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 title,
-                body
+                body,
+                labels
               });
 
               console.log("Issue created:", title);
@@ -86,7 +83,7 @@ jobs:
                 new Date().toISOString()
               ].join("\n");
 
-              await createIssue(title, body);
+              await createIssue(title, body, ["deiced"]);
             }
 
             // ---- Handle changed ----
@@ -111,5 +108,5 @@ jobs:
                 new Date().toISOString()
               ].join("\n");
 
-              await createIssue(title, body);
+              await createIssue(title, body, ["changed"]);
             }
