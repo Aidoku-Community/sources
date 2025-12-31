@@ -42,8 +42,8 @@ export async function checkDomainHttp(
       }
     }
     // deno-lint-ignore no-explicit-any
-  } catch (err: any) {
-    console.log("HTTP check failed ✗", err.message);
+  } catch (err) {
+    console.log("HTTP check failed ✗", err instanceof Error ? err.message : String(err));
     return { alive: false, err, domains: [url] };
   }
 }
