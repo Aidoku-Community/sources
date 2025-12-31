@@ -199,7 +199,7 @@ impl Impl for ZetTruyen {
 						title,
 						subtitle: None,
 						value: HomeComponentValue::BigScroller {
-							entries: items.into_iter().map(|m| m.into()).collect(),
+							entries: items.into_iter().collect(),
 							auto_scroll_interval: Some(10.0),
 						},
 					}));
