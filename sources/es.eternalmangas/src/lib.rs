@@ -2,8 +2,8 @@
 use aidoku::{prelude::*, Source};
 use iken::{Iken, Impl, Params};
 
-const BASE_URL: &str = "https://eternalmangas.com";
-const API_URL: &str = "https://api.eternalmangas.com";
+const BASE_URL: &str = "https://eternalmangas.org";
+const API_URL: &str = "https://api.eternalmangas.org";
 
 struct MagusManga;
 
