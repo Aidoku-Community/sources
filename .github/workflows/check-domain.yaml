@@ -17,8 +17,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v1
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v1.x
 
       - name: Run domain checker
         id: run
