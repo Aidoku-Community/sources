@@ -1,0 +1,11 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-read --allow-env --allow-write=../check-domain-output.json --allow-net --watch main.ts",
+    "start": "deno run --allow-read --allow-env --allow-write=../check-domain-output.json --allow-net main.ts"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1",
+    "p-limit": "npm:p-limit@^7.2.0",
+    "ts-retry": "npm:ts-retry@^6.0.0"
+  }
+}
