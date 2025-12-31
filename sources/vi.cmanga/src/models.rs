@@ -267,7 +267,6 @@ pub struct ChapterInfo {
 	pub album: String,
 	#[serde(deserialize_with = "deserialize_str_from_any")]
 	pub id: String,
-	pub upload_num: u32,
 	pub modified: Option<String>,
 	pub lock: Option<ChapterLock>,
 }
@@ -275,4 +274,9 @@ pub struct ChapterInfo {
 #[derive(Deserialize)]
 pub struct ChapterImages {
 	pub image: Vec<String>,
+}
+
+#[derive(Deserialize)]
+pub struct WrapResponse<T> {
+	pub data: T,
 }

@@ -52,7 +52,8 @@ impl Home for CManga {
 					BASE_URL,
 				))?
 				.send()?
-				.get_json::<MangaResults>()?
+				.get_json::<WrapResponse<MangaResults>>()?
+				.data
 				.data
 				.into_iter()
 				.map(|v| v.into())
@@ -70,7 +71,8 @@ impl Home for CManga {
 					BASE_URL,
 				))?
 				.send()?
-				.get_json::<MangaResults>()?
+				.get_json::<WrapResponse<MangaResults>>()?
+				.data
 				.data
 				.into_iter()
 				.map(|v| v.into())
@@ -89,7 +91,8 @@ impl Home for CManga {
 					BASE_URL,
 				))?
 				.send()?
-				.get_json::<MangaResults>()?
+				.get_json::<WrapResponse<MangaResults>>()?
+				.data
 				.data
 				.into_iter()
 				.map(|v| Manga::from(v).into())
@@ -107,7 +110,8 @@ impl Home for CManga {
 					BASE_URL,
 				))?
 				.send()?
-				.get_json::<MangaResults>()?
+				.get_json::<WrapResponse<MangaResults>>()?
+				.data
 				.data
 				.into_iter()
 				.map(|v| Manga::from(v).into())
@@ -125,7 +129,8 @@ impl Home for CManga {
 					BASE_URL,
 				))?
 				.send()?
-				.get_json::<MangaResults>()?
+				.get_json::<WrapResponse<MangaResults>>()?
+				.data
 				.data
 				.into_iter()
 				.map(|v| Manga::from(v).into())
@@ -143,7 +148,8 @@ impl Home for CManga {
 					BASE_URL,
 				))?
 				.send()?
-				.get_json::<MangaResults>()?
+				.get_json::<WrapResponse<MangaResults>>()?
+				.data
 				.data
 				.into_iter()
 				.map(|v| Manga::from(v).into())
@@ -160,7 +166,8 @@ impl Home for CManga {
 					BASE_URL,
 				))?
 				.send()?
-				.get_json::<MangaResults>()?
+				.get_json::<WrapResponse<MangaResults>>()?
+				.data
 				.data
 				.into_iter()
 				.map(|v| Manga::from(v).into())
@@ -177,7 +184,8 @@ impl Home for CManga {
 					BASE_URL,
 				))?
 				.send()?
-				.get_json::<MangaResults>()?
+				.get_json::<WrapResponse<MangaResults>>()?
+				.data
 				.data
 				.into_iter()
 				.map(|v| Manga::from(v).into())
@@ -194,7 +202,8 @@ impl Home for CManga {
 					BASE_URL,
 				))?
 				.send()?
-				.get_json::<MangaResults>()?
+				.get_json::<WrapResponse<MangaResults>>()?
+				.data
 				.data
 				.into_iter()
 				.map(|v| Manga::from(v).into())
@@ -242,11 +251,11 @@ impl Source for CManga {
 		let (entries, has_next_page) =
 			Request::get(format!("{BASE_URL}/api/home_album_list?{qs}"))?
 				.send()?
-				.get_json::<MangaResults>()
+				.get_json::<WrapResponse<MangaResults>>()
 				.map(|res| {
 					(
-						res.data.into_iter().map(Manga::from).collect(),
-						res.total > (page * 20).into(),
+						res.data.data.into_iter().map(Manga::from).collect(),
+						res.data.total > (page * 20).into(),
 					)
 				})?;
 
@@ -269,7 +278,8 @@ impl Source for CManga {
 					manga.key
 				))?
 				.send()?
-				.get_json::<MangaResult>()?
+				.get_json::<WrapResponse<MangaResult>>()?
+				.data
 				.info
 				.into(),
 			);
@@ -292,7 +302,8 @@ impl Source for CManga {
 
 				let chunk: Vec<Chapter> = Request::get(url)?
 					.send()?
-					.get_json::<Vec<MChapter>>()?
+					.get_json::<WrapResponse<Vec<MChapter>>>()?
+					.data
 					.into_iter()
 					.map(|c| {
 						let id = c.info.id.to_owned();
@@ -330,7 +341,8 @@ impl Source for CManga {
 			chapter.key
 		))?
 		.send()?
-		.get_json::<ChapterImages>()?
+		.get_json::<WrapResponse<ChapterImages>>()?
+		.data
 		.image
 		.into_iter()
 		.map(|p| Page {
