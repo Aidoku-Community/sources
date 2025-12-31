@@ -32,7 +32,7 @@ impl Impl for ZetTruyen {
 			manga_cell_image_attr: "abs:src",
 
 			manga_details_title: "h1.comic-title-content",
-			manga_details_cover: "img.text-transparent",
+			manga_details_cover: ".thumb-cover img.text-transparent",
 			manga_details_chapters: "#chapters-list-container > div",
 			chapter_anchor_selector: "a",
 			chapter_date_selector: "div > div.text-xs",
@@ -323,7 +323,10 @@ impl Impl for ZetTruyen {
 				.chapters
 				.into_iter()
 				.map(|c| {
-					let slug = c.chapter_slug.to_owned();
+					let slug = c
+						.chapter_num
+						.map(|v| format!("chuong-{v}"))
+						.unwrap_or_else(|| c.chapter_slug.replace("chapter-", "chuong-"));
 					let mut chapter: Chapter = c.into();
 
 					chapter.url = Some(format!("{BASE_URL}/truyen-tranh/{key}/{slug}"));
@@ -404,7 +407,10 @@ struct VChapter {
 impl From<VChapter> for Chapter {
 	fn from(value: VChapter) -> Self {
 		Self {
-			key: value.chapter_slug,
+			key: value
+				.chapter_num
+				.map(|v| format!("chuong-{v}"))
+				.unwrap_or(value.chapter_slug),
 			title: value.chapter_name,
 			chapter_number: value.chapter_num,
 			date_uploaded: value.updated_at.map(|v| v.timestamp()),
