@@ -1,0 +1,10 @@
+[
+  {
+    "type": "select",
+    "key": "type",
+    "title": "畫質",
+    "titles": ["Tất cả", "Manga", "Comic"],
+    "values": ["all", "manga", "comics"],
+    "default": "all"
+  }
+]

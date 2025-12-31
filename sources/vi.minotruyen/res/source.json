@@ -1,0 +1,12 @@
+{
+	"info": {
+		"id": "vi.minotruyen",
+		"name": "Mino Truyện",
+		"version": 1,
+		"url": "https://minotruyenv1.xyz",
+		"contentRating": 1,
+		"languages": [
+			"vi"
+		]
+	}
+}

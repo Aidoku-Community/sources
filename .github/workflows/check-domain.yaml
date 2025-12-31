@@ -1,0 +1,113 @@
+name: Check Domains
+
+on:
+  schedule:
+    - cron: "0 * * * *" # every hour
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Run domain checker
+        id: run
+        env:
+          EXCLUDE: ${{ vars.SCAN_SOURCES_EXCLUDE || '' }}
+        run: |
+          cd check-domains
+          deno task start
+          cd ..
+
+          RESULT=$(cat check-domain-output.json)
+
+          # export to env for next steps
+          echo "RESULT=$OUTPUT" >> $GITHUB_ENV
+
+      - name: Create issues per domain
+        uses: actions/github-script@v7
+        env:
+          RESULT: ${{ env.RESULT }}
+        with:
+          script: |
+            const result = JSON.parse(process.env.RESULT);
+
+            const deiced = result.deiced || {};
+            const changed = result.changed || {};
+
+            const createIssue = async (title, body) => {
+              const issues = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                state: "open"
+              });
+
+              const exists = issues.data.find(i => i.title === title);
+              if (exists) {
+                console.log("Issue already exists:", title);
+                return;
+              }
+
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body
+              });
+
+              console.log("Issue created:", title);
+            };
+
+            // ---- Handle deiced ----
+            for (const source of Object.keys(deiced)) {
+              const urls = deiced[source];
+              const title = `ci: domain ${source} deiced`;
+
+              const body = [
+                `## ❄️ Domain Deiced`,
+                `**Source:** ${source}`,
+                ``,
+                `### URLs Checked`,
+                urls.map(u => "- " + u).join("\n"),
+                ``,
+                `### Timestamp`,
+                new Date().toISOString()
+              ].join("\n");
+
+              await createIssue(title, body);
+            }
+
+            // ---- Handle changed ----
+            for (const source of Object.keys(changed)) {
+              const urls = changed[source];
+              const original = urls[0];
+              const redirected = urls[1];
+
+              const title = `ci: domain ${source} changed`;
+
+              const body = [
+                `## 🔀 Domain Redirect Detected`,
+                `**Source:** ${source}`,
+                ``,
+                `### Original`,
+                `- ${original}`,
+                ``,
+                `### Redirected To`,
+                `- ${redirected}`,
+                ``,
+                `### Timestamp`,
+                new Date().toISOString()
+              ].join("\n");
+
+              await createIssue(title, body);
+            }
