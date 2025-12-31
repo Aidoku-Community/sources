@@ -70,7 +70,7 @@ jobs:
             // ---- Handle deiced ----
             for (const source of Object.keys(deiced)) {
               const urls = deiced[source];
-              const title = `ci: domain ${source} deiced`;
+              const title = `source(${source}): domain deiced`;
 
               const body = [
                 `## ❄️ Domain Deiced`,
@@ -92,7 +92,7 @@ jobs:
               const original = urls[0];
               const redirected = urls[1];
 
-              const title = `ci: domain ${source} changed`;
+              const title = `source(${source}): changed → \`${redirected}\``;
 
               const body = [
                 `## 🔀 Domain Redirect Detected`,
