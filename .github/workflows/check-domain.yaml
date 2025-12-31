@@ -41,7 +41,8 @@ jobs:
           RESULT: ${{ env.RESULT }}
         with:
           script: |
-            const result = JSON.parse(process.env.RESULT);
+            const fs = require("fs");
+            const data = fs.readFileSync("check-domain-output.json", "utf8");
 
             const deiced = result.deiced || {};
             const changed = result.changed || {};
