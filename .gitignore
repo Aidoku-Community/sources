@@ -15,3 +15,5 @@ templates/*/target
 .zed
 .ropeproject
 /target
+
+/check-domain-output.json
