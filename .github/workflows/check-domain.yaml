@@ -44,8 +44,8 @@ jobs:
             const fs = require("fs");
             const data = fs.readFileSync("check-domain-output.json", "utf8");
 
-            const deiced = result.deiced || {};
-            const changed = result.changed || {};
+            const deiced = data?.deiced || {};
+            const changed = data?.changed || {};
 
             const createIssue = async (title, body) => {
               const issues = await github.rest.issues.listForRepo({
