@@ -8,7 +8,7 @@ use aidoku::{
 use wpcomics::{Impl, Params, WpComics};
 
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 Mobile/15E148 Safari/604";
-const BASE_URL: &str = "https://truyentranh3qr.com";
+const BASE_URL: &str = "https://truyentranh3qk.com";
 
 struct Truyen3Q;
 
