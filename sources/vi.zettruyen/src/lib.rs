@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use wpcomics::{Cache, Impl, Params, WpComics};
 
-const BASE_URL: &str = "https://www.zettruyen.com";
+const BASE_URL: &str = "https://www.zettruyen.co.uk";
 
 struct ZetTruyen;
 
