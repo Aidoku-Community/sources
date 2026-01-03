@@ -40,29 +40,36 @@ jobs:
             const deiced = data?.deiced || {};
             const changed = data?.changed || {};
 
+            const LABEL_TYPE = "domain"
+
+            const activeIssues = new Set();
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open"
+            });
+
             // Helper to create issue with labels
             const createIssue = async (title, body, extraLabels = []) => {
-              const issues = await github.rest.issues.listForRepo({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                state: "open"
-              });
-
               const exists = issues.data.find(i => i.title === title);
               if (exists) {
+                activeIssues.add(exists.number);
                 console.log("Issue already exists:", title);
                 return;
               }
 
-              const labels = ["ci", "domain", ...extraLabels];
+              const labels = ["ci", LABEL_TYPE, ...extraLabels];
 
-              await github.rest.issues.create({
+              const newIssue = await github.rest.issues.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 title,
                 body,
                 labels
               });
+
+              activeIssues.add(newIssue.data.number);
 
               console.log("Issue created:", title);
             };
@@ -109,4 +116,32 @@ jobs:
               ].join("\n");
 
               await createIssue(title, body, ["changed"]);
+            }
+
+            // ---- Auto-close stale fixed issues ----
+            console.log("Checking for stale issues to close...");
+
+            for (const issue of issues.data) {
+              if (!issue.labels.some(l => l.name === LABEL_TYPE)) continue;
+
+              // If this issue wasn't registered as active, it is now fixed
+              if (!activeIssues.has(issue.number)) {
+                console.log("Closing stale issue:", issue.title);
+
+                // Comment before close
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: "Automatically closed because the domain is now resolved. 🟢"
+                });
+
+                // Close it
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  state: "closed"
+                });
+              }
             }
