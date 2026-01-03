@@ -1,11 +1,8 @@
 #![no_std]
 
-use aidoku::{
-    prelude::*,
-    Source,
-};
+use aidoku::{Source, prelude::*};
 
-mod helper;
+mod helpers;
 mod imp;
 mod models;
 

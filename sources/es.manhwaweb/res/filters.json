@@ -34,7 +34,7 @@
     },
     {
         "type": "select",
-        "title": "Demografía",
+        "title": "Demografia",
         "id": "demografia",
         "options": [
             "Ver todo",
@@ -70,7 +70,7 @@
     },
     {
         "type": "select",
-        "title": "Erótico",
+        "title": "Erotico",
         "id": "erotico",
         "options": [
             "No",
@@ -85,10 +85,10 @@
     },
     {
         "type": "multi-select",
-        "title": "Géneros",
+        "title": "Generos",
         "id": "genres",
         "options": [
-            "Acción",
+            "Accion",
             "Aventura",
             "Comedia",
             "Drama",
@@ -96,10 +96,10 @@
             "Romance",
             "Venganza",
             "Harem",
-            "Fantasía",
+            "Fantasia",
             "Sobrenatural",
             "Tragedia",
-            "Psicológico",
+            "Psicologico",
             "Horror",
             "Thriller",
             "Historias cortas",
@@ -107,13 +107,13 @@
             "Gore",
             "Girls love",
             "Boys love",
-            "Reencarnación",
+            "Reencarnacion",
             "Sistema de niveles",
-            "Ciencia ficción",
-            "Apocalíptico",
+            "Ciencia ficcion",
+            "Apocaliptico",
             "Artes marciales",
             "Superpoderes",
-            "Cultivación (cultivo)",
+            "Cultivacion (cultivo)",
             "Milf"
         ],
         "ids": [
