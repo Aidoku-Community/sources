@@ -45,13 +45,22 @@ jobs:
             const LABEL_TYPE = "domain"
             const AUTO_ASSIGN = process.env.AUTO_ASSIGN || null;
 
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const branch = context.ref.replace("refs/heads/", "");
+
             const activeIssues = new Set();
 
             const issues = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
+              owner,
+              repo,
               state: "open"
             });
+
+            // Helper to build direct link to the source folder
+            const sourceFolderLink = (name) =>
+              `https://github.com/${owner}/${repo}/tree/${branch}/sources/${name}`;
 
             // Helper to create issue with labels
             const createIssue = async (title, body, extraLabels = []) => {
@@ -65,8 +74,8 @@ jobs:
               const labels = ["ci", LABEL_TYPE, ...extraLabels];
 
               const newIssue = await github.rest.issues.create({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
+                owner,
+                repo,
                 title,
                 body,
                 labels
@@ -80,8 +89,8 @@ jobs:
                 console.log("Auto-assign to:", AUTO_ASSIGN);
 
                 await github.rest.issues.addAssignees({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
+                  owner,
+                  repo,
                   issue_number: newIssue.data.number,
                   assignees: [AUTO_ASSIGN]
                 });
@@ -91,11 +100,16 @@ jobs:
             // ---- Handle deiced ----
             for (const source of Object.keys(deiced)) {
               const urls = deiced[source];
+              const folderUrl = sourceFolderLink(source);
+
               const title = `source(${source}): domain deiced`;
 
               const body = [
                 `## ❄️ Domain Deiced`,
                 `**Source:** ${source}`,
+                ``,
+                `### Source Folder`,
+                `${folderUrl}`,
                 ``,
                 `### URLs Checked`,
                 urls.map(u => "- " + u).join("\n"),
@@ -112,12 +126,16 @@ jobs:
               const urls = changed[source];
               const original = urls[0];
               const redirected = urls[1];
+              const folderUrl = sourceFolderLink(source);
 
               const title = `source(${source}): changed → \`${redirected}\``;
 
               const body = [
                 `## 🔀 Domain Redirect Detected`,
                 `**Source:** ${source}`,
+                ``,
+                `### Source Folder`,
+                `${folderUrl}`,
                 ``,
                 `### Original`,
                 `- ${original}`,
@@ -144,16 +162,16 @@ jobs:
 
                 // Comment before close
                 await github.rest.issues.createComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
+                  owner,
+                  repo,
                   issue_number: issue.number,
                   body: "Automatically closed because the domain is now resolved. 🟢"
                 });
 
                 // Close it
                 await github.rest.issues.update({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
+                  owner,
+                  repo,
                   issue_number: issue.number,
                   state: "closed"
                 });
