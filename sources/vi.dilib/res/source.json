@@ -1,9 +1,9 @@
 {
 	"info": {
-		"id": "vi.foxtruyen",
-		"name": "FoxTruyen",
+		"id": "vi.dilib",
+		"name": "Digital Library",
+		"url": "https://dilib.vn",
 		"version": 3,
-		"url": "https://foxtruyen1.com",
 		"contentRating": 1,
 		"languages": [
 			"vi"

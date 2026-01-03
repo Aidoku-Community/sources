@@ -183,10 +183,12 @@ pub trait Impl {
 				})
 				.unwrap_or_default(),
 		));
-		let description = details
-			.select(params.manga_details_description)
-			.and_then(|l| l.first())
-			.map(text_with_newlines);
+		let description = details.select(params.manga_details_description).map(|a| {
+			a.into_iter()
+				.map(text_with_newlines)
+				.collect::<Vec<_>>()
+				.join("\n")
+		});
 
 		let tags = if !params.manga_details_tags.is_empty() {
 			if params.manga_details_tags_splitter.is_empty() {
