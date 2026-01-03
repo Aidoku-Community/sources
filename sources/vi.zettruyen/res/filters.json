@@ -1,0 +1,167 @@
+[
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Trạng thái",
+		"options": [
+			"Tất cả",
+			"Hoàn thành",
+			"Đang tiến hành"
+		],
+		"ids": [
+			"all",
+			"Hoàn thành",
+			"Đang"
+		]
+	},
+	{
+		"type": "select",
+		"id": "sort",
+		"title": "Sắp xếp",
+		"options": [
+			"Mới cập nhật",
+			"Xếp hạng",
+			"Số lượng bookmark",
+			"Tên (A-Z)",
+			"Tên (Z-A)"
+		],
+		"ids": [
+			"latest",
+			"rating",
+			"bookmark",
+			"name_asc",
+			"name_desc"
+		]
+	},
+	{
+		"type": "select",
+		"id": "type",
+		"title": "Loại",
+		"options": [
+			"Tất cả",
+			"Manga",
+			"Manhwa",
+			"Manhua"
+		],
+		"ids": [
+			"all",
+			"manga-112",
+			"manhwa-11400",
+			"manhua"
+		]
+	},
+	{
+		"type": "select",
+		"id": "chapterRange",
+		"title": "Số chương",
+		"options": [
+			"Tất cả",
+			"1 - 100 chương",
+			"101 - 500 chương",
+			"501 - 1000 chương",
+			"Trên 1000 chương"
+		],
+		"ids": [
+			"all",
+			"1-100",
+			"101-500",
+			"501-1000",
+			"1001-plus"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "genres",
+		"title": "Thể loại",
+		"isGenre": true,
+		"canExclude": false,
+		"options": [
+			"Action",
+			"Adventure",
+			"Anime",
+			"Chuyển Sinh",
+			"Cổ Đại",
+			"Comedy",
+			"Comic",
+			"Cooking",
+			"Doujinshi",
+			"Drama",
+			"Fantasy",
+			"Gender Bender",
+			"Historical",
+			"Horror",
+			"Live action",
+			"Manga",
+			"Manhua",
+			"Manhwa",
+			"Martial Arts",
+			"Mecha",
+			"Mystery",
+			"Ngôn Tình",
+			"Psychological",
+			"Romance",
+			"School Life",
+			"Sci-fi",
+			"Shoujo",
+			"Shoujo Ai",
+			"Shounen",
+			"Shounen Ai",
+			"Slice of Life",
+			"Sports",
+			"Supernatural",
+			"Thiếu Nhi",
+			"Tragedy",
+			"Trinh Thám",
+			"Truyện Màu",
+			"Truyện scan",
+			"Tu Tiên",
+			"Webtoon",
+			"Xuyên Không",
+			"Đam Mỹ"
+		],
+		"ids": [
+			"action",
+			"adventure",
+			"anime",
+			"chuyen-sinh",
+			"co-dai",
+			"comedy",
+			"comic",
+			"cooking",
+			"doujinshi",
+			"drama",
+			"fantasy",
+			"gender-bender",
+			"historical",
+			"horror",
+			"live-action",
+			"manga",
+			"manhua",
+			"manhwa",
+			"martial-arts",
+			"mecha",
+			"mystery",
+			"ngon-tinh",
+			"psychological",
+			"romance",
+			"school-life",
+			"sci-fi",
+			"shoujo",
+			"shoujo-ai",
+			"shounen",
+			"shounen-ai",
+			"slice-of-life",
+			"sports",
+			"supernatural",
+			"thieu-nhi",
+			"tragedy",
+			"trinh-tham",
+			"truyen-mau",
+			"truyen-scan",
+			"tu-tien",
+			"webtoon",
+			"xuyen-khong",
+			"dam-my"
+		]
+	}
+]
