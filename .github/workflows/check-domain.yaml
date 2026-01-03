@@ -31,6 +31,8 @@ jobs:
 
       - name: Create issues per domain
         uses: actions/github-script@v7
+        env:
+          AUTO_ASSIGN: ${{ vars.ISSUE_AUTO_ASSIGN || '' }}
         with:
           script: |
             const fs = require("fs");
@@ -41,6 +43,7 @@ jobs:
             const changed = data?.changed || {};
 
             const LABEL_TYPE = "domain"
+            const AUTO_ASSIGN = process.env.AUTO_ASSIGN || null;
 
             const activeIssues = new Set();
 
@@ -72,6 +75,17 @@ jobs:
               activeIssues.add(newIssue.data.number);
 
               console.log("Issue created:", title);
+            
+              if (AUTO_ASSIGN) {
+                console.log("Auto-assign to:", AUTO_ASSIGN);
+
+                await github.rest.issues.addAssignees({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: newIssue.data.number,
+                  assignees: [AUTO_ASSIGN]
+                });
+              }
             };
 
             // ---- Handle deiced ----
