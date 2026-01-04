@@ -31,7 +31,7 @@ impl Source for MangaPark {
 			filter::get_filters(query, filters),
 			page
 		);
-		let html = Request::get(&url)?.html()?;
+		let html = Request::get(&url)?.header("Cookie", "nsfw=2").html()?;
 		let entries = html
 			.select("[q:key=\"q4_9\"]")
 			.map(|els| {
@@ -66,7 +66,7 @@ impl Source for MangaPark {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let manga_url = format!("{BASE_URL}{}", manga.key);
-		let html = Request::get(&manga_url)?.html()?;
+		let html = Request::get(&manga_url)?.header("Cookie", "nsfw=2").html()?;
 		if needs_details {
 			let description_tag = html
 				.select(".limit-html-p")
@@ -176,7 +176,7 @@ impl Source for MangaPark {
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let chapter_url = format!("{BASE_URL}{}{}", manga.key, chapter.key);
-		let html = Request::get(&chapter_url)?.html()?;
+		let html = Request::get(&chapter_url)?.header("Cookie", "nsfw=2").html()?;
 		let mut pages: Vec<Page> = Vec::new();
 		let script_str = html
 			.select("[type=\"qwik/json\"]")
@@ -207,7 +207,7 @@ impl Source for MangaPark {
 impl ListingProvider for MangaPark {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		if listing.id == "latest" {
-			let html = Request::get(format!("{BASE_URL}/latest/{page}"))?.html()?;
+			let html = Request::get(format!("{BASE_URL}/latest/{page}"))?.header("Cookie", "nsfw=2").html()?;
 			let entries = html
 				.select("[q:key=\"Di_7\"]")
 				.map(|els| {
@@ -246,7 +246,7 @@ impl ListingProvider for MangaPark {
 
 impl Home for MangaPark {
 	fn get_home(&self) -> Result<HomeLayout> {
-		let html = Request::get(BASE_URL)?.html()?;
+		let html = Request::get(BASE_URL)?.header("Cookie", "nsfw=2").html()?;
 
 		fn parse_manga_with_chapter_with_details(el: &Element) -> Option<MangaWithChapter> {
 			let links = el.select_first("a")?;
