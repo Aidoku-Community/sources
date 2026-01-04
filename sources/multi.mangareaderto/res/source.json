@@ -1,0 +1,31 @@
+{
+	"info": {
+		"id": "multi.mangareader",
+		"name": "MangaReader",
+		"version": 1,
+		"url": "https://mangareader.to",
+		"contentRating": 1,
+		"languages": ["en", "es", "fr", "ja", "ko", "pt-br", "zh"]
+	},
+	"listings": [
+		{
+			"id": "latest-updated",
+			"name": "Latest Updated"
+		},
+		{
+			"id": "new-release",
+			"name": "New Release"
+		},
+		{
+			"id": "most-viewed",
+			"name": "Most Viewed"
+		},
+		{
+			"id": "completed",
+			"name": "Completed"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}
