@@ -305,7 +305,11 @@ impl Home for Comix {
 				subtitle: None,
 				value: aidoku::HomeComponentValue::Scroller {
 					entries,
-					listing: None,
+					listing: Some(Listing {
+						id: title.into(),
+						name: title.into(),
+						..Default::default()
+					}),
 				},
 			}));
 		}
@@ -330,13 +334,18 @@ impl Home for Comix {
 					}
 				})
 				.collect();
+			let title = "Recently Added";
 			send_partial_result(&HomePartialResult::Component(HomeComponent {
-				title: Some("Recently Added".into()),
+				title: Some(title.into()),
 				subtitle: None,
 				value: aidoku::HomeComponentValue::MangaChapterList {
 					page_size: None,
 					entries,
-					listing: None,
+					listing: Some(Listing {
+						id: title.into(),
+						name: title.into(),
+						..Default::default()
+					}),
 				},
 			}));
 		}
@@ -366,9 +375,39 @@ impl ListingProvider for Comix {
 			)
 		};
 
+		fn get_listing_page(url: &str) -> Result<MangaPageResult> {
+			let extra_qs = if settings::hide_nsfw() {
+				NSFW_GENRE_IDS
+					.iter()
+					.map(|id| format!("&genres[]=-{id}"))
+					.collect::<String>()
+			} else {
+				Default::default()
+			};
+			let url = format!("{url}{extra_qs}");
+			Request::get(url)?
+				.json_owned::<SearchResponse>()
+				.map(Into::into)
+		}
+
 		match listing.id.as_str() {
 			"Trending Webtoon" => trending(vec!["manhua".into(), "manhwa".into()]),
 			"Trending Manga" => trending(vec!["manga".into()]),
+
+			"Most Recent Popular" => {
+				get_listing_page(&format!("{API_URL}/top?type=trending&days=1&limit=50"))
+			}
+			"Most Follows New Comics" => {
+				get_listing_page(&format!("{API_URL}/top?type=follows&days=1&limit=50"))
+			}
+
+			"Latest Updates (Hot)" => get_listing_page(&format!(
+				"{API_URL}/manga?scope=hot&limit=30&order[chapter_updated_at]=desc&page={page}"
+			)),
+			"Recently Added" => get_listing_page(&format!(
+				"{API_URL}/manga?order[created_at]=desc&limit=30&page={page}"
+			)),
+
 			_ => bail!("Unknown listing"),
 		}
 	}
