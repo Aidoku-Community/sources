@@ -5,8 +5,8 @@
 		"items": [
 			{
 				"type": "select",
-				"title": "Thumbnail Quality",
 				"key": "thumbnailQuality",
+				"title": "Thumbnail Quality",
 				"values": ["small", "medium", "large"],
 				"titles": ["Small", "Medium", "Large"],
 				"default": "large",
@@ -14,20 +14,204 @@
 			},
 			{
 				"type": "switch",
-				"title": "Hide NSFW Content",
 				"key": "hideNSFW",
+				"title": "Hide NSFW Content",
 				"default": true,
-				"refreshes": ["content"],
-				"footer": "Hide NSFW content from the home page and searching."
+				"refreshes": ["content"]
 			},
 			{
 				"type": "switch",
-				"title": "Deduplicate Chapters",
 				"key": "dedupedChapter",
+				"title": "Deduplicate Chapters",
 				"default": false,
-				"refreshes": ["content"],
-				"footer": "Remove duplicate chapters from the chapter list.\n Official chapters (Comix-marked) are preferred, followed by the highest-voted or most recent.\nWarning: It can be slow on large lists."
+				"refreshes": ["content"]
 			}
-		]
+		],
+		"footer": "Official chapters (Comix-marked) are preferred, followed by the highest-voted or most recent. Warning: It can be slow on large lists."
+	},
+	{
+		"type": "group",
+		"items": [
+			{
+				"type": "page",
+				"key": "contentFilters",
+				"title": "Content Filters",
+				"items": [
+					{
+						"type": "group",
+						"items": [
+							{
+								"type": "multi-select",
+								"key": "hiddenTypes",
+								"title": "Hidden Content Types",
+								"titles": [
+									"Manga",
+									"Manhwa",
+									"Manhua",
+									"Other"
+								],
+								"values": [
+									"manga",
+									"manhwa",
+									"manhua",
+									"other"
+								],
+								"refreshes": ["content"]
+							},
+							{
+								"type": "multi-select",
+								"key": "hiddenGenres",
+								"title": "Hidden Genres",
+								"titles": [
+									"Action",
+									"Adult",
+									"Adventure",
+									"Boys Love",
+									"Comedy",
+									"Crime",
+									"Drama",
+									"Ecchi",
+									"Fantasy",
+									"Girls Love",
+									"Hentai",
+									"Historical",
+									"Horror",
+									"Isekai",
+									"Magical Girls",
+									"Mature",
+									"Mecha",
+									"Medical",
+									"Mystery",
+									"Philosophical",
+									"Psychological",
+									"Romance",
+									"Sci-Fi",
+									"Slice of Life",
+									"Smut",
+									"Sports",
+									"Superhero",
+									"Thriller",
+									"Tragedy",
+									"Wuxia"
+								],
+								"values": [
+									"6",
+									"87264",
+									"7",
+									"8",
+									"9",
+									"10",
+									"11",
+									"87265",
+									"12",
+									"13",
+									"87266",
+									"14",
+									"15",
+									"16",
+									"17",
+									"87267",
+									"18",
+									"19",
+									"20",
+									"21",
+									"22",
+									"23",
+									"24",
+									"25",
+									"87268",
+									"26",
+									"27",
+									"28",
+									"29",
+									"30"
+								],
+								"refreshes": ["content"]
+							},
+							{
+								"type": "multi-select",
+								"key": "hiddenThemes",
+								"title": "Hidden Themes",
+								"titles": [
+									"Aliens",
+									"Animals",
+									"Cooking",
+									"Crossdressing",
+									"Delinquents",
+									"Demons",
+									"Genderswap",
+									"Ghosts",
+									"Gyaru",
+									"Harem",
+									"Incest",
+									"Loli",
+									"Mafia",
+									"Magic",
+									"Martial Arts",
+									"Military",
+									"Monster Girls",
+									"Monsters",
+									"Music",
+									"Ninja",
+									"Office Workers",
+									"Police",
+									"Post-Apocalyptic",
+									"Reincarnation",
+									"Reverse Harem",
+									"Samurai",
+									"School Life",
+									"Shota",
+									"Supernatural",
+									"Survival"
+								],
+								"values": [
+									"31",
+									"32",
+									"33",
+									"34",
+									"35",
+									"36",
+									"37",
+									"38",
+									"39",
+									"40",
+									"41",
+									"42",
+									"43",
+									"44",
+									"45",
+									"46",
+									"47",
+									"48",
+									"49",
+									"50",
+									"51",
+									"52",
+									"53",
+									"54",
+									"55",
+									"56",
+									"57",
+									"58",
+									"59",
+									"60"
+								],
+								"refreshes": ["content"]
+							}
+						]
+					}
+				]
+			},
+			{
+				"type": "button",
+				"key": "resetFilters",
+				"title": "Reset Filters",
+				"confirmTitle": "Reset Filters",
+				"confirmText": "Are you sure you want to remove all configured content filters?",
+				"destructive": true,
+				"notification": "resetFilters"
+			}
+		],
+		"footer": "Content filters are applied globally: to the home page, listings, and search results."
 	}
 ]

@@ -21,6 +21,7 @@ use models::*;
 const BASE_URL: &str = "https://comix.to";
 const API_URL: &str = "https://comix.to/api/v2";
 
+const CONTENT_TYPES: &[&str] = &["manga", "manhwa", "manhua", "other"];
 const NSFW_GENRE_IDS: &[&str] = &["87264", "8", "87265", "13", "87266", "87268"];
 
 struct Comix;
@@ -41,6 +42,12 @@ impl Source for Comix {
 		if query.is_some() {
 			qs.push("keyword", query.as_deref());
 		}
+
+		let mut hidden_types = {
+			let types = settings::hidden_types();
+			if types.is_empty() { None } else { Some(types) }
+		};
+		let mut hidden_terms = settings::hidden_terms();
 
 		let mut has_sort_filter = false;
 
@@ -99,10 +106,28 @@ impl Source for Comix {
 					included,
 					excluded,
 				} => {
+					// if any content type is set manually, skip our content type filters
+					if id == "types[]" {
+						hidden_types = None;
+					}
 					for value in included {
+						// if a hidden term is manually included in filters, skip hiding it
+						if id == "genres[]" {
+							let id_num = value.parse::<i32>().unwrap_or_default();
+							if let Some(pos) = hidden_terms.iter().position(|&x| x == id_num) {
+								hidden_terms.swap_remove(pos);
+								continue;
+							}
+						}
 						qs.push(&id, Some(&value));
 					}
 					for value in excluded {
+						// make sure hidden terms aren't added to query params twice
+						if id == "genres[]"
+							&& hidden_terms.contains(&value.parse().unwrap_or_default())
+						{
+							continue;
+						}
 						qs.push(&id, Some(&format!("-{value}")));
 					}
 				}
@@ -112,6 +137,18 @@ impl Source for Comix {
 
 		if !has_sort_filter {
 			qs.push("order[relevance]", Some("desc"));
+		}
+
+		if let Some(hidden_types) = hidden_types {
+			for &typ in CONTENT_TYPES {
+				if !hidden_types.iter().any(|s| s.as_str() == typ) {
+					qs.push("types[]", Some(typ));
+				}
+			}
+		}
+
+		for term in hidden_terms {
+			qs.push("genres[]", Some(&format!("-{term}")));
 		}
 
 		if settings::hide_nsfw() {
@@ -154,7 +191,7 @@ impl Source for Comix {
 		if needs_chapters {
 			let limit = 100;
 			let mut page = 1;
-			let deduplicate = settings::get_dedupchapter();
+			let deduplicate = settings::dedupchapter();
 			let mut chapter_map: HashMap<String, ComixChapter> = HashMap::new();
 			let mut chapter_list: Vec<ComixChapter> = Vec::new();
 			loop {
@@ -257,6 +294,9 @@ impl Home for Comix {
 			Default::default()
 		};
 
+		let hidden_types = settings::hidden_types();
+		let hidden_terms = settings::hidden_terms();
+
 		let responses: [core::result::Result<Response, RequestError>; 4] = Request::send_all([
 			// most recent popular
 			Request::get(format!(
@@ -290,6 +330,7 @@ impl Home for Comix {
 				.result
 				.items
 				.into_iter()
+				.filter(|m| !m.is_hidden(&hidden_types, &hidden_terms))
 				.map(|m| {
 					let manga = Manga::from(m);
 					Link {
@@ -320,6 +361,7 @@ impl Home for Comix {
 				.result
 				.items
 				.into_iter()
+				.filter(|m| !m.is_hidden(&hidden_types, &hidden_terms))
 				.map(|m| {
 					let chapter_number = m.latest_chapter;
 					let date_uploaded = m.chapter_updated_at;
@@ -384,10 +426,12 @@ impl ListingProvider for Comix {
 			} else {
 				Default::default()
 			};
+			let hidden_types = settings::hidden_types();
+			let hidden_terms = settings::hidden_terms();
 			let url = format!("{url}{extra_qs}");
 			Request::get(url)?
 				.json_owned::<SearchResponse>()
-				.map(Into::into)
+				.map(|r| r.result.into_filtered(&hidden_types, &hidden_terms))
 		}
 
 		match listing.id.as_str() {
