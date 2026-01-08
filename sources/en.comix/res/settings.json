@@ -209,7 +209,8 @@
 				"confirmTitle": "Reset Filters",
 				"confirmText": "Are you sure you want to remove all configured content filters?",
 				"destructive": true,
-				"notification": "resetFilters"
+				"notification": "resetFilters",
+				"refreshes": ["content"]
 			}
 		],
 		"footer": "Content filters are applied globally: to the home page, listings, and search results."

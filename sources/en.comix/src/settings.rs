@@ -1,6 +1,6 @@
 use aidoku::{
 	alloc::{string::String, vec::Vec},
-	imports::defaults::defaults_get,
+	imports::defaults::{DefaultValue, defaults_get, defaults_set},
 };
 
 const HIDE_NSFW_KEY: &str = "hideNSFW";
@@ -45,4 +45,10 @@ fn hidden_themes() -> Vec<i32> {
 		.into_iter()
 		.filter_map(|s| s.parse().ok())
 		.collect()
+}
+
+pub fn reset_filters() {
+	defaults_set(HIDDEN_TYPES_KEY, DefaultValue::Null);
+	defaults_set(HIDDEN_GENRES_KEY, DefaultValue::Null);
+	defaults_set(HIDDEN_THEMES_KEY, DefaultValue::Null);
 }

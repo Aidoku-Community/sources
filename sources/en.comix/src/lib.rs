@@ -2,7 +2,7 @@
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeComponent,
 	HomeLayout, HomePartialResult, Link, LinkValue, Listing, ListingProvider, Manga,
-	MangaPageResult, MangaWithChapter, Page, Result, Source,
+	MangaPageResult, MangaWithChapter, NotificationHandler, Page, Result, Source,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -457,6 +457,14 @@ impl ListingProvider for Comix {
 	}
 }
 
+impl NotificationHandler for Comix {
+	fn handle_notification(&self, notification: String) {
+		if notification == "resetFilters" {
+			settings::reset_filters();
+		}
+	}
+}
+
 impl DeepLinkHandler for Comix {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		let Some(path) = url.strip_prefix(BASE_URL) else {
@@ -490,4 +498,10 @@ impl DeepLinkHandler for Comix {
 	}
 }
 
-register_source!(Comix, Home, ListingProvider, DeepLinkHandler);
+register_source!(
+	Comix,
+	Home,
+	ListingProvider,
+	NotificationHandler,
+	DeepLinkHandler
+);
