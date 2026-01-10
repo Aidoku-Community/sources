@@ -1,0 +1,28 @@
+# Aidoku Source - Standard Ignores
+.DS_Store
+.build
+*.aix
+target/
+.cargo/
+
+# Generated files
+public/icons/
+public/sources/
+public/*.json
+
+# IDE
+.idea
+*.iml
+.zed
+.ropeproject
+.vscode/
+
+# Local Tools & Logs
+parse_comments.py
+*.log
+.agent/
+managed_bork/
+
+# Documentation Artifacts (Keep only README)
+*.md
+!README.md
