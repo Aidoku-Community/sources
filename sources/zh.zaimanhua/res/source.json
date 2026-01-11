@@ -1,0 +1,42 @@
+{
+	"info": {
+		"id": "zh.zaimanhua",
+		"name": "再漫畫",
+		"version": 2,
+		"languages": [
+			"zh"
+		],
+		"contentRating": 1,
+		"urls": [
+			"https://www.zaimanhua.com",
+			"https://manhua.zaimanhua.com",
+			"https://m.zaimanhua.com"
+		]
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "更新"
+		},
+		{
+			"id": "ongoing",
+			"name": "连载"
+		},
+		{
+			"id": "completed",
+			"name": "完结"
+		},
+		{
+			"id": "short",
+			"name": "短篇"
+		},
+		{
+			"id": "subscribe",
+			"name": "订阅"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true,
+		"supportsAuthorSearch": true
+	}
+}
