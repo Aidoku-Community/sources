@@ -10,7 +10,7 @@ use aidoku::{
 
 use crate::models::{ApiResponse, DetailData};
 
-/// Build the home page layout with comprehensive components
+/// Build the home page layout
 pub fn get_home_layout() -> Result<HomeLayout> {
 	send_partial_result(&HomePartialResult::Layout(HomeLayout {
 		components: vec![
@@ -122,50 +122,46 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 				continue;
 			}
 
-			if manga_list.is_empty() {
-				continue;
-			}
-
 			// Only handle category 109 (Premium Recommend) as BigScroller
 			if cat.category_id == 109 {
 				big_scroller_manga = cat.data.iter()
-                            // Filter only Manga type (1) to avoid Topics/Ads
-                            .filter(|item| item.obj_id > 0 && item.item_type == 1)
-                            .map(|item| {
-                                let mut real_title = item.title.clone();
-                                let mut manga_cover = item.cover.clone().unwrap_or_default();
+					// Filter only Manga type (1) to avoid Topics/Ads
+					.filter(|item| item.obj_id > 0 && item.item_type == 1)
+					.map(|item| {
+						let mut real_title = item.title.clone();
+						let mut manga_cover = item.cover.clone().unwrap_or_default();
 
-                                // Fetch real functionality
-                                // Try to update title/cover from detail API
-                                if let Ok(req) = Request::get(format!("https://v4api.zaimanhua.com/app/v1/comic/detail/{}", item.obj_id))
-                                    && let Ok(resp) = req.json_owned::<ApiResponse<DetailData>>()
-                                    && let Some(detail_root) = resp.data
-                                    && let Some(detail) = detail_root.data
-                                {
-                                    if let Some(t) = detail.title {
-                                        real_title = t;
-                                    }
+						// Fetch details for high-res assets
+						// Try to update title/cover from detail API
+						if let Ok(req) = Request::get(format!("https://v4api.zaimanhua.com/app/v1/comic/detail/{}", item.obj_id))
+							&& let Ok(resp) = req.json_owned::<ApiResponse<DetailData>>()
+							&& let Some(detail_root) = resp.data
+							&& let Some(detail) = detail_root.data
+						{
+							if let Some(t) = detail.title {
+								real_title = t;
+							}
 
-                                    // We also need to get the cover if available to be safe
-                                    if let Some(c) = detail.cover
-                                        && !c.is_empty()
-                                    {
-                                        manga_cover = c;
-                                    }
-                                }
+							// We also need to get the cover if available to be safe
+							if let Some(c) = detail.cover
+								&& !c.is_empty()
+							{
+								manga_cover = c;
+							}
+						}
 
-                                Manga {
-                                    key: item.obj_id.to_string(),
-                                    title: real_title, // Real Manga Title
-                                    authors: Some(vec![item.sub_title.clone().unwrap_or_default()]), // Author
-                                    // Editorial remark goes to description/subtitle equivalent in BigScroller
-                                    description: Some(item.title.clone()),
-                                    cover: Some(manga_cover),
-                                    status: MangaStatus::Unknown,
-                                    ..Default::default()
-                                }
-                            })
-                            .collect();
+						Manga {
+							key: item.obj_id.to_string(),
+							title: real_title, // Real Manga Title
+							authors: Some(vec![item.sub_title.clone().unwrap_or_default()]), // Author
+							// Editorial remark goes to description/subtitle equivalent in BigScroller
+							description: Some(item.title.clone()),
+							cover: Some(manga_cover),
+							status: MangaStatus::Unknown,
+							..Default::default()
+						}
+					})
+					.collect();
 			}
 		}
 	}
@@ -283,9 +279,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		},
 	});
 
-	// Helper to parse audience category scroller
-	// Wait, original code had audience scrollers.
-	// I need to fix get_json_owned there too.
+	// Parse audience category scroller
 	fn parse_audience_scroller(resp: Response) -> Vec<aidoku::Link> {
 		if let Ok(response) =
 			resp.get_json_owned::<crate::models::ApiResponse<crate::models::FilterData>>()

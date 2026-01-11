@@ -12,7 +12,6 @@ use aidoku::{
 
 mod helpers;
 mod home;
-
 mod models;
 mod net;
 mod settings;

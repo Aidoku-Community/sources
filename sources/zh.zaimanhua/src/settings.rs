@@ -78,7 +78,6 @@ pub fn get_hidden_cache() -> Option<String> {
 	defaults_get::<String>(HIDDEN_CACHE_KEY).filter(|s| !s.is_empty())
 }
 
-/// Set hidden cache data with timestamp
 pub fn set_hidden_cache(data: &str) {
 	defaults_set(HIDDEN_CACHE_KEY, DefaultValue::String(data.into()));
 	let now = aidoku::imports::std::current_date();
@@ -96,7 +95,6 @@ pub fn is_hidden_cache_valid() -> bool {
 	false
 }
 
-/// Clear hidden cache
 pub fn clear_hidden_cache() {
 	defaults_set(HIDDEN_CACHE_KEY, DefaultValue::Null);
 	defaults_set(HIDDEN_CACHE_TIME_KEY, DefaultValue::Null);

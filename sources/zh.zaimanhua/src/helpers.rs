@@ -27,7 +27,6 @@ pub fn get_api_request(url: &str) -> Result<Request> {
 }
 
 /// Fetch hidden content with parallel pagination (5 pages × 100 items).
-/// Returns all FilterItems and updates the cache.
 fn fetch_hidden_parallel() -> Vec<models::FilterItem> {
 	let page_size = 100;
 	let num_pages = 5;
@@ -173,7 +172,7 @@ pub fn search_by_keyword(keyword: &str, page: i32) -> Result<MangaPageResult> {
 	})
 }
 
-/// Merge hidden content from cache into search results (O(1) HashSet lookup)
+/// Merge hidden content from cache into search results
 fn merge_cached_hidden(keyword: &str, cached: &str, results: &mut Vec<Manga>) {
 	// Use HashSet for O(1) lookup (own the strings to avoid borrow issues)
 	let existing_ids: HashSet<String> = results.iter().map(|m| m.key.clone()).collect();
