@@ -1,4 +1,5 @@
 #![no_std]
+extern crate alloc;
 
 use aidoku::{
 	BasicLoginHandler, Chapter, DeepLinkHandler, DeepLinkResult, DynamicSettings, FilterValue,
@@ -16,11 +17,12 @@ mod models;
 mod net;
 mod settings;
 
-use helpers::{V4_API_URL, get_api_request};
-
 pub const BASE_URL: &str = "https://www.zaimanhua.com/";
 
 struct Zaimanhua;
+
+// === Main Source Implementation ===
+// Core logic for manga listing, updates, and page fetching.
 
 impl Source for Zaimanhua {
 	fn new() -> Self {
@@ -30,7 +32,7 @@ impl Source for Zaimanhua {
 			&& !settings::has_checkin_flag()
 			&& let Ok(true) = net::check_in(&token)
 		{
-			settings::set_last_checkin("done");
+			settings::set_last_checkin();
 		}
 		Self
 	}
@@ -65,10 +67,8 @@ impl Source for Zaimanhua {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let url = format!("{}/comic/detail/{}?channel=android", V4_API_URL, manga.key);
-
 		let response: models::ApiResponse<models::DetailData> =
-			get_api_request(&url)?.json_owned()?;
+			net::Url::Manga { id: &manga.key }.request()?.json_owned()?;
 
 		if response.errno.unwrap_or(0) != 0 {
 			let errmsg = response.errmsg.as_deref().unwrap_or("Unknown error");
@@ -108,10 +108,8 @@ impl Source for Zaimanhua {
 			(manga.key.as_str(), chapter.key.as_str())
 		};
 
-		let url = format!("{}/comic/chapter/{}/{}", V4_API_URL, comic_id, chapter_id);
-
 		let response: models::ApiResponse<models::ChapterData> =
-			get_api_request(&url)?.json_owned()?;
+			net::Url::ChapterPages { comic_id, chapter_id }.request()?.json_owned()?;
 		let chapter_data = response.data.ok_or_else(|| error!("Missing data"))?;
 		let page_data = chapter_data.data;
 
@@ -132,6 +130,8 @@ impl Source for Zaimanhua {
 	}
 }
 
+// === Image Request Provider ===
+// Custom referer handling for image protection.
 impl ImageRequestProvider for Zaimanhua {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
 		Ok(Request::get(url)?
@@ -140,9 +140,11 @@ impl ImageRequestProvider for Zaimanhua {
 	}
 }
 
+// === Deep Link Handler ===
+// Parse partial URLs for manga/chapter redirection.
 impl DeepLinkHandler for Zaimanhua {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		// Case 1: Manga details (e.g., /comic/12345 or id=12345)
+		// Handle manga details URL (compatibility for various formats)
 		if (url.contains("/manga/") || url.contains("/comic/")) && !url.contains("chapter") {
 			let id = if let Some(pos) = url.find("id=") {
 				url[pos + 3..].split('&').next().unwrap_or("")
@@ -155,27 +157,27 @@ impl DeepLinkHandler for Zaimanhua {
 			}
 		}
 
-		// Case 2: Chapter pages (e.g., /comic/chapter/12345/67890)
+		// Handle chapter pages URL
 		if url.contains("/chapter/") {
-			// Extract comic_id and chapter_id
-			// URL format: .../chapter/{comic_id}/{chapter_id}
-			if let Some(start) = url.find("/chapter/") {
-				let parts: Vec<&str> = url[start + 9..]
-					.split('/')
-					.filter(|s| !s.is_empty())
-					.collect();
-				if parts.len() >= 2 {
-					let comic_id = parts[0];
-					let chapter_id = parts[1];
+			let Some(start) = url.find("/chapter/") else {
+				return Ok(None);
+			};
+			let parts: Vec<&str> = url[start + 9..]
+				.split('/')
+				.filter(|s| !s.is_empty())
+				.collect();
+			
+			if parts.len() >= 2 {
+				let comic_id = parts[0];
+				let chapter_id = parts[1];
 
-					if comic_id.chars().all(|c| c.is_ascii_digit())
-						&& chapter_id.chars().all(|c| c.is_ascii_digit())
-					{
-						return Ok(Some(DeepLinkResult::Chapter {
-							manga_key: comic_id.into(),
-							key: format!("{}/{}", comic_id, chapter_id),
-						}));
-					}
+				if comic_id.chars().all(|c| c.is_ascii_digit())
+					&& chapter_id.chars().all(|c| c.is_ascii_digit())
+				{
+					return Ok(Some(DeepLinkResult::Chapter {
+						manga_key: comic_id.into(),
+						key: format!("{}/{}", comic_id, chapter_id),
+					}));
 				}
 			}
 		}
@@ -184,6 +186,8 @@ impl DeepLinkHandler for Zaimanhua {
 	}
 }
 
+// === Login & Auth Handler ===
+// Basic username/password login flow.
 impl BasicLoginHandler for Zaimanhua {
 	fn handle_basic_login(&self, key: String, username: String, password: String) -> Result<bool> {
 		if key != "login" {
@@ -197,13 +201,12 @@ impl BasicLoginHandler for Zaimanhua {
 		match net::login(&username, &password) {
 			Ok(Some(token)) => {
 				settings::set_token(&token);
-				settings::set_just_logged_in(); // Mark for logout detection
-				// Auto check-in after login (if enabled and not already done)
+				settings::set_just_logged_in();
 				if settings::get_auto_checkin()
 					&& !settings::has_checkin_flag()
 					&& let Ok(true) = net::check_in(&token)
 				{
-				settings::set_last_checkin("done");
+					settings::set_last_checkin();
 				}
 				Ok(true)
 			}
@@ -212,6 +215,8 @@ impl BasicLoginHandler for Zaimanhua {
 	}
 }
 
+// === Notification Logic ===
+// Handle async events like check-in or login state changes.
 impl NotificationHandler for Zaimanhua {
 	fn handle_notification(&self, notification: String) {
 		match notification.as_str() {
@@ -229,19 +234,16 @@ impl NotificationHandler for Zaimanhua {
 					// Not just logged in = user logged out
 					settings::clear_token();
 					settings::clear_checkin_flag();
-					settings::clear_hidden_cache();
 				}
 			}
-			"clearHiddenCache" => {
-				settings::clear_hidden_cache();
-			}
+
 			_ => {}
 		}
 	}
 }
 
-// === Dynamic Settings for User Info Display ===
-
+// === Dynamic Settings ===
+// User-specific settings (UserInfo, Switches) reflected in UI.
 impl DynamicSettings for Zaimanhua {
 	fn get_dynamic_settings(&self) -> Result<Vec<Setting>> {
 		let mut settings_list: Vec<Setting> = Vec::new();
@@ -291,7 +293,7 @@ impl DynamicSettings for Zaimanhua {
 			ToggleSetting {
 				key: "autoCheckin".into(),
 				title: "自动签到".into(),
-				subtitle: checkin_subtitle.map(|s| s.into()),
+				subtitle: checkin_subtitle.map(|s: &str| s.into()),
 				default: false,
 				..Default::default()
 			}
@@ -321,7 +323,6 @@ impl DynamicSettings for Zaimanhua {
 						subtitle: Some("搜索和浏览时包含隐藏漫画".into()),
 						default: false,
 						refreshes: Some(vec!["content".into(), "listings".into()]),
-						notification: Some("clearHiddenCache".into()),
 						..Default::default()
 					}
 					.into(),
@@ -379,78 +380,48 @@ impl ListingProvider for Zaimanhua {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		// Handle rank listings (use rank API)
 		if listing.id == "rank-monthly" {
-			let url = format!(
-				"{}/comic/rank/list?rank_type=0&by_time=2&page={}&size=20",
-				V4_API_URL, page
-			);
 			let response: models::ApiResponse<Vec<models::RankItem>> =
-				get_api_request(&url)?.json_owned()?;
+				net::Url::Rank { by_time: 2, page }.request()?.json_owned()?;
 			let data = response
 				.data
-				.ok_or_else(|| aidoku::error!("No data in rank response"))?;
+				.unwrap_or_default();
 			return Ok(models::manga_list_from_ranks(data));
 		}
 
 		// Handle filter-based listings
-		let url = match listing.id.as_str() {
-			"latest" => format!(
-				"{}/comic/filter/list?sortType=1&page={}&size=20",
-				V4_API_URL, page
-			),
-			"ongoing" => format!(
-				"{}/comic/filter/list?status=2309&page={}&size=20",
-				V4_API_URL, page
-			),
-			"completed" => format!(
-				"{}/comic/filter/list?status=2310&page={}&size=20",
-				V4_API_URL, page
-			),
-			"short" => format!(
-				"{}/comic/filter/list?status=29205&page={}&size=20",
-				V4_API_URL, page
-			),
-			"shounen" => format!(
-				"{}/comic/filter/list?cate=3262&page={}&size=20",
-				V4_API_URL, page
-			),
-			"shoujo" => format!(
-				"{}/comic/filter/list?cate=3263&page={}&size=20",
-				V4_API_URL, page
-			),
-			"seinen" => format!(
-				"{}/comic/filter/list?cate=3264&page={}&size=20",
-				V4_API_URL, page
-			),
-			"josei" => format!(
-				"{}/comic/filter/list?cate=13626&page={}&size=20",
-				V4_API_URL, page
-			),
+		let filter_param = match listing.id.as_str() {
+			"latest" => "sortType=1",
+			"ongoing" => "status=2309",
+			"completed" => "status=2310",
+			"short" => "status=29205",
+			"shounen" => "cate=3262",
+			"shoujo" => "cate=3263",
+			"seinen" => "cate=3264",
+			"josei" => "cate=13626",
 			"subscribe" => {
 				let token = settings::get_token()
 					.ok_or_else(|| aidoku::error!("请先登录以查看订阅列表"))?;
 
-				let url = format!(
-					"{}/comic/sub/list?status=0&firstLetter=&page={}&size=50",
-					V4_API_URL, page
-				);
-
 				let response: models::ApiResponse<models::SubscribeData> =
-					net::auth_request(&url, &token)?.json_owned()?;
+					net::Url::Subscribe { page }.request()?
+						.header("Authorization", &format!("Bearer {}", token))
+						.json_owned()?;
 				let data = response
 					.data
-					.ok_or_else(|| aidoku::error!("Invalid subscribe response"))?;
-
-				return Ok(models::manga_list_from_subscribes(data.sub_list));
+					.map(|d| d.sub_list)
+					.unwrap_or_default();
+				return Ok(models::manga_list_from_subscribes(data));
 			}
 			_ => return Err(aidoku::error!("Unknown listing: {}", listing.id)),
 		};
 
 		let response: models::ApiResponse<models::FilterData> =
-			get_api_request(&url)?.json_owned()?;
+			net::Url::Filter { params: filter_param, page, size: 20 }.request()?.json_owned()?;
 		let data = response
 			.data
-			.ok_or_else(|| aidoku::error!("No data in filter response"))?;
-		Ok(models::manga_list_from_filter(data.comic_list))
+			.map(|d| d.comic_list)
+			.unwrap_or_default();
+		Ok(models::manga_list_from_filter(data))
 	}
 }
 

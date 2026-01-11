@@ -1,11 +1,12 @@
-use crate::{get_api_request, helpers::V4_API_URL, net};
+use crate::net;
 use aidoku::{
 	HomeComponent, HomeLayout, HomePartialResult, Listing, ListingKind, Manga, MangaStatus,
 	MangaWithChapter, Result,
-	alloc::{String, Vec, format, string::ToString, vec},
+	alloc::{Vec, format, string::ToString, vec},
 	imports::net::RequestError,
 	imports::net::{Request, Response},
 	imports::std::send_partial_result,
+	imports::html::Html,
 };
 
 use crate::models::{ApiResponse, DetailData};
@@ -57,50 +58,39 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		],
 	}));
 
-	let recommend_url = format!("{}/comic/recommend/list", V4_API_URL);
-	let latest_url = format!("{}/comic/filter/list?sortType=1&size=20&page=1", V4_API_URL);
-	// Use Rank API 月榜 - 1 page = 10 items
-	let rank_url = format!(
-		"{}/comic/rank/list?rank_type=0&by_time=2&page=1",
-		V4_API_URL
-	);
-	// Audience categories
-	let shounen_url = format!("{}/comic/filter/list?cate=3262&size=20&page=1", V4_API_URL);
-	let shoujo_url = format!("{}/comic/filter/list?cate=3263&size=20&page=1", V4_API_URL);
-	let seinen_url = format!("{}/comic/filter/list?cate=3264&size=20&page=1", V4_API_URL);
-	let josei_url = format!("{}/comic/filter/list?cate=13626&size=20&page=1", V4_API_URL);
+	// Build parallel requests using Url enum
 	let manga_news_url = "https://news.zaimanhua.com/manhuaqingbao";
 
 	let requests = [
-		net::get_request(&recommend_url)?, // 0: recommend
-		get_api_request(&latest_url)?,     // 1: latest
-		get_api_request(&rank_url)?,       // 2: rank
-		get_api_request(&shounen_url)?,    // 3: 少年漫画
-		get_api_request(&shoujo_url)?,     // 4: 少女漫画
-		get_api_request(&seinen_url)?,     // 5: 男青漫画
-		get_api_request(&josei_url)?,      // 6: 女青漫画
-		net::get_request(manga_news_url)?, // 7: 漫画情报 HTML
+		net::Url::Recommend.request()?,                               // 0: recommend
+		net::Url::Filter { params: "sortType=1", page: 1, size: 20 }.request()?, // 1: latest
+		net::Url::Rank { by_time: 2, page: 1 }.request()?,            // 2: rank
+		net::Url::Category { cate: 3262, page: 1, size: 20 }.request()?, // 3: 少年漫画
+		net::Url::Category { cate: 3263, page: 1, size: 20 }.request()?, // 4: 少女漫画
+		net::Url::Category { cate: 3264, page: 1, size: 20 }.request()?, // 5: 男青漫画
+		net::Url::Category { cate: 13626, page: 1, size: 20 }.request()?, // 6: 女青漫画
+		net::get_request(manga_news_url)?,                            // 7: 漫画情报 HTML
 	];
 
 	let responses: [core::result::Result<Response, RequestError>; 8] = Request::send_all(requests)
 		.try_into()
 		.map_err(|_| aidoku::error!("Failed to convert responses"))?;
 
-	let [r0, r1, r2, r3, r4, r5, r6, mut r7] = responses;
+	let [resp_recommend, resp_latest, resp_rank, resp_shounen, resp_shoujo, resp_seinen, resp_josei, mut resp_news] = responses;
 
 	let mut components = Vec::new();
 
 	let mut big_scroller_manga: Vec<Manga> = Vec::new(); // For 109
 	let mut banner_links: Vec<aidoku::Link> = Vec::new();
 
-	if let Ok(ref mut resp) = r7
+	if let Ok(ref mut resp) = resp_news
 		&& let Ok(html) = resp.get_string()
 	{
 		banner_links = parse_manga_news_html(&html);
 	}
 
 	// Parse recommend/list response - returns raw List, NOT ApiResponse
-	if let Ok(resp) = r0
+	if let Ok(resp) = resp_recommend
 		&& let Ok(categories) = resp.get_json_owned::<Vec<crate::models::RecommendCategory>>()
 	{
 		for cat in categories {
@@ -167,7 +157,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 	}
 
 	let mut latest_entries: Vec<MangaWithChapter> = Vec::new();
-	if let Ok(resp) = r1
+	if let Ok(resp) = resp_latest
 		&& let Ok(response) =
 			resp.get_json_owned::<crate::models::ApiResponse<crate::models::FilterData>>()
 		&& let Some(data) = response.data
@@ -187,19 +177,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 			return list
 				.into_iter()
 				.filter(|item| item.comic_id > 0)
-				.map(|item| {
-					let mut manga: Manga = item.clone().into();
-					// Parse 热度
-					let num = item.num.unwrap_or(0);
-					manga.description = if num >= 10000 {
-						Some(format!("热度 {:.1}万", num as f64 / 10000.0))
-					} else if num > 0 {
-						Some(format!("热度 {}", num))
-					} else {
-						None
-					};
-					manga
-				})
+				.map(Into::into)
 				.collect();
 		}
 		Vec::new()
@@ -207,7 +185,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 
 	// 1 page = 10 items
 	let mut hot_entries: Vec<Manga> = Vec::new();
-	if let Ok(resp) = r2 {
+	if let Ok(resp) = resp_rank {
 		hot_entries.extend(parse_rank_page(resp));
 	}
 
@@ -285,21 +263,12 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 			resp.get_json_owned::<crate::models::ApiResponse<crate::models::FilterData>>()
 			&& let Some(data) = response.data
 		{
-			return crate::models::manga_list_from_filter(data.comic_list)
-				.entries
-				.into_iter()
-				.map(|manga| aidoku::Link {
-					title: manga.title.clone(),
-					subtitle: manga.authors.as_ref().and_then(|a| a.first()).cloned(),
-					image_url: manga.cover.clone(),
-					value: Some(aidoku::LinkValue::Manga(manga)),
-				})
-				.collect();
+			return data.comic_list.into_iter().map(Into::into).collect();
 		}
 		Vec::new()
 	}
 
-	let shounen_links = if let Ok(resp) = r3 {
+	let shounen_links = if let Ok(resp) = resp_shounen {
 		parse_audience_scroller(resp)
 	} else {
 		Vec::new()
@@ -317,7 +286,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		},
 	});
 
-	let shoujo_links = if let Ok(resp) = r4 {
+	let shoujo_links = if let Ok(resp) = resp_shoujo {
 		parse_audience_scroller(resp)
 	} else {
 		Vec::new()
@@ -335,7 +304,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		},
 	});
 
-	let seinen_links = if let Ok(resp) = r5 {
+	let seinen_links = if let Ok(resp) = resp_seinen {
 		parse_audience_scroller(resp)
 	} else {
 		Vec::new()
@@ -353,7 +322,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		},
 	});
 
-	let josei_links = if let Ok(resp) = r6 {
+	let josei_links = if let Ok(resp) = resp_josei {
 		parse_audience_scroller(resp)
 	} else {
 		Vec::new()
@@ -375,39 +344,46 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 }
 
 /// HTML structure: .briefnews_con_li contains .dec_img img (image) and h3 a (link)
+/// Used for parsing the news section which is not available via JSON API
 fn parse_manga_news_html(html: &str) -> Vec<aidoku::Link> {
 	let mut links = Vec::new();
-	let mut seen_ids: Vec<String> = Vec::new();
 
-	// Split by image markers and extract pairs
-	for (i, part) in html.split("images.zaimanhua.com/news/article/").enumerate() {
-		if i == 0 || links.len() >= 5 {
-			continue;
+	// Parse HTML, return empty if failed
+	let Ok(doc) = Html::parse(html) else {
+		return links;
+	};
+
+	// Use generic class selector (div or li)
+	if let Some(list) = doc.select(".briefnews_con_li") {
+		for el in list {
+			if links.len() >= 5 {
+				break;
+			}
+
+			let Some(img_node) = el.select_first(".dec_img img") else { continue };
+			let Some(image_url) = img_node.attr("src") else { continue };
+
+			let Some(link_node) = el.select_first("h3 a") else { continue };
+			let Some(title) = link_node.text() else { continue };
+			let Some(url) = link_node.attr("href") else { continue };
+
+			if image_url.is_empty() || url.is_empty() {
+				continue;
+			}
+
+			let full_url = if url.starts_with("http") {
+				url
+			} else {
+				format!("{}{}", net::NEWS_URL, url)
+			};
+
+			links.push(aidoku::Link {
+				title,
+				subtitle: None,
+				image_url: Some(image_url),
+				value: Some(aidoku::LinkValue::Url(full_url)),
+			});
 		}
-
-		// Extract article ID from image path (first segment after split)
-		let article_id: String = part.chars().take_while(|c| c.is_ascii_digit()).collect();
-
-		if article_id.is_empty() || seen_ids.contains(&article_id) {
-			continue;
-		}
-		seen_ids.push(article_id.clone());
-
-		// Extract full image URL (find the end quote)
-		let img_url_part: String = part
-			.chars()
-			.take_while(|c| *c != '"' && *c != '\'' && *c != ' ')
-			.collect();
-
-		let image_url = format!("https://images.zaimanhua.com/news/article/{}", img_url_part);
-		let news_url = format!("https://news.zaimanhua.com/article/{}.html", article_id);
-
-		links.push(aidoku::Link {
-			title: String::new(),
-			subtitle: None,
-			image_url: Some(image_url),
-			value: Some(aidoku::LinkValue::Url(news_url)),
-		});
 	}
 
 	links

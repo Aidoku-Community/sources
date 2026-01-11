@@ -2,6 +2,7 @@ use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Viewer,
 	alloc::{String, Vec, format, string::ToString, vec},
 	serde::Deserialize,
+	Link, LinkValue,
 };
 
 #[derive(Deserialize)]
@@ -103,6 +104,20 @@ impl From<FilterItem> for Manga {
 	}
 }
 
+impl From<FilterItem> for Link {
+	fn from(item: FilterItem) -> Self {
+		let subtitle = item.authors.clone();
+		let manga: Manga = item.into();
+		
+		Self {
+			title: manga.title.clone(),
+			subtitle,
+			image_url: manga.cover.clone(),
+			value: Some(LinkValue::Manga(manga)),
+		}
+	}
+}
+
 // === Rank API ===
 // Response: data[] with comic_id, title, authors, cover, status
 
@@ -122,12 +137,23 @@ impl From<RankItem> for Manga {
 		let authors = item.authors.map(|a| vec![a]);
 		let status = item.status.as_deref().map(parse_status).unwrap_or_default();
 
+		// Parse 热度
+		let num = item.num.unwrap_or(0);
+		let description = if num >= 10000 {
+			Some(format!("热度 {:.1}万", num as f64 / 10000.0))
+		} else if num > 0 {
+			Some(format!("热度 {}", num))
+		} else {
+			None
+		};
+
 		Self {
 			key,
 			title: item.title,
 			cover: item.cover,
 			authors,
 			status,
+			description,
 			content_rating: ContentRating::Safe,
 			..Default::default()
 		}
