@@ -11,7 +11,7 @@ use super::common::{
 	LibGroupAgeRestriction, LibGroupCover, LibGroupMediaType, LibGroupStatus, LibGroupTag,
 };
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupManga {
 	pub rus_name: String,
@@ -32,14 +32,14 @@ pub struct LibGroupManga {
 	pub status: LibGroupStatus,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupAuthor {
 	pub name: String,
 	pub rus_name: Option<String>,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupCoverItem {
 	pub cover: LibGroupCover,

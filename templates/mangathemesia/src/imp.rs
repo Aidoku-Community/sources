@@ -346,8 +346,8 @@ pub trait Impl {
 							.into();
 						Some(Manga {
 							key,
-							title: link
-								.select_first("span")
+							title: el
+								.select_first("a span")
 								.or_else(|| el.select_first(".title a"))
 								.and_then(|el| el.text())
 								.unwrap_or_default(),
@@ -356,12 +356,19 @@ pub trait Impl {
 								.and_then(|img| img.img_attr())
 								.or_else(|| {
 									el.select_first(".bigbanner").and_then(|el| {
-										if let Some(url) = el.attr("data-bg") {
+										let url = if let Some(url) = el.attr("data-bg") {
 											Some(url)
 										} else {
 											let style = el.attr("style")?;
 											helpers::extract_between(&style, "url('", "')")
 												.map(|s| s.into())
+										};
+										if let Some(url) = url.as_ref()
+											&& url.starts_with('/')
+										{
+											Some(format!("{}{url}", params.base_url))
+										} else {
+											url
 										}
 									})
 								}),
@@ -376,10 +383,13 @@ pub trait Impl {
 								.map(|els| els.filter_map(|el| el.text()).collect())
 								.and_then(|tags: Vec<String>| {
 									if tags.is_empty() {
-										el.select("span:contains(Genres)")
+										el.select_first("span:contains(Genres)")
+											.or_else(|| el.select_first(".type-genre > span"))
 											.and_then(|el| el.text())
 											.map(|s| {
-												s.trim_start_matches("Genres: ")
+												s.split_once(": ")
+													.unwrap_or(("", &s))
+													.1
 													.split(",")
 													.map(Into::into)
 													.collect()

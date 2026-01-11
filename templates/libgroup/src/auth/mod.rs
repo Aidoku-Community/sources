@@ -11,11 +11,12 @@ use aidoku::{
 use crate::{
 	context::Context,
 	endpoints::Url,
-	models::responses::{TokenResponse, UserResponse},
+	models::responses::{LocalStorageWrapper, TokenResponse, UserResponse},
 	settings::get_api_url,
 };
 
 const TOKEN_KEY: &str = "login";
+const AUTH_KEY: &str = "login.ls.auth";
 const USER_ID_KEY: &str = "user_id";
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
@@ -43,9 +44,10 @@ impl AuthRequest for Request {
 			.header("User-Agent", USER_AGENT);
 
 		if let Ok(token) = get_token()
-			&& let Some(access_token) = token.access_token
+			&& let Some(access_token) = &token.access_token
 		{
-			self = self.header(HEADER_AUTH, &format!("{AUTH_SCHEME} {access_token}"));
+			let scheme = token.token_type.as_deref().unwrap_or(AUTH_SCHEME);
+			self = self.header(HEADER_AUTH, &format!("{scheme} {access_token}"));
 		}
 
 		let response = self.send()?;
@@ -54,15 +56,16 @@ impl AuthRequest for Request {
 		if response.status_code() == 401
 			&& refresh_token().is_ok()
 			&& let Ok(new_token) = get_token()
-			&& let Some(access_token) = new_token.access_token
+			&& let Some(access_token) = &new_token.access_token
 		{
+			let scheme = new_token.token_type.as_deref().unwrap_or(AUTH_SCHEME);
 			return Ok(response
 				.into_request()
 				.header("Origin", &ctx.base_url)
 				.header("Referer", &ctx.api_url)
 				.header("Site-Id", &ctx.site_id.to_string())
 				.header("User-Agent", USER_AGENT)
-				.header(HEADER_AUTH, &format!("{AUTH_SCHEME} {access_token}"))
+				.header(HEADER_AUTH, &format!("{scheme} {access_token}"))
 				.send()?);
 		}
 
@@ -72,8 +75,17 @@ impl AuthRequest for Request {
 
 /// Retrieves the stored authentication token from defaults.
 fn get_token() -> Result<TokenResponse> {
-	defaults_get_json::<TokenResponse>(TOKEN_KEY)
-		.map_err(|_| AidokuError::Message("No token".into()))
+	if let Ok(token) = defaults_get_json::<TokenResponse>(TOKEN_KEY) {
+		return Ok(token);
+	}
+	if let Ok(wrapper) = defaults_get_json::<LocalStorageWrapper>(AUTH_KEY) {
+		return Ok(wrapper.token);
+	}
+	bail!("No token")
+}
+
+pub fn is_authorized() -> bool {
+	get_token().is_ok()
 }
 
 /// Retrieves the stored user ID from defaults.
