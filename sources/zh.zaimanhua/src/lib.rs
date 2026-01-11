@@ -280,6 +280,7 @@ impl DynamicSettings for Zaimanhua {
 			LoginSetting {
 				key: "login".into(),
 				title: "登录".into(),
+				logout_title: Some("登出".into()),
 				notification: Some("login".into()), // Fires on login state change (GigaViewer pattern)
 				method: LoginMethod::Basic,
 				refreshes: Some(vec!["settings".into(), "content".into(), "listings".into()]),

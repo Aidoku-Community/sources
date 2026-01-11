@@ -4,7 +4,6 @@ use crate::settings;
 use aidoku::{
 	FilterValue, Manga, MangaPageResult, Result,
 	alloc::{String, Vec, format, string::ToString},
-	error,
 	imports::net::Request,
 };
 use hashbrown::HashSet;
@@ -27,7 +26,9 @@ pub fn search_by_keyword(keyword: &str, page: i32) -> Result<MangaPageResult> {
 	// standard source query
 	let search_response: models::ApiResponse<models::SearchData> =
 		net::Url::Search { keyword, page, size: 20 }.request()?.json_owned()?;
-	let search_data = search_response.data.ok_or_else(|| error!("Missing data"))?;
+	let Some(search_data) = search_response.data else {
+		return Ok(MangaPageResult::default());
+	};
 
 	let mut search_results: Vec<Manga> = search_data.list.into_iter().map(Into::into).collect();
 	let search_total = search_data.total.unwrap_or(0) as i32;
