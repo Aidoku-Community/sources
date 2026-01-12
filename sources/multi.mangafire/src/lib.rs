@@ -1,7 +1,8 @@
 #![no_std]
 use aidoku::{
-	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider,
-	Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, Source, Viewer,
+	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider,
+	Listing, ListingProvider, Manga, MangaPageResult, MangaStatus, Page, PageContent, PageContext,
+	Result, Source, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -327,6 +328,12 @@ impl ListingProvider for MangaFire {
 	}
 }
 
+impl ImageRequestProvider for MangaFire {
+	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
+		Ok(Request::get(url)?.header("Referer", &format!("{BASE_URL}/")))
+	}
+}
+
 impl DeepLinkHandler for MangaFire {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		let Some(path) = url.strip_prefix(BASE_URL) else {
@@ -382,4 +389,10 @@ fn parse_manga_page(html: &Document) -> MangaPageResult {
 	}
 }
 
-register_source!(MangaFire, Home, ListingProvider, DeepLinkHandler);
+register_source!(
+	MangaFire,
+	Home,
+	ListingProvider,
+	ImageRequestProvider,
+	DeepLinkHandler
+);
