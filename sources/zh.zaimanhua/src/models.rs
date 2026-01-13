@@ -15,16 +15,40 @@ pub struct ApiResponse<T> {
 #[derive(Deserialize)]
 pub struct SearchData {
 	pub list: Vec<SearchItem>,
-	pub total: Option<i64>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct SearchItem {
 	pub id: i64, // Primary ID (comic_id is always 0 in search)
 	pub title: String,
 	pub cover: Option<String>,
 	pub authors: Option<String>,
 	pub status: Option<String>,
+}
+
+impl SearchItem {
+	pub fn matches_author(&self, target_author: &str) -> bool {
+		let authors_str = self.authors.as_deref().unwrap_or("");
+		if authors_str.is_empty() {
+			return false;
+		}
+
+		let separators = ['/', ',', '，', '、', '&', ';'];
+		let parts = authors_str.split(|c| separators.contains(&c));
+
+		for part in parts {
+			let trimmed = part.trim();
+			if trimmed.eq_ignore_ascii_case(target_author) {
+				return true;
+			}
+		}
+
+		if target_author.len() > 3 || !target_author.is_ascii() {
+			return authors_str.to_lowercase().contains(&target_author.to_lowercase());
+		}
+
+		false
+	}
 }
 
 impl From<SearchItem> for Manga {
@@ -64,25 +88,57 @@ pub struct FilterItem {
 }
 
 impl FilterItem {
+	/// Convert into MangaWithChapter, consuming self completely.
+	/// Builds both Manga and Chapter directly to avoid clone/take overhead.
 	pub fn into_manga_with_chapter(self) -> MangaWithChapter {
-		// Extract chapter-specific data before consuming self
-		let chapter_id = self.last_update_chapter_id.unwrap_or(0).to_string();
-		let chapter_key = format!("{}/{}", self.id, chapter_id);
-		let chapter_title = self.last_update_chapter_name.clone();
-		let chapter_date = self.last_updatetime;
-
-		// Now consume self for Manga
-		let manga: Manga = self.into();
+		let key = self.id.to_string();
+		let chapter_key = format!("{}/{}", self.id, self.last_update_chapter_id.unwrap_or(0));
+		let authors = self.authors.map(|a| vec![a]);
+		let status = self.status.as_deref().map(parse_status).unwrap_or_default();
 
 		MangaWithChapter {
-			manga,
+			manga: Manga {
+				key,
+				title: self.name,
+				cover: self.cover,
+				authors,
+				status,
+				content_rating: ContentRating::Safe,
+				..Default::default()
+			},
 			chapter: Chapter {
 				key: chapter_key,
-				title: chapter_title,
-				date_uploaded: chapter_date,
+				title: self.last_update_chapter_name,
+				date_uploaded: self.last_updatetime,
 				..Default::default()
 			},
 		}
+	}
+
+	/// Check if this item matches a specific author name.
+	/// Handles splitting by common separators and exact/loose matching.
+	pub fn matches_author(&self, target_author: &str) -> bool {
+		let authors_str = self.authors.as_deref().unwrap_or("");
+		if authors_str.is_empty() {
+			return false;
+		}
+
+		let separators = ['/', ',', '，', '、', '&', ';'];
+		let parts = authors_str.split(|c| separators.contains(&c));
+
+		for part in parts {
+			let trimmed = part.trim();
+			if trimmed.eq_ignore_ascii_case(target_author) {
+				return true;
+			}
+		}
+
+		// Allow loose matching only for specific queries (Multibyte or >3 chars)
+		if target_author.len() > 3 || !target_author.is_ascii() {
+			return authors_str.to_lowercase().contains(&target_author.to_lowercase());
+		}
+
+		false
 	}
 }
 
@@ -106,14 +162,26 @@ impl From<FilterItem> for Manga {
 
 impl From<FilterItem> for Link {
 	fn from(item: FilterItem) -> Self {
-		let subtitle = item.authors.clone();
-		let manga: Manga = item.into();
-		
+		// Build directly to avoid clone overhead
+		let key = item.id.to_string();
+		let title = item.name;
+		let subtitle = item.authors;
+		let cover = item.cover;
+		let status = item.status.as_deref().map(parse_status).unwrap_or_default();
+
 		Self {
-			title: manga.title.clone(),
+			title: title.clone(),
 			subtitle,
-			image_url: manga.cover.clone(),
-			value: Some(LinkValue::Manga(manga)),
+			image_url: cover.clone(),
+			value: Some(LinkValue::Manga(Manga {
+				key,
+				title,
+				cover,
+				authors: None, // Link doesn't need authors in Manga
+				status,
+				content_rating: ContentRating::Safe,
+				..Default::default()
+			})),
 		}
 	}
 }
@@ -137,23 +205,12 @@ impl From<RankItem> for Manga {
 		let authors = item.authors.map(|a| vec![a]);
 		let status = item.status.as_deref().map(parse_status).unwrap_or_default();
 
-		// Parse 热度
-		let num = item.num.unwrap_or(0);
-		let description = if num >= 10000 {
-			Some(format!("热度 {:.1}万", num as f64 / 10000.0))
-		} else if num > 0 {
-			Some(format!("热度 {}", num))
-		} else {
-			None
-		};
-
 		Self {
 			key,
 			title: item.title,
 			cover: item.cover,
 			authors,
 			status,
-			description,
 			content_rating: ContentRating::Safe,
 			..Default::default()
 		}
@@ -170,8 +227,6 @@ pub struct DetailData {
 
 #[derive(Deserialize, Clone)]
 pub struct MangaDetail {
-	#[allow(dead_code)]
-	pub id: i64,
 	pub title: Option<String>,
 	pub cover: Option<String>,
 	pub description: Option<String>,
@@ -400,8 +455,6 @@ pub fn manga_list_from_subscribes(items: Vec<SubscribeItem>) -> MangaPageResult 
 #[derive(Deserialize)]
 pub struct RecommendCategory {
 	pub category_id: i64,
-	#[allow(dead_code)]
-	pub title: String,
 	pub data: Vec<RecommendItem>,
 }
 

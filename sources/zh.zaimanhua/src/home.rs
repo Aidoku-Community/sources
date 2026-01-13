@@ -1,4 +1,6 @@
 use crate::net;
+use crate::settings;
+use crate::V4_API_URL;
 use aidoku::{
 	HomeComponent, HomeLayout, HomePartialResult, Listing, ListingKind, Manga, MangaStatus,
 	MangaWithChapter, Result,
@@ -6,13 +8,22 @@ use aidoku::{
 	imports::net::RequestError,
 	imports::net::{Request, Response},
 	imports::std::send_partial_result,
-	imports::html::Html,
+	imports::html::Document,
 };
 
 use crate::models::{ApiResponse, DetailData};
 
 /// Build the home page layout
 pub fn get_home_layout() -> Result<HomeLayout> {
+	// Auto check-in when entering home (moved from Source::new to avoid blocking init)
+	if let Some(token) = settings::get_token()
+		&& settings::get_auto_checkin()
+		&& !settings::has_checkin_flag()
+		&& let Ok(true) = net::check_in(&token)
+	{
+		settings::set_last_checkin();
+	}
+
 	send_partial_result(&HomePartialResult::Layout(HomeLayout {
 		components: vec![
 			HomeComponent {
@@ -58,35 +69,45 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		],
 	}));
 
-	// Build parallel requests using Url enum
+	// Build parallel requests using inline URLs
 	let manga_news_url = "https://news.zaimanhua.com/manhuaqingbao";
+	let token = settings::get_current_token();
+	let token_ref = token.as_deref();
+
+	let recommend_url = format!("{}/comic/recommend/list", V4_API_URL);
+	let latest_url = format!("{}/comic/filter/list?sortType=1&page=1&size=20", V4_API_URL);
+	let rank_url = format!("{}/comic/rank/list?rank_type=0&by_time=2&page=1", V4_API_URL);
+	let shounen_url = format!("{}/comic/filter/list?cate=3262&size=20&page=1", V4_API_URL);
+	let shoujo_url = format!("{}/comic/filter/list?cate=3263&size=20&page=1", V4_API_URL);
+	let seinen_url = format!("{}/comic/filter/list?cate=3264&size=20&page=1", V4_API_URL);
+	let josei_url = format!("{}/comic/filter/list?cate=13626&size=20&page=1", V4_API_URL);
 
 	let requests = [
-		net::Url::Recommend.request()?,                               // 0: recommend
-		net::Url::Filter { params: "sortType=1", page: 1, size: 20 }.request()?, // 1: latest
-		net::Url::Rank { by_time: 2, page: 1 }.request()?,            // 2: rank
-		net::Url::Category { cate: 3262, page: 1, size: 20 }.request()?, // 3: 少年漫画
-		net::Url::Category { cate: 3263, page: 1, size: 20 }.request()?, // 4: 少女漫画
-		net::Url::Category { cate: 3264, page: 1, size: 20 }.request()?, // 5: 男青漫画
-		net::Url::Category { cate: 13626, page: 1, size: 20 }.request()?, // 6: 女青漫画
-		net::get_request(manga_news_url)?,                            // 7: 漫画情报 HTML
+		net::get_request(&recommend_url)?,   // 0: recommend (no auth needed)
+		net::auth_request(&latest_url, token_ref)?,                              // 1: latest
+		net::auth_request(&rank_url, token_ref)?,                                // 2: rank
+		net::auth_request(&shounen_url, token_ref)?,                             // 3: 少年漫画
+		net::auth_request(&shoujo_url, token_ref)?,                              // 4: 少女漫画
+		net::auth_request(&seinen_url, token_ref)?,                              // 5: 男青漫画
+		net::auth_request(&josei_url, token_ref)?,                               // 6: 女青漫画
+		net::get_request(manga_news_url)?,  // 7: 漫画情报 HTML
 	];
 
 	let responses: [core::result::Result<Response, RequestError>; 8] = Request::send_all(requests)
 		.try_into()
-		.map_err(|_| aidoku::error!("Failed to convert responses"))?;
+		.map_err(|_| aidoku::error!("Response conversion failed"))?;
 
-	let [resp_recommend, resp_latest, resp_rank, resp_shounen, resp_shoujo, resp_seinen, resp_josei, mut resp_news] = responses;
+	let [resp_recommend, resp_latest, resp_rank, resp_shounen, resp_shoujo, resp_seinen, resp_josei, resp_news] = responses;
 
 	let mut components = Vec::new();
 
 	let mut big_scroller_manga: Vec<Manga> = Vec::new(); // For 109
 	let mut banner_links: Vec<aidoku::Link> = Vec::new();
 
-	if let Ok(ref mut resp) = resp_news
-		&& let Ok(html) = resp.get_string()
+	if let Ok(resp) = resp_news
+		&& let Ok(doc) = resp.get_html()
 	{
-		banner_links = parse_manga_news_html(&html);
+		banner_links = parse_manga_news_doc(doc);
 	}
 
 	// Parse recommend/list response - returns raw List, NOT ApiResponse
@@ -94,65 +115,46 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		&& let Ok(categories) = resp.get_json_owned::<Vec<crate::models::RecommendCategory>>()
 	{
 		for cat in categories {
-			let manga_list: Vec<Manga> = cat
-				.data
-				.iter()
-				.filter(|item| item.obj_id > 0)
-				.map(|item| Manga {
-					key: item.obj_id.to_string(),
-					title: item.title.clone(),
-					authors: Some(vec![item.sub_title.clone().unwrap_or_default()]),
-					cover: Some(item.cover.clone().unwrap_or_default()),
-					status: MangaStatus::Unknown,
-					..Default::default()
-				})
-				.collect();
-
-			if manga_list.is_empty() {
+			// Only handle category 109 (Premium Recommend) as BigScroller
+			if cat.category_id != 109 || cat.data.is_empty() {
 				continue;
 			}
 
-			// Only handle category 109 (Premium Recommend) as BigScroller
-			if cat.category_id == 109 {
-				big_scroller_manga = cat.data.iter()
-					// Filter only Manga type (1) to avoid Topics/Ads
-					.filter(|item| item.obj_id > 0 && item.item_type == 1)
-					.map(|item| {
-						let mut real_title = item.title.clone();
-						let mut manga_cover = item.cover.clone().unwrap_or_default();
+			big_scroller_manga = cat.data.into_iter()
+				// Filter only Manga type (1) to avoid Topics/Ads
+				.filter(|item| item.obj_id > 0 && item.item_type == 1)
+				.map(|item| {
+					let mut real_title = item.title.clone();
+					let mut manga_cover = item.cover.clone().unwrap_or_default();
 
-						// Fetch details for high-res assets
-						// Try to update title/cover from detail API
-						if let Ok(req) = Request::get(format!("https://v4api.zaimanhua.com/app/v1/comic/detail/{}", item.obj_id))
-							&& let Ok(resp) = req.json_owned::<ApiResponse<DetailData>>()
-							&& let Some(detail_root) = resp.data
-							&& let Some(detail) = detail_root.data
+					// Fetch details for high-res assets
+					if let Ok(req) = net::get_request(&format!("{}/comic/detail/{}", V4_API_URL, item.obj_id))
+						&& let Ok(resp) = req.json_owned::<ApiResponse<DetailData>>()
+						&& let Some(detail_root) = resp.data
+						&& let Some(detail) = detail_root.data
+					{
+						if let Some(t) = detail.title {
+							real_title = t;
+						}
+
+						if let Some(c) = detail.cover
+							&& !c.is_empty()
 						{
-							if let Some(t) = detail.title {
-								real_title = t;
-							}
-
-							// We also need to get the cover if available to be safe
-							if let Some(c) = detail.cover
-								&& !c.is_empty()
-							{
-								manga_cover = c;
-							}
+							manga_cover = c;
 						}
+					}
 
-						Manga {
-							key: item.obj_id.to_string(),
-							title: real_title, // Real Manga Title
-							authors: Some(vec![item.sub_title.clone().unwrap_or_default()]), // Author
-							// Editorial remark goes to description/subtitle equivalent in BigScroller
-							description: Some(item.title.clone()),
-							cover: Some(manga_cover),
-							status: MangaStatus::Unknown,
-							..Default::default()
-						}
-					})
-					.collect();
-			}
+					Manga {
+						key: item.obj_id.to_string(),
+						title: real_title,
+						authors: Some(vec![item.sub_title.unwrap_or_default()]),
+						description: Some(item.title),
+						cover: Some(manga_cover),
+						status: MangaStatus::Unknown,
+						..Default::default()
+					}
+				})
+				.collect();
 		}
 	}
 
@@ -345,13 +347,8 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 
 /// HTML structure: .briefnews_con_li contains .dec_img img (image) and h3 a (link)
 /// Used for parsing the news section which is not available via JSON API
-fn parse_manga_news_html(html: &str) -> Vec<aidoku::Link> {
+fn parse_manga_news_doc(doc: Document) -> Vec<aidoku::Link> {
 	let mut links = Vec::new();
-
-	// Parse HTML, return empty if failed
-	let Ok(doc) = Html::parse(html) else {
-		return links;
-	};
 
 	// Use generic class selector (div or li)
 	if let Some(list) = doc.select(".briefnews_con_li") {

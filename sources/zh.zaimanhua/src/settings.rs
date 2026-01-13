@@ -9,8 +9,25 @@ const AUTO_CHECKIN_KEY: &str = "autoCheckin";
 const LAST_CHECKIN_KEY: &str = "lastCheckin";
 const ENHANCED_MODE_KEY: &str = "enhancedMode";
 const SHOW_HIDDEN_KEY: &str = "showHiddenContent";
+const USERNAME_KEY: &str = "username";
+const PASSWORD_KEY: &str = "password";
 
 // === Authentication ===
+
+pub fn get_credentials() -> Option<(String, String)> {
+	let username = defaults_get::<String>(USERNAME_KEY)?;
+	let password = defaults_get::<String>(PASSWORD_KEY)?;
+	if username.is_empty() || password.is_empty() {
+		None
+	} else {
+		Some((username, password))
+	}
+}
+
+pub fn set_credentials(username: &str, password: &str) {
+	defaults_set(USERNAME_KEY, DefaultValue::String(username.to_string()));
+	defaults_set(PASSWORD_KEY, DefaultValue::String(password.to_string()));
+}
 
 pub fn get_token() -> Option<String> {
 	defaults_get::<String>(TOKEN_KEY).filter(|s: &String| !s.is_empty())
@@ -22,6 +39,16 @@ pub fn set_token(token: &str) {
 
 pub fn clear_token() {
 	defaults_set(TOKEN_KEY, DefaultValue::Null);
+	defaults_set(USERNAME_KEY, DefaultValue::Null);
+	defaults_set(PASSWORD_KEY, DefaultValue::Null);
+}
+
+pub fn get_current_token() -> Option<String> {
+	if get_enhanced_mode() {
+		get_token()
+	} else {
+		None
+	}
 }
 
 // === Login State Flag (for logout detection) ===
@@ -45,18 +72,21 @@ pub fn get_auto_checkin() -> bool {
 }
 
 pub fn has_checkin_flag() -> bool {
-	let last_time_str = defaults_get::<String>(LAST_CHECKIN_KEY).unwrap_or_default();
-	let last_time = last_time_str.parse::<i64>().unwrap_or(0);
-	let current_time = aidoku::imports::std::current_date(); 
-	let offset = 28800;
-	let last_day = (last_time + offset) / 86400;
+	let last_day_str = defaults_get::<String>(LAST_CHECKIN_KEY).unwrap_or_default();
+	let last_day = last_day_str.parse::<i64>().unwrap_or(-1);
+	
+	let current_time = aidoku::imports::std::current_date();
+	let offset = 28800; // Beijing Time (UTC+8)
 	let current_day = (current_time + offset) / 86400;
+
 	last_day == current_day
 }
 
 pub fn set_last_checkin() {
 	let now = aidoku::imports::std::current_date();
-	defaults_set(LAST_CHECKIN_KEY, DefaultValue::String(now.to_string()));
+	let offset = 28800;
+	let day_id = (now + offset) / 86400;
+	defaults_set(LAST_CHECKIN_KEY, DefaultValue::String(day_id.to_string()));
 }
 
 pub fn clear_checkin_flag() {

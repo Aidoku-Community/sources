@@ -1,104 +1,19 @@
 use crate::models;
 use crate::settings;
+
+use crate::{V4_API_URL, USER_AGENT};
 use aidoku::{
 	Result,
 	alloc::{String, Vec, format, string::ToString},
-	helpers::uri::encode_uri_component,
 	imports::net::Request,
+	serde::de::DeserializeOwned,
 };
-use core::fmt::{Display, Formatter, Result as FmtResult};
 
 pub const ACCOUNT_API: &str = "https://account-api.zaimanhua.com/v1/";
 pub const SIGN_API: &str = "https://i.zaimanhua.com/lpi/v1/";
-pub const V4_API_URL: &str = "https://v4api.zaimanhua.com/app/v1";
 pub const NEWS_URL: &str = "https://news.zaimanhua.com";
-pub const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
-
-// === API URL Builder ===
-// Centralized enum for type-safe URL construction.
-/// Centralized URL construction for all API endpoints
-pub enum Url<'a> {
-	/// Search by keyword: /search/index?keyword={}&source=0&page={}&size={}
-	Search { keyword: &'a str, page: i32, size: i32 },
-	/// Filter list: /comic/filter/list?{params}&page={}&size={}
-	Filter { params: &'a str, page: i32, size: i32 },
-	/// Category filter: /comic/filter/list?cate={}&size={}&page={}
-	Category { cate: i32, page: i32, size: i32 },
-	/// Manga detail: /comic/detail/{}?channel=android
-	Manga { id: &'a str },
-	/// Chapter pages: /comic/chapter/{comic_id}/{chapter_id}
-	ChapterPages { comic_id: &'a str, chapter_id: &'a str },
-	/// Rank list: /comic/rank/list?rank_type=0&by_time={}&page={}
-	Rank { by_time: i32, page: i32 },
-	/// Recommend list: /comic/recommend/list
-	Recommend,
-	/// Tag-based filter: /comic/filter/list?theme={}&page={}&size={}
-	Theme { theme_id: i64, page: i32, size: i32 },
-	/// Subscribe list: /subscribe/list
-	Subscribe { page: i32 },
-}
-
-impl Display for Url<'_> {
-	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-		match self {
-			Url::Search { keyword, page, size } => {
-				write!(f, "{}/search/index?keyword={}&source=0&page={}&size={}",
-					V4_API_URL, encode_uri_component(keyword), page, size)
-			}
-			Url::Filter { params, page, size } => {
-				write!(f, "{}/comic/filter/list?{}&page={}&size={}",
-					V4_API_URL, params, page, size)
-			}
-			Url::Category { cate, page, size } => {
-				write!(f, "{}/comic/filter/list?cate={}&size={}&page={}",
-					V4_API_URL, cate, size, page)
-			}
-			Url::Manga { id } => {
-				write!(f, "{}/comic/detail/{}?channel=android", V4_API_URL, id)
-			}
-			Url::ChapterPages { comic_id, chapter_id } => {
-				write!(f, "{}/comic/chapter/{}/{}", V4_API_URL, comic_id, chapter_id)
-			}
-			Url::Rank { by_time, page } => {
-				write!(f, "{}/comic/rank/list?rank_type=0&by_time={}&page={}",
-					V4_API_URL, by_time, page)
-			}
-			Url::Recommend => {
-				write!(f, "{}/comic/recommend/list", V4_API_URL)
-			}
-			Url::Theme { theme_id, page, size } => {
-				write!(f, "{}/comic/filter/list?theme={}&page={}&size={}",
-					V4_API_URL, theme_id, page, size)
-			}
-			Url::Subscribe { page } => {
-				write!(f, "{}/comic/sub/list?status=0&firstLetter=&page={}&size=50", V4_API_URL, page)
-			}
-		}
-	}
-}
-
-impl Url<'_> {
-	/// Create a Request for this URL, with auth if Enhanced Mode is active
-	pub fn request(&self) -> Result<Request> {
-		get_api_request(&self.to_string())
-	}
-}
 
 // === HTTP Request Helpers ===
-// Standardized headers and auth injection.
-
-/// Create a GET request, attaching auth token if Enhanced Mode is active.
-pub fn get_api_request(url: &str) -> Result<Request> {
-	if let Some(token) = settings::get_token() {
-		if settings::get_enhanced_mode() {
-			auth_request(url, &token)
-		} else {
-			get_request(url)
-		}
-	} else {
-		get_request(url)
-	}
-}
 
 pub fn md5_hex(input: &str) -> String {
 	let digest = md5::compute(input.as_bytes());
@@ -115,14 +30,44 @@ pub fn post_request(url: &str) -> Result<Request> {
 		.header("Content-Type", "application/x-www-form-urlencoded"))
 }
 
-pub fn auth_request(url: &str, token: &str) -> Result<Request> {
-	Ok(Request::get(url)?
-		.header("User-Agent", USER_AGENT)
-		.header("Authorization", &format!("Bearer {}", token)))
+pub fn auth_request(url: &str, token: Option<&str>) -> Result<Request> {
+	match token {
+		Some(t) => Ok(Request::get(url)?
+			.header("User-Agent", USER_AGENT)
+			.header("Authorization", &format!("Bearer {}", t))),
+		None => get_request(url),
+	}
 }
 
 // === API Methods ===
-// Specific API implementations (Login, Check-in, UserInfo).
+
+/// Attempts to refresh the token using stored credentials.
+/// Returns Ok(Some(new_token)) if successful, Ok(None) if no credentials or login failed.
+pub fn try_refresh_token() -> Result<Option<String>> {
+	if let Some((username, password)) = settings::get_credentials()
+		&& let Ok(Some(new_token)) = login(&username, &password)
+	{
+		settings::set_token(&new_token);
+		return Ok(Some(new_token));
+	}
+	Ok(None)
+}
+
+pub fn send_authed_request<T: DeserializeOwned>(
+	url: &str,
+	token: Option<&str>,
+) -> Result<models::ApiResponse<T>> {
+	let req = auth_request(url, token)?;
+	let resp: models::ApiResponse<T> = req.send()?.get_json_owned()?;
+
+	if resp.errno.unwrap_or(0) == 99
+		&& let Ok(Some(new_token)) = try_refresh_token() 
+	{
+		// Retry with new token
+		return auth_request(url, Some(&new_token))?.send()?.get_json_owned();
+	}
+	Ok(resp)
+}
 
 /// Authenticates via username/password and extracts the user token.
 pub fn login(username: &str, password: &str) -> Result<Option<String>> {
@@ -144,7 +89,6 @@ pub fn login(username: &str, password: &str) -> Result<Option<String>> {
 pub fn check_in(token: &str) -> Result<bool> {
 	let url = format!("{}task/sign_in", SIGN_API);
 
-	// Success response has empty data; validate via errno only.
 	let response: models::ApiResponse<aidoku::serde::de::IgnoredAny> = Request::post(&url)?
 		.header("User-Agent", USER_AGENT)
 		.header("Authorization", &format!("Bearer {}", token))
@@ -157,27 +101,29 @@ pub fn check_in(token: &str) -> Result<bool> {
 pub fn get_user_info(token: &str) -> Result<models::UserInfoData> {
 	let url = format!("{}userInfo/get", SIGN_API);
 	let response: models::ApiResponse<models::UserInfoData> =
-		auth_request(&url, token)?.json_owned()?;
+		send_authed_request(&url, Some(token))?;
 	response
 		.data
-		.ok_or_else(|| aidoku::error!("Missing user info data"))
+		.ok_or_else(|| aidoku::error!("Missing user info"))
 }
 
 // === Hidden Content Scanner ===
-// Iterator-based lazy loader for "Hidden" content batching.
+
 /// Scanner for hidden content, implementing Iterator for lazy fetching
 pub struct HiddenContentScanner {
 	current_page: i32,
 	scanned_batches: i32,
 	max_batches: i32,
+	token: Option<String>,
 }
 
 impl HiddenContentScanner {
-	pub fn new(start_page: i32, max_batches: i32) -> Self {
+	pub fn new(start_page: i32, max_batches: i32, token: Option<&str>) -> Self {
 		Self {
 			current_page: start_page,
 			scanned_batches: 0,
 			max_batches,
+			token: token.map(|s| s.to_string()),
 		}
 	}
 }
@@ -193,35 +139,63 @@ impl Iterator for HiddenContentScanner {
 		let mut batch_found = false;
 		let mut items: Vec<models::FilterItem> = Vec::new();
 
-		// Inner loop to skip empty batches (up to remaining allowance)
-		// We consume our "allowance" of retries even if we skip
 		while self.scanned_batches < self.max_batches {
 			self.scanned_batches += 1;
 			let end_page = self.current_page + 4;
-			
-			// Fetch 5 pages
-			let requests: Vec<Request> = (self.current_page..=end_page)
-				.filter_map(|p| Url::Filter { params: "sortType=1", page: p, size: 100 }.request().ok())
-				.collect();
 
-			items = Request::send_all(requests)
+			// === Parallel Batch Scan ===
+			// Efficiently fetch multiple pages at once to find hidden content quickly.
+			let make_requests = |token: Option<&str>| -> Vec<Request> {
+				(self.current_page..=end_page)
+					.filter_map(|p| {
+						let url = format!("{}/comic/filter/list?sortType=1&page={}&size=100", V4_API_URL, p);
+						auth_request(&url, token).ok()
+					})
+					.collect()
+			};
+
+			let requests = make_requests(self.token.as_deref());
+			let responses = Request::send_all(requests);
+
+			let mut parsed_responses: Vec<models::ApiResponse<models::FilterData>> = responses
 				.into_iter()
 				.flatten()
-				.filter_map(|resp| {
-					resp.get_json_owned::<models::ApiResponse<models::FilterData>>()
-						.ok()
-						.and_then(|r| r.data)
-				})
+				.filter_map(|resp| resp.get_json_owned().ok())
+				.collect();
+
+			let has_auth_error = parsed_responses.iter().any(|r| r.errno.unwrap_or(0) == 99);
+
+			if has_auth_error
+				&& let Ok(Some(new_token)) = try_refresh_token()
+			{
+				self.token = Some(new_token.clone());
+				
+				// Retry the batch with the new token
+				let requests = make_requests(Some(&new_token));
+				let responses = Request::send_all(requests);
+				parsed_responses = responses
+					.into_iter()
+					.flatten()
+					.filter_map(|resp| resp.get_json_owned().ok())
+					.collect();
+			}
+
+			items = parsed_responses
+				.into_iter()
+				.filter_map(|r| r.data)
 				.flat_map(|data| data.comic_list)
 				.collect();
 
-			self.current_page += 5; // Advance for next time
+			self.current_page += 5;
 
 			if !items.is_empty() {
 				batch_found = true;
 				break;
 			}
-			// If empty, loop continues, effectively "skipping" this batch
+			// Early exit: if first batch is empty, don't waste time
+			if self.scanned_batches == 1 {
+				break;
+			}
 		}
 
 		if batch_found {

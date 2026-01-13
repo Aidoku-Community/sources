@@ -7,7 +7,8 @@ use aidoku::{
 	LoginSetting, Manga, MangaPageResult, NotificationHandler, Page, PageContent, PageContext,
 	Result, Setting, Source, ToggleSetting,
 	alloc::{String, Vec, format, vec},
-	imports::net::Request,
+	helpers::uri::QueryParameters,
+	imports::net::{Request, set_rate_limit, TimeUnit},
 	prelude::*,
 };
 
@@ -18,6 +19,8 @@ mod net;
 mod settings;
 
 pub const BASE_URL: &str = "https://www.zaimanhua.com/";
+pub const V4_API_URL: &str = "https://v4api.zaimanhua.com/app/v1";
+pub const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
 struct Zaimanhua;
 
@@ -26,14 +29,7 @@ struct Zaimanhua;
 
 impl Source for Zaimanhua {
 	fn new() -> Self {
-		// Try auto check-in on source init if logged in and not checked in today
-		if let Some(token) = settings::get_token()
-			&& settings::get_auto_checkin()
-			&& !settings::has_checkin_flag()
-			&& let Ok(true) = net::check_in(&token)
-		{
-			settings::set_last_checkin();
-		}
+		set_rate_limit(5, 1, TimeUnit::Seconds); // 5 requests per second
 		Self
 	}
 
@@ -43,6 +39,7 @@ impl Source for Zaimanhua {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
+		// Handle text filters (author search or keyword search)
 		for filter in filters.iter() {
 			if let FilterValue::Text { id, value } = filter {
 				if id == "author" {
@@ -52,13 +49,60 @@ impl Source for Zaimanhua {
 			}
 		}
 
+		// Handle query bar search
 		if let Some(ref keyword) = query
 			&& !keyword.is_empty()
 		{
 			return helpers::search_by_keyword(keyword, page);
 		}
 
-		helpers::browse_with_filters(&filters, page)
+		// === Filter Browsing (inline for Locality of Behavior) ===
+		let mut sort_type: Option<&str> = None;
+		let mut zone: Option<&str> = None;
+		let mut status: Option<&str> = None;
+		let mut cate: Option<&str> = None;
+		let mut theme: Option<&str> = None;
+		let mut rank_mode: Option<&str> = None;
+
+		for filter in filters.iter() {
+			if let FilterValue::Select { id, value } = filter {
+				match id.as_str() {
+					"排序" => sort_type = Some(value.as_str()),
+					"地区" => zone = Some(value.as_str()),
+					"状态" => status = Some(value.as_str()),
+					"受众" => cate = Some(value.as_str()),
+					"题材" => theme = Some(value.as_str()),
+					"榜单" => rank_mode = Some(value.as_str()),
+					_ => {}
+				}
+			}
+		}
+
+		// Handle rank mode
+		if let Some(mode @ ("1" | "2" | "3" | "4")) = rank_mode {
+			let by_time = mode.parse::<i32>().unwrap_or(1) - 1;
+			let url = format!("{}/comic/rank/list?rank_type=0&by_time={}&page={}", V4_API_URL, by_time, page);
+			let response: models::ApiResponse<Vec<models::RankItem>> =
+				net::auth_request(&url, settings::get_current_token().as_deref())?.json_owned()?;
+			let data = response.data.ok_or_else(|| error!("Missing rank data"))?;
+			return Ok(models::manga_list_from_ranks(data));
+		}
+
+		// Build filter query
+		let mut qs = QueryParameters::new();
+		qs.push("sortType", Some(sort_type.unwrap_or("1")));
+		qs.push("cate", Some(cate.unwrap_or("0")));
+		qs.push("status", Some(status.unwrap_or("0")));
+		qs.push("zone", Some(zone.unwrap_or("0")));
+		qs.push("theme", Some(theme.unwrap_or("0")));
+
+		let url = format!("{}/comic/filter/list?{}&page={}&size=20", V4_API_URL, qs, page);
+		let response: models::ApiResponse<models::FilterData> =
+			net::auth_request(&url, settings::get_current_token().as_deref())?.json_owned()?;
+		let data = response.data
+			.map(|d| d.comic_list)
+			.ok_or_else(|| error!("Missing filter data"))?;
+		Ok(models::manga_list_from_filter(data))
 	}
 
 	fn get_manga_update(
@@ -67,56 +111,53 @@ impl Source for Zaimanhua {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
+		let url = format!("{}/comic/detail/{}?channel=android", V4_API_URL, manga.key);
 		let response: models::ApiResponse<models::DetailData> =
-			net::Url::Manga { id: &manga.key }.request()?.json_owned()?;
+			net::auth_request(&url, settings::get_current_token().as_deref())?.json_owned()?;
 
 		if response.errno.unwrap_or(0) != 0 {
-			let errmsg = response.errmsg.as_deref().unwrap_or("Unknown error");
+			let errmsg = response.errmsg.as_deref().unwrap_or("未知错误");
 			return Err(error!("{}", errmsg));
 		}
 
-		let detail_data = response.data.ok_or_else(|| error!("Missing data"))?;
+		let detail_data = response.data.ok_or_else(|| error!("Missing API data"))?;
 		let manga_detail = detail_data
 			.data
-			.ok_or_else(|| error!("Missing nested data (API error?)"))?;
+			.ok_or_else(|| error!("Missing nested data"))?;
 
-		if needs_details {
-			let details = manga_detail.clone().into_manga(manga.key.clone());
-			manga.title = details.title;
-			manga.cover = details.cover;
-			manga.description = details.description;
-			manga.authors = details.authors;
-			manga.tags = details.tags;
-			manga.status = details.status;
-			manga.content_rating = details.content_rating;
-			manga.viewer = details.viewer;
-			manga.url = details.url;
-		}
-
-		if needs_chapters {
-			manga.chapters = Some(manga_detail.into_chapters(&manga.key));
+		match (needs_details, needs_chapters) {
+			(true, true) => {
+				// Clone for chapters, consume for details
+				let chapters_source = manga_detail.clone();
+				manga.copy_from(manga_detail.into_manga(manga.key.clone()));
+				manga.chapters = Some(chapters_source.into_chapters(&manga.key));
+			}
+			(true, false) => {
+				manga.copy_from(manga_detail.into_manga(manga.key.clone()));
+			}
+			(false, true) => {
+				manga.chapters = Some(manga_detail.into_chapters(&manga.key));
+			}
+			(false, false) => {}
 		}
 
 		Ok(manga)
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let parts: Vec<&str> = chapter.key.split('/').collect();
-		let (comic_id, chapter_id) = if parts.len() == 2 {
-			(parts[0], parts[1])
-		} else {
-			(manga.key.as_str(), chapter.key.as_str())
-		};
+		let (comic_id, chapter_id) = chapter.key.split_once('/')
+			.unwrap_or((manga.key.as_str(), chapter.key.as_str()));
 
+		let url = format!("{}/comic/chapter/{}/{}", V4_API_URL, comic_id, chapter_id);
 		let response: models::ApiResponse<models::ChapterData> =
-			net::Url::ChapterPages { comic_id, chapter_id }.request()?.json_owned()?;
-		let chapter_data = response.data.ok_or_else(|| error!("Missing data"))?;
+			net::auth_request(&url, settings::get_current_token().as_deref())?.json_owned()?;
+		let chapter_data = response.data.ok_or_else(|| error!("Missing chapter data"))?;
 		let page_data = chapter_data.data;
 
 		let page_urls = page_data
 			.page_url_hd
 			.or(page_data.page_url)
-			.ok_or_else(|| error!("Missing page_url"))?;
+			.ok_or_else(|| error!("Missing page URLs"))?;
 
 		let pages = page_urls
 			.into_iter()
@@ -134,8 +175,8 @@ impl Source for Zaimanhua {
 // Custom referer handling for image protection.
 impl ImageRequestProvider for Zaimanhua {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-		Ok(Request::get(url)?
-			.header("User-Agent", net::USER_AGENT)
+		Ok(Request::get(&url)?
+			.header("User-Agent", USER_AGENT)
 			.header("Referer", BASE_URL))
 	}
 }
@@ -147,7 +188,10 @@ impl DeepLinkHandler for Zaimanhua {
 		// Handle manga details URL (compatibility for various formats)
 		if (url.contains("/manga/") || url.contains("/comic/")) && !url.contains("chapter") {
 			let id = if let Some(pos) = url.find("id=") {
-				url[pos + 3..].split('&').next().unwrap_or("")
+				// Safe substring access
+				url.get(pos + 3..)
+					.and_then(|s| s.split('&').next())
+					.unwrap_or("")
 			} else {
 				url.split('/').rfind(|s| !s.is_empty()).unwrap_or("")
 			};
@@ -158,27 +202,21 @@ impl DeepLinkHandler for Zaimanhua {
 		}
 
 		// Handle chapter pages URL
-		if url.contains("/chapter/") {
-			let Some(start) = url.find("/chapter/") else {
-				return Ok(None);
-			};
-			let parts: Vec<&str> = url[start + 9..]
+		if let Some(start) = url.find("/chapter/") {
+			// Safe substring access using iterator
+			let mut segments = url.get(start + 9..)
+				.unwrap_or("")
 				.split('/')
-				.filter(|s| !s.is_empty())
-				.collect();
-			
-			if parts.len() >= 2 {
-				let comic_id = parts[0];
-				let chapter_id = parts[1];
+				.filter(|s| !s.is_empty());
 
-				if comic_id.chars().all(|c| c.is_ascii_digit())
-					&& chapter_id.chars().all(|c| c.is_ascii_digit())
-				{
-					return Ok(Some(DeepLinkResult::Chapter {
-						manga_key: comic_id.into(),
-						key: format!("{}/{}", comic_id, chapter_id),
-					}));
-				}
+			if let (Some(comic_id), Some(chapter_id)) = (segments.next(), segments.next())
+				&& comic_id.chars().all(|c| c.is_ascii_digit())
+				&& chapter_id.chars().all(|c| c.is_ascii_digit())
+			{
+				return Ok(Some(DeepLinkResult::Chapter {
+					manga_key: comic_id.into(),
+					key: format!("{}/{}", comic_id, chapter_id),
+				}));
 			}
 		}
 
@@ -201,6 +239,7 @@ impl BasicLoginHandler for Zaimanhua {
 		match net::login(&username, &password) {
 			Ok(Some(token)) => {
 				settings::set_token(&token);
+				settings::set_credentials(&username, &password);
 				settings::set_just_logged_in();
 				if settings::get_auto_checkin()
 					&& !settings::has_checkin_flag()
@@ -216,28 +255,19 @@ impl BasicLoginHandler for Zaimanhua {
 }
 
 // === Notification Logic ===
-// Handle async events like check-in or login state changes.
+// Handle async events like login state changes.
 impl NotificationHandler for Zaimanhua {
 	fn handle_notification(&self, notification: String) {
-		match notification.as_str() {
-			"checkin" => {
-				if let Some(token) = settings::get_token() {
-					let _ = net::check_in(&token);
-				}
+		if notification.as_str() == "login" {
+			// Flag-based logout detection
+			if settings::is_just_logged_in() {
+				// Just logged in - clear flag, don't logout
+				settings::clear_just_logged_in();
+			} else {
+				// Not just logged in = user logged out
+				settings::clear_token();
+				settings::clear_checkin_flag();
 			}
-			"login" => {
-				// Flag-based logout detection
-				if settings::is_just_logged_in() {
-					// Just logged in - clear flag, don't logout
-					settings::clear_just_logged_in();
-				} else {
-					// Not just logged in = user logged out
-					settings::clear_token();
-					settings::clear_checkin_flag();
-				}
-			}
-
-			_ => {}
 		}
 	}
 }
@@ -381,11 +411,12 @@ impl ListingProvider for Zaimanhua {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		// Handle rank listings (use rank API)
 		if listing.id == "rank-monthly" {
+			let url = format!("{}/comic/rank/list?rank_type=0&by_time=2&page={}", V4_API_URL, page);
 			let response: models::ApiResponse<Vec<models::RankItem>> =
-				net::Url::Rank { by_time: 2, page }.request()?.json_owned()?;
+				net::auth_request(&url, settings::get_current_token().as_deref())?.json_owned()?;
 			let data = response
 				.data
-				.unwrap_or_default();
+				.ok_or_else(|| aidoku::error!("Missing rank data"))?;
 			return Ok(models::manga_list_from_ranks(data));
 		}
 
@@ -403,25 +434,25 @@ impl ListingProvider for Zaimanhua {
 				let token = settings::get_token()
 					.ok_or_else(|| aidoku::error!("请先登录以查看订阅列表"))?;
 
+				let url = format!("{}/comic/sub/list?status=0&firstLetter=&page={}&size=50", V4_API_URL, page);
 				let response: models::ApiResponse<models::SubscribeData> =
-					net::Url::Subscribe { page }.request()?
-						.header("Authorization", &format!("Bearer {}", token))
-						.json_owned()?;
+					net::auth_request(&url, Some(&token))?.json_owned()?;
 				let data = response
 					.data
 					.map(|d| d.sub_list)
-					.unwrap_or_default();
+					.ok_or_else(|| aidoku::error!("Missing subscribe data"))?;
 				return Ok(models::manga_list_from_subscribes(data));
 			}
 			_ => return Err(aidoku::error!("Unknown listing: {}", listing.id)),
 		};
 
+		let url = format!("{}/comic/filter/list?{}&page={}&size=20", V4_API_URL, filter_param, page);
 		let response: models::ApiResponse<models::FilterData> =
-			net::Url::Filter { params: filter_param, page, size: 20 }.request()?.json_owned()?;
+			net::auth_request(&url, settings::get_current_token().as_deref())?.json_owned()?;
 		let data = response
 			.data
 			.map(|d| d.comic_list)
-			.unwrap_or_default();
+			.ok_or_else(|| aidoku::error!("Missing filter data"))?;
 		Ok(models::manga_list_from_filter(data))
 	}
 }
