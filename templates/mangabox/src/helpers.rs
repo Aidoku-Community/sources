@@ -1,8 +1,8 @@
 use crate::Params;
 use aidoku::{
+	FilterValue, MangaStatus,
 	alloc::{String, Vec},
 	prelude::*,
-	FilterValue, MangaStatus,
 };
 
 pub fn status_from_string(string: &str) -> MangaStatus {
@@ -18,20 +18,6 @@ pub fn status_from_string(string: &str) -> MangaStatus {
 		"Cancelled" => MangaStatus::Cancelled,
 		_ => MangaStatus::Unknown,
 	}
-}
-
-// parses ".../chapter-x" where x can be e.g. "3" or "0-2" for decimals
-pub fn get_chapter_number(s: &str) -> Option<f32> {
-	const PREFIX: &str = "chapter-";
-
-	if let Some(pos) = s.find(PREFIX) {
-		return s[pos + PREFIX.len()..]
-			.replace('-', ".")
-			.parse::<f32>()
-			.ok();
-	}
-
-	None
 }
 
 pub fn strip_default_chapter_title(s: String) -> String {
