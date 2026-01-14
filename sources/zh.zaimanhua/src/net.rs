@@ -1,17 +1,45 @@
 use crate::models;
 use crate::settings;
 
-use crate::{V4_API_URL, USER_AGENT};
+use crate::{ACCOUNT_API, SIGN_API, V4_API_URL, USER_AGENT};
 use aidoku::{
 	Result,
 	alloc::{String, Vec, format, string::ToString},
-	imports::net::Request,
+	imports::net::{Request, Response},
 	serde::de::DeserializeOwned,
 };
 
-pub const ACCOUNT_API: &str = "https://account-api.zaimanhua.com/v1/";
-pub const SIGN_API: &str = "https://i.zaimanhua.com/lpi/v1/";
-pub const NEWS_URL: &str = "https://news.zaimanhua.com";
+use aidoku::helpers::uri::encode_uri_component;
+
+/// Resolves URL through proxy if proxy toggle is enabled and valid URL is configured.
+pub fn resolve_url(url: &str) -> String {
+	if settings::get_use_proxy()
+		&& let Some(proxy) = settings::get_proxy_url()
+	{
+		let encoded = encode_uri_component(url);
+		return format!("{}/?url={}", proxy, encoded);
+	}
+	url.into()
+}
+
+// === Proxy Block List ===
+
+/// URLs that should be blocked in proxy mode (requests not sent).
+/// Uses existing constants for single source of truth.
+const PROXY_BLOCKED_URLS: &[&str] = &[
+//	NEWS_URL,                       // Banner
+//	SIGN_API,                       // User Info API
+//	V4_API_URL,                     // Main API (Content, Listings)
+//	"https://manhua.zaimanhua.com", // Web View (no constant)
+//	ACCOUNT_API,                    // Login API
+];
+
+/// Check if a URL should be blocked in proxy mode.
+pub fn should_block(url: &str) -> bool {
+	settings::get_use_proxy() &&
+		PROXY_BLOCKED_URLS.iter().any(|blocked| url.starts_with(blocked))
+}
+
 
 // === HTTP Request Helpers ===
 
@@ -21,18 +49,21 @@ pub fn md5_hex(input: &str) -> String {
 }
 
 pub fn get_request(url: &str) -> Result<Request> {
-	Ok(Request::get(url)?.header("User-Agent", USER_AGENT))
+	let resolved = resolve_url(url);
+	Ok(Request::get(&resolved)?.header("User-Agent", USER_AGENT))
 }
 
 pub fn post_request(url: &str) -> Result<Request> {
-	Ok(Request::post(url)?
+	let resolved = resolve_url(url);
+	Ok(Request::post(&resolved)?
 		.header("User-Agent", USER_AGENT)
 		.header("Content-Type", "application/x-www-form-urlencoded"))
 }
 
 pub fn auth_request(url: &str, token: Option<&str>) -> Result<Request> {
+	let resolved = resolve_url(url);
 	match token {
-		Some(t) => Ok(Request::get(url)?
+		Some(t) => Ok(Request::get(&resolved)?
 			.header("User-Agent", USER_AGENT)
 			.header("Authorization", &format!("Bearer {}", t))),
 		None => get_request(url),
@@ -61,7 +92,7 @@ pub fn send_authed_request<T: DeserializeOwned>(
 	let resp: models::ApiResponse<T> = req.send()?.get_json_owned()?;
 
 	if resp.errno.unwrap_or(0) == 99
-		&& let Ok(Some(new_token)) = try_refresh_token() 
+		&& let Ok(Some(new_token)) = try_refresh_token()
 	{
 		// Retry with new token
 		return auth_request(url, Some(&new_token))?.send()?.get_json_owned();
@@ -105,6 +136,111 @@ pub fn get_user_info(token: &str) -> Result<models::UserInfoData> {
 	response
 		.data
 		.ok_or_else(|| aidoku::error!("Missing user info"))
+}
+
+/// Helper to fetch and cache user profile (Level & Sign status)
+/// Returns Ok(()) on success, Err if network fails.
+pub fn refresh_user_profile(token: &str) -> Result<()> {
+	let info_data = get_user_info(token)?;
+	if let Some(info) = info_data.user_info {
+		let level = info.level.unwrap_or(0) as i32;
+		let is_sign = info.is_sign.unwrap_or(false);
+		settings::set_user_cache(level, is_sign);
+	}
+	Ok(())
+}
+
+/// Perform silent background updates: auto check-in and cache refresh.
+/// Called from home page to avoid blocking user. Errors are swallowed.
+pub fn perform_silent_updates(token: &str) {
+	let mut checkin_performed = false;
+
+	// 1. Auto Check-in
+	if settings::get_auto_checkin()
+		&& !settings::has_checkin_flag()
+		&& !should_block(crate::SIGN_API)
+		&& check_in(token).ok() == Some(true)
+	{
+		settings::set_last_checkin();
+		checkin_performed = true;
+		let _ = refresh_user_profile(token);
+	}
+
+	// 2. Stale Cache Update (if no check-in just happened)
+	if !checkin_performed && settings::is_cache_stale() && !should_block(crate::SIGN_API) {
+		let _ = refresh_user_profile(token);
+	}
+}
+
+// === Request Batch Builder ===
+
+pub struct RequestBatch {
+	requests: Vec<Request>,
+	index_map: Vec<usize>,
+	total_slots: usize,
+}
+
+impl RequestBatch {
+	pub fn new() -> Self {
+		Self { requests: Vec::new(), index_map: Vec::new(), total_slots: 0 }
+	}
+
+	/// Add a GET request. automatically checking for blocking.
+	pub fn get(&mut self, url: &str) -> Result<usize> {
+		if should_block(url) {
+			return Ok(self.add_if(None));
+		}
+		Ok(self.add(get_request(url)?))
+	}
+
+	/// Add an Authenticated GET request, automatically checking for blocking.
+	pub fn auth(&mut self, url: &str, token: Option<&str>) -> Result<usize> {
+		if should_block(url) {
+			return Ok(self.add_if(None));
+		}
+		Ok(self.add(auth_request(url, token)?))
+	}
+
+	/// Add a request that MUST execute. Returns the slot index.
+	fn add(&mut self, req: Request) -> usize {
+		self.add_if(Some(req))
+	}
+
+	/// Conditionally add a request. If None, it takes a slot but executes nothing.
+	pub fn add_if(&mut self, req: Option<Request>) -> usize {
+		let slot = self.total_slots;
+		if let Some(r) = req {
+			self.requests.push(r);
+			self.index_map.push(slot);
+		}
+		self.total_slots += 1;
+		slot
+	}
+
+	/// If blocked, zero network overhead is incurred.
+	pub fn add_unless_blocked(&mut self, url: &str) -> usize {
+		let req = if should_block(url) {
+			None
+		} else {
+			get_request(url).ok()
+		};
+		self.add_if(req)
+	}
+
+	/// Execute all accumulated requests and map responses back to their slots.
+	pub fn send_all(self) -> Vec<Option<Response>> {
+		let responses = Request::send_all(self.requests);
+		let mut result: Vec<Option<Response>> = Vec::with_capacity(self.total_slots);
+		for _ in 0..self.total_slots {
+			result.push(None);
+		}
+		for (resp, slot) in responses.into_iter().zip(self.index_map) {
+			if let Ok(r) = resp {
+				result[slot] = Some(r);
+			}
+		}
+		result
+	}
 }
 
 // === Hidden Content Scanner ===
@@ -169,7 +305,7 @@ impl Iterator for HiddenContentScanner {
 				&& let Ok(Some(new_token)) = try_refresh_token()
 			{
 				self.token = Some(new_token.clone());
-				
+
 				// Retry the batch with the new token
 				let requests = make_requests(Some(&new_token));
 				let responses = Request::send_all(requests);

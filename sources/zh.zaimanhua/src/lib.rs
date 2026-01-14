@@ -3,10 +3,10 @@ extern crate alloc;
 
 use aidoku::{
 	BasicLoginHandler, Chapter, DeepLinkHandler, DeepLinkResult, DynamicSettings, FilterValue,
-	GroupSetting, Home, HomeLayout, ImageRequestProvider, Listing, ListingProvider, LoginMethod,
-	LoginSetting, Manga, MangaPageResult, NotificationHandler, Page, PageContent, PageContext,
-	Result, Setting, Source, ToggleSetting,
-	alloc::{String, Vec, format, vec},
+	GroupSetting, Home, HomeLayout, ImageRequestProvider, Listing, ListingProvider,
+	Manga, MangaPageResult, NotificationHandler, Page, PageContent, PageContext,
+	Result, Setting, Source,
+	alloc::{String, Vec, format, string::ToString},
 	helpers::uri::QueryParameters,
 	imports::net::{Request, set_rate_limit, TimeUnit},
 	prelude::*,
@@ -20,6 +20,9 @@ mod settings;
 
 pub const BASE_URL: &str = "https://www.zaimanhua.com/";
 pub const V4_API_URL: &str = "https://v4api.zaimanhua.com/app/v1";
+pub const ACCOUNT_API: &str = "https://account-api.zaimanhua.com/v1/";
+pub const SIGN_API: &str = "https://i.zaimanhua.com/lpi/v1/";
+pub const NEWS_URL: &str = "https://news.zaimanhua.com";
 pub const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
 struct Zaimanhua;
@@ -175,7 +178,8 @@ impl Source for Zaimanhua {
 // Custom referer handling for image protection.
 impl ImageRequestProvider for Zaimanhua {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-		Ok(Request::get(&url)?
+		let resolved = net::resolve_url(&url);
+		Ok(Request::get(resolved)?
 			.header("User-Agent", USER_AGENT)
 			.header("Referer", BASE_URL))
 	}
@@ -241,11 +245,17 @@ impl BasicLoginHandler for Zaimanhua {
 				settings::set_token(&token);
 				settings::set_credentials(&username, &password);
 				settings::set_just_logged_in();
+
+				// Update user profile immediately upon login
+				let _ = net::refresh_user_profile(&token);
+
 				if settings::get_auto_checkin()
 					&& !settings::has_checkin_flag()
 					&& let Ok(true) = net::check_in(&token)
 				{
 					settings::set_last_checkin();
+					// Force refresh again if check-in succeeded (to update points/status)
+					let _ = net::refresh_user_profile(&token);
 				}
 				Ok(true)
 			}
@@ -267,125 +277,35 @@ impl NotificationHandler for Zaimanhua {
 				// Not just logged in = user logged out
 				settings::clear_token();
 				settings::clear_checkin_flag();
+				settings::clear_user_cache();
+				settings::reset_dependent_settings();
 			}
 		}
 	}
 }
 
 // === Dynamic Settings ===
-// User-specific settings (UserInfo, Switches) reflected in UI.
+// Dynamic content (user info with checkin status) is returned here.
+// Static settings are defined in res/settings.json.
 impl DynamicSettings for Zaimanhua {
 	fn get_dynamic_settings(&self) -> Result<Vec<Setting>> {
-		let mut settings_list: Vec<Setting> = Vec::new();
+		let mut settings: Vec<Setting> = Vec::new();
 
-		let is_logged_in = settings::get_token().is_some();
+		// User Info Display (with Fallback)
+		if settings::get_token().is_some() {
+			let (username, _) = settings::get_credentials().unwrap_or(("未知用户".into(), "".into()));
 
-		// Try to get user info if logged in
-		let user_info_opt = if is_logged_in {
-			if let Some(token) = settings::get_token() {
-				net::get_user_info(&token)
-					.ok()
-					.and_then(|info_data| info_data.user_info)
+			let (level_str, status_str) = if let Some(user_cache) = settings::get_user_cache() {
+				let checkin_status = if user_cache.is_sign { "已签到" } else { "未签到" };
+				(format!("Lv.{}", user_cache.level), checkin_status.to_string())
 			} else {
-				None
-			}
-		} else {
-			None
-		};
+				// Fallback for missing cache
+				("Lv.?".to_string(), "获取中...".to_string())
+			};
 
-		// Prepare checkin subtitle
-		let checkin_subtitle = user_info_opt.as_ref().map(|info| {
-			let is_signed = info.is_sign.unwrap_or(false);
-			if is_signed {
-				"今日已签到"
-			} else {
-				"今日未签到"
-			}
-		});
+			let footer_text = format!("用户：{} | 等级：{} | {}", username, level_str, status_str);
 
-		let mut account_items: Vec<Setting> = Vec::new();
-
-		// Login (with logout notification)
-		account_items.push(
-			LoginSetting {
-				key: "login".into(),
-				title: "登录".into(),
-				logout_title: Some("登出".into()),
-				notification: Some("login".into()), // Fires on login state change (GigaViewer pattern)
-				method: LoginMethod::Basic,
-				refreshes: Some(vec!["settings".into(), "content".into(), "listings".into()]),
-				..Default::default()
-			}
-			.into(),
-		);
-
-		// Auto check-in (always show, but with status subtitle only when logged in)
-		account_items.push(
-			ToggleSetting {
-				key: "autoCheckin".into(),
-				title: "自动签到".into(),
-				subtitle: checkin_subtitle.map(|s: &str| s.into()),
-				default: false,
-				..Default::default()
-			}
-			.into(),
-		);
-
-		// Enhanced mode (only show when logged in)
-		if is_logged_in {
-			account_items.push(
-				ToggleSetting {
-					key: "enhancedMode".into(),
-					title: "增强浏览".into(),
-					subtitle: Some("获取更多内容".into()),
-					default: false,
-					refreshes: Some(vec!["content".into(), "listings".into(), "settings".into()]),
-					..Default::default()
-				}
-				.into(),
-			);
-
-			// Hidden content toggle (only show when Enhanced Mode is enabled)
-			if settings::get_enhanced_mode() {
-				account_items.push(
-					ToggleSetting {
-						key: "showHiddenContent".into(),
-						title: "隐藏内容".into(),
-						subtitle: Some("搜索和浏览时包含隐藏漫画".into()),
-						default: false,
-						refreshes: Some(vec!["content".into(), "listings".into()]),
-						..Default::default()
-					}
-					.into(),
-				);
-			}
-		}
-
-		settings_list.push(
-			GroupSetting {
-				key: "account".into(),
-				title: "账号".into(),
-				items: account_items,
-				..Default::default()
-			}
-			.into(),
-		);
-
-		if let Some(user_info) = user_info_opt {
-			// Extract info
-			let username = user_info
-				.username
-				.as_deref()
-				.or(user_info.nickname.as_deref())
-				.unwrap_or("未知用户");
-
-			let level = user_info.level.unwrap_or(0);
-
-			// Build info footer
-			let footer_text = format!("用户：{} | 等级：Lv.{}", username, level);
-
-			// Add user info group
-			settings_list.push(
+			settings.push(
 				GroupSetting {
 					key: "userInfo".into(),
 					title: "账号信息".into(),
@@ -397,7 +317,7 @@ impl DynamicSettings for Zaimanhua {
 			);
 		}
 
-		Ok(settings_list)
+		Ok(settings)
 	}
 }
 

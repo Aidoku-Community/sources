@@ -5,8 +5,7 @@ use aidoku::{
 	HomeComponent, HomeLayout, HomePartialResult, Listing, ListingKind, Manga, MangaStatus,
 	MangaWithChapter, Result,
 	alloc::{Vec, format, string::ToString, vec},
-	imports::net::RequestError,
-	imports::net::{Request, Response},
+	imports::net::Response,
 	imports::std::send_partial_result,
 	imports::html::Document,
 };
@@ -15,16 +14,13 @@ use crate::models::{ApiResponse, DetailData};
 
 /// Build the home page layout
 pub fn get_home_layout() -> Result<HomeLayout> {
-	// Auto check-in when entering home (moved from Source::new to avoid blocking init)
-	if let Some(token) = settings::get_token()
-		&& settings::get_auto_checkin()
-		&& !settings::has_checkin_flag()
-		&& let Ok(true) = net::check_in(&token)
-	{
-		settings::set_last_checkin();
+	// Silent background updates (check-in + cache refresh)
+	if let Some(token) = settings::get_token() {
+		net::perform_silent_updates(&token);
 	}
 
 	send_partial_result(&HomePartialResult::Layout(HomeLayout {
+
 		components: vec![
 			HomeComponent {
 				title: None,
@@ -69,8 +65,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		],
 	}));
 
-	// Build parallel requests using inline URLs
-	let manga_news_url = "https://news.zaimanhua.com/manhuaqingbao";
+	// Build parallel requests
 	let token = settings::get_current_token();
 	let token_ref = token.as_deref();
 
@@ -82,36 +77,46 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 	let seinen_url = format!("{}/comic/filter/list?cate=3264&size=20&page=1", V4_API_URL);
 	let josei_url = format!("{}/comic/filter/list?cate=13626&size=20&page=1", V4_API_URL);
 
-	let requests = [
-		net::get_request(&recommend_url)?,   // 0: recommend (no auth needed)
-		net::auth_request(&latest_url, token_ref)?,                              // 1: latest
-		net::auth_request(&rank_url, token_ref)?,                                // 2: rank
-		net::auth_request(&shounen_url, token_ref)?,                             // 3: 少年漫画
-		net::auth_request(&shoujo_url, token_ref)?,                              // 4: 少女漫画
-		net::auth_request(&seinen_url, token_ref)?,                              // 5: 男青漫画
-		net::auth_request(&josei_url, token_ref)?,                               // 6: 女青漫画
-		net::get_request(manga_news_url)?,  // 7: 漫画情报 HTML
-	];
+	let mut batch = net::RequestBatch::new();
 
-	let responses: [core::result::Result<Response, RequestError>; 8] = Request::send_all(requests)
-		.try_into()
-		.map_err(|_| aidoku::error!("Response conversion failed"))?;
+	// 0: banner
+	let manga_news_url = "https://news.zaimanhua.com/manhuaqingbao";
+	let slot_banner = batch.add_unless_blocked(manga_news_url);
 
-	let [resp_recommend, resp_latest, resp_rank, resp_shounen, resp_shoujo, resp_seinen, resp_josei, resp_news] = responses;
+	// 1-7: Standard requests
+	let slot_recommend = batch.get(&recommend_url)?;
+	let slot_latest = batch.auth(&latest_url, token_ref)?;
+	let slot_rank = batch.auth(&rank_url, token_ref)?;
+	let slot_shounen = batch.auth(&shounen_url, token_ref)?;
+	let slot_shoujo = batch.auth(&shoujo_url, token_ref)?;
+	let slot_seinen = batch.auth(&seinen_url, token_ref)?;
+	let slot_josei = batch.auth(&josei_url, token_ref)?;
+
+	let mut responses = batch.send_all();
+
+	let resp_recommend = responses[slot_recommend].take();
+	let resp_latest = responses[slot_latest].take();
+	let resp_rank = responses[slot_rank].take();
+	let resp_shounen = responses[slot_shounen].take();
+	let resp_shoujo = responses[slot_shoujo].take();
+	let resp_seinen = responses[slot_seinen].take();
+	let resp_josei = responses[slot_josei].take();
 
 	let mut components = Vec::new();
 
-	let mut big_scroller_manga: Vec<Manga> = Vec::new(); // For 109
+	let mut big_scroller_manga: Vec<Manga> = Vec::new();
 	let mut banner_links: Vec<aidoku::Link> = Vec::new();
 
-	if let Ok(resp) = resp_news
+	// Banner: Fetch separately only when NOT using proxy (news.zaimanhua.com has DNSSEC issues)
+	// Banner Processing
+	if let Some(resp) = responses[slot_banner].take()
 		&& let Ok(doc) = resp.get_html()
 	{
 		banner_links = parse_manga_news_doc(doc);
 	}
 
 	// Parse recommend/list response - returns raw List, NOT ApiResponse
-	if let Ok(resp) = resp_recommend
+	if let Some(resp) = resp_recommend
 		&& let Ok(categories) = resp.get_json_owned::<Vec<crate::models::RecommendCategory>>()
 	{
 		for cat in categories {
@@ -159,7 +164,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 	}
 
 	let mut latest_entries: Vec<MangaWithChapter> = Vec::new();
-	if let Ok(resp) = resp_latest
+	if let Some(resp) = resp_latest
 		&& let Ok(response) =
 			resp.get_json_owned::<crate::models::ApiResponse<crate::models::FilterData>>()
 		&& let Some(data) = response.data
@@ -187,20 +192,23 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 
 	// 1 page = 10 items
 	let mut hot_entries: Vec<Manga> = Vec::new();
-	if let Ok(resp) = resp_rank {
+	if let Some(resp) = resp_rank {
 		hot_entries.extend(parse_rank_page(resp));
 	}
 
-	components.push(HomeComponent {
-		title: None,
-		subtitle: None,
-		value: aidoku::HomeComponentValue::ImageScroller {
-			links: banner_links,
-			auto_scroll_interval: Some(5.0), // Auto scroll every 5 seconds
-			width: Some(252),
-			height: Some(162),
-		},
-	});
+	// Only show banner if links exist (proxy mode skips this)
+	if !banner_links.is_empty() {
+		components.push(HomeComponent {
+			title: None,
+			subtitle: None,
+			value: aidoku::HomeComponentValue::ImageScroller {
+				links: banner_links,
+				auto_scroll_interval: Some(5.0),
+				width: Some(252),
+				height: Some(162),
+			},
+		});
+	}
 
 	if !big_scroller_manga.is_empty() {
 		components.push(HomeComponent {
@@ -270,7 +278,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		Vec::new()
 	}
 
-	let shounen_links = if let Ok(resp) = resp_shounen {
+	let shounen_links = if let Some(resp) = resp_shounen {
 		parse_audience_scroller(resp)
 	} else {
 		Vec::new()
@@ -288,7 +296,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		},
 	});
 
-	let shoujo_links = if let Ok(resp) = resp_shoujo {
+	let shoujo_links = if let Some(resp) = resp_shoujo {
 		parse_audience_scroller(resp)
 	} else {
 		Vec::new()
@@ -306,7 +314,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		},
 	});
 
-	let seinen_links = if let Ok(resp) = resp_seinen {
+	let seinen_links = if let Some(resp) = resp_seinen {
 		parse_audience_scroller(resp)
 	} else {
 		Vec::new()
@@ -324,7 +332,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		},
 	});
 
-	let josei_links = if let Ok(resp) = resp_josei {
+	let josei_links = if let Some(resp) = resp_josei {
 		parse_audience_scroller(resp)
 	} else {
 		Vec::new()
@@ -368,16 +376,22 @@ fn parse_manga_news_doc(doc: Document) -> Vec<aidoku::Link> {
 				continue;
 			}
 
+			let final_image_url = if image_url.starts_with("http") {
+				image_url
+			} else {
+				format!("{}{}", crate::NEWS_URL, image_url)
+			};
+
 			let full_url = if url.starts_with("http") {
 				url
 			} else {
-				format!("{}{}", net::NEWS_URL, url)
+				format!("{}{}", crate::NEWS_URL, url)
 			};
 
 			links.push(aidoku::Link {
 				title,
 				subtitle: None,
-				image_url: Some(image_url),
+				image_url: Some(final_image_url),
 				value: Some(aidoku::LinkValue::Url(full_url)),
 			});
 		}

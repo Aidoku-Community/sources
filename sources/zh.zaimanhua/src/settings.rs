@@ -68,13 +68,13 @@ pub fn clear_just_logged_in() {
 // === Daily Check-in Logic ===
 
 pub fn get_auto_checkin() -> bool {
-	defaults_get::<bool>(AUTO_CHECKIN_KEY).unwrap_or(false)
+	defaults_get::<bool>(AUTO_CHECKIN_KEY).unwrap_or(false) && get_token().is_some()
 }
 
 pub fn has_checkin_flag() -> bool {
 	let last_day_str = defaults_get::<String>(LAST_CHECKIN_KEY).unwrap_or_default();
 	let last_day = last_day_str.parse::<i64>().unwrap_or(-1);
-	
+
 	let current_time = aidoku::imports::std::current_date();
 	let offset = 28800; // Beijing Time (UTC+8)
 	let current_day = (current_time + offset) / 86400;
@@ -101,4 +101,66 @@ pub fn get_enhanced_mode() -> bool {
 
 pub fn show_hidden_content() -> bool {
 	get_enhanced_mode() && defaults_get::<bool>(SHOW_HIDDEN_KEY).unwrap_or(false)
+}
+
+// === Proxy Mode ===
+
+pub fn get_use_proxy() -> bool {
+	defaults_get::<bool>("useProxy").unwrap_or(false)
+}
+
+pub fn get_proxy_url() -> Option<String> {
+	defaults_get::<String>("proxyUrl")
+		.filter(|url| {
+			url.starts_with("https://")
+				&& url.len() > 10
+				&& !url.contains("your-worker") // Exclude placeholder
+		})
+		.map(|url| url.trim_end_matches('/').to_string()) // Normalize: remove trailing slash
+}
+
+// === User Info Cache ===
+
+#[derive(aidoku::serde::Serialize, aidoku::serde::Deserialize, Clone, Default)]
+pub struct UserCache {
+	pub level: i32,
+	pub is_sign: bool,
+	pub timestamp: f64,
+}
+
+const USER_CACHE_KEY: &str = "userCache";
+
+pub fn get_user_cache() -> Option<UserCache> {
+	aidoku::imports::defaults::defaults_get::<UserCache>(USER_CACHE_KEY)
+}
+
+pub fn set_user_cache(level: i32, is_sign: bool) {
+	let now = aidoku::imports::std::current_date();
+	let cache = UserCache {
+		level,
+		is_sign,
+		timestamp: now as f64,
+	};
+	aidoku::imports::defaults::defaults_set_data(USER_CACHE_KEY, &cache);
+}
+
+pub fn clear_user_cache() {
+	defaults_set(USER_CACHE_KEY, DefaultValue::Null);
+}
+
+pub fn is_cache_stale() -> bool {
+	if let Some(cache) = get_user_cache() {
+		let now = aidoku::imports::std::current_date();
+		// 6 hours = 21600 seconds
+		return (now as f64) - cache.timestamp >= 21600.0;
+	}
+	true
+}
+
+// === State Reset ===
+
+pub fn reset_dependent_settings() {
+	defaults_set(AUTO_CHECKIN_KEY, DefaultValue::Null);
+	defaults_set(ENHANCED_MODE_KEY, DefaultValue::Null);
+	defaults_set(SHOW_HIDDEN_KEY, DefaultValue::Null);
 }

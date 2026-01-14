@@ -238,6 +238,8 @@ pub struct MangaDetail {
 	pub direction: Option<i32>,
 	pub islong: Option<i32>,
 	pub comic_py: Option<String>,
+	pub hidden: Option<i32>,
+	pub is_need_login: Option<i32>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -280,22 +282,26 @@ impl MangaDetail {
 			.map(|list| list.into_iter().filter_map(|t| t.tag_name).collect());
 
 		let mut status = MangaStatus::Unknown;
-		let mut content_rating = ContentRating::Safe;
-
-		if let Some(status_list) = self.status {
+		if let Some(status_list) = &self.status {
 			for s in status_list {
-				if let Some(name) = s.tag_name {
-					let name_str = name.as_str();
-					let parsed_status = parse_status(name_str);
+				if let Some(name) = &s.tag_name {
+					let parsed_status = parse_status(name);
 					if parsed_status != MangaStatus::Unknown {
 						status = parsed_status;
-					}
-					if name_str.contains("成人") || name_str.contains("18") {
-						content_rating = ContentRating::NSFW;
+						break;
 					}
 				}
 			}
 		}
+
+		// Three-tier content rating based on API markers
+		let content_rating = if self.hidden.unwrap_or(0) == 1 {
+			ContentRating::NSFW
+		} else if self.is_need_login.unwrap_or(0) == 1 {
+			ContentRating::Suggestive
+		} else {
+			ContentRating::Safe
+		};
 
 		let url = Some(format!("https://manhua.zaimanhua.com/details/{}", key));
 
@@ -309,7 +315,7 @@ impl MangaDetail {
 			status,
 			content_rating,
 			viewer: match (self.direction, self.islong) {
-				(Some(2), Some(1)) => Viewer::Webtoon,    // direction=2 + islong=1 = strip
+				(Some(2), Some(1)) => Viewer::Webtoon,   // direction=2 + islong=1 = strip
 				(Some(2), _) => Viewer::LeftToRight,     // direction=2 = LTR
 				_ => Viewer::RightToLeft,                // direction=1 or null = RTL
 			},
@@ -488,8 +494,6 @@ pub struct UserInfoData {
 
 #[derive(Deserialize, Clone)]
 pub struct UserInfo {
-	pub username: Option<String>,
-	pub nickname: Option<String>,
 	#[serde(rename = "user_level")]
 	pub level: Option<i64>,
 	pub is_sign: Option<bool>,

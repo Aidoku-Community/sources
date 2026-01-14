@@ -40,7 +40,7 @@ pub fn search_by_keyword(keyword: &str, page: i32) -> Result<MangaPageResult> {
 		// Hidden Content scans (paginated)
 		let hidden_start_page = (page - 1) * 5 + 1;
 		let should_scan_hidden = settings::show_hidden_content();
-		
+
 		if should_scan_hidden {
 			for i in 0..5 {
 				let p = hidden_start_page + i;
@@ -59,7 +59,7 @@ pub fn search_by_keyword(keyword: &str, page: i32) -> Result<MangaPageResult> {
 		let mut needs_retry = false;
 		let mut parsing_search_data = None;
 		let mut parsing_hidden_items = Vec::new();
-		
+
 		let mut response_iter = responses.into_iter();
 
 		// Handle Search Response (Index 0)
@@ -96,7 +96,7 @@ pub fn search_by_keyword(keyword: &str, page: i32) -> Result<MangaPageResult> {
 				continue; // Retry loop with new token
 			}
 			// If login fails or already retried, stop/fail gracefully
-			break; 
+			break;
 		}
 
 		// Success - Commit data
@@ -106,7 +106,7 @@ pub fn search_by_keyword(keyword: &str, page: i32) -> Result<MangaPageResult> {
 	}
 
 	// === Result Merging ===
-	
+
 	let mut results: Vec<Manga> = if let Some(data) = search_data {
 		data.list.into_iter().map(Into::into).collect()
 	} else {
@@ -124,15 +124,15 @@ pub fn search_by_keyword(keyword: &str, page: i32) -> Result<MangaPageResult> {
 
 			let name_lower = item.name.to_lowercase();
 			let auth_lower = item.authors.as_deref().unwrap_or("").to_lowercase();
-			
+
 			if name_lower.contains(&keyword_lower) || auth_lower.contains(&keyword_lower) {
 				results.push(item.into());
 				hidden_count += 1;
 			}
 		}
-		// Heuristic: If we found a lot of hidden items, maybe there's more?
+		// Heuristic: If many hidden items found, maybe there's more?
 		if hidden_count >= 10 {
-			hidden_has_next = true; 
+			hidden_has_next = true;
 		}
 	}
 
@@ -160,9 +160,9 @@ pub fn search_by_author(author: &str, page: i32) -> Result<MangaPageResult> {
 
 	// === Global Strict Priority Decision ===
 	let exact_match_found = !strict_ids.is_empty();
-	
+
 	let direct_ids = if exact_match_found {
-		strict_ids 
+		strict_ids
 	} else {
 		partial_ids // Fallback to partials if NO strict found
 	};
@@ -176,10 +176,10 @@ pub fn search_by_author(author: &str, page: i32) -> Result<MangaPageResult> {
 		
 		keyword_manga.extend(fuzzy_manga);
 		
-		if !fuzzy_strict.is_empty() { 
-			fuzzy_strict 
-		} else { 
-			fuzzy_partial 
+		if !fuzzy_strict.is_empty() {
+			fuzzy_strict
+		} else {
+			fuzzy_partial
 		}
 	} else {
 		direct_ids
@@ -198,12 +198,12 @@ pub fn search_by_author(author: &str, page: i32) -> Result<MangaPageResult> {
 
 	// Add results based on Strict Priority
 	let tag_iter = tag_manga.into_iter().map(|i| -> Manga { i.into() });
-	
+
 	// === Result Merging ===
-	// If strict matches exist, we enable "Strict Mode":
+	// If strict matches exist, enable "Strict Mode":
 	// 1. Only include results that were strictly matched (ID-based or Name-based).
 	// 2. Discard fuzzy candidates from the initial keyword search to eliminate noise.
-	
+
 	if exact_match_found {
 		// Strict Mode: Use Token/Tag results AND Verified Strict Candidates.
 		for manga in tag_iter.chain(strict_manga.into_iter()) {
@@ -259,7 +259,7 @@ fn collect_tags_from_search(
 
 	let url = format!("{}/search/index?keyword={}&source=0&page=1&size=50",
 		V4_API_URL, encode_uri_component(keyword));
-		
+
 	if let Ok(response) = net::send_authed_request::<models::SearchData>(&url, token)
 		&& let Some(data) = response.data
 	{
@@ -292,7 +292,7 @@ fn collect_tags_from_search(
 			let manga_authors = candidate.authors.as_deref().unwrap_or("");
 			let author_key = manga_authors.to_string();
 
-			// Ensure we respect "seen_authors" constraint logic
+			// Ensure "seen_authors" constraint logic is respected
 			if seen_authors.contains(&author_key) {
 				matched_items.push(candidate.clone());
 				continue;
@@ -305,16 +305,16 @@ fn collect_tags_from_search(
 				&& let Some(detail) = data_root.data
 			{
 				seen_authors.push(author_key);
-				
+
 				// Use pure logic extractor (returns new struct)
 				let result = extract_author_tags_from_detail(&detail, target_author);
 				strict_ids.extend(result.strict_ids);
 				partial_ids.extend(result.partial_ids);
-				
+
 				match result.match_type {
 					MatchResult::Strict => {
 						matched_items.push(candidate.clone());
-						strict_manga.push(candidate.clone().into()); 
+						strict_manga.push(candidate.clone().into());
 					},
 					MatchResult::Partial => {
 						matched_items.push(candidate.clone());
