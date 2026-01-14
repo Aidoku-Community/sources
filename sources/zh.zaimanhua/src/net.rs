@@ -30,7 +30,7 @@ const PROXY_BLOCKED_URLS: &[&str] = &[
 //	NEWS_URL,                       // Banner
 //	SIGN_API,                       // User Info API
 //	V4_API_URL,                     // Main API (Content, Listings)
-//	"https://manhua.zaimanhua.com", // Web View (no constant)
+//	WEB_URL,                        // Web View
 //	ACCOUNT_API,                    // Login API
 ];
 

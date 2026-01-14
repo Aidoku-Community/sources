@@ -303,7 +303,7 @@ impl MangaDetail {
 			ContentRating::Safe
 		};
 
-		let url = Some(format!("https://manhua.zaimanhua.com/details/{}", key));
+		let url = Some(format!("{}/details/{}", crate::WEB_URL, key));
 
 		Manga {
 			key,
@@ -334,8 +334,8 @@ impl MangaDetail {
 				for item in group.data {
 					let chapter_id = item.chapter_id.to_string();
 					let url = Some(format!(
-						"https://manhua.zaimanhua.com/view/{}/{}/{}",
-						comic_py, manga_id, chapter_id
+						"{}/view/{}/{}/{}",
+						crate::WEB_URL, comic_py, manga_id, chapter_id
 					));
 
 					all_chapters.push(Chapter {

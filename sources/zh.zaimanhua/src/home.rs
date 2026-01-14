@@ -80,8 +80,8 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 	let mut batch = net::RequestBatch::new();
 
 	// 0: banner
-	let manga_news_url = "https://news.zaimanhua.com/manhuaqingbao";
-	let slot_banner = batch.add_unless_blocked(manga_news_url);
+	let manga_news_url = format!("{}/manhuaqingbao", crate::NEWS_URL);
+	let slot_banner = batch.add_unless_blocked(&manga_news_url);
 
 	// 1-7: Standard requests
 	let slot_recommend = batch.get(&recommend_url)?;

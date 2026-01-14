@@ -23,6 +23,7 @@ pub const V4_API_URL: &str = "https://v4api.zaimanhua.com/app/v1";
 pub const ACCOUNT_API: &str = "https://account-api.zaimanhua.com/v1/";
 pub const SIGN_API: &str = "https://i.zaimanhua.com/lpi/v1/";
 pub const NEWS_URL: &str = "https://news.zaimanhua.com";
+pub const WEB_URL: &str = "https://manhua.zaimanhua.com";
 pub const USER_AGENT: &str = "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36";
 
 struct Zaimanhua;
