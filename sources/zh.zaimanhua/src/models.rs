@@ -314,10 +314,12 @@ impl MangaDetail {
 			tags,
 			status,
 			content_rating,
-			viewer: match (self.direction, self.islong) {
-				(Some(2), Some(1)) => Viewer::Webtoon,   // direction=2 + islong=1 = strip
-				(Some(2), _) => Viewer::LeftToRight,     // direction=2 = LTR
-				_ => Viewer::RightToLeft,                // direction=1 or null = RTL
+			viewer: match self.islong {
+				Some(1) => Viewer::Webtoon,          // islong=1 = Long Strip (Webtoon)
+				_ => match self.direction {
+					Some(2) => Viewer::LeftToRight,  // direction=2 = LTR
+					_ => Viewer::RightToLeft,        // default = RTL
+				},
 			},
 			url,
 			..Default::default()

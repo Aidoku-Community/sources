@@ -155,7 +155,7 @@ pub fn refresh_user_profile(token: &str) -> Result<()> {
 pub fn perform_silent_updates(token: &str) {
 	let mut checkin_performed = false;
 
-	// 1. Auto Check-in
+	// Auto Check-in
 	if settings::get_auto_checkin()
 		&& !settings::has_checkin_flag()
 		&& !should_block(crate::SIGN_API)
@@ -166,7 +166,7 @@ pub fn perform_silent_updates(token: &str) {
 		let _ = refresh_user_profile(token);
 	}
 
-	// 2. Stale Cache Update (if no check-in just happened)
+	// Stale Cache Update (if no check-in just happened)
 	if !checkin_performed && settings::is_cache_stale() && !should_block(crate::SIGN_API) {
 		let _ = refresh_user_profile(token);
 	}
@@ -304,8 +304,6 @@ impl Iterator for HiddenContentScanner {
 			if has_auth_error
 				&& let Ok(Some(new_token)) = try_refresh_token()
 			{
-				self.token = Some(new_token.clone());
-
 				// Retry the batch with the new token
 				let requests = make_requests(Some(&new_token));
 				let responses = Request::send_all(requests);
@@ -314,6 +312,8 @@ impl Iterator for HiddenContentScanner {
 					.flatten()
 					.filter_map(|resp| resp.get_json_owned().ok())
 					.collect();
+
+				self.token = Some(new_token);
 			}
 
 			items = parsed_responses

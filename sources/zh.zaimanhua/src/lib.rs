@@ -88,7 +88,10 @@ impl Source for Zaimanhua {
 			let url = format!("{}/comic/rank/list?rank_type=0&by_time={}&page={}", V4_API_URL, by_time, page);
 			let response: models::ApiResponse<Vec<models::RankItem>> =
 				net::auth_request(&url, settings::get_current_token().as_deref())?.json_owned()?;
-			let data = response.data.ok_or_else(|| error!("Missing rank data"))?;
+			let data = response.data.unwrap_or_default();
+			if data.is_empty() {
+				return Ok(MangaPageResult { entries: Vec::new(), has_next_page: false });
+			}
 			return Ok(models::manga_list_from_ranks(data));
 		}
 
@@ -335,9 +338,10 @@ impl ListingProvider for Zaimanhua {
 			let url = format!("{}/comic/rank/list?rank_type=0&by_time=2&page={}", V4_API_URL, page);
 			let response: models::ApiResponse<Vec<models::RankItem>> =
 				net::auth_request(&url, settings::get_current_token().as_deref())?.json_owned()?;
-			let data = response
-				.data
-				.ok_or_else(|| aidoku::error!("Missing rank data"))?;
+			let data = response.data.unwrap_or_default();
+			if data.is_empty() {
+				return Ok(MangaPageResult { entries: Vec::new(), has_next_page: false });
+			}
 			return Ok(models::manga_list_from_ranks(data));
 		}
 
