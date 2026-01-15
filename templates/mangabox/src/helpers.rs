@@ -20,15 +20,6 @@ pub fn status_from_string(string: &str) -> MangaStatus {
 	}
 }
 
-pub fn strip_default_chapter_title(s: String) -> String {
-	const PREFIX: &str = "Chapter ";
-
-	s[PREFIX.len()..]
-		.find(' ')
-		.map(|space_pos| s[PREFIX.len() + space_pos..].into())
-		.unwrap_or(s)
-}
-
 pub fn get_search_url(
 	params: &Params,
 	query: Option<String>,

@@ -194,24 +194,31 @@ pub trait Impl {
 				})
 				.ok_or_else(|| error!("Couldn't find API url."))?;
 
-			manga.chapters = Request::get(api_url)?
-				.json_owned::<ApiResponse<ChaptersResponse>>()
-				.map(|response| {
-					Some(
-						response
-							.data
-							.chapters
-							.into_iter()
-							.map(Into::into)
-							.map(|mut chapter: Chapter| {
-								chapter.url =
-									Some(chapter_url.replace("__CHAPTER__", &chapter.key));
-								chapter.key = format!("{}/{}", manga.key, chapter.key);
-								chapter
-							})
-							.collect(),
-					)
-				})?;
+			let mut offset = 0;
+			let mut chapters: Vec<Chapter> = Vec::new();
+
+			loop {
+				let url = format!("{api_url}?limit=500&offset={offset}");
+				let Ok(response) = Request::get(&url)?
+					.send()?
+					.get_json::<ApiResponse<ChaptersResponse>>()
+				else {
+					break;
+				};
+				chapters.extend(response.data.chapters.into_iter().map(Into::into).map(
+					|mut chapter: Chapter| {
+						chapter.url = Some(chapter_url.replace("__CHAPTER__", &chapter.key));
+						chapter.key = format!("{}/{}", manga.key, chapter.key);
+						chapter
+					},
+				));
+				if !response.data.pagination.has_more {
+					break;
+				}
+				offset += 500;
+			}
+
+			manga.chapters = Some(chapters);
 		}
 
 		Ok(manga)

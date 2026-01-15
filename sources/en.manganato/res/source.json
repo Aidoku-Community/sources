@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.manganato",
 		"name": "MangaNato",
-		"version": 7,
+		"version": 8,
 		"urls": ["https://www.manganato.gg", "https://www.natomanga.com"],
 		"contentRating": 1,
 		"languages": ["en"]

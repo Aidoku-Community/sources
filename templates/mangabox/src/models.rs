@@ -2,10 +2,9 @@ use aidoku::{
 	Chapter,
 	alloc::{string::String, vec::Vec},
 	imports::std::parse_date,
+	prelude::*,
 };
 use serde::Deserialize;
-
-use crate::helpers;
 
 #[derive(Deserialize)]
 pub struct ApiResponse<T> {
@@ -16,6 +15,12 @@ pub struct ApiResponse<T> {
 #[derive(Deserialize)]
 pub struct ChaptersResponse {
 	pub chapters: Vec<ChapterData>,
+	pub pagination: Pagination,
+}
+
+#[derive(Deserialize)]
+pub struct Pagination {
+	pub has_more: bool,
 }
 
 #[derive(Deserialize)]
@@ -31,7 +36,12 @@ impl From<ChapterData> for Chapter {
 	fn from(value: ChapterData) -> Self {
 		Chapter {
 			key: value.chapter_slug,
-			title: Some(helpers::strip_default_chapter_title(value.chapter_name)),
+			title: Some(
+				value
+					.chapter_name
+					.trim_start_matches(&format!("Chapter {}", value.chapter_num))
+					.into(),
+			),
 			chapter_number: Some(value.chapter_num),
 			date_uploaded: parse_date(&value.updated_at, "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'"),
 			..Default::default()
