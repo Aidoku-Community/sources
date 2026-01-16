@@ -1,0 +1,151 @@
+[
+    {
+        "type": "sort",
+        "title": "Ordenar por",
+        "id": "sortBy",
+        "options": [
+            "Alfabetico",
+            "Creacion",
+            "Num. Capitulos"
+        ]
+    },
+    {
+        "type": "select",
+        "title": "Tipo",
+        "id": "tipo",
+        "options": [
+            "Ver todo",
+            "Manhwa",
+            "Manga",
+            "Manhua",
+            "Doujinshi",
+            "Novela",
+            "One shot"
+        ],
+        "ids": [
+            "",
+            "manhwa",
+            "manga",
+            "manhua",
+            "doujinshi",
+            "novela",
+            "one_shot"
+        ]
+    },
+    {
+        "type": "select",
+        "title": "Demografia",
+        "id": "demografia",
+        "options": [
+            "Ver todo",
+            "Seinen",
+            "Shonen",
+            "Josei",
+            "Shojo"
+        ],
+        "ids": [
+            "",
+            "seinen",
+            "shonen",
+            "josei",
+            "shojo"
+        ]
+    },
+    {
+        "type": "select",
+        "title": "Estado",
+        "id": "estado",
+        "options": [
+            "Ver todo",
+            "Publicandose",
+            "Pausado",
+            "Finalizado"
+        ],
+        "ids": [
+            "",
+            "publicandose",
+            "pausado",
+            "finalizado"
+        ]
+    },
+    {
+        "type": "select",
+        "title": "Erotico",
+        "id": "erotico",
+        "options": [
+            "No",
+            "Si",
+            "Ver todo"
+        ],
+        "ids": [
+            "no",
+            "si",
+            ""
+        ]
+    },
+    {
+        "type": "multi-select",
+        "title": "Generos",
+        "id": "genres",
+        "options": [
+            "Accion",
+            "Aventura",
+            "Comedia",
+            "Drama",
+            "Recuentos de la vida",
+            "Romance",
+            "Venganza",
+            "Harem",
+            "Fantasia",
+            "Sobrenatural",
+            "Tragedia",
+            "Psicologico",
+            "Horror",
+            "Thriller",
+            "Historias cortas",
+            "Ecchi",
+            "Gore",
+            "Girls love",
+            "Boys love",
+            "Reencarnacion",
+            "Sistema de niveles",
+            "Ciencia ficcion",
+            "Apocaliptico",
+            "Artes marciales",
+            "Superpoderes",
+            "Cultivacion (cultivo)",
+            "Milf"
+        ],
+        "ids": [
+            "3",
+            "29",
+            "18",
+            "1",
+            "42",
+            "2",
+            "5",
+            "6",
+            "23",
+            "31",
+            "25",
+            "43",
+            "32",
+            "44",
+            "28",
+            "30",
+            "34",
+            "37",
+            "27",
+            "45",
+            "41",
+            "37",
+            "33",
+            "38",
+            "39",
+            "40",
+            "35",
+            "8"
+        ],
+        "defaults": []
+    }
+]
