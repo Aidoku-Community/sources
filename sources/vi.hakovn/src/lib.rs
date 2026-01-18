@@ -41,7 +41,7 @@ impl Impl for Hako {
 			viewer: Viewer::RightToLeft,
 
 			next_page: ".next:not(.disabled)",
-			manga_cell: ".row .thumb-item-flow",
+			manga_cell: ".search-page .row .thumb-item-flow, .at-index .row .thumb-item-flow",
 			manga_cell_title: ".series-title a",
 			manga_cell_url: ".series-title a",
 			manga_cell_image: ".content.img-in-ratio",
