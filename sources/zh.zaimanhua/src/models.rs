@@ -5,12 +5,16 @@ use aidoku::{
 	Link, LinkValue,
 };
 
+// === API Response Wrapper ===
+
 #[derive(Deserialize)]
 pub struct ApiResponse<T> {
 	pub errno: Option<i64>,
 	pub errmsg: Option<String>,
 	pub data: Option<T>,
 }
+
+// === Search API ===
 
 #[derive(Deserialize)]
 pub struct SearchData {
@@ -28,26 +32,7 @@ pub struct SearchItem {
 
 impl SearchItem {
 	pub fn matches_author(&self, target_author: &str) -> bool {
-		let authors_str = self.authors.as_deref().unwrap_or("");
-		if authors_str.is_empty() {
-			return false;
-		}
-
-		let separators = ['/', ',', '，', '、', '&', ';'];
-		let parts = authors_str.split(|c| separators.contains(&c));
-
-		for part in parts {
-			let trimmed = part.trim();
-			if trimmed.eq_ignore_ascii_case(target_author) {
-				return true;
-			}
-		}
-
-		if target_author.len() > 3 || !target_author.is_ascii() {
-			return authors_str.to_lowercase().contains(&target_author.to_lowercase());
-		}
-
-		false
+		matches_author_str(self.authors.as_deref().unwrap_or(""), target_author)
 	}
 }
 
@@ -75,6 +60,7 @@ pub struct FilterData {
 	pub comic_list: Vec<FilterItem>,
 }
 
+// === Filter API ===
 #[derive(Deserialize, Clone)]
 pub struct FilterItem {
 	pub id: i64,
@@ -85,6 +71,7 @@ pub struct FilterItem {
 	pub last_update_chapter_name: Option<String>,
 	pub last_update_chapter_id: Option<i64>,
 	pub last_updatetime: Option<i64>,
+	pub hidden: Option<i32>,
 }
 
 impl FilterItem {
@@ -116,29 +103,8 @@ impl FilterItem {
 	}
 
 	/// Check if this item matches a specific author name.
-	/// Handles splitting by common separators and exact/loose matching.
 	pub fn matches_author(&self, target_author: &str) -> bool {
-		let authors_str = self.authors.as_deref().unwrap_or("");
-		if authors_str.is_empty() {
-			return false;
-		}
-
-		let separators = ['/', ',', '，', '、', '&', ';'];
-		let parts = authors_str.split(|c| separators.contains(&c));
-
-		for part in parts {
-			let trimmed = part.trim();
-			if trimmed.eq_ignore_ascii_case(target_author) {
-				return true;
-			}
-		}
-
-		// Allow loose matching only for specific queries (Multibyte or >3 chars)
-		if target_author.len() > 3 || !target_author.is_ascii() {
-			return authors_str.to_lowercase().contains(&target_author.to_lowercase());
-		}
-
-		false
+		matches_author_str(self.authors.as_deref().unwrap_or(""), target_author)
 	}
 }
 
@@ -196,6 +162,7 @@ pub struct RankItem {
 	pub cover: Option<String>,
 	pub authors: Option<String>,
 	pub status: Option<String>,
+	pub hidden: Option<i32>,
 	pub num: Option<i64>,
 }
 
@@ -407,7 +374,7 @@ pub struct ChapterPageData {
 	pub page_url_hd: Option<Vec<String>>,
 }
 
-// === Helper Functions ===
+// === Private Helpers ===
 
 fn parse_status(status_str: &str) -> MangaStatus {
 	match status_str {
@@ -418,13 +385,39 @@ fn parse_status(status_str: &str) -> MangaStatus {
 	}
 }
 
+/// Shared author matching logic for SearchItem and FilterItem.
+/// Handles splitting by common separators and exact/loose matching.
+fn matches_author_str(authors_str: &str, target_author: &str) -> bool {
+	if authors_str.is_empty() {
+		return false;
+	}
+
+	let separators = ['/', ',', '，', '、', '&', ';'];
+	let parts = authors_str.split(|c| separators.contains(&c));
+
+	for part in parts {
+		let trimmed = part.trim();
+		if trimmed.eq_ignore_ascii_case(target_author) {
+			return true;
+		}
+	}
+
+	// Allow loose matching only for specific queries (Multibyte or >3 chars)
+	if target_author.len() > 3 || !target_author.is_ascii() {
+		return authors_str.to_lowercase().contains(&target_author.to_lowercase());
+	}
+
+	false
+}
+
 // === Convenience Functions ===
 
 pub fn manga_list_from_filter(items: Vec<FilterItem>) -> MangaPageResult {
 	let entries: Vec<Manga> = items
 		.into_iter()
-		.filter(|item| item.id > 0)
-		.map(Into::into)
+		.filter_map(|item| {
+			if item.id > 0 { Some(item.into()) } else { None }
+		})
 		.collect();
 	let has_next_page = !entries.is_empty();
 	MangaPageResult {
@@ -436,8 +429,9 @@ pub fn manga_list_from_filter(items: Vec<FilterItem>) -> MangaPageResult {
 pub fn manga_list_from_ranks(items: Vec<RankItem>) -> MangaPageResult {
 	let entries: Vec<Manga> = items
 		.into_iter()
-		.filter(|item| item.comic_id > 0)
-		.map(Into::into)
+		.filter_map(|item| {
+			if item.comic_id > 0 { Some(item.into()) } else { None }
+		})
 		.collect();
 	let has_next_page = !entries.is_empty();
 	MangaPageResult {

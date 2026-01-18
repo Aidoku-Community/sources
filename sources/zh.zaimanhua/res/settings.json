@@ -27,7 +27,7 @@
 				"type": "switch",
 				"key": "enhancedMode",
 				"title": "增强浏览",
-				"subtitle": "获取更多内容 (Lv.1)",
+				"subtitle": "解锁全部内容",
 				"default": false,
 				"requires": "login",
 				"refreshes": [
@@ -37,13 +37,14 @@
 			},
 			{
 				"type": "switch",
-				"key": "showHiddenContent",
-				"title": "隐藏内容",
-				"subtitle": "搜索和浏览时包含隐藏漫画 (Lv.3)",
+				"key": "deepSearch",
+				"title": "深度检索",
+				"subtitle": "搜索隐藏内容",
 				"default": false,
 				"requires": "enhancedMode",
 				"refreshes": [
-					"content"
+					"content",
+					"settings"
 				]
 			}
 		]

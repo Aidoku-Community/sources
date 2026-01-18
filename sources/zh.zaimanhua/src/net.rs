@@ -1,7 +1,7 @@
 use crate::models;
 use crate::settings;
 
-use crate::{ACCOUNT_API, SIGN_API, V4_API_URL, USER_AGENT};
+use crate::{ACCOUNT_API, SIGN_API, USER_AGENT};
 use aidoku::{
 	Result,
 	alloc::{String, Vec, format, string::ToString},
@@ -10,6 +10,81 @@ use aidoku::{
 };
 
 use aidoku::helpers::uri::encode_uri_component;
+
+// === URL Builders ===
+// Centralized URL construction for API endpoints.
+
+pub mod urls {
+	use crate::V4_API_URL;
+	use aidoku::{alloc::{String, format}, helpers::uri::encode_uri_component};
+
+	/// Build search API URL
+	pub fn search(keyword: &str, page: i32) -> String {
+		format!("{}/search/index?keyword={}&source=0&page={}",
+			V4_API_URL, encode_uri_component(keyword), page)
+	}
+
+	/// Build search API URL with custom size (for author search)
+	pub fn search_sized(keyword: &str, page: i32, size: i32) -> String {
+		format!("{}/search/index?keyword={}&source=0&page={}&size={}",
+			V4_API_URL, encode_uri_component(keyword), page, size)
+	}
+
+	/// Build filter/list API URL with query string
+	pub fn filter(query_string: &str, page: i32) -> String {
+		format!("{}/comic/filter/list?{}&page={}", V4_API_URL, query_string, page)
+	}
+
+	/// Build filter/list API URL with sortType and size (for Home page)
+	pub fn filter_latest_sized(page: i32, size: i32) -> String {
+		format!("{}/comic/filter/list?sortType=1&page={}&size={}", V4_API_URL, page, size)
+	}
+
+	/// Build filter/list API URL by category
+	pub fn filter_cate(cate: i64, page: i32, size: i32) -> String {
+		format!("{}/comic/filter/list?cate={}&size={}&page={}", V4_API_URL, cate, size, page)
+	}
+
+	/// Build manga detail API URL
+	pub fn detail(id: i64) -> String {
+		format!("{}/comic/detail/{}?channel=android", V4_API_URL, id)
+	}
+
+	/// Build rank/list API URL
+	pub fn rank(by_time: i32, page: i32) -> String {
+		format!("{}/comic/rank/list?rank_type=0&by_time={}&page={}", V4_API_URL, by_time, page)
+	}
+
+	/// Build recommend/list API URL (for Home page banner)
+	pub fn recommend() -> String {
+		format!("{}/comic/recommend/list", V4_API_URL)
+	}
+
+	/// Build chapter pages API URL
+	pub fn chapter(comic_id: &str, chapter_id: &str) -> String {
+		format!("{}/comic/chapter/{}/{}", V4_API_URL, comic_id, chapter_id)
+	}
+
+	/// Build filter by theme (author tag) API URL
+	pub fn filter_theme(theme_id: i64, page: i32) -> String {
+		format!("{}/comic/filter/list?theme={}&page={}", V4_API_URL, theme_id, page)
+	}
+
+	/// Build subscription list API URL
+	pub fn sub_list(page: i32) -> String {
+		format!("{}/comic/sub/list?status=0&firstLetter=&page={}&size=50", V4_API_URL, page)
+	}
+
+	/// Build manga news page URL
+	pub fn manga_news() -> String {
+		format!("{}/manhuaqingbao", crate::NEWS_URL)
+	}
+
+	/// Build filter/list for hidden scanner (large page size)
+	pub fn filter_scanner(page: i32) -> String {
+		format!("{}/comic/filter/list?sortType=1&page={}&size=100", V4_API_URL, page)
+	}
+}
 
 /// Resolves URL through proxy if proxy toggle is enabled and valid URL is configured.
 pub fn resolve_url(url: &str) -> String {
@@ -244,8 +319,8 @@ impl RequestBatch {
 }
 
 // === Hidden Content Scanner ===
+// Scanner for hidden content, implementing Iterator for lazy fetching
 
-/// Scanner for hidden content, implementing Iterator for lazy fetching
 pub struct HiddenContentScanner {
 	current_page: i32,
 	scanned_batches: i32,
@@ -284,7 +359,7 @@ impl Iterator for HiddenContentScanner {
 			let make_requests = |token: Option<&str>| -> Vec<Request> {
 				(self.current_page..=end_page)
 					.filter_map(|p| {
-						let url = format!("{}/comic/filter/list?sortType=1&page={}&size=100", V4_API_URL, p);
+					let url = urls::filter_scanner(p);
 						auth_request(&url, token).ok()
 					})
 					.collect()

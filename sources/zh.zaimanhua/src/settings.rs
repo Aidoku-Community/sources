@@ -2,15 +2,29 @@ use aidoku::{
 	alloc::{String, string::ToString},
 	imports::defaults::{DefaultValue, defaults_get, defaults_set},
 };
+// === Storage Keys ===
 
+// Authentication
 const TOKEN_KEY: &str = "auth_token";
-const JUST_LOGGED_IN_KEY: &str = "justLoggedIn";
-const AUTO_CHECKIN_KEY: &str = "autoCheckin";
-const LAST_CHECKIN_KEY: &str = "lastCheckin";
-const ENHANCED_MODE_KEY: &str = "enhancedMode";
-const SHOW_HIDDEN_KEY: &str = "showHiddenContent";
 const USERNAME_KEY: &str = "username";
 const PASSWORD_KEY: &str = "password";
+const JUST_LOGGED_IN_KEY: &str = "justLoggedIn";
+
+// Check-in
+const AUTO_CHECKIN_KEY: &str = "autoCheckin";
+const LAST_CHECKIN_KEY: &str = "lastCheckin";
+
+// Enhanced Mode
+const ENHANCED_MODE_KEY: &str = "enhancedMode";
+const DEEP_SEARCH_KEY: &str = "deepSearch";
+const MIN_ENHANCED_LEVEL: i32 = 1;
+
+// Proxy
+const USE_PROXY_KEY: &str = "useProxy";
+const PROXY_URL_KEY: &str = "proxyUrl";
+
+// Cache
+const USER_CACHE_KEY: &str = "userCache";
 
 // === Authentication ===
 
@@ -37,18 +51,18 @@ pub fn set_token(token: &str) {
 	defaults_set(TOKEN_KEY, DefaultValue::String(token.to_string()));
 }
 
-pub fn clear_token() {
-	defaults_set(TOKEN_KEY, DefaultValue::Null);
-	defaults_set(USERNAME_KEY, DefaultValue::Null);
-	defaults_set(PASSWORD_KEY, DefaultValue::Null);
-}
-
 pub fn get_current_token() -> Option<String> {
 	if get_enhanced_mode() {
 		get_token()
 	} else {
 		None
 	}
+}
+
+pub fn clear_token() {
+	defaults_set(TOKEN_KEY, DefaultValue::Null);
+	defaults_set(USERNAME_KEY, DefaultValue::Null);
+	defaults_set(PASSWORD_KEY, DefaultValue::Null);
 }
 
 // === Login State Flag (for logout detection) ===
@@ -93,24 +107,37 @@ pub fn clear_checkin_flag() {
 	defaults_set(LAST_CHECKIN_KEY, DefaultValue::Null);
 }
 
-// === Enhanced Mode & Hidden Content ===
+// === Enhanced Mode & Deep Search ===
 
-pub fn get_enhanced_mode() -> bool {
-	defaults_get::<bool>(ENHANCED_MODE_KEY).unwrap_or(false) && get_token().is_some()
+/// Check if user meets minimum level requirement for enhanced features
+pub fn user_meets_level_requirement() -> bool {
+	if let Some(cache) = get_user_cache() {
+		cache.level >= MIN_ENHANCED_LEVEL
+	} else {
+		false // No cache = require login to enable enhanced mode
+	}
 }
 
-pub fn show_hidden_content() -> bool {
-	get_enhanced_mode() && defaults_get::<bool>(SHOW_HIDDEN_KEY).unwrap_or(false)
+/// Enhanced mode requires: toggle ON + valid token + Lv.1+
+pub fn get_enhanced_mode() -> bool {
+	defaults_get::<bool>(ENHANCED_MODE_KEY).unwrap_or(false) 
+		&& get_token().is_some()
+		&& user_meets_level_requirement()
+}
+
+/// Deep Search: requires Enhanced Mode + toggle ON
+pub fn deep_search_enabled() -> bool {
+	get_enhanced_mode() && defaults_get::<bool>(DEEP_SEARCH_KEY).unwrap_or(false)
 }
 
 // === Proxy Mode ===
 
 pub fn get_use_proxy() -> bool {
-	defaults_get::<bool>("useProxy").unwrap_or(false)
+	defaults_get::<bool>(USE_PROXY_KEY).unwrap_or(false)
 }
 
 pub fn get_proxy_url() -> Option<String> {
-	defaults_get::<String>("proxyUrl")
+	defaults_get::<String>(PROXY_URL_KEY)
 		.filter(|url| {
 			url.starts_with("https://")
 				&& url.len() > 10
@@ -128,7 +155,6 @@ pub struct UserCache {
 	pub timestamp: f64,
 }
 
-const USER_CACHE_KEY: &str = "userCache";
 
 pub fn get_user_cache() -> Option<UserCache> {
 	aidoku::imports::defaults::defaults_get::<UserCache>(USER_CACHE_KEY)
@@ -162,5 +188,5 @@ pub fn is_cache_stale() -> bool {
 pub fn reset_dependent_settings() {
 	defaults_set(AUTO_CHECKIN_KEY, DefaultValue::Null);
 	defaults_set(ENHANCED_MODE_KEY, DefaultValue::Null);
-	defaults_set(SHOW_HIDDEN_KEY, DefaultValue::Null);
+	defaults_set(DEEP_SEARCH_KEY, DefaultValue::Null);
 }
