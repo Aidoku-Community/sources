@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "th.gomanga",
+		"name": "Go-Manga",
+		"version": 1,
+		"url": "https://www.go-manga.com",
+		"contentRating": 1,
+		"languages": ["th"]
+	}
+}

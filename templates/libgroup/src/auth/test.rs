@@ -9,7 +9,7 @@ use aidoku_test::aidoku_test;
 use serde_json::{from_str, to_string};
 
 use crate::{
-	auth::{AUTH_SCHEME, TOKEN_KEY, USER_ID_KEY},
+	auth::{TOKEN_KEY, USER_ID_KEY},
 	models::responses::TokenResponse,
 };
 
@@ -28,6 +28,7 @@ fn create_test_token(access: Option<&str>, refresh: Option<&str>, expires: Optio
 		access_token: access.map(String::from),
 		refresh_token: refresh.map(String::from),
 		expires_in: expires,
+		token_type: Some("Bearer".to_string()),
 	};
 	to_string(&token).unwrap_or_default()
 }
@@ -202,17 +203,19 @@ fn token_response_serialization() {
 		access_token: Some("access123".to_string()),
 		refresh_token: Some("refresh456".to_string()),
 		expires_in: Some(3600),
+		token_type: Some("Bearer".to_string()),
 	};
 
 	let json = to_string(&complete_token).unwrap();
 	assert!(json.contains("access123"));
 	assert!(json.contains("refresh456"));
 	assert!(json.contains("3600"));
+	assert!(json.contains("Bearer"));
 }
 
 #[aidoku_test]
 fn token_response_deserialization() {
-	let json = r#"{"access_token":"test_access","refresh_token":"test_refresh","expires_in":7200}"#;
+	let json = r#"{"access_token":"test_access","refresh_token":"test_refresh","expires_in":7200,"token_type":"Bearer"}"#;
 
 	let result: Result<TokenResponse, _> = from_str(json);
 	assert!(result.is_ok());
@@ -221,15 +224,17 @@ fn token_response_deserialization() {
 	assert_eq!(token.access_token, Some("test_access".to_string()));
 	assert_eq!(token.refresh_token, Some("test_refresh".to_string()));
 	assert_eq!(token.expires_in, Some(7200));
+	assert_eq!(token.token_type, Some("Bearer".to_string()));
 }
 
 #[aidoku_test]
 fn auth_request_format_validation() {
 	// Test: Auth header format should be correct
 	let access_token = "test_token_123";
-	let expected_header = format!("{} {}", AUTH_SCHEME, access_token);
+	let token_type = "Bearer";
+	let expected_header = format!("{} {}", token_type, access_token);
 
-	assert!(expected_header.starts_with("Bearer "));
+	assert!(expected_header.starts_with(token_type));
 	assert!(expected_header.contains(access_token));
 	assert_eq!(expected_header.split_whitespace().count(), 2);
 }

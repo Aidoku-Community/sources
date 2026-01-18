@@ -6,7 +6,7 @@ use aidoku::{
 };
 
 use crate::{
-	auth::AuthRequest,
+	auth::{self, AuthRequest},
 	context::Context,
 	endpoints::Url,
 	models::responses::{MangaDetailResponse, MangaListResponse},
@@ -19,22 +19,36 @@ const TRENDING_SUBTITLE: &str = "Новинки дня";
 const LATEST_TITLE: &str = "Последние обновления";
 
 // Send initial layout structure
-pub fn send_initial_layout() {
-	send_partial_result(&HomePartialResult::Layout(HomeLayout {
-		components: vec![
-			create_home_component(
-				POPULAR_TITLE,
-				Some(POPULAR_SUBTITLE),
-				HomeComponentValue::empty_big_scroller(),
+pub fn send_initial_layout(ctx: &Context) {
+	let mut components = Vec::new();
+
+	if ctx.site_id == 4 && !auth::is_authorized() {
+		components.push(HomeComponent {
+			title: Some("⚠️ ТРЕБУЕТСЯ АВТОРИЗАЦИЯ".to_string()),
+			subtitle: Some(
+				"Чтение глав невозможно без входа в аккаунт.\n\nКак войти:\n1. Нажмите 3 точки (справа сверху)\n2. Перейдите в Настройки ⚙️\n3. Нажмите «Войти через SocialLib»".to_string()
 			),
-			create_home_component(
-				TRENDING_TITLE,
-				Some(TRENDING_SUBTITLE),
-				HomeComponentValue::empty_scroller(),
-			),
-			create_home_component(LATEST_TITLE, None, HomeComponentValue::empty_scroller()),
-		],
-	}));
+			value: HomeComponentValue::empty_links(),
+		});
+	}
+
+	components.push(create_home_component(
+		POPULAR_TITLE,
+		Some(POPULAR_SUBTITLE),
+		HomeComponentValue::empty_big_scroller(),
+	));
+	components.push(create_home_component(
+		TRENDING_TITLE,
+		Some(TRENDING_SUBTITLE),
+		HomeComponentValue::empty_scroller(),
+	));
+	components.push(create_home_component(
+		LATEST_TITLE,
+		None,
+		HomeComponentValue::empty_scroller(),
+	));
+
+	send_partial_result(&HomePartialResult::Layout(HomeLayout { components }));
 }
 
 // Load popular manga with detailed information

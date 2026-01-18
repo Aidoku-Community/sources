@@ -164,7 +164,7 @@ pub trait Impl {
 	fn get_home(&self, params: &Params) -> Result<HomeLayout> {
 		let ctx = Context::from_params(params);
 
-		home::send_initial_layout();
+		home::send_initial_layout(&ctx);
 		home::load_popular_manga(&ctx)?;
 		home::load_currently_reading(&ctx)?;
 		home::load_latest_updates(&ctx)?;

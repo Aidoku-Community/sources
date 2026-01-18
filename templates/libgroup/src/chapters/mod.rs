@@ -50,33 +50,33 @@ impl ChaptersCache {
 		}
 	}
 
-	/// Get chapters: returns cached copy on hit, otherwise fetches, caches, and returns.
-	/// Single write-lock path: acquire write lock once to simplify logic & avoid double-locking.
+	/// Get chapters
 	pub fn get_chapters(
 		&self,
 		manga_key: &str,
 		ctx: &Context,
 	) -> Result<Vec<LibGroupChapterListItem>> {
 		let now = (self.now_fn)();
-		let mut guard = self.cache.write();
 
-		// Check cache hit and TTL
-		if let Some(entry) = guard.get(manga_key) {
-			if !entry.is_expired(now, self.ttl_seconds) {
+		// 1. Check cache
+		{
+			let guard = self.cache.read();
+			if let Some(entry) = guard.get(manga_key)
+				&& !entry.is_expired(now, self.ttl_seconds)
+			{
 				return Ok(entry.data.clone());
 			}
-			// expired -> drop entry and fallthrough to reload
-			guard.remove(manga_key);
 		}
 
-		// Load remote
-		let chapters_url = Url::manga_chapters(&ctx.base_url, manga_key);
+		// 2. Fetch and update
+		let mut guard = self.cache.write();
+
+		let chapters_url = Url::manga_chapters(&ctx.api_url, manga_key);
 		let chapters = Request::get(chapters_url)?
 			.authed(ctx)?
 			.get_json::<ChaptersResponse>()?
 			.data;
 
-		// Insert with timestamp
 		guard.insert(manga_key.to_string(), TimedVec::new(chapters.clone(), now));
 
 		Ok(chapters)

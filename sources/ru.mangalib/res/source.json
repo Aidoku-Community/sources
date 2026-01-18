@@ -2,7 +2,7 @@
 	"info": {
 		"id": "ru.mangalib",
 		"name": "MangaLib",
-		"version": 7,
+		"version": 8,
 		"url": "https://mangalib.me",
 		"contentRating": 1,
 		"minAppVersion": "0.7.1",

@@ -1,0 +1,12 @@
+{
+	"info": {
+		"id": "vi.cmanga",
+		"name": "CManga",
+		"version": 2,
+		"url": "https://cmangax11.com",
+		"contentRating": 1,
+		"languages": [
+			"vi"
+		]
+	}
+}

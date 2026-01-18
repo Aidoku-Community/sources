@@ -32,12 +32,45 @@ def update_filters_file(filters_path: Path, genres):
         f.write("\n")
 
 
+def update_settings_file(path: Path, genres, themes):
+    with path.open("r") as f:
+        settings = json.load(f)
+
+    def update_multi_select(items, key, new_titles, new_values):
+        for item in items:
+            if item.get("type") == "multi-select" and item.get("key") == key:
+                item["titles"] = new_titles
+                item["values"] = new_values
+            if "items" in item:
+                update_multi_select(item["items"], key, new_titles, new_values)
+
+    genre_titles = [genre["title"] for genre in genres]
+    genre_values = [str(genre["term_id"]) for genre in genres]
+    theme_titles = [theme["title"] for theme in themes]
+    theme_values = [str(theme["term_id"]) for theme in themes]
+
+    update_multi_select(settings, "hiddenGenres", genre_titles, genre_values)
+    update_multi_select(settings, "hiddenThemes", theme_titles, theme_values)
+
+    with path.open("w") as f:
+        json.dump(settings, f, indent="\t")
+        f.write("\n")
+
+
 def main():
     genres = fetch_genres("https://comix.to/api/v2/terms?type=genre")
-    genres += fetch_genres("https://comix.to/api/v2/terms?type=theme")
-    genres += fetch_genres("https://comix.to/api/v2/terms?type=format")
+    themes = fetch_genres("https://comix.to/api/v2/terms?type=theme")
+    formats = fetch_genres("https://comix.to/api/v2/terms?type=format")
+
+    all_genres = []
+    all_genres += genres
+    all_genres += themes
+    all_genres += formats
     filters_path = Path(__file__).resolve().parent.parent / "res" / "filters.json"
-    update_filters_file(filters_path, genres)
+    update_filters_file(filters_path, all_genres)
+
+    settings_path = Path(__file__).resolve().parent.parent / "res" / "settings.json"
+    update_settings_file(settings_path, genres, themes)
 
 
 if __name__ == "__main__":

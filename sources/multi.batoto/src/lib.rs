@@ -5,7 +5,7 @@ use aidoku::{
 	PageContext, Result, Source, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::QueryParameters,
-	imports::{defaults::defaults_get, net::Request, std::current_date},
+	imports::{defaults::defaults_get, html::Document, net::Request, std::current_date},
 	prelude::*,
 };
 
@@ -255,61 +255,112 @@ impl Source for BatoTo {
 				.select_first(language_selector)
 				.and_then(|el| el.text())
 				.map(|s| helpers::get_language_iso(&s).into());
-			manga.chapters = html.select(chapter_selector).map(|els| {
-				els.filter_map(|el| {
-					let link = el.select_first(link_selector)?;
-					let url = link.attr("abs:href")?;
-					let key = if is_v4 {
-						helpers::get_chapter_key(&url)?
-					} else {
-						url.strip_prefix(&base_url)?
-							.trim_start_matches("/chapter/")
-							.into()
-					};
-					let info = helpers::parse_chapter_title(&link.text().unwrap_or_default());
-					let now = current_date();
-					let date_el = el.select_first(date_selector);
-					let date_uploaded = date_el
-						.as_ref()
-						.and_then(|el| {
-							if el.has_attr("data-passed") {
-								el.attr("data-passed")
-									.and_then(|data| data.parse::<i64>().ok())
-									.map(|sec_ago| now - sec_ago)
-							} else {
-								None
-							}
-						})
-						.or_else(|| {
-							date_el.and_then(|el| el.text()).and_then(|s| {
-								if s.ends_with("days ago") {
-									s.split_whitespace()
-										.next()
-										.and_then(|s| s.parse::<i64>().ok())
-										.map(|days_ago| now - days_ago * 24 * 60 * 60)
+
+			let parse_chapters = |html: &Document| -> Option<Vec<Chapter>> {
+				html.select(chapter_selector).map(|els| {
+					els.filter_map(|el| {
+						let link = el.select_first(link_selector)?;
+						let url = link.attr("abs:href")?;
+						let key = if is_v4 {
+							helpers::get_chapter_key(&url)?
+						} else {
+							url.strip_prefix(&base_url)?
+								.trim_start_matches("/chapter/")
+								.into()
+						};
+						let info = helpers::parse_chapter_title(&link.text().unwrap_or_default());
+						let now = current_date();
+						let date_el = el.select_first(date_selector);
+						let date_uploaded = date_el
+							.as_ref()
+							.and_then(|el| {
+								if el.has_attr("data-passed") {
+									el.attr("data-passed")
+										.and_then(|data| data.parse::<i64>().ok())
+										.map(|sec_ago| now - sec_ago)
 								} else {
 									None
 								}
 							})
+							.or_else(|| {
+								date_el.and_then(|el| el.text()).and_then(|s| {
+									if s.ends_with("days ago") {
+										s.split_whitespace()
+											.next()
+											.and_then(|s| s.parse::<i64>().ok())
+											.map(|days_ago| now - days_ago * 24 * 60 * 60)
+									} else {
+										None
+									}
+								})
+							})
+							.or(Some(now));
+						Some(Chapter {
+							key,
+							title: info.title,
+							volume_number: info.volume,
+							chapter_number: info.chapter,
+							date_uploaded,
+							scanlators: html
+								.select_first(scanlator_selector)
+								.and_then(|el| el.text())
+								.map(|s| vec![s]),
+							url: Some(url),
+							language: language.clone(),
+							..Default::default()
 						})
-						.or(Some(now));
-					Some(Chapter {
-						key,
-						title: info.title,
-						volume_number: info.volume,
-						chapter_number: info.chapter,
-						date_uploaded,
-						scanlators: html
-							.select_first(scanlator_selector)
-							.and_then(|el| el.text())
-							.map(|s| vec![s]),
-						url: Some(url),
-						language: language.clone(),
-						..Default::default()
 					})
+					.collect()
 				})
-				.collect()
-			})
+			};
+
+			if is_v4 {
+				let query = "query get_comic_chapterPager($comicId: ID!) {\n  \
+					get_comic_chapterPager(comicId: $comicId){\n    \
+						id data {\n      \
+							order\n    \
+						}\n  \
+					}\n\
+				}";
+				let json = Request::post(format!("{base_url}/ap2/"))?
+					.body(
+						serde_json::json!({
+							"query": query,
+							"variables": {
+								"comicId": manga.key
+							}
+						})
+						.to_string(),
+					)
+					.header("Content-Type", "application/json")
+					.json_owned::<serde_json::Value>()?;
+				if let Some(objects) = json["data"]["get_comic_chapterPager"].as_array() {
+					let urls = objects
+						.iter()
+						.step_by(2)
+						.filter_map(|v| v["data"]["order"].as_i64())
+						.map(|order| format!("{base_url}/title/{}?start={order}", manga.key))
+						.collect::<Vec<_>>();
+					if !urls.is_empty() {
+						manga.chapters = Some(
+							Request::send_all(
+								urls.into_iter().map(|url| Request::get(url).unwrap()),
+							)
+							.into_iter()
+							.rev()
+							.filter_map(|response| {
+								let html = response.ok()?.get_html().ok()?;
+								parse_chapters(&html)
+							})
+							.flatten()
+							.collect::<Vec<_>>(),
+						);
+						return Ok(manga);
+					}
+				}
+			}
+
+			manga.chapters = parse_chapters(&html);
 		}
 
 		Ok(manga)
