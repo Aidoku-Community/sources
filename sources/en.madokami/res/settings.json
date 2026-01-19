@@ -1,0 +1,27 @@
+[
+	{
+		"type": "group",
+		"title": "SETTINGS",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"title": "LOGIN",
+				"method": "basic",
+				"refreshes": ["content"]
+			}
+		],
+		"footer": "Madokami is a private manga server. If you do not have an account, press the button below to view a guide for joining."
+	},
+	{
+		"type": "group",
+		"items": [
+			{
+				"type": "link",
+				"key": "link",
+				"title": "Madokami Guide",
+				"url": "https://wotaku.wiki/guides/manga/madokami"
+			}
+		]
+	}
+]
