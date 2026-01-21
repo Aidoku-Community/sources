@@ -12,9 +12,9 @@ use aidoku::{
 mod helpers;
 mod settings;
 
-struct BatoTo;
+struct XBatCat;
 
-impl Source for BatoTo {
+impl Source for XBatCat {
 	fn new() -> Self {
 		Self
 	}
@@ -71,7 +71,12 @@ impl Source for BatoTo {
 			qs.push("lang", Some(&langs.join(",")));
 		}
 		let base_url = self.get_base_url()?;
-		let url = format!("{base_url}/v3x-search?{qs}");
+
+		if base_url.starts_with("https://bato") {
+			bail!("Change \"Base URL\" in settings.");
+		}
+
+		let url = format!("{base_url}/comics?{qs}");
 
 		let html = Request::get(url)?.html()?;
 
@@ -109,47 +114,22 @@ impl Source for BatoTo {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let base_url = self.get_base_url()?;
-		let is_v4 = helpers::is_v4(&base_url);
-		let url = format!(
-			"{base_url}/{}/{}",
-			if is_v4 { "title" } else { "series" },
-			manga.key
-		);
+		let url = format!("{base_url}/title/{}", manga.key);
 		let html = Request::get(&url)?.html()?;
 
 		if needs_details {
-			let details_selector: &str;
-			let title_selector: &str;
-			let cover_selector: &str;
-			let artist_selector: &str;
-			let author_selector: &str;
-			let tag_selector: &str;
-			let status_selector: &str;
-			let bato_status_selector: &str;
-			let viewer_selector: &str;
-			if is_v4 {
-				details_selector = "main > div";
-				title_selector = "h3 > a";
-				cover_selector = "img";
-				artist_selector = ".space-y-2:not(.hidden) > div > a[href^=\"/artist\"]";
-				author_selector = ".space-y-2:not(.hidden) > div > a[href^=\"/author\"]";
-				tag_selector = "main > div .grid > .space-y-2:not(.hidden) > .flex > span > span.whitespace-nowrap";
-				status_selector = ".grid > .space-y-2:not(.hidden) > div > span:contains(original publication) + span";
-				bato_status_selector =
-					".grid > .space-y-2:not(.hidden) > div > span:contains(upload status) + span";
-				viewer_selector =
-					".grid > .space-y-2:not(.hidden) > div > span:contains(read direction) + span";
-			} else {
-				details_selector = "div#mainer div.container-fluid";
-				title_selector = ".item-title";
-				cover_selector = "div.attr-cover img";
-				artist_selector = "div.attr-item:contains(artist) > span > a";
-				author_selector = "div.attr-item:contains(author) > span > a";
-				tag_selector = "div.attr-item b:contains(genres) + span > span";
-				status_selector = "div.attr-item:contains(original work) span";
-				bato_status_selector = "div.attr-item:contains(upload status) span";
-				viewer_selector = "div.attr-item:contains(read direction) span";
-			}
+			let details_selector = "main > div";
+			let title_selector = "h3 > a";
+			let cover_selector = "img";
+			let artist_selector = ".space-y-2:not(.hidden) > div > a[href^=\"/artist\"]";
+			let author_selector = ".space-y-2:not(.hidden) > div > a[href^=\"/author\"]";
+			let tag_selector = "main > div .grid > .space-y-2:not(.hidden) > .flex > span > span.whitespace-nowrap";
+			let status_selector = ".grid > .space-y-2:not(.hidden) > div > span:contains(original publication) + span";
+			let bato_status_selector =
+				".grid > .space-y-2:not(.hidden) > div > span:contains(upload status) + span";
+			let viewer_selector =
+				".grid > .space-y-2:not(.hidden) > div > span:contains(read direction) + span";
+
 			let info_element = html
 				.select_first(details_selector)
 				.ok_or_else(|| error!("Missing details element"))?;
@@ -166,14 +146,10 @@ impl Source for BatoTo {
 			manga.authors = html.select(author_selector).map(|els| {
 				els.filter_map(|el| el.text())
 					.map(|s| {
-						if is_v4 {
-							s.trim_end_matches("(Story&Art)")
-								.trim_end_matches("(Story)")
-								.trim_end_matches("(Art)")
-								.into()
-						} else {
-							s
-						}
+						s.trim_end_matches("(Story&Art)")
+							.trim_end_matches("(Story)")
+							.trim_end_matches("(Art)")
+							.into()
 					})
 					.collect()
 			});
@@ -231,25 +207,13 @@ impl Source for BatoTo {
 		}
 
 		if needs_chapters {
-			let language_selector: &str;
-			let chapter_selector: &str;
-			let link_selector: &str;
-			let date_selector: &str;
-			let scanlator_selector: &str;
-			if is_v4 {
-				language_selector = "main > div .grid > .space-y-2:not(.hidden) > div.whitespace-nowrap > span + span";
-				chapter_selector =
-					"div[data-name=\"chapter-list\"] > div.space-y-3 > div.border > div.flex > div";
-				link_selector = "a";
-				date_selector = "span[data-passed]";
-				scanlator_selector = "a > span.text-ellipsis";
-			} else {
-				language_selector = "div.attr-item:contains(translated language) span";
-				chapter_selector = "div.main div.p-2";
-				link_selector = "a.chapt";
-				date_selector = ".extra i.ps-3";
-				scanlator_selector = "div.extra a";
-			}
+			let language_selector =
+				"main > div .grid > .space-y-2:not(.hidden) > div.whitespace-nowrap > span + span";
+			let chapter_selector =
+				"div[data-name=\"chapter-list\"] > div.space-y-3 > div.border > div.flex > div";
+			let link_selector = "a";
+			let date_selector = "span[data-passed]";
+			let scanlator_selector = "a > span.text-ellipsis";
 
 			let language: Option<String> = html
 				.select_first(language_selector)
@@ -261,13 +225,7 @@ impl Source for BatoTo {
 					els.filter_map(|el| {
 						let link = el.select_first(link_selector)?;
 						let url = link.attr("abs:href")?;
-						let key = if is_v4 {
-							helpers::get_chapter_key(&url)?
-						} else {
-							url.strip_prefix(&base_url)?
-								.trim_start_matches("/chapter/")
-								.into()
-						};
+						let key = helpers::get_chapter_key(&url)?;
 						let info = helpers::parse_chapter_title(&link.text().unwrap_or_default());
 						let now = current_date();
 						let date_el = el.select_first(date_selector);
@@ -314,38 +272,35 @@ impl Source for BatoTo {
 				})
 			};
 
-			if is_v4 {
-				let query = "query get_comic_chapterPager($comicId: ID!) {\n  \
+			let query = "query get_comic_chapterPager($comicId: ID!) {\n  \
 					get_comic_chapterPager(comicId: $comicId){\n    \
 						id data {\n      \
 							order\n    \
 						}\n  \
 					}\n\
 				}";
-				let json = Request::post(format!("{base_url}/ap2/"))?
-					.body(
-						serde_json::json!({
-							"query": query,
-							"variables": {
-								"comicId": manga.key
-							}
-						})
-						.to_string(),
-					)
-					.header("Content-Type", "application/json")
-					.json_owned::<serde_json::Value>()?;
-				if let Some(objects) = json["data"]["get_comic_chapterPager"].as_array() {
-					let urls = objects
-						.iter()
-						.step_by(2)
-						.filter_map(|v| v["data"]["order"].as_i64())
-						.map(|order| format!("{base_url}/title/{}?start={order}", manga.key))
-						.collect::<Vec<_>>();
-					if !urls.is_empty() {
-						manga.chapters = Some(
-							Request::send_all(
-								urls.into_iter().map(|url| Request::get(url).unwrap()),
-							)
+			let json = Request::post(format!("{base_url}/ap2/"))?
+				.body(
+					serde_json::json!({
+						"query": query,
+						"variables": {
+							"comicId": manga.key
+						}
+					})
+					.to_string(),
+				)
+				.header("Content-Type", "application/json")
+				.json_owned::<serde_json::Value>()?;
+			if let Some(objects) = json["data"]["get_comic_chapterPager"].as_array() {
+				let urls = objects
+					.iter()
+					.step_by(2)
+					.filter_map(|v| v["data"]["order"].as_i64())
+					.map(|order| format!("{base_url}/title/{}?start={order}", manga.key))
+					.collect::<Vec<_>>();
+				if !urls.is_empty() {
+					manga.chapters = Some(
+						Request::send_all(urls.into_iter().map(|url| Request::get(url).unwrap()))
 							.into_iter()
 							.rev()
 							.filter_map(|response| {
@@ -354,12 +309,12 @@ impl Source for BatoTo {
 							})
 							.flatten()
 							.collect::<Vec<_>>(),
-						);
-						return Ok(manga);
-					}
+					);
+					return Ok(manga);
 				}
 			}
 
+			// fallback: parse chapters from html
 			manga.chapters = parse_chapters(&html);
 		}
 
@@ -368,52 +323,24 @@ impl Source for BatoTo {
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let base_url = self.get_base_url()?;
-		let is_v4 = helpers::is_v4(&base_url);
-		let url = if is_v4 {
-			format!("{base_url}/title/{}/{}", manga.key, chapter.key)
-		} else {
-			format!("{base_url}/chapter/{}", chapter.key)
-		};
+		let url = format!("{base_url}/title/{}/{}", manga.key, chapter.key);
 		let html = Request::get(url)?.html()?;
 
 		let mut pages = Vec::new();
 
 		for script in html
-			.select(if is_v4 {
-				"script[type=\"qwik/json\"]"
-			} else {
-				"body script"
-			})
+			.select("script[type=\"qwik/json\"]")
 			.ok_or_else(|| error!("No script elements"))?
 		{
 			let script_text = script.data();
 			let Some(script_text) = script_text else {
 				continue;
 			};
-			if is_v4 {
-				for url in helpers::extract_image_urls(&script_text) {
-					pages.push(Page {
-						content: PageContent::url(url),
-						..Default::default()
-					});
-				}
-			} else {
-				if !script_text.contains("your_email") {
-					continue;
-				}
-
-				let Some(img_str) =
-					helpers::extract_between(&script_text, "const imgHttps = [\"", "\"];")
-				else {
-					continue;
-				};
-
-				for url in img_str.split("\",\"") {
-					pages.push(Page {
-						content: PageContent::url(url),
-						..Default::default()
-					});
-				}
+			for url in helpers::extract_image_urls(&script_text) {
+				pages.push(Page {
+					content: PageContent::url(url),
+					..Default::default()
+				});
 			}
 		}
 
@@ -421,7 +348,7 @@ impl Source for BatoTo {
 	}
 }
 
-impl DeepLinkHandler for BatoTo {
+impl DeepLinkHandler for XBatCat {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		let Some(url) = url
 			.strip_prefix("http")
@@ -445,19 +372,19 @@ impl DeepLinkHandler for BatoTo {
 	}
 }
 
-impl ImageRequestProvider for BatoTo {
+impl ImageRequestProvider for XBatCat {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
 		Ok(Request::get(url.replace("//k", "//n"))?)
 	}
 }
 
-impl BaseUrlProvider for BatoTo {
+impl BaseUrlProvider for XBatCat {
 	fn get_base_url(&self) -> Result<String> {
 		Ok(defaults_get::<String>("url").unwrap_or_default())
 	}
 }
 
-impl MigrationHandler for BatoTo {
+impl MigrationHandler for XBatCat {
 	// example: 181119/a-familiar-feeling -> 181119
 	fn handle_manga_migration(&self, key: String) -> Result<String> {
 		if let Some(slash) = key.find('/') {
@@ -474,7 +401,7 @@ impl MigrationHandler for BatoTo {
 }
 
 register_source!(
-	BatoTo,
+	XBatCat,
 	ImageRequestProvider,
 	DeepLinkHandler,
 	BaseUrlProvider,

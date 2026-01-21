@@ -1,7 +1,7 @@
 [
 	{
 		"type": "sort",
-		"id": "sort",
+		"id": "sortby",
 		"canAscend": false,
 		"options": [
 			"Rating Score",
