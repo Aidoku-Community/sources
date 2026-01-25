@@ -77,7 +77,7 @@ impl Impl for TruyenQQ {
 					params.base_url, manga.key, chapter.key
 				)
 			},
-
+            home_manga_cover_selector: ".book_avatar img",
 			get_search_url: |params, q, page, filters| {
 				let mut query = QueryParameters::new();
 				query.push("q", q.as_deref());
