@@ -18,7 +18,7 @@ use aidoku::{
 mod models;
 use models::*;
 
-const BASE_URL: &str = "https://rawfree.at";
+const BASE_URL: &str = "https://rawfree.ac";
 
 struct RawFree;
 
