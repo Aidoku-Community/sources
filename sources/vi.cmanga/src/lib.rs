@@ -12,7 +12,7 @@ mod models;
 
 use models::*;
 
-pub const BASE_URL: &str = "https://cmangax11.com";
+pub const BASE_URL: &str = "https://cmangax12.com";
 
 struct CManga;
 
