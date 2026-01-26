@@ -2,8 +2,8 @@
 	"info": {
 		"id": "ru.slashlib",
 		"name": "SlashLib",
-		"version": 3,
-		"url": "https://slashlib.me",
+		"version": 4,
+		"url": "https://v2.shlib.life",
 		"contentRating": 2,
 		"minAppVersion": "0.7.1",
 		"languages": ["ru"]
