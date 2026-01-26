@@ -12,7 +12,7 @@ mod filter;
 mod helper;
 mod model;
 
-const BASE_URL: &str = "https://mangapark.com";
+const BASE_URL: &str = "https://mangapark.net";
 const PAGE_SIZE: i32 = 18;
 
 fn get_nsfw_cookie() -> Option<&'static str> {
