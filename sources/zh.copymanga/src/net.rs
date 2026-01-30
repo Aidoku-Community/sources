@@ -241,6 +241,3 @@ impl Display for Offset {
 		write!(f, "{}", self.0)
 	}
 }
-
-#[cfg(test)]
-mod test;

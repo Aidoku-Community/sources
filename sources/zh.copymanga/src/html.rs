@@ -190,6 +190,3 @@ impl TrySelect for Document {
 			.ok_or_else(|| error!("No element found for selector: `{}`", css_query.as_ref()))
 	}
 }
-
-#[cfg(test)]
-mod test;

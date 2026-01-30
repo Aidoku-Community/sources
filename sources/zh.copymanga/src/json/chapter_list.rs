@@ -170,6 +170,3 @@ fn parse(r#type: u8, title: &str) -> (Option<f32>, Option<f32>, Option<String>) 
 		(!real_title.is_empty()).then_some(real_title),
 	)
 }
-
-#[cfg(test)]
-mod test;

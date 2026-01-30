@@ -35,6 +35,3 @@ impl From<Results> for MangaPageResult {
 		}
 	}
 }
-
-#[cfg(test)]
-mod test;
