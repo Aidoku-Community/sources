@@ -12,16 +12,16 @@ aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", f
   "json"
 ] }
 cbc = "0.1.2"
-chinese-number = { version = "0.7.7", default-features = false, features = [
+chinese-number = { version = "0.7.8", default-features = false, features = [
   "chinese-to-number"
 ] }
 hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
-regex = { version = "1.11.1", default-features = false, features = ["unicode"] }
-serde = { version = "1.0.219", default-features = false }
-serde_json = { version = "1.0.140", default-features = false }
+regex = { version = "1.12.2", default-features = false, features = ["unicode"] }
+serde = { version = "1.0.228", default-features = false }
+serde_json = { version = "1.0.149", default-features = false }
 spin = "0.10.0"
-strum = { version = "0.27.1", default-features = false, features = ["derive"] }
-uuid = { version = "1.17.0", default-features = false, features = ["serde"] }
+strum = { version = "0.27.2", default-features = false, features = ["derive"] }
+uuid = { version = "1.20.0", default-features = false, features = ["serde"] }
 
 [profile.dev]
 panic = "abort"
