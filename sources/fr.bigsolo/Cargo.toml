@@ -7,8 +7,6 @@ edition = "2024"
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", features = ["json"]}
 regex = { version = "1.11.1", default-features = false, features = ["unicode-perl"]}
 serde = { version = "1.0.219", default-features = false, features = ["derive", "alloc"] }
-serde_json = { version = "1.0.142", default-features = false, features = ["alloc"] }
-unicode-normalization = { version = "0.1.24", default-features = false }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }

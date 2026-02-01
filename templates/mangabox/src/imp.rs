@@ -1,13 +1,12 @@
 use super::Params;
-use crate::helper;
+use crate::{helpers, models::*};
 use aidoku::{
-	alloc::{vec, String, Vec},
-	helpers::date::parse_local_date,
-	imports::{error::AidokuError, net::Request, std::send_partial_result},
-	prelude::*,
 	Chapter, ContentRating, DeepLinkResult, FilterItem, FilterValue, HomeComponent,
 	HomeComponentValue, HomeLayout, Listing, Manga, MangaPageResult, MangaWithChapter, Page,
 	PageContent, PageContext, Result, Viewer,
+	alloc::{String, Vec, vec},
+	imports::{error::AidokuError, net::Request, std::send_partial_result},
+	prelude::*,
 };
 
 pub trait Impl {
@@ -55,7 +54,7 @@ pub trait Impl {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let url = helper::get_search_url(params, query, page, filters);
+		let url = helpers::get_search_url(params, query, page, filters);
 		let html = Request::get(url)?
 			.header("Referer", &format!("{}/", params.base_url))
 			.html()?;
@@ -149,7 +148,7 @@ pub trait Impl {
 			manga.tags = details
 				.select("div.manga-info-top li:contains(genres) a, td:containsOwn(genres) + td a")
 				.map(|els| els.filter_map(|el| el.text()).collect::<Vec<String>>());
-			manga.status = helper::status_from_string(
+			manga.status = helpers::status_from_string(
 				&details
 					.select_first("li:contains(status), td:containsOwn(status) + td")
 					.and_then(|el| el.text())
@@ -177,39 +176,49 @@ pub trait Impl {
 				Viewer::RightToLeft
 			};
 
-			send_partial_result(&manga);
+			if needs_chapters {
+				send_partial_result(&manga);
+			}
 		}
 
 		if needs_chapters {
-			manga.chapters = html
-				.select("div.chapter-list div.row, ul.row-content-chapter li")
-				.map(|els| {
-					els.filter_map(|el| {
-						let link = el.select_first("a")?;
+			let (api_url, chapter_url) = html
+				.select_first("#chapter-list-container")
+				.and_then(|el| {
+					let slug = el.attr("data-comic-slug")?;
+					Some((
+						el.attr("data-api-url")?.replace("__SLUG__", &slug),
+						el.attr("data-chapter-url-template")?
+							.replace("__MANGA__", &slug),
+					))
+				})
+				.ok_or_else(|| error!("Couldn't find API url."))?;
 
-						let url = link.attr("href")?;
-						let key = url
-							.strip_prefix(params.base_url.as_ref())
-							.unwrap_or(&url)
-							.into();
-						let title = link.text().map(helper::strip_default_chapter_title);
-						let chapter_number = helper::get_chapter_number(&url);
-						let date_uploaded = el
-							.select_first("span[title]")
-							.and_then(|span| span.attr("title"))
-							.and_then(|date| parse_local_date(date, "%b-%d-%Y %H:%M"));
+			let mut offset = 0;
+			let mut chapters: Vec<Chapter> = Vec::new();
 
-						Some(Chapter {
-							key,
-							title,
-							chapter_number,
-							date_uploaded,
-							url: Some(url),
-							..Default::default()
-						})
-					})
-					.collect()
-				});
+			loop {
+				let url = format!("{api_url}?limit=500&offset={offset}");
+				let Ok(response) = Request::get(&url)?
+					.send()?
+					.get_json::<ApiResponse<ChaptersResponse>>()
+				else {
+					break;
+				};
+				chapters.extend(response.data.chapters.into_iter().map(Into::into).map(
+					|mut chapter: Chapter| {
+						chapter.url = Some(chapter_url.replace("__CHAPTER__", &chapter.key));
+						chapter.key = format!("{}/{}", manga.key, chapter.key);
+						chapter
+					},
+				));
+				if !response.data.pagination.has_more {
+					break;
+				}
+				offset += 500;
+			}
+
+			manga.chapters = Some(chapters);
 		}
 
 		Ok(manga)

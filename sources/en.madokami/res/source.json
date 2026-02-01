@@ -1,0 +1,14 @@
+{
+	"info": {
+		"id": "en.madokami",
+		"name": "Madokami",
+		"version": 1,
+		"url": "https://manga.madokami.al",
+		"contentRating": 1,
+		"languages": ["en"]
+	},
+	"config": {
+		"supportsAuthorSearch": true,
+		"supportsTagSearch": true
+	}
+}

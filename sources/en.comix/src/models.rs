@@ -49,6 +49,23 @@ pub struct MangaItems {
 	pub pagination: Option<Pagination>,
 }
 
+impl MangaItems {
+	pub fn into_filtered(self, content_types: &[String], hidden_terms: &[i32]) -> MangaPageResult {
+		MangaPageResult {
+			entries: self
+				.items
+				.into_iter()
+				.filter(|m| !m.is_hidden(content_types, hidden_terms))
+				.map(Into::into)
+				.collect(),
+			has_next_page: self
+				.pagination
+				.map(|p| p.current_page < p.last_page)
+				.unwrap_or_default(),
+		}
+	}
+}
+
 impl From<MangaItems> for MangaPageResult {
 	fn from(value: MangaItems) -> Self {
 		MangaPageResult {
@@ -85,9 +102,26 @@ pub struct ComixManga {
 	pub author: Option<Vec<Term>>,
 	pub artist: Option<Vec<Term>>,
 	pub genre: Option<Vec<Term>>,
-
 	pub latest_chapter: Option<f32>,
 	pub chapter_updated_at: Option<i64>,
+	pub term_ids: Option<Vec<i32>>,
+}
+
+impl ComixManga {
+	pub fn is_hidden(&self, hidden_types: &[String], hidden_terms: &[i32]) -> bool {
+		if hidden_types.contains(&self.r#type) {
+			return true;
+		}
+
+		if !hidden_terms.is_empty() {
+			self.term_ids
+				.as_ref()
+				.map(|ids| ids.iter().any(|id| hidden_terms.contains(id)))
+				.unwrap_or_default()
+		} else {
+			false
+		}
+	}
 }
 
 impl From<ComixManga> for Manga {
@@ -96,7 +130,7 @@ impl From<ComixManga> for Manga {
 		Self {
 			key: value.hash_id,
 			title: value.title,
-			cover: match settings::get_image_quality().as_str() {
+			cover: match settings::image_quality().as_str() {
 				"small" => Some(value.poster.small),
 				"medium" => Some(value.poster.medium),
 				"large" => Some(value.poster.large),

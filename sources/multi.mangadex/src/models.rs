@@ -1,8 +1,11 @@
-use crate::{settings, COVER_URL};
+use crate::{
+	COVER_URL,
+	settings::{self, TitlePreference},
+};
 use aidoku::{
+	Chapter, ContentRating, Manga, MangaStatus, Viewer,
 	alloc::{String, Vec},
 	prelude::format,
-	Chapter, ContentRating, Manga, MangaStatus, Viewer,
 };
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
@@ -119,7 +122,8 @@ pub struct DexCoverArtAttributes {
 #[derive(Default, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DexMangaAttributes {
-	pub title: DexLocalizedString,
+	pub title: Value,
+	pub alt_titles: Vec<Value>,
 	pub description: DexLocalizedString,
 	pub original_language: String,
 	pub content_rating: DexContentRating,
@@ -185,7 +189,52 @@ impl DexManga<'_> {
 	}
 
 	pub fn title(&self) -> Option<String> {
-		self.attributes.title.get()
+		let preference = settings::get_title_preference();
+		let primary_title = self
+			.attributes
+			.title
+			.as_object()
+			.and_then(|o| o.values().next())
+			.and_then(|v| v.as_str().map(Into::into));
+		if preference == TitlePreference::Primary {
+			return primary_title;
+		}
+		let alt_titles = self.attributes.alt_titles.clone().into_iter().rev().fold(
+			Map::new(),
+			|mut acc, mut v| {
+				if let Some(map) = v.as_object_mut() {
+					acc.extend(core::mem::take(map));
+				}
+				acc
+			},
+		);
+		match preference {
+			TitlePreference::SelectedLanguage => {
+				if let Ok(languages) = settings::get_languages() {
+					for lang in languages {
+						let title = alt_titles.get(&lang);
+						if let Some(title) = title {
+							return title.as_str().map(Into::into);
+						}
+					}
+				}
+				primary_title
+			}
+			TitlePreference::English => alt_titles
+				.get("en")
+				.and_then(|v| v.as_str().map(Into::into))
+				.or(primary_title),
+			TitlePreference::Romaji => alt_titles
+				.get("ja-ro")
+				.or_else(|| alt_titles.get("ko-ro"))
+				.and_then(|v| v.as_str().map(Into::into))
+				.or(primary_title),
+			TitlePreference::Japanese => alt_titles
+				.get("ja")
+				.and_then(|v| v.as_str().map(Into::into))
+				.or(primary_title),
+			_ => unreachable!(),
+		}
 	}
 
 	pub fn description(&self) -> Option<String> {

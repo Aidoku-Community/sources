@@ -1,0 +1,12 @@
+{
+	"info": {
+		"id": "vi.zettruyen",
+		"name": "ZetTruyen",
+		"version": 3,
+		"url": "https://www.zettruyen.space",
+		"contentRating": 1,
+		"languages": [
+			"vi"
+		]
+	}
+}

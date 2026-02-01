@@ -6,6 +6,21 @@
 		"items": [
 			{
 				"type": "select",
+				"key": "titlePreference",
+				"title": "Title Preference",
+				"values": ["", "select", "en", "ro", "ja"],
+				"titles": [
+					"Primary",
+					"Selected Language(s)",
+					"English",
+					"Romaji",
+					"Japanese"
+				],
+				"default": "",
+				"refreshes": ["content"]
+			},
+			{
+				"type": "select",
 				"key": "coverQuality",
 				"title": "Cover Quality",
 				"values": ["", ".512.jpg", ".256.jpg"],

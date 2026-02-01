@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.manganelo",
 		"name": "MangaNelo",
-		"version": 2,
+		"version": 4,
 		"url": "https://www.nelomanga.net",
 		"contentRating": 1,
 		"languages": ["en"]

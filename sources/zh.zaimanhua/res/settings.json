@@ -1,0 +1,82 @@
+[
+	{
+		"type": "group",
+		"key": "account",
+		"title": "账号",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"title": "登录",
+				"logoutTitle": "登出",
+				"method": "basic",
+				"notification": "login",
+				"refreshes": [
+					"settings",
+					"content"
+				]
+			},
+			{
+				"type": "switch",
+				"key": "autoCheckin",
+				"title": "自动签到",
+				"default": false,
+				"requires": "login"
+			},
+			{
+				"type": "switch",
+				"key": "enhancedMode",
+				"title": "增强浏览",
+				"subtitle": "解锁全部内容",
+				"default": false,
+				"requires": "login",
+				"refreshes": [
+					"content",
+					"settings"
+				]
+			},
+			{
+				"type": "switch",
+				"key": "deepSearch",
+				"title": "深度检索",
+				"subtitle": "搜索隐藏内容",
+				"default": false,
+				"requires": "enhancedMode",
+				"refreshes": [
+					"content",
+					"settings"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"key": "advanced",
+		"title": "高级",
+		"items": [
+			{
+				"type": "switch",
+				"key": "useProxy",
+				"title": "使用代理",
+				"subtitle": "通过代理中转请求",
+				"default": false,
+				"refreshes": [
+					"settings"
+				]
+			},
+			{
+				"type": "text",
+				"key": "proxyUrl",
+				"title": "代理地址",
+				"placeholder": "https://your-worker.workers.dev",
+				"keyboardType": 10,
+				"autocapitalizationType": 0,
+				"autocorrectionDisabled": true,
+				"requires": "useProxy",
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	}
+]

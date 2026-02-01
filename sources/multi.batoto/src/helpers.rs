@@ -1,18 +1,5 @@
 use aidoku::alloc::{string::String, vec::Vec};
 
-/// Checks if the given base url is a v4-only domain.
-pub fn is_v4(url: &str) -> bool {
-	["https://bato.si", "https://bato.ing"].contains(&url)
-}
-
-/// Extracts a substring between two given strings.
-pub fn extract_between<'a>(s: &'a str, start: &str, end: &str) -> Option<&'a str> {
-	s.find(start).and_then(|start_idx| {
-		let after_start = &s[start_idx + start.len()..];
-		after_start.find(end).map(|end_idx| &after_start[..end_idx])
-	})
-}
-
 /// Returns the ID of a manga from a URL.
 pub fn get_manga_key(url: &str) -> Option<String> {
 	// remove query parameters

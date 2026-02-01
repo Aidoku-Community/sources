@@ -1,7 +1,7 @@
 use aidoku::alloc::String;
 use serde::Deserialize;
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupCover {
 	pub thumbnail: Option<String>,
@@ -10,55 +10,55 @@ pub struct LibGroupCover {
 	pub orig: Option<String>,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupAgeRestriction {
 	pub label: String,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupMediaType {
 	pub label: String,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 pub struct LibGroupRating {
 	pub average: String,
 	pub votes: i32,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupStatus {
 	pub label: String,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 pub struct LibGroupModerated {
 	pub label: String,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupTag {
 	pub name: String,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct LibGroupMeta {
 	pub has_next_page: Option<bool>,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 pub struct LibGroupTeam {
 	pub name: String,
 }
 
-#[derive(Default, Deserialize, Debug, Clone)]
+#[derive(Default, Deserialize, Clone)]
 #[serde(default)]
 pub struct LibGroupRestrictedView {
 	pub is_open: bool,

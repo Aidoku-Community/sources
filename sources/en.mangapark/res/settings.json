@@ -1,0 +1,16 @@
+[
+	{
+		"type": "group",
+		"title": "SETTINGS",
+		"items": [
+			{
+				"type": "switch",
+				"key": "enableNsfw",
+				"title": "Enable NSFW",
+				"subtitle": "Show adult content from MangaPark",
+				"default": false,
+				"refreshes": ["content"]
+			}
+		]
+	}
+]

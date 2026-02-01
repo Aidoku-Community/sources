@@ -233,24 +233,21 @@ impl Home for MangaDex {
 
 		// latest chapters list
 		{
-			let chapters_data = chapters_res?
-				.get_data()
-				.map_err(|_| AidokuError::message("Failed to fetch latest chapters"))?;
+			let mut res = chapters_res?;
 			// get one chapter per unique manga
 			let mut seen = HashSet::new();
-			let chapters: Vec<DexChapter> =
-				serde_json::from_slice::<DexResponse<Vec<DexChapter>>>(&chapters_data)
-					.map_err(AidokuError::JsonParseError)?
-					.data
-					.into_iter()
-					.filter(|chapter| {
-						chapter
-							.manga_id()
-							.map(|id| seen.insert(id))
-							.unwrap_or(false)
-					})
-					.take(6)
-					.collect();
+			let chapters: Vec<DexChapter> = res
+				.get_json::<DexResponse<Vec<DexChapter>>>()?
+				.data
+				.into_iter()
+				.filter(|chapter| {
+					chapter
+						.manga_id()
+						.map(|id| seen.insert(id))
+						.unwrap_or(false)
+				})
+				.take(6)
+				.collect();
 
 			let manga_ids = chapters
 				.iter()

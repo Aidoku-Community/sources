@@ -2,7 +2,7 @@ use crate::models::TokenResponse;
 use crate::settings;
 use aidoku::{
 	Result,
-	alloc::String,
+	alloc::{String, rc::Rc},
 	imports::{
 		error::AidokuError,
 		net::{Request, Response},
@@ -46,7 +46,7 @@ fn refresh_access_token() -> Result<TokenResponse> {
 	};
 
 	let token_response = serde_json::from_str::<TokenResponse>(&string_value)
-		.map_err(AidokuError::JsonParseError)?;
+		.map_err(|e| AidokuError::JsonParseError(Rc::new(e)))?;
 
 	settings::set_token(&string_value);
 

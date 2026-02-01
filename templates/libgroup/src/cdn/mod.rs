@@ -10,6 +10,8 @@ use crate::{
 	settings::get_image_server_url,
 };
 
+const FAILURE_COOLDOWN_SECONDS: i64 = 30;
+
 struct CacheEntry {
 	data: BTreeMap<u8, BTreeMap<String, String>>,
 	created_at: i64,
@@ -28,13 +30,8 @@ impl CacheEntry {
 	}
 }
 
-/// Image server cache:
-/// - On miss or expired: we synchronously load.
-/// - If load fails and there is a stale entry, we return the stale entry.
-/// - If load fails and no entry exists, return empty string.
 pub struct ImageServerCache {
 	cache: RwLock<Option<CacheEntry>>,
-	// TTL for the image server list: default 1 hour
 	ttl_seconds: i64,
 	now_fn: fn() -> i64,
 }
@@ -55,11 +52,10 @@ impl ImageServerCache {
 		Self::new_with_ttl(3600, now)
 	}
 
-	/// Public getter that returns the selected base URL (may be empty)
 	pub fn get_base_url(&self, ctx: &Context) -> String {
 		let now = (self.now_fn)();
 
-		// Fast path: check cache under read lock
+		// 1. Check cache
 		{
 			let guard = self.cache.read();
 			if let Some(ref entry) = *guard
@@ -70,18 +66,23 @@ impl ImageServerCache {
 			}
 		}
 
-		// Miss or expired: attempt reload synchronously.
+		// 2. Fetch and update
+		let mut guard = self.cache.write();
+
 		match self.load_data(ctx) {
 			Ok(data) => {
+				// Success: Update cache with new data and fresh timestamp
 				let entry = CacheEntry::new(data.clone(), now);
-				*self.cache.write() = Some(entry);
+				*guard = Some(entry);
+
 				let selected_id = get_image_server_url();
 				self.extract_url(&data, &ctx.site_id, &selected_id)
 			}
 			Err(_) => {
-				// Load failed: return stale if present, else empty
-				let guard = self.cache.read();
-				if let Some(ref entry) = *guard {
+				// Failure backoff
+				if let Some(ref mut entry) = *guard {
+					entry.created_at = now - self.ttl_seconds + FAILURE_COOLDOWN_SECONDS;
+
 					let selected_id = get_image_server_url();
 					self.extract_url(&entry.data, &ctx.site_id, &selected_id)
 				} else {
