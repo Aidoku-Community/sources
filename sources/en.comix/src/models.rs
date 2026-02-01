@@ -1,4 +1,4 @@
-use crate::{BASE_URL, settings};
+use crate::{BASE_URL, helpers, settings};
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
@@ -179,6 +179,7 @@ pub struct ComixChapter {
 	pub votes: i32,
 	pub updated_at: i64,
 	pub scanlation_group: Option<ScanlationGroup>,
+	#[serde(rename = "is_official", deserialize_with = "helpers::de_safe_int_bool")]
 	pub is_official: i32,
 }
 
