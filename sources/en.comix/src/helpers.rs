@@ -6,7 +6,7 @@ use aidoku::{
 use crate::models::ComixChapter;
 
 fn is_official_like(ch: &ComixChapter) -> bool {
-	ch.scanlation_group_id == 9275 || ch.is_official == 1
+	ch.scanlation_group_id == 9275 || ch.is_official
 }
 
 fn is_better(new_ch: &ComixChapter, cur: &ComixChapter) -> bool {

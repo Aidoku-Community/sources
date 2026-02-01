@@ -4,7 +4,7 @@ use aidoku::{
 	alloc::{String, Vec, string::ToString, vec},
 	prelude::*,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer, de};
 
 #[derive(Deserialize)]
 pub struct SearchResponse {
@@ -179,7 +179,8 @@ pub struct ComixChapter {
 	pub votes: i32,
 	pub updated_at: i64,
 	pub scanlation_group: Option<ScanlationGroup>,
-	pub is_official: i32,
+	#[serde(deserialize_with = "bool_from_any")]
+	pub is_official: bool,
 }
 
 impl ComixChapter {
@@ -191,7 +192,7 @@ impl ComixChapter {
 			date_uploaded: Some(self.updated_at),
 			scanlators: if let Some(scanlation_group) = self.scanlation_group {
 				Some(vec![scanlation_group.name])
-			} else if self.is_official == 1 {
+			} else if self.is_official {
 				Some(vec!["Official".into()])
 			} else {
 				None
@@ -238,4 +239,51 @@ impl From<Image> for Page {
 			..Default::default()
 		}
 	}
+}
+
+// deserialize a bool from a json bool, number, or string
+fn bool_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
+	struct BoolVisitor;
+
+	impl<'de> de::Visitor<'de> for BoolVisitor {
+		type Value = bool;
+
+		fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+			formatter.write_str("a boolean or 0/1")
+		}
+
+		fn visit_bool<E>(self, v: bool) -> Result<bool, E> {
+			Ok(v)
+		}
+
+		fn visit_u64<E>(self, v: u64) -> Result<bool, E> {
+			match v {
+				0 => Ok(false),
+				_ => Ok(true),
+			}
+		}
+
+		fn visit_i64<E>(self, v: i64) -> Result<bool, E> {
+			match v {
+				0 => Ok(false),
+				_ => Ok(true),
+			}
+		}
+
+		fn visit_str<E: de::Error>(self, v: &str) -> Result<bool, E> {
+			match v.to_ascii_lowercase().as_str() {
+				"true" => Ok(true),
+				"false" => Ok(false),
+				"1" => Ok(true),
+				"0" => Ok(false),
+				_ => Err(E::custom(format!("invalid string for bool: {v}"))),
+			}
+		}
+
+		fn visit_none<E>(self) -> Result<bool, E> {
+			Ok(false)
+		}
+	}
+
+	deserializer.deserialize_any(BoolVisitor)
 }
