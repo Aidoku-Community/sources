@@ -355,7 +355,8 @@ impl Label {
 			Some(LabelCode::Creators) => Some("MANGA Plus Creators"),
 			Some(LabelCode::SaikyoJump) => Some("Saikyou Jump"),
 			Some(LabelCode::UltraJump) => Some("Ultra Jump"),
-			Some(LabelCode::Dx) => Some("Dash X Comic"),
+			Some(LabelCode::DashX) => Some("Dash X Comic"),
+			Some(LabelCode::MangaMee) => Some("Manga Mee"),
 			_ => None,
 		}
 	}
@@ -376,7 +377,7 @@ pub enum LabelCode {
 	JumpSquare,
 	#[serde(rename = "TYJ")]
 	TonariNoYoungJump,
-	#[serde(rename = "V_JUMP")]
+	#[serde(rename = "VJ")]
 	VJump,
 	#[serde(rename = "YJ")]
 	WeeklyYoungJump,
@@ -384,7 +385,10 @@ pub enum LabelCode {
 	WeeklyShonenJump,
 	#[serde(rename = "UJ")]
 	UltraJump,
-	Dx,
+	#[serde(rename = "DX")]
+	DashX,
+	#[serde(rename = "MEE")]
+	MangaMee,
 }
 
 #[derive(Deserialize, Default, Debug)]

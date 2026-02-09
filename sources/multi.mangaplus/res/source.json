@@ -2,7 +2,7 @@
 	"info": {
 		"id": "multi.mangaplus",
 		"name": "MANGA Plus",
-		"version": 1,
+		"version": 2,
 		"url": "https://mangaplus.shueisha.co.jp",
 		"contentRating": 0,
 		"languages": ["en", "es", "fr", "id", "pt-BR", "ru", "th", "vi", "de"],
