@@ -1,0 +1,14 @@
+[
+	{
+		"type": "group",
+		"title": "SETTINGS",
+		"items": [
+			{
+				"type": "switch",
+				"key": "showLocked",
+				"title": "ロックされている章の表示",
+				"default": true
+			}
+		]
+	}
+]

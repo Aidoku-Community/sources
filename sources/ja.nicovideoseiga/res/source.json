@@ -1,0 +1,11 @@
+{
+	"info": {
+		"id": "ja.niceovideoseiga",
+		"name": "ニコニコ漫画",
+		"altNames": ["NicoNicoManga"],
+		"version": 1,
+		"urls": ["https://manga.nicovideo.jp", "https://sp.manga.nicovideo.jp"],
+		"contentRating": 1,
+		"languages": ["ja"]
+	}
+}
