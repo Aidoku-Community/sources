@@ -12,7 +12,7 @@ If a source is not working, or you want to request a source that isn't available
 
 ## Contributing
 
-Contributions are welcome! Refer to the [aidoku-rs repo](https://github.com/Aidoku/aidoku-rs/tree/next) for a guide on getting started with Aidoku source development.
+Contributions are welcome! Refer to the [aidoku-rs repo](https://github.com/Aidoku/aidoku-rs/) for a guide on getting started with Aidoku source development.
 
 ## License
 
