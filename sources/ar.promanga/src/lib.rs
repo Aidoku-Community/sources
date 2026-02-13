@@ -2,7 +2,7 @@
 use aidoku::{prelude::*, Source};
 use iken::{Iken, Impl, Params};
 
-const BASE_URL: &str = "https://promanga.net";
+const BASE_URL: &str = "https://prochan.net";
 
 struct ProManga;
 

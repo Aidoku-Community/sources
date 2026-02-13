@@ -1,0 +1,41 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@std/assert@1": "1.0.16",
+    "jsr:@std/internal@^1.0.12": "1.0.12",
+    "npm:p-limit@^7.2.0": "7.2.0",
+    "npm:ts-retry@6": "6.0.0"
+  },
+  "jsr": {
+    "@std/assert@1.0.16": {
+      "integrity": "6a7272ed1eaa77defe76e5ff63ca705d9c495077e2d5fd0126d2b53fc5bd6532",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.12": {
+      "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
+    }
+  },
+  "npm": {
+    "p-limit@7.2.0": {
+      "integrity": "sha512-ATHLtwoTNDloHRFFxFJdHnG6n2WUeFjaR8XQMFdKIv0xkXjrER8/iG9iu265jOM95zXHAfv9oTkqhrfbIzosrQ==",
+      "dependencies": [
+        "yocto-queue"
+      ]
+    },
+    "ts-retry@6.0.0": {
+      "integrity": "sha512-WsVRE/P+VNYbiQC3E6TeIXBRCQj7vzjN4MlXd84AC88K7WwuWShN7A3Q/QSV/yd1hjO8qn2Cevdqny2HMwKUaA=="
+    },
+    "yocto-queue@1.2.2": {
+      "integrity": "sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ=="
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "jsr:@std/assert@1",
+      "npm:p-limit@^7.2.0",
+      "npm:ts-retry@6"
+    ]
+  }
+}
