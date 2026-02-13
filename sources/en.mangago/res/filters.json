@@ -1,0 +1,69 @@
+[
+	{
+		"type": "sort",
+		"id": "sortby",
+		"canAscend": false,
+		"options": [
+			"Alphabetical",
+			"Views",
+			"Popularity",
+			"Create Date",
+			"Update Date"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "status",
+		"title": "Status",
+		"canExclude": false,
+		"options": ["Completed", "Ongoing"],
+		"ids": ["f", "o"],
+		"defaultIncluded": ["f", "o"]
+	},
+	{
+		"type": "multi-select",
+		"id": "genre",
+		"title": "Genre",
+		"canExclude": true,
+		"isGenre": true,
+		"options": [
+			"Yaoi",
+			"Doujinshi",
+			"Shounen Ai",
+			"Shoujo",
+			"Yuri",
+			"Romance",
+			"Fantasy",
+			"Comedy",
+			"Smut",
+			"Adult",
+			"School Life",
+			"Mystery",
+			"One Shot",
+			"Ecchi",
+			"Shounen",
+			"Martial Arts",
+			"Shoujo Ai",
+			"Supernatural",
+			"Drama",
+			"Action",
+			"Adventure",
+			"Harem",
+			"Historical",
+			"Horror",
+			"Josei",
+			"Mature",
+			"Mecha",
+			"Psychological",
+			"Sci-fi",
+			"Seinen",
+			"Slice Of Life",
+			"Sports",
+			"Gender Bender",
+			"Tragedy",
+			"Bara",
+			"Shotacon",
+			"Webtoons"
+		]
+	}
+]
