@@ -16,7 +16,42 @@
 				"key": "split",
 				"title": "Split Double Pages",
 				"default": false
-			}
+			},
+      {
+        "type": "switch",
+        "key": "mobile",
+        "title": "Use Mobile API",
+        "default": false,
+        "refreshes": ["listings", "content"]
+      },
+      {
+        "type": "text",
+        "key": "os",
+        "title": "os",
+        "placeholder": "os (e.g., android)",
+        "refreshes": ["listings", "content"]
+      },
+      {
+        "type": "text",
+        "key": "osVer",
+        "title": "os_ver",
+        "placeholder": "os_ver (e.g., 33)",
+        "refreshes": ["listings", "content"]
+      },
+      {
+        "type": "text",
+        "key": "appVer",
+        "title": "app_ver",
+        "placeholder": "app_ver (e.g., 235)",
+        "refreshes": ["listings", "content"]
+      },
+      {
+        "type": "text",
+        "key": "secret",
+        "title": "secret",
+        "placeholder": "secret (hash value)",
+        "refreshes": ["listings", "content"]
+      }
 		]
 	}
 ]
