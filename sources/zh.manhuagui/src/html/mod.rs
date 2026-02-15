@@ -256,12 +256,11 @@ impl ChapterPage for Document {
 							let a_element = elem
 								.select_first("a")
 								.ok_or_else(|| error!("Failed to select a"))?;
-							let url = a_element
-								.attr("abs:href")
-								.ok_or_else(|| error!("Failed to get abs:href"))?;
-							let id = a_element
+							let href = a_element
 								.attr("href")
-								.ok_or_else(|| error!("Failed to get href"))?
+								.ok_or_else(|| error!("Failed to get href"))?;
+							let url = format!("{}{}", crate::settings::get_base_url(), href);
+							let id = href
 								.replace("/comic/", "")
 								.replace(".html", "");
 							let chapter_id = match id.split('/').next_back() {
