@@ -148,9 +148,9 @@ pub struct TitleDetailView {
 impl TitleDetailView {
 	pub fn chapter_list(&self) -> Vec<&MangaPlusChapter> {
 		if settings::get_mobile() {
-			return self.chapter_list_v2.iter().collect();
+			self.chapter_list_v2.iter().collect()
 		} else {
-			return self.chapter_list_group
+			self.chapter_list_group
 			.iter()
 			.flat_map(|group| {
 				group
