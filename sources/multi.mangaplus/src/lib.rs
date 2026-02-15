@@ -13,6 +13,7 @@ use hashbrown::HashSet;
 
 mod models;
 mod settings;
+mod helpers;
 
 use models::{MangaPlusResponse, Title};
 
@@ -21,28 +22,6 @@ const WEB_API_URL: &str = "https://jumpg-webapi.tokyo-cdn.com/api";
 const MOBILE_API_URL: &str = "https://jumpg-api.tokyo-cdn.com/api";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 const ITEMS_PER_PAGE: usize = 20;
-
-fn get_api_url() -> String {
-	if settings::get_mobile() {
-		MOBILE_API_URL.to_string()
-	} else {
-		WEB_API_URL.to_string()
-	}
-}
-
-fn build_auth_params() -> String {
-    if settings::get_mobile() {
-        format!(
-            "&os={}&os_ver={}&app_ver={}&secret={}",
-            settings::get_os(),
-            settings::get_os_ver(),
-            settings::get_app_ver(),
-            settings::get_secret()
-        )
-    } else {
-        String::new()
-    }
-}
 
 #[derive(Default)]
 struct MangaPlus {
@@ -81,14 +60,14 @@ impl Source for MangaPlus {
 			let url = || {
 				if let Some(query) = query.as_ref() {
 					if let Some(title_id) = query.strip_prefix("id:") {
-						return format!("{}/title_detailV3?title_id={title_id}&format=json{}", get_api_url(), build_auth_params());
+						return format!("{}/title_detailV3?title_id={title_id}&format=json{}", helpers::get_api_url(), helpers::build_auth_params());
 					} else if let Some(chapter_id) = query.strip_prefix("chapter-id:") {
 						return format!(
 							"{WEB_API_URL}/manga_viewer?chapter_id={chapter_id}&split=no&img_quality=low&format=json"
 						);
 					}
 				}
-				format!("{}/title_list/allV2?format=json{}", get_api_url(), build_auth_params())
+				format!("{}/title_list/allV2?format=json{}", helpers::get_api_url(), helpers::build_auth_params())
 			};
 
 			let result = Request::get(url())?
@@ -176,9 +155,9 @@ impl Source for MangaPlus {
 	) -> Result<Manga> {
 		let url = format!(
 			"{}/title_detailV3?title_id={}&format=json{}",
-			get_api_url(),
+			helpers::get_api_url(),
 			manga.key,
-			build_auth_params()
+			helpers::build_auth_params()
 		);
 		let result = Request::get(&url)?
 			.header("Referer", &format!("{BASE_URL}/"))
@@ -213,11 +192,11 @@ impl Source for MangaPlus {
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = format!(
 			"{}/manga_viewer?chapter_id={}&split={}&img_quality={}&format=json{}",
-			get_api_url(),
+			helpers::get_api_url(),
 			chapter.key,
 			if settings::get_split() { "yes" } else { "no" },
 			settings::get_image_quality(),
-			build_auth_params()
+			helpers::build_auth_params()
 		);
 		let result = Request::get(&url)?
 			.header("Referer", &format!("{BASE_URL}/"))
