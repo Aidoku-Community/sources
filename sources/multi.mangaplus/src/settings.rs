@@ -10,6 +10,11 @@ use aidoku::{
 const LANGUAGES_KEY: &str = "languages";
 const IMAGE_QUALITY_KEY: &str = "imgQuality";
 const SPLIT_KEY: &str = "split";
+const MOBILE_KEY: &str = "mobile";
+const OS_KEY: &str = "os";
+const OS_VER_KEY: &str = "osVer";
+const APP_VER_KEY: &str = "appVer";
+const SECRET_KEY: &str = "secret";
 
 pub fn get_languages() -> Result<Vec<Language>> {
 	defaults_get::<Vec<String>>(LANGUAGES_KEY)
@@ -39,4 +44,24 @@ pub fn get_image_quality() -> String {
 
 pub fn get_split() -> bool {
 	defaults_get::<bool>(SPLIT_KEY).unwrap_or(false)
+}
+
+pub fn get_mobile() -> bool {
+	defaults_get::<bool>(MOBILE_KEY).unwrap_or(false)
+}
+
+pub fn get_os() -> String {
+	defaults_get::<String>(OS_KEY).unwrap_or_default()
+}
+
+pub fn get_os_ver() -> String {
+	defaults_get::<String>(OS_VER_KEY).unwrap_or_default()
+}
+
+pub fn get_app_ver() -> String {
+	defaults_get::<String>(APP_VER_KEY).unwrap_or_default()
+}
+
+pub fn get_secret() -> String {
+	defaults_get::<String>(SECRET_KEY).unwrap_or_default()
 }

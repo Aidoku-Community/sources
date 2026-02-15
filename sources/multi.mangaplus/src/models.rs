@@ -1,4 +1,5 @@
 use crate::BASE_URL;
+use crate::settings;
 use aidoku::{
 	AidokuError, Chapter, ContentRating, Manga, MangaStatus, Result, Viewer,
 	alloc::{
@@ -131,6 +132,8 @@ pub struct TitleDetailView {
 	#[serde(default)]
 	pub chapter_list_group: Vec<ChapterListGroup>,
 	#[serde(default)]
+	pub chapter_list_v2: Vec<MangaPlusChapter>,
+	#[serde(default)]
 	pub is_simul_released: bool,
 	#[serde(default)]
 	pub rating: Rating,
@@ -144,7 +147,10 @@ pub struct TitleDetailView {
 
 impl TitleDetailView {
 	pub fn chapter_list(&self) -> Vec<&MangaPlusChapter> {
-		self.chapter_list_group
+		if settings::get_mobile() {
+			return self.chapter_list_v2.iter().collect();
+		} else {
+			return self.chapter_list_group
 			.iter()
 			.flat_map(|group| {
 				group
@@ -153,6 +159,7 @@ impl TitleDetailView {
 					.chain(group.last_chapter_list.iter())
 			})
 			.collect()
+		}
 	}
 
 	fn is_webtoon(&self) -> bool {
