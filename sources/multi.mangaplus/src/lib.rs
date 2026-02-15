@@ -208,10 +208,12 @@ impl Source for MangaPlus {
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = format!(
-			"{WEB_API_URL}/manga_viewer?chapter_id={}&split={}&img_quality={}&format=json",
+			"{}/manga_viewer?chapter_id={}&split={}&img_quality={}&format=json{}",
+			get_api_url(),
 			chapter.key,
 			if settings::get_split() { "yes" } else { "no" },
-			settings::get_image_quality()
+			settings::get_image_quality(),
+			build_auth_params()
 		);
 		let result = Request::get(&url)?
 			.header("Referer", &format!("{BASE_URL}/"))
