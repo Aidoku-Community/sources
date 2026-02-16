@@ -16,52 +16,54 @@
 				"key": "split",
 				"title": "Split Double Pages",
 				"default": false
-			},
-            {
-                "type": "group",
-                "title": "MOBILE API",
-                "items": [
-                    {
-                        "type": "switch",
-                        "key": "mobile",
-                        "title": "Use Mobile API",
-                        "default": false,
-                        "refreshes": ["listings", "content"]
-                    },
-                    {
-                        "type": "text",
-                        "key": "os",
-                        "title": "os",
-                        "placeholder": "os (e.g., android)",
-                        "requires": "mobile",
-                        "refreshes": ["listings", "content"]
-                    },
-                    {
-                        "type": "text",
-                        "key": "osVer",
-                        "title": "os_ver",
-                        "placeholder": "os_ver (e.g., 32)",
-                        "requires": "mobile",
-                        "refreshes": ["listings", "content"]
-                    },
-                    {
-                        "type": "text",
-                        "key": "appVer",
-                       	"title": "app_ver",
-                        "placeholder": "app_ver (e.g., 235)",
-                        "requires": "mobile",
-                        "refreshes": ["listings", "content"]
-                    },
-                    {
-                        "type": "text",
-                        "key": "secret",
-                        "title": "secret",
-                        "placeholder": "secret (hash value)",
-                        "requires": "mobile",
-                        "refreshes": ["listings", "content"]
-                    }
-                ]
-            }
+			}
+
 		]
-	}
+	},
+    {
+        "type": "group",
+        "title": "Mobile API",
+        "items": [
+            {
+                "type": "switch",
+                "key": "mobile",
+                "title": "Use Mobile API",
+                "default": false,
+                "refreshes": ["listings", "content"]
+            },
+            {
+                "type": "text",
+                "key": "os",
+                "title": "os",
+                "placeholder": "os (e.g., android)",
+                "requires": "mobile",
+                "refreshes": ["listings", "content"]
+            },
+            {
+                "type": "text",
+                "key": "osVer",
+                "title": "os_ver",
+                "placeholder": "os_ver (e.g., 32)",
+                "requires": "mobile",
+                "refreshes": ["listings", "content"]
+            },
+            {
+                "type": "text",
+                "key": "appVer",
+                "title": "app_ver",
+                "placeholder": "app_ver (e.g., 235)",
+                "requires": "mobile",
+                "refreshes": ["listings", "content"]
+            },
+            {
+                "type": "text",
+                "key": "secret",
+                "title": "secret",
+                "placeholder": "secret (hash value)",
+                "requires": "mobile",
+                "refreshes": ["listings", "content"]
+            }
+        ],
+        "footer": "These values are obtained from the Mobile App, for example, by using a network sniffer. They are necessary to access the mobile API endpoints."
+    }
 ]
