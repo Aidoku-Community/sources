@@ -1,6 +1,6 @@
 use aidoku::{
 	alloc::{String, string::ToString},
-    prelude::format,
+	prelude::format,
 };
 
 use crate::settings;
@@ -15,15 +15,15 @@ pub fn get_api_url() -> String {
 }
 
 pub fn build_auth_params() -> String {
-    if settings::get_mobile() {
-        format!(
-            "&os={}&os_ver={}&app_ver={}&secret={}",
-            settings::get_os(),
-            settings::get_os_ver(),
-            settings::get_app_ver(),
-            settings::get_secret()
-        )
-    } else {
-        String::new()
-    }
+	if settings::get_mobile() {
+		format!(
+			"&os={}&os_ver={}&app_ver={}&secret={}",
+			settings::get_os(),
+			settings::get_os_ver(),
+			settings::get_app_ver(),
+			settings::get_secret()
+		)
+	} else {
+		String::new()
+	}
 }
