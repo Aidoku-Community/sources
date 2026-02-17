@@ -63,6 +63,6 @@
 				"refreshes": ["listings", "content"]
 			}
 		],
-		"footer": "These values are obtained from the Mobile App, for example, by using a network sniffer. They are necessary to access the mobile API endpoints."
+		"footer": "These values can be obtained from the MANGA Plus mobile app, for example, by using a network sniffer. They are necessary to access the mobile API endpoints."
 	}
 ]
