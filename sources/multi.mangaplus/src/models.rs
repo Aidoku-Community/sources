@@ -151,14 +151,14 @@ impl TitleDetailView {
 			self.chapter_list_v2.iter().collect()
 		} else {
 			self.chapter_list_group
-			.iter()
-			.flat_map(|group| {
-				group
-					.first_chapter_list
-					.iter()
-					.chain(group.last_chapter_list.iter())
-			})
-			.collect()
+				.iter()
+				.flat_map(|group| {
+					group
+						.first_chapter_list
+						.iter()
+						.chain(group.last_chapter_list.iter())
+				})
+				.collect()
 		}
 	}
 

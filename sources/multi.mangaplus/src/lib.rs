@@ -11,9 +11,9 @@ use aidoku::{
 use core::cell::RefCell;
 use hashbrown::HashSet;
 
+mod helpers;
 mod models;
 mod settings;
-mod helpers;
 
 use models::{MangaPlusResponse, Title};
 
@@ -60,14 +60,22 @@ impl Source for MangaPlus {
 			let url = || {
 				if let Some(query) = query.as_ref() {
 					if let Some(title_id) = query.strip_prefix("id:") {
-						return format!("{}/title_detailV3?title_id={title_id}&format=json{}", helpers::get_api_url(), helpers::build_auth_params());
+						return format!(
+							"{}/title_detailV3?title_id={title_id}&format=json{}",
+							helpers::get_api_url(),
+							helpers::build_auth_params()
+						);
 					} else if let Some(chapter_id) = query.strip_prefix("chapter-id:") {
 						return format!(
 							"{WEB_API_URL}/manga_viewer?chapter_id={chapter_id}&split=no&img_quality=low&format=json"
 						);
 					}
 				}
-				format!("{}/title_list/allV2?format=json{}", helpers::get_api_url(), helpers::build_auth_params())
+				format!(
+					"{}/title_list/allV2?format=json{}",
+					helpers::get_api_url(),
+					helpers::build_auth_params()
+				)
 			};
 
 			let result = Request::get(url())?
