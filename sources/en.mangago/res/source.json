@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.mangago",
 		"name": "Mangago",
-		"version": 1,
+		"version": 2,
 		"url": "https://www.mangago.me",
 		"contentRating": 2,
 		"languages": ["en"]

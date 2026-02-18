@@ -2,7 +2,7 @@
 use aidoku::{
 	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, ImageResponse, Manga,
 	MangaPageResult, MangaStatus, Page, PageContent, PageContext, PageImageProcessor, Result,
-	Source,
+	Source, Viewer,
 	alloc::{
 		Vec,
 		string::{String, ToString},
@@ -192,6 +192,11 @@ impl Source for Mangago {
 						} else {
 							ContentRating::Safe
 						};
+						manga.viewer = if tags.iter().any(|e| e == "Webtoons") {
+							Viewer::Webtoon
+						} else {
+							Viewer::RightToLeft
+						};
 					}
 					_ => continue,
 				}
@@ -281,10 +286,7 @@ impl Source for Mangago {
 		let deobf_chapter_js = helpers::sojson_v4_decode(&obfuscated_chapter_js)?;
 
 		let key = helpers::find_hex_encoded_variable(&deobf_chapter_js, "key")
-			.and_then(|key| {
-				println!("key: {key}");
-				helpers::decode_hex(key).ok()
-			})
+			.and_then(|key| helpers::decode_hex(key).ok())
 			.ok_or_else(|| error!("Could not find cipher key"))?;
 		let iv = helpers::find_hex_encoded_variable(&deobf_chapter_js, "iv")
 			.and_then(|key| helpers::decode_hex(key).ok())
@@ -292,7 +294,12 @@ impl Source for Mangago {
 
 		let image_list = crypto::decrypt_key_iv(&imgsrcs, &key, &iv)
 			.and_then(|buf| String::from_utf8(buf).ok())
-			.map(|s| helpers::unscramble_image_list(s.trim_end_matches("\0"), &deobf_chapter_js))
+			.map(|s| {
+				helpers::unscramble_image_list(
+					s.trim_end_matches("\0").trim_end_matches(","),
+					&deobf_chapter_js,
+				)
+			})
 			.ok_or_else(|| error!("Failed to decrypt imgsrcs"))?;
 
 		let cols = helpers::find_cols(&deobf_chapter_js).unwrap_or_default();
@@ -300,6 +307,9 @@ impl Source for Mangago {
 		Ok(image_list
 			.split(",")
 			.filter_map(|url| {
+				if url.is_empty() {
+					return None;
+				}
 				Some(Page {
 					content: if url.contains("cspiclink") {
 						let key = match helpers::get_descrambling_key(&deobf_chapter_js, url) {
