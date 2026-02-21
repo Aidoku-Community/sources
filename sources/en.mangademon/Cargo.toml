@@ -1,0 +1,23 @@
+[package]
+name = "mangademon"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
+
+[dev-dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
+aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+strip = true
+lto = true

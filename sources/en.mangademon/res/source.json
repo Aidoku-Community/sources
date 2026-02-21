@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.mangademon",
+		"name": "MangaDemon",
+		"version": 6,
+		"url": "https://demonicscans.org",
+		"contentRating": 0,
+		"languages": ["en"]
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}
