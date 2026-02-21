@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "en.drakescans",
+		"name": "Drake Scans",
+		"version": 1,
+		"url": "https://drakecomic.org",
+		"contentRating": 1,
+		"languages": ["en"]
+	}
+}

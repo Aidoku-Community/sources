@@ -179,51 +179,47 @@ pub trait Impl {
 		}
 
 		if needs_chapters {
-			manga.chapters = html
-				.select(
-					"div.bxcl li, div.cl li, #chapterlist li, ul li:has(div.chbox):has(div.eph-num)",
-				)
-				.map(|els| {
-					els.filter_map(|el| {
-						let link = el.select_first("a")?;
-						let url = link.attr("abs:href")?;
-						let title = link
-							.select_first(".lch a, .chapternum")
-							.and_then(|el| {
-								let text = el.text()?;
-								if !text.is_empty() { Some(text) } else { None }
-							})
-							.or_else(|| link.text())?;
-						let chapter_number = helpers::find_first_f32(&title);
-						Some(Chapter {
-							key: url.strip_prefix_or_self(&params.base_url).into(),
-							title: if title.as_str()
-								!= format!("Chapter {}", chapter_number.unwrap_or(0.0))
-							{
-								Some(title)
-							} else {
-								None
-							},
-							chapter_number,
-							date_uploaded: Some(
-								el.select_first(".chapterdate")
-									.and_then(|el| el.text())
-									.and_then(|text| {
-										parse_date_with_options(
-											text,
-											&params.date_format,
-											&params.date_locale,
-											"current",
-										)
-									})
-									.unwrap_or_else(current_date),
-							),
-							url: Some(url),
-							..Default::default()
+			manga.chapters = html.select(&params.chapter_list_selector).map(|els| {
+				els.filter_map(|el| {
+					let link = el.select_first("a")?;
+					let url = link.attr("abs:href")?;
+					let title = link
+						.select_first(".lch a, .chapternum")
+						.and_then(|el| {
+							let text = el.text()?;
+							if !text.is_empty() { Some(text) } else { None }
 						})
+						.or_else(|| link.text())?;
+					let chapter_number = helpers::find_first_f32(&title);
+					Some(Chapter {
+						key: url.strip_prefix_or_self(&params.base_url).into(),
+						title: if title.as_str()
+							!= format!("Chapter {}", chapter_number.unwrap_or(0.0))
+						{
+							Some(title)
+						} else {
+							None
+						},
+						chapter_number,
+						date_uploaded: Some(
+							el.select_first(".chapterdate")
+								.and_then(|el| el.text())
+								.and_then(|text| {
+									parse_date_with_options(
+										text,
+										&params.date_format,
+										&params.date_locale,
+										"current",
+									)
+								})
+								.unwrap_or_else(current_date),
+						),
+						url: Some(url),
+						..Default::default()
 					})
-					.collect()
-				});
+				})
+				.collect()
+			});
 		}
 
 		Ok(manga)

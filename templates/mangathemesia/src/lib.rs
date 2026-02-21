@@ -25,6 +25,7 @@ pub struct Params {
 	pub series_genre_selector: Cow<'static, str>,
 	pub series_type_selector: Cow<'static, str>,
 	pub series_status_selector: Cow<'static, str>,
+	pub chapter_list_selector: Cow<'static, str>,
 }
 
 impl Default for Params {
@@ -84,6 +85,7 @@ impl Default for Params {
 					"Statüsü",
 				],
 			).into(),
+			chapter_list_selector: "div.bxcl li, div.cl li, #chapterlist li, ul li:has(div.chbox):has(div.eph-num)".into(),
 		}
 	}
 }
