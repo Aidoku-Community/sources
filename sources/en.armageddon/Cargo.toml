@@ -8,9 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
-base64 = { version = "0.22", default-features = false, features = ["alloc"] }
 mangathemesia = { path = "../../templates/mangathemesia" }
-serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }

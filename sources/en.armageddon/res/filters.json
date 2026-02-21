@@ -111,7 +111,7 @@
 		"id": "status",
 		"title": "Status",
 		"options": ["All", "Ongoing", "Completed"],
-		"ids": ["", "ongoing", "completed", "hiatus", "dropped"]
+		"ids": ["", "ongoing", "completed"]
 	},
 	{
 		"type": "select",
