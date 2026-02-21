@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "en.elftoon",
+		"name": "Elf Toon",
+		"version": 1,
+		"url": "https://elftoon.com",
+		"contentRating": 1,
+		"languages": ["en"]
+	}
+}
