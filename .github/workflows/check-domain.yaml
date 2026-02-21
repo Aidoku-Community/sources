@@ -1,0 +1,179 @@
+name: Check Domains
+
+on:
+  schedule:
+    - cron: "0 * * * *" # every hour
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.6.3
+
+      - name: Run domain checker
+        id: run
+        env:
+          EXCLUDE: ${{ vars.SCAN_SOURCES_EXCLUDE || '' }}
+        run: |
+          cd check-domains
+          deno task start
+
+      - name: Create issues per domain
+        uses: actions/github-script@v7
+        env:
+          AUTO_ASSIGN: ${{ vars.ISSUE_AUTO_ASSIGN || '' }}
+        with:
+          script: |
+            const fs = require("fs");
+
+            const data = JSON.parse(fs.readFileSync("check-domain-output.json", "utf8"));
+
+            const deiced = data?.deiced || {};
+            const changed = data?.changed || {};
+
+            const LABEL_TYPE = "domain"
+            const AUTO_ASSIGN = process.env.AUTO_ASSIGN || null;
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const branch = context.ref.replace("refs/heads/", "");
+
+            const activeIssues = new Set();
+
+            const issues = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: "open"
+            });
+
+            // Helper to build direct link to the source folder
+            const sourceFolderLink = (name) =>
+              `https://github.com/${owner}/${repo}/tree/${branch}/sources/${name}`;
+
+            // Helper to create issue with labels
+            const createIssue = async (title, body, extraLabels = []) => {
+              const exists = issues.data.find(i => i.title === title);
+              if (exists) {
+                activeIssues.add(exists.number);
+                console.log("Issue already exists:", title);
+                return;
+              }
+
+              const labels = ["ci", LABEL_TYPE, ...extraLabels];
+
+              const newIssue = await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body,
+                labels
+              });
+
+              activeIssues.add(newIssue.data.number);
+
+              console.log("Issue created:", title);
+            
+              if (AUTO_ASSIGN) {
+                console.log("Auto-assign to:", AUTO_ASSIGN);
+
+                await github.rest.issues.addAssignees({
+                  owner,
+                  repo,
+                  issue_number: newIssue.data.number,
+                  assignees: [AUTO_ASSIGN]
+                });
+              }
+            };
+
+            // ---- Handle deiced ----
+            for (const source of Object.keys(deiced)) {
+              const urls = deiced[source];
+              const folderUrl = sourceFolderLink(source);
+
+              const title = `source(${source}): domain deiced`;
+
+              const body = [
+                `## ❄️ Domain Deiced`,
+                `**Source:** ${source}`,
+                ``,
+                `### Source Folder`,
+                `${folderUrl}`,
+                ``,
+                `### URLs Checked`,
+                urls.map(u => "- " + u).join("\n"),
+                ``,
+                `### Timestamp`,
+                new Date().toISOString()
+              ].join("\n");
+
+              await createIssue(title, body, ["deiced"]);
+            }
+
+            // ---- Handle changed ----
+            for (const source of Object.keys(changed)) {
+              const urls = changed[source];
+              const original = urls[0];
+              const redirected = urls[1];
+              const folderUrl = sourceFolderLink(source);
+
+              const title = `source(${source}): changed → \`${redirected}\``;
+
+              const body = [
+                `## 🔀 Domain Redirect Detected`,
+                `**Source:** ${source}`,
+                ``,
+                `### Source Folder`,
+                `${folderUrl}`,
+                ``,
+                `### Original`,
+                `- ${original}`,
+                ``,
+                `### Redirected To`,
+                `- ${redirected}`,
+                ``,
+                `### Timestamp`,
+                new Date().toISOString()
+              ].join("\n");
+
+              await createIssue(title, body, ["changed"]);
+            }
+
+            // ---- Auto-close stale fixed issues ----
+            console.log("Checking for stale issues to close...");
+
+            for (const issue of issues.data) {
+              if (!issue.labels.some(l => l.name === LABEL_TYPE)) continue;
+
+              // If this issue wasn't registered as active, it is now fixed
+              if (!activeIssues.has(issue.number)) {
+                console.log("Closing stale issue:", issue.title);
+
+                // Comment before close
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  body: "Automatically closed because the domain is now resolved. 🟢"
+                });
+
+                // Close it
+                await github.rest.issues.update({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  state: "closed"
+                });
+              }
+            }
