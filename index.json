@@ -1,0 +1,1362 @@
+{
+  "name": "Aidoku Community Sources",
+  "sources": [
+    {
+      "id": "en.armageddon",
+      "name": "Armageddon",
+      "version": 3,
+      "iconURL": "icons/en.armageddon-v3.png",
+      "downloadURL": "sources/en.armageddon-v3.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://www.silentquill.net"
+    },
+    {
+      "id": "en.asurascans",
+      "name": "Asura Scans",
+      "version": 11,
+      "iconURL": "icons/en.asurascans-v11.png",
+      "downloadURL": "sources/en.asurascans-v11.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://asuracomic.net"
+    },
+    {
+      "id": "en.batcave",
+      "name": "BatCave",
+      "version": 1,
+      "iconURL": "icons/en.batcave-v1.png",
+      "downloadURL": "sources/en.batcave-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://batcave.biz"
+    },
+    {
+      "id": "en.comix",
+      "name": "Comix",
+      "version": 7,
+      "iconURL": "icons/en.comix-v7.png",
+      "downloadURL": "sources/en.comix-v7.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://comix.to"
+    },
+    {
+      "id": "en.drakescans",
+      "name": "Drake Scans",
+      "version": 1,
+      "iconURL": "icons/en.drakescans-v1.png",
+      "downloadURL": "sources/en.drakescans-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://drakecomic.org"
+    },
+    {
+      "id": "en.elftoon",
+      "name": "Elf Toon",
+      "version": 1,
+      "iconURL": "icons/en.elftoon-v1.png",
+      "downloadURL": "sources/en.elftoon-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://elftoon.com"
+    },
+    {
+      "id": "en.flamecomics",
+      "name": "Flame Comics",
+      "version": 3,
+      "iconURL": "icons/en.flamecomics-v3.png",
+      "downloadURL": "sources/en.flamecomics-v3.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://flamecomics.xyz"
+    },
+    {
+      "id": "en.hivescans",
+      "name": "Hive Scans",
+      "version": 1,
+      "iconURL": "icons/en.hivescans-v1.png",
+      "downloadURL": "sources/en.hivescans-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://hivetoons.org"
+    },
+    {
+      "id": "en.madokami",
+      "name": "Madokami",
+      "version": 1,
+      "iconURL": "icons/en.madokami-v1.png",
+      "downloadURL": "sources/en.madokami-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://manga.madokami.al"
+    },
+    {
+      "id": "en.magusmanga",
+      "name": "Magus Manga",
+      "version": 1,
+      "iconURL": "icons/en.magusmanga-v1.png",
+      "downloadURL": "sources/en.magusmanga-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://magustoon.org"
+    },
+    {
+      "id": "en.mangabat",
+      "name": "MangaBat",
+      "version": 9,
+      "iconURL": "icons/en.mangabat-v9.png",
+      "downloadURL": "sources/en.mangabat-v9.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.mangabats.com"
+    },
+    {
+      "id": "en.mangademon",
+      "name": "MangaDemon",
+      "version": 6,
+      "iconURL": "icons/en.mangademon-v6.png",
+      "downloadURL": "sources/en.mangademon-v6.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://demonicscans.org"
+    },
+    {
+      "id": "en.mangadistrict",
+      "name": "MangaDistrict",
+      "version": 1,
+      "iconURL": "icons/en.mangadistrict-v1.png",
+      "downloadURL": "sources/en.mangadistrict-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://mangadistrict.com"
+    },
+    {
+      "id": "en.mangago",
+      "name": "Mangago",
+      "version": 2,
+      "iconURL": "icons/en.mangago-v2.png",
+      "downloadURL": "sources/en.mangago-v2.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://www.mangago.me"
+    },
+    {
+      "id": "en.mangakakalot",
+      "name": "MangaKakalot",
+      "version": 4,
+      "iconURL": "icons/en.mangakakalot-v4.png",
+      "downloadURL": "sources/en.mangakakalot-v4.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.mangakakalot.gg"
+    },
+    {
+      "id": "en.manganato",
+      "name": "MangaNato",
+      "version": 8,
+      "iconURL": "icons/en.manganato-v8.png",
+      "downloadURL": "sources/en.manganato-v8.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.manganato.gg"
+    },
+    {
+      "id": "en.manganelo",
+      "name": "MangaNelo",
+      "version": 4,
+      "iconURL": "icons/en.manganelo-v4.png",
+      "downloadURL": "sources/en.manganelo-v4.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.nelomanga.net"
+    },
+    {
+      "id": "en.mangareadorg",
+      "name": "MangaRead.org",
+      "version": 2,
+      "iconURL": "icons/en.mangareadorg-v2.png",
+      "downloadURL": "sources/en.mangareadorg-v2.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.mangaread.org"
+    },
+    {
+      "id": "en.mangasect",
+      "name": "Manga Sect",
+      "version": 1,
+      "iconURL": "icons/en.mangasect-v1.png",
+      "downloadURL": "sources/en.mangasect-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangasect.net"
+    },
+    {
+      "id": "en.mangatx",
+      "name": "MangaTx",
+      "version": 10,
+      "iconURL": "icons/en.mangatx-v10.png",
+      "downloadURL": "sources/en.mangatx-v10.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://mangatx.cc"
+    },
+    {
+      "id": "en.manhuagold",
+      "name": "Manhuagold",
+      "version": 1,
+      "iconURL": "icons/en.manhuagold-v1.png",
+      "downloadURL": "sources/en.manhuagold-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://manhuagold.top"
+    },
+    {
+      "id": "en.manhuaplusorg",
+      "name": "Manhuaplus.org",
+      "version": 1,
+      "iconURL": "icons/en.manhuaplusorg-v1.png",
+      "downloadURL": "sources/en.manhuaplusorg-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://manhuaplus.org"
+    },
+    {
+      "id": "en.manhwax",
+      "name": "Manhwax",
+      "version": 5,
+      "iconURL": "icons/en.manhwax-v5.png",
+      "downloadURL": "sources/en.manhwax-v5.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://manhwax.top"
+    },
+    {
+      "id": "en.novelbuddy",
+      "name": "NovelBuddy",
+      "version": 1,
+      "iconURL": "icons/en.novelbuddy-v1.png",
+      "downloadURL": "sources/en.novelbuddy-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://novelbuddy.com"
+    },
+    {
+      "id": "en.nyxscans",
+      "name": "Nyx Scans",
+      "version": 1,
+      "iconURL": "icons/en.nyxscans-v1.png",
+      "downloadURL": "sources/en.nyxscans-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://nyxscans.com"
+    },
+    {
+      "id": "en.qiscans",
+      "name": "Qi Scans",
+      "version": 1,
+      "iconURL": "icons/en.qiscans-v1.png",
+      "downloadURL": "sources/en.qiscans-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://qiscans.org"
+    },
+    {
+      "id": "en.readcomiconline",
+      "name": "ReadComicOnline",
+      "version": 1,
+      "iconURL": "icons/en.readcomiconline-v1.png",
+      "downloadURL": "sources/en.readcomiconline-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://readcomiconline.li"
+    },
+    {
+      "id": "en.rizzfables",
+      "name": "Rizz Fables",
+      "version": 2,
+      "iconURL": "icons/en.rizzfables-v2.png",
+      "downloadURL": "sources/en.rizzfables-v2.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://rizzfables.com"
+    },
+    {
+      "id": "en.tcbscans",
+      "name": "TCB Scans",
+      "version": 6,
+      "iconURL": "icons/en.tcbscans-v6.png",
+      "downloadURL": "sources/en.tcbscans-v6.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://tcbonepiecechapters.com"
+    },
+    {
+      "id": "en.toonily",
+      "name": "Toonily",
+      "version": 10,
+      "iconURL": "icons/en.toonily-v10.png",
+      "downloadURL": "sources/en.toonily-v10.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://toonily.com"
+    },
+    {
+      "id": "en.toonilyme",
+      "name": "Toonily.me",
+      "version": 1,
+      "iconURL": "icons/en.toonilyme-v1.png",
+      "downloadURL": "sources/en.toonilyme-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://toonily.me"
+    },
+    {
+      "id": "en.vortexscans",
+      "name": "Vortex Scans",
+      "version": 1,
+      "iconURL": "icons/en.vortexscans-v1.png",
+      "downloadURL": "sources/en.vortexscans-v1.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://vortexscans.org"
+    },
+    {
+      "id": "en.webtoonxyz",
+      "name": "WebtoonXYZ",
+      "version": 2,
+      "iconURL": "icons/en.webtoonxyz-v2.png",
+      "downloadURL": "sources/en.webtoonxyz-v2.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://www.webtoon.xyz"
+    },
+    {
+      "id": "en.weebcentral",
+      "name": "Weeb Central",
+      "version": 6,
+      "iconURL": "icons/en.weebcentral-v6.png",
+      "downloadURL": "sources/en.weebcentral-v6.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://weebcentral.com"
+    },
+    {
+      "id": "es.catharsisworld",
+      "name": "Catharsis World",
+      "version": 1,
+      "iconURL": "icons/es.catharsisworld-v1.png",
+      "downloadURL": "sources/es.catharsisworld-v1.aix",
+      "languages": [
+        "es"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://catharsisworld.dig-it.info"
+    },
+    {
+      "id": "es.eternalmangas",
+      "name": "EternalMangas",
+      "version": 2,
+      "iconURL": "icons/es.eternalmangas-v2.png",
+      "downloadURL": "sources/es.eternalmangas-v2.aix",
+      "languages": [
+        "es"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://eternalmangas.org"
+    },
+    {
+      "id": "fr.bigsolo",
+      "name": "BigSolo",
+      "version": 4,
+      "iconURL": "icons/fr.bigsolo-v4.png",
+      "downloadURL": "sources/fr.bigsolo-v4.aix",
+      "languages": [
+        "fr"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://bigsolo.org"
+    },
+    {
+      "id": "fr.sushiscan",
+      "name": "Sushiscan",
+      "version": 8,
+      "iconURL": "icons/fr.sushiscan-v8.png",
+      "downloadURL": "sources/fr.sushiscan-v8.aix",
+      "languages": [
+        "en"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://sushiscan.net"
+    },
+    {
+      "id": "id.kanzenin",
+      "name": "Kanzenin",
+      "version": 6,
+      "iconURL": "icons/id.kanzenin-v6.png",
+      "downloadURL": "sources/id.kanzenin-v6.aix",
+      "languages": [
+        "id"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://kanzenin.info"
+    },
+    {
+      "id": "id.komiksin",
+      "name": "Komiksin",
+      "version": 6,
+      "iconURL": "icons/id.komiksin-v6.png",
+      "downloadURL": "sources/id.komiksin-v6.aix",
+      "languages": [
+        "id"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://komiksin.net"
+    },
+    {
+      "id": "id.komiktap",
+      "name": "Komiktap",
+      "version": 7,
+      "iconURL": "icons/id.komiktap-v7.png",
+      "downloadURL": "sources/id.komiktap-v7.aix",
+      "languages": [
+        "id"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://komiktap.info"
+    },
+    {
+      "id": "id.komikucom",
+      "name": "Komiku.com",
+      "version": 5,
+      "iconURL": "icons/id.komikucom-v5.png",
+      "downloadURL": "sources/id.komikucom-v5.aix",
+      "languages": [
+        "id"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://01.komiku.asia"
+    },
+    {
+      "id": "id.mangasusu",
+      "name": "Mangasusu",
+      "version": 6,
+      "iconURL": "icons/id.mangasusu-v6.png",
+      "downloadURL": "sources/id.mangasusu-v6.aix",
+      "languages": [
+        "id"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://mangasusuku.com"
+    },
+    {
+      "id": "id.manhwalist",
+      "name": "Manhwalist",
+      "version": 6,
+      "iconURL": "icons/id.manhwalist-v6.png",
+      "downloadURL": "sources/id.manhwalist-v6.aix",
+      "languages": [
+        "id"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://manhwalist02.site"
+    },
+    {
+      "id": "id.natsu",
+      "name": "Natsu",
+      "version": 2,
+      "iconURL": "icons/id.natsu-v2.png",
+      "downloadURL": "sources/id.natsu-v2.aix",
+      "languages": [
+        "id"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://natsu.tv"
+    },
+    {
+      "id": "it.mangaworld",
+      "name": "MangaWorld",
+      "version": 6,
+      "iconURL": "icons/it.mangaworld-v6.png",
+      "downloadURL": "sources/it.mangaworld-v6.aix",
+      "languages": [
+        "it"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.mangaworld.mx"
+    },
+    {
+      "id": "it.mangaworldadult",
+      "name": "MangaWorldAdult",
+      "version": 4,
+      "iconURL": "icons/it.mangaworldadult-v4.png",
+      "downloadURL": "sources/it.mangaworldadult-v4.aix",
+      "languages": [
+        "it"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://www.mangaworldadult.net"
+    },
+    {
+      "id": "ja.comicaction",
+      "name": "webアクション",
+      "version": 1,
+      "iconURL": "icons/ja.comicaction-v1.png",
+      "downloadURL": "sources/ja.comicaction-v1.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://comic-action.com"
+    },
+    {
+      "id": "ja.comicdays",
+      "name": "コミックDAYS",
+      "version": 2,
+      "iconURL": "icons/ja.comicdays-v2.png",
+      "downloadURL": "sources/ja.comicdays-v2.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 0,
+      "altNames": [
+        "Comic Days"
+      ],
+      "baseURL": "https://comic-days.com"
+    },
+    {
+      "id": "ja.doctruyen5s",
+      "name": "DocTruyen5s",
+      "version": 2,
+      "iconURL": "icons/ja.doctruyen5s-v2.png",
+      "downloadURL": "sources/ja.doctruyen5s-v2.aix",
+      "languages": [
+        "vi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://manga.io.vn"
+    },
+    {
+      "id": "ja.mangamura",
+      "name": "Manga Mura",
+      "version": 1,
+      "iconURL": "icons/ja.mangamura-v1.png",
+      "downloadURL": "sources/ja.mangamura-v1.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangamura.net"
+    },
+    {
+      "id": "ja.mangarawjp",
+      "name": "MangaRawJP",
+      "version": 1,
+      "iconURL": "icons/ja.mangarawjp-v1.png",
+      "downloadURL": "sources/ja.mangarawjp-v1.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://mangarawjp.tv"
+    },
+    {
+      "id": "ja.niceovideoseiga",
+      "name": "ニコニコ漫画",
+      "version": 1,
+      "iconURL": "icons/ja.niceovideoseiga-v1.png",
+      "downloadURL": "sources/ja.niceovideoseiga-v1.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 1,
+      "altNames": [
+        "NicoNicoManga"
+      ],
+      "baseURL": "https://manga.nicovideo.jp"
+    },
+    {
+      "id": "ja.raw1001",
+      "name": "Raw1001",
+      "version": 1,
+      "iconURL": "icons/ja.raw1001-v1.png",
+      "downloadURL": "sources/ja.raw1001-v1.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://raw1001.net"
+    },
+    {
+      "id": "ja.rawfree",
+      "name": "Raw FREE",
+      "version": 5,
+      "iconURL": "icons/ja.rawfree-v5.png",
+      "downloadURL": "sources/ja.rawfree-v5.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://rawfree.at"
+    },
+    {
+      "id": "ja.rawkuma",
+      "name": "Rawkuma",
+      "version": 6,
+      "iconURL": "icons/ja.rawkuma-v6.png",
+      "downloadURL": "sources/ja.rawkuma-v6.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://rawkuma.net"
+    },
+    {
+      "id": "ja.rawkuro",
+      "name": "RawKuro",
+      "version": 1,
+      "iconURL": "icons/ja.rawkuro-v1.png",
+      "downloadURL": "sources/ja.rawkuro-v1.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://rawkuro.net"
+    },
+    {
+      "id": "ja.rawotaku",
+      "name": "Raw Otaku",
+      "version": 1,
+      "iconURL": "icons/ja.rawotaku-v1.png",
+      "downloadURL": "sources/ja.rawotaku-v1.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://rawotaku.com"
+    },
+    {
+      "id": "ja.shonenjumpplus",
+      "name": "少年ジャンプ＋",
+      "version": 2,
+      "iconURL": "icons/ja.shonenjumpplus-v2.png",
+      "downloadURL": "sources/ja.shonenjumpplus-v2.aix",
+      "languages": [
+        "ja"
+      ],
+      "contentRating": 1,
+      "altNames": [
+        "Shonen Jump+"
+      ],
+      "baseURL": "https://shonenjumpplus.com"
+    },
+    {
+      "id": "multi.batoto",
+      "name": "XBATCAT",
+      "version": 9,
+      "iconURL": "icons/multi.batoto-v9.png",
+      "downloadURL": "sources/multi.batoto-v9.aix",
+      "languages": [
+        "en",
+        "ar",
+        "bg",
+        "zh",
+        "cs",
+        "da",
+        "nl",
+        "fil",
+        "fi",
+        "fr",
+        "de",
+        "el",
+        "he",
+        "hi",
+        "hu",
+        "id",
+        "it",
+        "ja",
+        "ko",
+        "ms",
+        "pl",
+        "pt",
+        "pt-BR",
+        "ro",
+        "ru",
+        "es",
+        "es-419",
+        "sv",
+        "th",
+        "tr",
+        "uk",
+        "vi",
+        "af",
+        "sq",
+        "am",
+        "hy",
+        "az",
+        "be",
+        "bn",
+        "bs",
+        "my",
+        "km",
+        "ca",
+        "ceb",
+        "zh-Hans",
+        "zh-Hant",
+        "hr",
+        "eo",
+        "et",
+        "fo",
+        "ka",
+        "gn",
+        "gu",
+        "ht",
+        "ha",
+        "is",
+        "ig",
+        "ga",
+        "jv",
+        "kn",
+        "kk",
+        "ku",
+        "ky",
+        "lo",
+        "lv",
+        "lt",
+        "lb",
+        "mk",
+        "mg",
+        "ml",
+        "mt",
+        "mi",
+        "mr",
+        "mo",
+        "mn",
+        "ne",
+        "no",
+        "ny",
+        "ps",
+        "fa",
+        "rm",
+        "sm",
+        "sr",
+        "sh",
+        "st",
+        "sn",
+        "sd",
+        "si",
+        "sk",
+        "sl",
+        "so",
+        "sw",
+        "tg",
+        "ta",
+        "ti",
+        "to",
+        "tk",
+        "ur",
+        "uz",
+        "yo",
+        "zu",
+        "eu",
+        "pt-PT"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://xbat.si"
+    },
+    {
+      "id": "multi.cubari",
+      "name": "Cubari",
+      "version": 1,
+      "iconURL": "icons/multi.cubari-v1.png",
+      "downloadURL": "sources/multi.cubari-v1.aix",
+      "languages": [
+        "multi"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://cubari.moe"
+    },
+    {
+      "id": "multi.lanraragi",
+      "name": "LANraragi",
+      "version": 1,
+      "iconURL": "icons/multi.lanraragi-v1.png",
+      "downloadURL": "sources/multi.lanraragi-v1.aix",
+      "languages": [
+        "multi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://github.com/Difegue/LANraragi"
+    },
+    {
+      "id": "multi.mangadex",
+      "name": "MangaDex",
+      "version": 12,
+      "iconURL": "icons/multi.mangadex-v12.png",
+      "downloadURL": "sources/multi.mangadex-v12.aix",
+      "languages": [
+        "en",
+        "sq",
+        "ar",
+        "az",
+        "bn",
+        "bg",
+        "my",
+        "ca",
+        "zh-Hans",
+        "zh-Hant",
+        "hr",
+        "cs",
+        "da",
+        "nl",
+        "eo",
+        "et",
+        "fil",
+        "fi",
+        "fr",
+        "ka",
+        "de",
+        "el",
+        "he",
+        "hi",
+        "hu",
+        "id",
+        "it",
+        "ja",
+        "kk",
+        "ko",
+        "la",
+        "lt",
+        "ms",
+        "mn",
+        "ne",
+        "no",
+        "fa",
+        "pl",
+        "pt",
+        "pt-BR",
+        "ro",
+        "ru",
+        "sr",
+        "sk",
+        "sl",
+        "es",
+        "es-419",
+        "sv",
+        "ta",
+        "te",
+        "th",
+        "tr",
+        "uk",
+        "vi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangadex.org"
+    },
+    {
+      "id": "multi.mangafire",
+      "name": "MangaFire",
+      "version": 5,
+      "iconURL": "icons/multi.mangafire-v5.png",
+      "downloadURL": "sources/multi.mangafire-v5.aix",
+      "languages": [
+        "en",
+        "es",
+        "es-419",
+        "fr",
+        "ja",
+        "pt",
+        "pt-BR"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangafire.to"
+    },
+    {
+      "id": "multi.mangaplus",
+      "name": "MANGA Plus",
+      "version": 3,
+      "iconURL": "icons/multi.mangaplus-v3.png",
+      "downloadURL": "sources/multi.mangaplus-v3.aix",
+      "languages": [
+        "en",
+        "es",
+        "fr",
+        "id",
+        "pt-BR",
+        "ru",
+        "th",
+        "vi",
+        "de"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://mangaplus.shueisha.co.jp"
+    },
+    {
+      "id": "multi.nhentai",
+      "name": "nhentai",
+      "version": 15,
+      "iconURL": "icons/multi.nhentai-v15.png",
+      "downloadURL": "sources/multi.nhentai-v15.aix",
+      "languages": [
+        "All",
+        "en",
+        "ja",
+        "zh"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://nhentai.net"
+    },
+    {
+      "id": "multi.suwayomi",
+      "name": "Suwayomi",
+      "version": 3,
+      "iconURL": "icons/multi.suwayomi-v3.png",
+      "downloadURL": "sources/multi.suwayomi-v3.aix",
+      "languages": [
+        "multi"
+      ],
+      "contentRating": 0,
+      "baseURL": "https://github.com/Suwayomi"
+    },
+    {
+      "id": "pt.flowermanga",
+      "name": "Flower Manga",
+      "version": 3,
+      "iconURL": "icons/pt.flowermanga-v3.png",
+      "downloadURL": "sources/pt.flowermanga-v3.aix",
+      "languages": [
+        "pt-BR"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://flowermanga.net"
+    },
+    {
+      "id": "pt.mangalivre",
+      "name": "Manga Livre",
+      "version": 1,
+      "iconURL": "icons/pt.mangalivre-v1.png",
+      "downloadURL": "sources/pt.mangalivre-v1.aix",
+      "languages": [
+        "pt-BR"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangalivre.tv"
+    },
+    {
+      "id": "ru.hentailib",
+      "name": "HentaiLib",
+      "version": 3,
+      "iconURL": "icons/ru.hentailib-v3.png",
+      "downloadURL": "sources/ru.hentailib-v3.aix",
+      "languages": [
+        "ru"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://hentailib.me"
+    },
+    {
+      "id": "ru.mangalib",
+      "name": "MangaLib",
+      "version": 8,
+      "iconURL": "icons/ru.mangalib-v8.png",
+      "downloadURL": "sources/ru.mangalib-v8.aix",
+      "languages": [
+        "ru"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangalib.me"
+    },
+    {
+      "id": "ru.ranobelib",
+      "name": "RanobeLib",
+      "version": 2,
+      "iconURL": "icons/ru.ranobelib-v2.png",
+      "downloadURL": "sources/ru.ranobelib-v2.aix",
+      "languages": [
+        "ru"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://ranobelib.me"
+    },
+    {
+      "id": "ru.slashlib",
+      "name": "SlashLib",
+      "version": 3,
+      "iconURL": "icons/ru.slashlib-v3.png",
+      "downloadURL": "sources/ru.slashlib-v3.aix",
+      "languages": [
+        "ru"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://slashlib.me"
+    },
+    {
+      "id": "th.gomanga",
+      "name": "Go-Manga",
+      "version": 1,
+      "iconURL": "icons/th.gomanga-v1.png",
+      "downloadURL": "sources/th.gomanga-v1.aix",
+      "languages": [
+        "th"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.go-manga.com"
+    },
+    {
+      "id": "th.prettyfrank",
+      "name": "Pretty-Frank",
+      "version": 1,
+      "iconURL": "icons/th.prettyfrank-v1.png",
+      "downloadURL": "sources/th.prettyfrank-v1.aix",
+      "languages": [
+        "th"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.pretty-frank.com"
+    },
+    {
+      "id": "th.upmanga",
+      "name": "Up-Manga",
+      "version": 1,
+      "iconURL": "icons/th.upmanga-v1.png",
+      "downloadURL": "sources/th.upmanga-v1.aix",
+      "languages": [
+        "th"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.up-manga.com"
+    },
+    {
+      "id": "vi.cmanga",
+      "name": "CManga",
+      "version": 4,
+      "iconURL": "icons/vi.cmanga-v4.png",
+      "downloadURL": "sources/vi.cmanga-v4.aix",
+      "languages": [
+        "vi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://cmangax13.com"
+    },
+    {
+      "id": "vi.cuutruyen",
+      "name": "Cứu Truyện",
+      "version": 3,
+      "iconURL": "icons/vi.cuutruyen-v3.png",
+      "downloadURL": "sources/vi.cuutruyen-v3.aix",
+      "languages": [
+        "vi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://cuutruyen.net"
+    },
+    {
+      "id": "vi.dilib",
+      "name": "Digital Library",
+      "version": 3,
+      "iconURL": "icons/vi.dilib-v3.png",
+      "downloadURL": "sources/vi.dilib-v3.aix",
+      "languages": [
+        "vi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://dilib.vn"
+    },
+    {
+      "id": "vi.foxtruyen",
+      "name": "FoxTruyen",
+      "version": 4,
+      "iconURL": "icons/vi.foxtruyen-v4.png",
+      "downloadURL": "sources/vi.foxtruyen-v4.aix",
+      "languages": [
+        "vi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://foxtruyen2.com"
+    },
+    {
+      "id": "vi.nettruyen",
+      "name": "NetTruyen",
+      "version": 16,
+      "iconURL": "icons/vi.nettruyen-v16.png",
+      "downloadURL": "sources/vi.nettruyen-v16.aix",
+      "languages": [
+        "vi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://nettruyenviet1.com"
+    },
+    {
+      "id": "vi.truyen3q",
+      "name": "TruyenTranh3Q",
+      "version": 4,
+      "iconURL": "icons/vi.truyen3q-v4.png",
+      "downloadURL": "sources/vi.truyen3q-v4.aix",
+      "languages": [
+        "vi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://manhua3q.com"
+    },
+    {
+      "id": "vi.truyenqq",
+      "name": "TruyenQQ",
+      "version": 8,
+      "iconURL": "icons/vi.truyenqq-v8.png",
+      "downloadURL": "sources/vi.truyenqq-v8.aix",
+      "languages": [
+        "vi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://truyenqqno.com"
+    },
+    {
+      "id": "vi.truyenqq2",
+      "name": "TruyenQQ2",
+      "version": 2,
+      "iconURL": "icons/vi.truyenqq2-v2.png",
+      "downloadURL": "sources/vi.truyenqq2-v2.aix",
+      "languages": [
+        "vi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://truyenqq.online"
+    },
+    {
+      "id": "vi.zettruyen",
+      "name": "ZetTruyen",
+      "version": 4,
+      "iconURL": "icons/vi.zettruyen-v4.png",
+      "downloadURL": "sources/vi.zettruyen-v4.aix",
+      "languages": [
+        "vi"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.zettruyen.us"
+    },
+    {
+      "id": "zh.baozimanhua",
+      "name": "包子漫畫",
+      "version": 4,
+      "iconURL": "icons/zh.baozimanhua-v4.png",
+      "downloadURL": "sources/zh.baozimanhua-v4.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.baozimh.com"
+    },
+    {
+      "id": "zh.bilimanga",
+      "name": "嗶哩漫畫",
+      "version": 2,
+      "iconURL": "icons/zh.bilimanga-v2.png",
+      "downloadURL": "sources/zh.bilimanga-v2.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.bilimanga.net"
+    },
+    {
+      "id": "zh.boylove",
+      "name": "香香腐宅",
+      "version": 12,
+      "iconURL": "icons/zh.boylove-v12.png",
+      "downloadURL": "sources/zh.boylove-v12.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://boylove.cc"
+    },
+    {
+      "id": "zh.copymanga",
+      "name": "拷貝漫畫",
+      "version": 18,
+      "iconURL": "icons/zh.copymanga-v18.png",
+      "downloadURL": "sources/zh.copymanga-v18.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.2026copy.com"
+    },
+    {
+      "id": "zh.godamanga",
+      "name": "G站漫畫",
+      "version": 1,
+      "iconURL": "icons/zh.godamanga-v1.png",
+      "downloadURL": "sources/zh.godamanga-v1.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://godamh.com"
+    },
+    {
+      "id": "zh.happymh",
+      "name": "Happymh",
+      "version": 2,
+      "iconURL": "icons/zh.happymh-v2.png",
+      "downloadURL": "sources/zh.happymh-v2.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://m.happymh.com"
+    },
+    {
+      "id": "zh.mangabz",
+      "name": "Māngabz",
+      "version": 5,
+      "iconURL": "icons/zh.mangabz-v5.png",
+      "downloadURL": "sources/zh.mangabz-v5.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mangabz.com"
+    },
+    {
+      "id": "zh.manhuagui",
+      "name": "Manhuagui",
+      "version": 9,
+      "iconURL": "icons/zh.manhuagui-v9.png",
+      "downloadURL": "sources/zh.manhuagui-v9.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.manhuagui.com"
+    },
+    {
+      "id": "zh.mycomic",
+      "name": "MYCOMIC",
+      "version": 2,
+      "iconURL": "icons/zh.mycomic-v2.png",
+      "downloadURL": "sources/zh.mycomic-v2.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://mycomic.com"
+    },
+    {
+      "id": "zh.picacomic",
+      "name": "嗶咔漫畫",
+      "version": 2,
+      "iconURL": "icons/zh.picacomic-v2.png",
+      "downloadURL": "sources/zh.picacomic-v2.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://manhuabika.com"
+    },
+    {
+      "id": "zh.relamanhua",
+      "name": "熱辣漫畫",
+      "version": 2,
+      "iconURL": "icons/zh.relamanhua-v2.png",
+      "downloadURL": "sources/zh.relamanhua-v2.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.manga2026.com"
+    },
+    {
+      "id": "zh.wnacg",
+      "name": "紳士漫畫",
+      "version": 2,
+      "iconURL": "icons/zh.wnacg-v2.png",
+      "downloadURL": "sources/zh.wnacg-v2.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 2,
+      "baseURL": "https://www.wnacg.com"
+    },
+    {
+      "id": "zh.zaimanhua",
+      "name": "再漫畫",
+      "version": 3,
+      "iconURL": "icons/zh.zaimanhua-v3.png",
+      "downloadURL": "sources/zh.zaimanhua-v3.aix",
+      "languages": [
+        "zh"
+      ],
+      "contentRating": 1,
+      "baseURL": "https://www.zaimanhua.com"
+    }
+  ]
+}
