@@ -18,7 +18,7 @@ use aidoku::{
 mod models;
 use models::*;
 
-const BASE_URL: &str = "https://rawfree.at";
+const BASE_URL: &str = "https://rawfree.my";
 
 struct RawFree;
 
@@ -246,11 +246,15 @@ impl Source for RawFree {
 				.get_json::<AjaxResponse>()?;
 
 			content.push_str(&response.mes);
-			img_index = response.img_index;
 
-			if response.chapter_id.is_some() {
+			if response.going == 0
+				|| response.img_index == img_index
+				|| response.chapter_id.is_some()
+			{
 				break;
 			}
+
+			img_index = response.img_index;
 		}
 
 		let pages = Html::parse_fragment(content)?
