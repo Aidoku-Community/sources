@@ -2,11 +2,25 @@
 	"info": {
 		"id": "en.mangademon",
 		"name": "MangaDemon",
-		"version": 6,
+		"version": 7,
 		"url": "https://demonicscans.org",
 		"contentRating": 0,
 		"languages": ["en"]
 	},
+	"listings": [
+		{
+			"id": "/lastupdates.php",
+			"name": "Latest Updates"
+		},
+		{
+			"id": "/newmangalist.php",
+			"name": "New Titles"
+		},
+		{
+			"id": "/translationlist.php",
+			"name": "Our Translations"
+		}
+	],
 	"config": {
 		"hidesFiltersWhileSearching": true
 	}
