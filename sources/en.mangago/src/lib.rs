@@ -23,6 +23,7 @@ mod crypto;
 mod helpers;
 
 const BASE_URL: &str = "https://www.mangago.me";
+const DESKTOP_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36";
 
 struct Mangago;
 
@@ -252,7 +253,10 @@ impl Source for Mangago {
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = format!("{BASE_URL}{}", chapter.key);
 		// https://github.com/keiyoushi/extensions-source/blob/14d648256ec3d2c123da49d619df45fd25c86f36/src/en/mangago/src/eu/kanade/tachiyomi/extension/en/mangago/Mangago.kt#L86
-		let html = Request::get(url)?.header("Cookie", "_m_superu=1").html()?;
+		let html = Request::get(url)?
+			.header("User-Agent", DESKTOP_USER_AGENT)
+			.header("Cookie", "_m_superu=1")
+			.html()?;
 
 		let imgsrcs_script = html
 			.select("script")
