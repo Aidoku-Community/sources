@@ -1,32 +1,36 @@
 [
   {
-    "type": "select",
-    "key": "type",
-    "title": "Loại",
-    "titles": [
-      "Manga",
-      "Comic"
-    ],
-    "values": [
-      "manga",
-      "comics"
-    ],
-    "default": "manga"
-  },
-  {
-    "type": "select",
-    "key": "server",
-    "title": "Server",
-    "titles": [
-      "TT2",
-      "NV1",
-      "NV2"
-    ],
-    "values": [
-      "TT2",
-      "NV1",
-      "NV2"
-    ],
-    "default": "TT2"
+    "type": "group",
+    "title": "Cài đặt",
+    "items": [
+      {
+        "type": "select",
+        "key": "type",
+        "title": "Loại",
+        "titles": [
+          "Manga",
+          "Comic"
+        ],
+        "values": [
+          "manga",
+          "comics"
+        ]
+      },
+      {
+        "type": "select",
+        "key": "server",
+        "title": "Server",
+        "titles": [
+          "TT2",
+          "NV1",
+          "NV2"
+        ],
+        "values": [
+          "TT2",
+          "NV1",
+          "NV2"
+        ]
+      }
+    ]
   }
 ]
