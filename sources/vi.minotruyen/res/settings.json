@@ -14,7 +14,8 @@
         "values": [
           "manga",
           "comics"
-        ]
+        ],
+        "default": "manga"
       },
       {
         "type": "select",
@@ -29,7 +30,8 @@
           "TT2",
           "NV1",
           "NV2"
-        ]
+        ],
+        "default": "TT2"
       }
     ]
   }
