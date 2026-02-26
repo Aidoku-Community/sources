@@ -78,6 +78,15 @@ fn ext(caller: &mut Caller<'_, WasmStore>, obj: impl Into<String>) -> ExternRef 
 // 	Ok(buffer.to_vec())
 // }
 
+macro_rules! log {
+    ($($t:tt)*) => {
+        {
+        	#[cfg(debug_assertions)]
+            println!($($t)*);
+        }
+    };
+}
+
 fn set_table<T>(mut caller: Caller<'_, WasmStore>, value: T) -> Result<i32>
 where
 	T: 'static + core::any::Any + Send + Sync,
@@ -211,7 +220,7 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 				.map(|v| matches!(v, GlobalVal::Selff | GlobalVal::Global | GlobalVal::Window))
 				.unwrap_or_default();
 
-			println!("__wbg_instanceof_Window_def73ea0955fc569 {:?}", is_window);
+			log!("__wbg_instanceof_Window_def73ea0955fc569 {:?}", is_window);
 
 			results[0] = Val::I32(if is_window { 1 } else { 0 });
 			Ok(())
@@ -224,7 +233,7 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 		"__wbg_innerHTML_e1553352fe93921a",
 		FuncType::new([ValType::I32, ValType::ExternRef], []),
 		|mut caller, params, _results| {
-			println!("__wbg_innerHTML_e1553352fe93921a {:?}", params);
+			log!("__wbg_innerHTML_e1553352fe93921a {:?}", params);
 
 			let inner_html = {
 				&params[1]
@@ -238,7 +247,7 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 					.inner_html
 					.clone()
 			};
-			println!("HTML is {:?}", inner_html);
+			log!("HTML is {:?}", inner_html);
 
 			let (new_ptr, len) = pass_string_to_wasm_caller(&mut caller, inner_html).unwrap();
 			let ptr = params[0].i32().unwrap() as usize;
@@ -250,7 +259,7 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 				.unwrap()
 				.data_mut(&mut caller);
 
-			println!("memory size = {:?}", memory.len());
+			log!("memory size = {:?}", memory.len());
 
 			// write man
 			memory[ptr..(ptr + 4)].copy_from_slice(&new_ptr.to_le_bytes());
@@ -260,7 +269,7 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 			// if let Some(x) = el
 			//     && let Some(s) = x.val().unwrap().data(&mut caller).downcast_ref::<String>()
 			// {
-			//     println!("Set innerHTML of {s}");
+			//     log!("Set innerHTML of {s}");
 			// }
 			// no return value
 			Ok(())
@@ -286,7 +295,7 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 			[],
 		),
 		|caller, params, _results| {
-			println!("{:?} __wbg_drawImage_07c37f8560e58bbd", params);
+			log!("{:?} __wbg_drawImage_07c37f8560e58bbd", params);
 
 			let ctx = params[0]
 				.externref()
@@ -321,7 +330,7 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 			let canvas = ctx.as_mut().unwrap();
 			canvas.copy_image(&img.image, src_rect, des_rect);
 
-			println!("drawImage called: ctx={ctx:?}, img={img:?}");
+			log!("drawImage called: ctx={ctx:?}, img={img:?}");
 
 			Ok(())
 		},
@@ -346,7 +355,7 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 					s.width as i32
 					// if s.starts_with("el(") { 640 } else { 0 }
 				} else {
-					println!("Can't image element");
+					log!("Can't image element");
 					0
 				}
 			} else {
@@ -364,7 +373,7 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 		"__wbg_newnoargs_105ed471475aaf50",
 		wasmi::FuncType::new([ValType::I32, ValType::I32], [ValType::ExternRef]),
 		|mut caller, _, results| {
-			println!("__wbg_newnoargs_105ed471475aaf50");
+			log!("__wbg_newnoargs_105ed471475aaf50");
 
 			// let pointer: usize = params[0].i32().unwrap() as usize >> 0;
 			// let length: usize = params[1].i32().unwrap() as usize;
@@ -374,7 +383,7 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 			// placeholder
 			results[0] = Val::FuncRef(
 				Func::wrap(&mut caller, || {
-					println!("callback call");
+					log!("callback call");
 
 					Ok(())
 				})
@@ -398,7 +407,7 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 
 			let is_undefined = params[0].externref().is_none();
 
-			println!("__wbindgen_is_undefined {:?}", is_undefined);
+			log!("__wbindgen_is_undefined {:?}", is_undefined);
 
 			results[0] = Val::I32(if is_undefined { 1 } else { 0 });
 			Ok(())
@@ -413,14 +422,17 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 			[ValType::ExternRef, ValType::ExternRef],
 			[ValType::ExternRef],
 		),
-		|mut caller, params, results| {
-			println!("{:?} __wbg_call_672a4d21634d4a24", params);
-			let func = params[0].externref().unwrap();
-			let param = params[0].externref().unwrap();
+		|mut caller, _params, results| {
+			log!("{:?} __wbg_call_672a4d21634d4a24", _params);
+			#[cfg(debug_assertions)]
+			{
+				let func = _params[0].externref().unwrap();
+				let param = _params[0].externref().unwrap();
 
-			// let func = { func.val().unwrap().data(&mut caller) };
-			// let param = { param.val().unwrap().data(&mut caller) };
-			println!("{:?} => {:?}", func, param);
+				// let func = { func.val().unwrap().data(&mut caller) };
+				// let param = { param.val().unwrap().data(&mut caller) };
+				log!("{:?} => {:?}", func, param);
+			}
 
 			// fake callable result
 			results[0] = Val::ExternRef(ext(&mut caller, "call_result").into());
@@ -434,11 +446,11 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 		"__wbindgen_throw",
 		wasmi::FuncType::new([ValType::I32, ValType::I32], []),
 		|_caller, params, _| {
-			println!("{:?} __wbindgen_throw", params);
+			log!("{:?} __wbindgen_throw", params);
 
 			let ptr = params[0].i32().unwrap();
 			let len = params[1].i32().unwrap();
-			println!("WASM threw: ptr={ptr} len={len}");
+			println!("WASM throw: ptr={ptr} len={len}");
 			Ok(())
 		},
 	)?;
@@ -448,15 +460,15 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 		"./drm_tool_bg.js",
 		"__wbindgen_debug_string",
 		wasmi::FuncType::new([ValType::I32, ValType::ExternRef], []),
-		|mut caller, params, _| {
-			println!("{:?} __wbindgen_debug_string", params);
+		|_caller, params, _| {
+			log!("{:?} __wbindgen_debug_string", params);
 
 			let _ptr = params[0].i32();
-			let er = params[1].externref();
-			if let Some(x) = er {
-				println!(
+			#[cfg(debug_assertions)]
+			if let Some(x) = params[1].externref() {
+				log!(
 					"debug: {:?}",
-					x.val().unwrap().data(&mut caller).downcast_ref::<String>()
+					x.val().unwrap().data(&_caller).downcast_ref::<String>()
 				);
 			}
 			Ok(())
@@ -469,7 +481,7 @@ fn register_linker(linker: &mut Linker<WasmStore>) -> anyhow::Result<()> {
 		"__wbindgen_init_externref_table",
 		wasmi::FuncType::new([], []),
 		|mut caller, _, _| {
-			println!("externref table initialized");
+			log!("externref table initialized");
 
 			let table = {
 				let store = caller.data();
@@ -540,7 +552,7 @@ impl DrmToolWasm {
 				name,
 				wasmi::FuncType::new([], [ValType::I32]),
 				move |caller, _, results| {
-					println!("{}", name);
+					log!("{}", name);
 
 					let index = set_table(caller, val.clone()).unwrap();
 					results[0] = Val::I32(index);
@@ -555,10 +567,10 @@ impl DrmToolWasm {
 			"__wbg_document_d249400bd7bd996d",
 			wasmi::FuncType::new([ValType::ExternRef], [ValType::I32]),
 			|caller, _, results| {
-				println!("__wbg_document_d249400bd7bd996d");
+				log!("__wbg_document_d249400bd7bd996d");
 
 				let index = set_table(caller, GlobalVal::Document).unwrap();
-				println!("document is {:?}", index);
+				log!("document is {:?}", index);
 
 				results[0] = Val::I32(index);
 
@@ -589,14 +601,14 @@ impl DrmToolWasm {
 				};
 
 				if selector != "#phrase" {
-					println!("Error not support element != #phrase");
+					log!("Error not support element != #phrase");
 				}
 
 				let index =
 					set_table(caller, PHRASE_ELEMENT.get().unwrap().clone() as Element).unwrap();
 				results[0] = Val::I32(index);
 
-				println!("__wbg_querySelector_c69f8b573958906b (index = {:?})", index);
+				log!("__wbg_querySelector_c69f8b573958906b (index = {:?})", index);
 
 				Ok(())
 			},
@@ -706,7 +718,7 @@ impl DrmToolWasm {
 // 	drm.start()?;
 // 	// drm.render_image()?;
 
-// 	println!("ok");
+// 	log!("ok");
 
 // 	Ok(())
 // }
