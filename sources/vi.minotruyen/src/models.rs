@@ -6,6 +6,7 @@ use aidoku::{
 	Chapter, Manga, MangaStatus, MangaWithChapter, Page, PageContent, PageContext,
 	alloc::{
 		borrow::ToOwned,
+		boxed::Box,
 		string::{String, ToString},
 		vec::Vec,
 	},
@@ -211,7 +212,7 @@ pub struct FlightChild<T>(Value, Value, Option<Value>, pub T);
 pub enum FlightMutex {
 	#[allow(dead_code)]
 	Str(String),
-	Arr(FlightChild<FlightRoot<FlightChild<FlightNode>>>),
+	Arr(Box<FlightChild<FlightRoot<FlightChild<FlightNode>>>>),
 }
 
 #[derive(Debug, Deserialize)]

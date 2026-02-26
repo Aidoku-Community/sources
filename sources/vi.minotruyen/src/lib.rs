@@ -105,13 +105,12 @@ impl Home for MinoTruyen {
 		.get_html()?;
 		let text = html
 			.select("script")
-			.and_then(|v| {
-				v.filter(|node| {
+			.and_then(|mut v| {
+				v.rfind(|node| {
 					node.html()
 						.unwrap_or_default()
 						.contains("self.__next_f.push([1,\"28:[[")
 				})
-				.last()
 			})
 			.and_then(|f| f.html())
 			.map(|t| {
@@ -174,11 +173,12 @@ impl Source for MinoTruyen {
 
 		for filter in filters {
 			if let FilterValue::MultiSelect {
-					included, excluded, ..
-				} = filter {
-   					qs.push("genres", Some(&included.join(",").to_lowercase()));
-   					qs.push("notgenres", Some(&excluded.join(",").to_lowercase()));
-   				}
+				included, excluded, ..
+			} = filter
+			{
+				qs.push("genres", Some(&included.join(",").to_lowercase()));
+				qs.push("notgenres", Some(&excluded.join(",").to_lowercase()));
+			}
 		}
 
 		let (entries, has_next_page) = Request::get(format!("{API_URL}/api/books?{qs}"))?
@@ -187,9 +187,7 @@ impl Source for MinoTruyen {
 			.map(|res| {
 				(
 					res.books.into_iter().map(Manga::from).collect(),
-					res.count_books
-						.map(|v| v > (page * 24))
-						.unwrap_or_default(),
+					res.count_books.map(|v| v > (page * 24)).unwrap_or_default(),
 				)
 			})?;
 
