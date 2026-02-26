@@ -1,32 +1,41 @@
 #![no_std]
+use core::ops::Deref;
+
 use aidoku::{
-	Chapter, DynamicFilters, Filter, FilterKind, FilterValue, Home, HomeComponent, HomeLayout,
-	HomePartialResult, Manga, MangaPageResult, MangaWithChapter, Page, PageContent, Result,
-	SelectFilter, Source,
-	alloc::{
-		String, Vec,
-		borrow::{Cow, ToOwned},
-		string::ToString,
-		vec,
-	},
+	AidokuError, Chapter, FilterValue, Home, HomeComponent, HomeLayout, HomePartialResult,
+	ImageResponse, Manga, MangaPageResult, MangaWithChapter, Page, PageContext, PageImageProcessor,
+	Result, Source,
+	alloc::{String, Vec, borrow::ToOwned, string::ToString, sync::Arc, vec},
 	helpers::uri::QueryParameters,
-	imports::{defaults::defaults_get, net::Request, std::send_partial_result},
+	imports::{canvas::ImageRef, defaults::defaults_get, net::Request, std::send_partial_result},
 	prelude::*,
 };
 
+mod crypto;
+mod drm_tool;
+mod env;
 mod models;
+mod utils;
 
 use models::*;
-use regex::Regex;
-use serde_json::Value;
+use spin::Mutex;
 
-pub const BASE_URL: &str = "https://minotruyenv1.xyz";
+use crate::{
+	crypto::decrypt_cryptojs_passphrase, drm_tool::DrmToolWasm, env::SECRET_DATA_CHAPTER,
+	utils::extract_data_chapter_block,
+};
+
+pub const BASE_URL: &str = "https://minotruyenv5.xyz";
 pub const API_URL: &str = "https://api.cloudkk.art";
 
-struct MinoTruyen;
+struct MinoTruyen {
+	drm_tool: Arc<Mutex<Option<DrmToolWasm>>>,
+}
 
 impl Home for MinoTruyen {
 	fn get_home(&self) -> Result<HomeLayout> {
+		let is_manga = defaults_get::<String>("type").unwrap_or_default() == "manga";
+
 		send_partial_result(&HomePartialResult::Layout(HomeLayout {
 			components: vec![
 				HomeComponent {
@@ -52,8 +61,9 @@ impl Home for MinoTruyen {
 			subtitle: None,
 			value: aidoku::HomeComponentValue::BigScroller {
 				entries: Request::get(format!(
-					"{}/api/books/top/featured?category=comics&take=10",
+					"{}/api/books/top/featured?category={}&take=10",
 					API_URL,
+					if is_manga { "manga" } else { "comics" }
 				))?
 				.send()?
 				.get_json::<FeaturedRoot>()?
@@ -66,30 +76,60 @@ impl Home for MinoTruyen {
 			},
 		}));
 
-		let html = Request::get(format!("{BASE_URL}/comics"))?
-			.send()?
-			.get_html()?;
+		send_partial_result(&HomePartialResult::Component(HomeComponent {
+			title: Some(String::from("Top")),
+			subtitle: None,
+			value: aidoku::HomeComponentValue::MangaList {
+				entries: Request::get(format!(
+					"{}/api/books/side-home?category={}",
+					API_URL,
+					if is_manga { "manga" } else { "comics" }
+				))?
+				.send()?
+				.get_json::<SideHomeRoot>()?
+				.top_books_view
+				.into_iter()
+				.map(|v| Manga::from(v).into())
+				.collect::<Vec<_>>(),
+				listing: None,
+				ranking: true,
+				page_size: Some(3),
+			},
+		}));
+
+		let html = Request::get(format!(
+			"{BASE_URL}/{}",
+			if is_manga { "manga" } else { "comics" }
+		))?
+		.send()?
+		.get_html()?;
 		let text = html
 			.select("script")
 			.and_then(|v| {
-				v.filter(|node| node.html().unwrap_or_default().contains("grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-x-4 gap-y-3")).last()
+				v.filter(|node| {
+					node.html()
+						.unwrap_or_default()
+						.contains("self.__next_f.push([1,\"28:[[")
+				})
+				.last()
 			})
 			.and_then(|f| f.html())
-			.and_then(|t| extract_next_object(&t, None));
+			.map(|t| {
+				let input = t.replace("\\\"", "\"").replace("\\\\\"", "\\\"");
+
+				input[43..(input.len() - 14)].to_string()
+			});
 
 		if let Some(text) = text {
-			let json = serde_json::from_str::<
-				FlightRoot<Vec<FlightAny<FlightRoot<FlightChild<FlightNode>>>>>,
-			>(&text)?;
+			let json = serde_json::from_str::<FlightRoot<Vec<FlightMutex>>>(&text)?;
 
 			let entries = json
 				.children
 				.into_iter()
-				.filter_map(|t| match t {
-					FlightAny::Arr(v) => Some(v),
-					FlightAny::Str(_) => None,
+				.filter_map(|v| match v {
+					FlightMutex::Arr(arr) => Some(arr.3.children.3.book.into()),
+					_ => None,
 				})
-				.map(|n| n.3.children.3.book.into())
 				.collect::<Vec<MangaWithChapter>>();
 
 			send_partial_result(&HomePartialResult::Component(HomeComponent {
@@ -103,30 +143,15 @@ impl Home for MinoTruyen {
 			}));
 		}
 
-		send_partial_result(&HomePartialResult::Component(HomeComponent {
-			title: Some(String::from("Top")),
-			subtitle: None,
-			value: aidoku::HomeComponentValue::MangaList {
-				entries: Request::get(format!("{}/api/books/side-home?category=comics", API_URL,))?
-					.send()?
-					.get_json::<SideHomeRoot>()?
-					.top_books_view
-					.into_iter()
-					.map(|v| Manga::from(v).into())
-					.collect::<Vec<_>>(),
-				listing: None,
-				ranking: true,
-				page_size: Some(3),
-			},
-		}));
-
 		Ok(HomeLayout::default())
 	}
 }
 
 impl Source for MinoTruyen {
 	fn new() -> Self {
-		Self
+		Self {
+			drm_tool: Arc::new(Mutex::new(None)),
+		}
 	}
 
 	fn get_search_manga_list(
@@ -148,18 +173,14 @@ impl Source for MinoTruyen {
 		}
 
 		for filter in filters {
-			match filter {
-				FilterValue::MultiSelect {
+			if let FilterValue::MultiSelect {
 					included, excluded, ..
-				} => {
-					qs.push("genres", Some(&included.join(",").to_lowercase()));
-					qs.push("notgenres", Some(&excluded.join(",").to_lowercase()));
-				}
-				_ => {}
-			}
+				} = filter {
+   					qs.push("genres", Some(&included.join(",").to_lowercase()));
+   					qs.push("notgenres", Some(&excluded.join(",").to_lowercase()));
+   				}
 		}
 
-		println!("{}", format!("{API_URL}/api/books?{qs}"));
 		let (entries, has_next_page) = Request::get(format!("{API_URL}/api/books?{qs}"))?
 			.send()?
 			.get_json::<FeaturedBooksData>()
@@ -167,7 +188,7 @@ impl Source for MinoTruyen {
 				(
 					res.books.into_iter().map(Manga::from).collect(),
 					res.count_books
-						.map(|v| v > (page * 24).into())
+						.map(|v| v > (page * 24))
 						.unwrap_or_default(),
 				)
 			})?;
@@ -192,11 +213,7 @@ impl Source for MinoTruyen {
 			let text = html
 				.select("script")
 				.and_then(|mut f| {
-					f.find(|n| {
-						n.html()
-							.unwrap_or_default()
-							.contains("dangerouslySetInnerHTML")
-					})
+					f.find(|n| n.html().unwrap_or_default().contains("\\\"covers\\\":"))
 				})
 				.and_then(|n| n.html())
 				.unwrap_or_default();
@@ -205,13 +222,13 @@ impl Source for MinoTruyen {
 				bail!("extract Next error");
 			};
 
-			manga.copy_from(serde_json::from_str::<BookItem>(&json)?.into());
+			manga.copy_from(serde_json::from_str::<WrapBook>(&json)?.book.into());
 		}
 
 		if needs_chapters {
 			let chapters = Request::get(format!(
 				"{API_URL}/api/chapters/{}?order=desc&take=5000",
-				manga.key.split("/").last().unwrap_or_default()
+				manga.key.rsplit('-').next().unwrap_or_default()
 			))?
 			.send()?
 			.get_json::<Chapters>()?
@@ -226,23 +243,92 @@ impl Source for MinoTruyen {
 		Ok(manga)
 	}
 
-	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		todo!();
-		// let pages = Request::get(format!(
-		// 	"{BASE_URL}/api/chapter_image?chapter={}&v=0",
-		// 	chapter.key
-		// ))?
-		// .send()?
-		// .get_json::<ChapterImages>()?
-		// .image
-		// .into_iter()
-		// .map(|p| Page {
-		// 	content: PageContent::url(p),
-		// 	..Default::default()
-		// })
-		// .collect();
+	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+		let html = Request::get(format!(
+			"{BASE_URL}/{}/{}",
+			manga.key.replace("/", "/books/"),
+			chapter.key
+		))?
+		.send()?
+		.get_html()?;
 
-		// Ok(pages)
+		let Some(data) = html.select("script").and_then(|f| {
+			for n in f {
+				let html = n.html().unwrap_or_default();
+				if let Some(data) = extract_data_chapter_block(&html) {
+					return Some(data);
+				}
+			}
+			None
+		}) else {
+			return Err(AidokuError::Message(
+				"extract data chapter block error".to_owned(),
+			));
+		};
+
+		let servers = serde_json::from_str::<Vec<ChapterContent>>(
+			&decrypt_cryptojs_passphrase(&data, SECRET_DATA_CHAPTER)
+				.map_err(|_| AidokuError::Message("decrypt error".to_owned()))?,
+		)?;
+
+		let server = defaults_get::<String>("server").unwrap_or("0".to_owned());
+		let first_server = servers
+			.first()
+			.ok_or(AidokuError::Message("server not found".to_owned()))?;
+
+		let selected = servers
+			.iter()
+			.find(|s| s.cloud == server)
+			.unwrap_or(first_server);
+
+		let pages = selected
+			.content
+			.iter()
+			.map(Page::from)
+			.collect::<Vec<Page>>();
+
+		Ok(pages)
+	}
+}
+
+impl PageImageProcessor for MinoTruyen {
+	fn process_page_image(
+		&self,
+		response: ImageResponse,
+		context: Option<PageContext>,
+	) -> Result<ImageRef> {
+		if context
+			.as_ref()
+			.map(|v| {
+				v.get("drm_data")
+					.map(|v| v.deref())
+					.unwrap_or_default()
+					.is_empty()
+			})
+			.unwrap_or(true)
+		{
+			return Ok(response.image);
+		}
+
+		let mut drm_tool = self.drm_tool.lock();
+		if drm_tool.is_none() {
+			let mut tool = DrmToolWasm::new()
+				.map_err(|_| AidokuError::Message("drm tool not found".to_owned()))?;
+
+			tool.start()
+				.map_err(|_| AidokuError::Message("drm tool start error".to_owned()))?;
+
+			drm_tool.replace(tool);
+		}
+
+		let image = drm_tool
+			.as_mut()
+			.unwrap()
+			.render_image(response, context.as_ref())
+			.map_err(|_| AidokuError::Message("drm tool render image error".to_owned()))?;
+
+		// render_image(response, context)
+		Ok(image)
 	}
 }
 
@@ -320,4 +406,4 @@ impl Source for MinoTruyen {
 // 	}
 // }
 
-register_source!(MinoTruyen, Home);
+register_source!(MinoTruyen, Home, PageImageProcessor);

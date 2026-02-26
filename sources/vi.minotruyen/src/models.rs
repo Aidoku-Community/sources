@@ -1,25 +1,26 @@
-use crate::BASE_URL;
+use crate::{
+	BASE_URL,
+	utils::{capitalize, get_viewer, parse_datetime_to_timestamp},
+};
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaStatus, MangaWithChapter, Viewer,
+	Chapter, Manga, MangaStatus, MangaWithChapter, Page, PageContent, PageContext,
 	alloc::{
 		borrow::ToOwned,
 		string::{String, ToString},
 		vec::Vec,
 	},
-	imports::std::get_utc_offset,
 	prelude::*,
 };
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer};
 
 #[derive(Debug, Deserialize)]
 pub struct FeaturedRoot {
-	pub success: bool,
 	pub data: FeaturedBooksData,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct SideHomeRoot {
-	pub success: bool,
 	#[serde(rename = "topBooksView")]
 	pub top_books_view: Vec<BookItem>,
 }
@@ -37,7 +38,9 @@ where
 {
 	use serde_json::Value;
 
-	let v = Option::<Vec<Value>>::deserialize(deserializer)?;
+	let Some(v) = Option::<Vec<Value>>::deserialize(deserializer).ok() else {
+		return Ok(None);
+	};
 
 	let Some(items) = v else {
 		return Ok(None);
@@ -63,6 +66,11 @@ where
 }
 
 #[derive(Debug, Deserialize)]
+pub struct WrapBook {
+	pub book: BookItem,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct BookItem {
 	#[serde(rename = "type")]
 	pub r#type: Option<String>,
@@ -83,7 +91,7 @@ pub struct BookItem {
 
 	pub chapters: Option<Vec<VChapter>>,
 
-	#[serde(deserialize_with = "deserialize_tags")]
+	#[serde(default, deserialize_with = "deserialize_tags")]
 	pub tags: Option<Vec<Tag>>,
 	pub authors: Option<Vec<Author>>,
 	pub covers: Vec<Cover>,
@@ -130,7 +138,7 @@ impl From<BookItem> for MangaWithChapter {
 		let chapter = value
 			.chapters
 			.as_ref()
-			.and_then(|v| v.first().map(|v| v.clone()))
+			.and_then(|v| v.first().cloned())
 			.unwrap_or_default()
 			.into();
 		Self {
@@ -189,74 +197,27 @@ pub struct TagWrapper {
 pub struct Author {
 	pub name: String,
 }
-
-pub fn capitalize(s: &str) -> String {
-	let mut chars = s.chars();
-
-	match chars.next() {
-		None => String::new(),
-		Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-	}
-}
-
-fn get_viewer(categories: &[String], category: &str) -> (ContentRating, Viewer) {
-	let mut nsfw = ContentRating::Unknown;
-	let mut viewer = if category == "manga" {
-		Viewer::RightToLeft
-	} else {
-		Viewer::LeftToRight
-	};
-
-	for category in categories {
-		match category.to_lowercase().as_str() {
-			"smut" | "mature" | "18+" | "adult" => nsfw = ContentRating::NSFW,
-			"ecchi" | "16+" => {
-				if nsfw != ContentRating::NSFW {
-					nsfw = ContentRating::Suggestive
-				}
-			}
-			"webtoon" | "manhwa" | "manhua" => viewer = Viewer::Webtoon,
-			"manga" => viewer = Viewer::RightToLeft,
-			_ => continue,
-		}
-	}
-
-	(nsfw, viewer)
-}
-
-use chrono::{DateTime, FixedOffset, NaiveDateTime, TimeZone, Utc};
-fn parse_datetime_to_timestamp(s: &str) -> Option<i64> {
-	// Format "YYYY-MM-DD HH:MM:SS"
-	let naive = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()?;
-	let offset = FixedOffset::east_opt(get_utc_offset() as i32)?;
-
-	let dt = offset.from_local_datetime(&naive).single()?;
-	Some(dt.timestamp())
-}
-
 #[derive(Deserialize)]
 pub struct FlightRoot<T> {
 	pub children: T,
 }
 #[derive(Deserialize)]
-pub struct FlightChild<T>(pub String, pub String, pub Option<String>, pub T);
+pub struct FlightChild<T>((), (), (), pub T);
+
 #[derive(Deserialize)]
 #[serde(untagged)]
-pub enum FlightAny<T> {
-	Str(String),
-	Arr(FlightChild<T>),
+pub enum FlightMutex {
+	Str(),
+	Arr(FlightChild<FlightRoot<FlightChild<FlightNode>>>),
 }
 
 #[derive(Debug, Deserialize)]
 pub struct FlightNode {
 	pub book: BookItem,
-	pub content: String,
-	#[serde(rename = "currentDate")]
-	pub current_date: String,
 }
 
 pub fn extract_next_object(input: &str, skip: Option<usize>) -> Option<String> {
-	let input = input.replace("\\\"", "\"");
+	let input = input.replace("\\\"", "\"").replace("\\\\\"", "\\\"");
 	let bytes = input.as_bytes();
 
 	let mut start = None;
@@ -273,14 +234,12 @@ pub fn extract_next_object(input: &str, skip: Option<usize>) -> Option<String> {
 				start = Some(i);
 			}
 			brace_count += 1;
-		} else if b == b'}' {
-			if brace_count > 0 {
-				brace_count -= 1;
-				if brace_count == 0 {
-					let s = start.unwrap();
-					let json_str = &input[s..=i];
-					return Some(json_str.to_string());
-				}
+		} else if b == b'}' && brace_count > 0 {
+			brace_count -= 1;
+			if brace_count == 0 {
+				let s = start.unwrap();
+				let json_str = &input[s..=i];
+				return Some(json_str.to_string());
 			}
 		}
 	}
@@ -290,13 +249,14 @@ pub fn extract_next_object(input: &str, skip: Option<usize>) -> Option<String> {
 
 #[derive(serde::Deserialize)]
 pub struct VChapterF {
-	pub book_id: u64,
 	pub num: String,
+	#[serde(rename = "chapterNumber")]
 	pub chapter_number: f32,
 	pub title: Option<String>,
+	#[serde(rename = "createdAt")]
 	pub created_at: Option<DateTime<Utc>>,
+	#[serde(rename = "updatedAt")]
 	pub updated_at: Option<DateTime<Utc>>,
-	pub views_count: u64,
 	pub thumbnail: Option<String>,
 }
 impl VChapterF {
@@ -304,7 +264,7 @@ impl VChapterF {
 		Chapter {
 			key: format!("chapter-{}-{}", value.num, value.chapter_number),
 			title: value.title,
-			chapter_number: Some(value.chapter_number),
+			chapter_number: value.num.parse::<f32>().ok(),
 			date_uploaded: value.updated_at.or(value.created_at).map(|v| v.timestamp()),
 			url: Some(format!(
 				"{BASE_URL}/{}/chapter-{}-{}",
@@ -321,4 +281,35 @@ impl VChapterF {
 #[derive(Deserialize)]
 pub struct Chapters {
 	pub chapters: Vec<VChapterF>,
+}
+
+#[derive(Deserialize)]
+pub struct VPage {
+	pub width: u32,
+	pub height: u32,
+	#[serde(rename = "imageUrl")]
+	pub image_url: String,
+	pub drm_data: Option<String>,
+}
+impl From<&VPage> for Page {
+	fn from(value: &VPage) -> Self {
+		let mut context = PageContext::new();
+		context.insert("width".to_owned(), value.width.to_string());
+		context.insert("height".to_owned(), value.height.to_string());
+		context.insert(
+			"drm_data".to_owned(),
+			value.drm_data.to_owned().unwrap_or_default(),
+		);
+
+		Self {
+			content: PageContent::url_context(value.image_url.to_owned(), context),
+			..Default::default()
+		}
+	}
+}
+
+#[derive(Deserialize)]
+pub struct ChapterContent {
+	pub cloud: String,
+	pub content: Vec<VPage>,
 }

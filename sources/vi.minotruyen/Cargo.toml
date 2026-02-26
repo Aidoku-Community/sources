@@ -1,14 +1,22 @@
 [package]
-name = "cmanga"
+name = "minotruyen"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["json"] }
 chrono = { version = "0.4.42", default-features = false, features = ["alloc", "serde"] }
-regex = { version = "1.12.2", default-features = false }
 serde = { version = "1.0.228", default-features = false, features = ["derive", "alloc"] }
 serde_json = { version = "1.0.148", default-features = false, features = ["alloc"] }
+anyhow = { version = "1.0.102", default-features = false }
+once_cell = { version = "1.21.3", default-features = false, features = ["alloc"] }
+wasmi = { version = "1.0.9", default-features = false }
+spin = "0.10.0"
+aes = { version = "0.8.4", default-features = false }
+base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
+block-padding = { version = "0.3.3", default-features = false }
+md5 = { version = "0.8.0", default-features = false }
+regex = { version = "1.12.3", default-features = false }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
