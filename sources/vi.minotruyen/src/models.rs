@@ -13,6 +13,7 @@ use aidoku::{
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer};
+use serde_json::Value;
 
 #[derive(Debug, Deserialize)]
 pub struct FeaturedRoot {
@@ -202,12 +203,14 @@ pub struct FlightRoot<T> {
 	pub children: T,
 }
 #[derive(Deserialize)]
-pub struct FlightChild<T>((), (), (), pub T);
+#[allow(dead_code)]
+pub struct FlightChild<T>(Value, Value, Option<Value>, pub T);
 
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum FlightMutex {
-	Str(),
+	#[allow(dead_code)]
+	Str(String),
 	Arr(FlightChild<FlightRoot<FlightChild<FlightNode>>>),
 }
 
