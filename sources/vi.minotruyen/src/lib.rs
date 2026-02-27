@@ -101,8 +101,7 @@ impl Home for MinoTruyen {
 			"{BASE_URL}/{}",
 			if is_manga { "manga" } else { "comics" }
 		))?
-		.send()?
-		.get_html()?;
+		.html()?;
 		let text = html
 			.select("script")
 			.and_then(|mut v| {
