@@ -258,9 +258,7 @@ impl Source for MinoTruyen {
 			}
 			None
 		}) else {
-			return Err(AidokuError::Message(
-				"extract data chapter block error".to_owned(),
-			));
+			bail!("extract data chapter block error");
 		};
 
 		let servers = serde_json::from_str::<Vec<ChapterContent>>(
