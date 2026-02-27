@@ -7,7 +7,7 @@ use chrono::{FixedOffset, NaiveDateTime, TimeZone};
 
 pub fn extract_data_chapter_block(script: &str) -> Option<String> {
 	// Regex matches: <hex32>:<value>
-	let re = regex::Regex::new("[a-z0-9]{32}:([^\\\"\\n]+)").ok()?;
+	let re = regex::Regex::new("[a-z0-9]{32}:([^\\\\\"\\n]+)").ok()?;
 
 	let caps = re.captures(script)?;
 
