@@ -217,6 +217,10 @@ impl Source for MinoTruyen {
 			};
 
 			manga.copy_from(serde_json::from_str::<WrapBook>(&json)?.book.into());
+
+			if needs_chapters {
+				send_partial_result(&manga);
+			}
 		}
 
 		if needs_chapters {
