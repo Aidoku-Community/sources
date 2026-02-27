@@ -34,7 +34,7 @@ struct MinoTruyen {
 
 impl Home for MinoTruyen {
 	fn get_home(&self) -> Result<HomeLayout> {
-		let is_manga = defaults_get::<String>("type").unwrap_or_default() == "manga";
+		let is_manga = defaults_get::<String>("type").is_some_and(|s| s == "manga");
 
 		send_partial_result(&HomePartialResult::Layout(HomeLayout {
 			components: vec![
