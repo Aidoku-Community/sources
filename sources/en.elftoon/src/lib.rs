@@ -14,6 +14,7 @@ impl Impl for ElfToon {
 	fn params(&self) -> Params {
 		Params {
 			base_url: BASE_URL.into(),
+			chapter_list_selector: "#chapterlist li:not(:has(.gem-price-icon))".into(),
 			..Default::default()
 		}
 	}

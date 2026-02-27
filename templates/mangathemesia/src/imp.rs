@@ -183,7 +183,7 @@ pub trait Impl {
 				els.filter_map(|el| {
 					let link = el.select_first("a")?;
 					let url = link.attr("abs:href")?;
-					let title = link
+					let title = el
 						.select_first(".lch a, .chapternum")
 						.and_then(|el| {
 							let text = el.text()?;
