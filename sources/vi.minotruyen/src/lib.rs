@@ -107,8 +107,7 @@ impl Home for MinoTruyen {
 			.and_then(|mut v| {
 				v.rfind(|node| {
 					node.html()
-						.unwrap_or_default()
-						.contains("self.__next_f.push([1,\"28:[[")
+						.is_some_and(|v| v.contains("self.__next_f.push([1,\"28:[["))
 				})
 			})
 			.and_then(|f| f.html())
@@ -210,7 +209,7 @@ impl Source for MinoTruyen {
 			let text = html
 				.select("script")
 				.and_then(|mut f| {
-					f.find(|n| n.html().unwrap_or_default().contains("\\\"covers\\\":"))
+					f.find(|n| n.html().is_some_and(|v| v.contains("\\\"covers\\\":")))
 				})
 				.and_then(|n| n.html())
 				.unwrap_or_default();
