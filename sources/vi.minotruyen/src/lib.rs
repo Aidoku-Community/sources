@@ -165,17 +165,15 @@ impl Source for MinoTruyen {
 		let r#type = defaults_get::<String>("type");
 		qs.push("category", r#type.as_deref());
 
-		if let Some(query) = query {
-			qs.push("q", Some(&query))
-		}
+		qs.push("q", query.as_deref());
 
 		for filter in filters {
 			if let FilterValue::MultiSelect {
 				included, excluded, ..
 			} = filter
 			{
-				qs.push("genres", Some(&included.join(",").to_lowercase()));
-				qs.push("notgenres", Some(&excluded.join(",").to_lowercase()));
+				qs.push("genres", Some(&included.join(",")));
+				qs.push("notgenres", Some(&excluded.join(",")));
 			}
 		}
 
