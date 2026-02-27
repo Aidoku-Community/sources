@@ -58,3 +58,34 @@ pub fn parse_datetime_to_timestamp(s: &str) -> Option<i64> {
 	let dt = offset.from_local_datetime(&naive).single()?;
 	Some(dt.timestamp())
 }
+
+pub fn extract_next_object(input: &str, skip: Option<usize>) -> Option<String> {
+	let input = input.replace("\\\"", "\"").replace("\\\\\"", "\\\"");
+	let bytes = input.as_bytes();
+
+	let mut start = None;
+	let mut brace_count = 0;
+
+	let mut skip = skip.unwrap_or_default();
+	for (i, &b) in bytes.iter().enumerate() {
+		if b == b'{' {
+			if i < skip {
+				skip -= 1;
+				continue;
+			}
+			if start.is_none() {
+				start = Some(i);
+			}
+			brace_count += 1;
+		} else if b == b'}' && brace_count > 0 {
+			brace_count -= 1;
+			if brace_count == 0 {
+				let s = start.unwrap();
+				let json_str = &input[s..=i];
+				return Some(json_str.to_string());
+			}
+		}
+	}
+
+	None
+}

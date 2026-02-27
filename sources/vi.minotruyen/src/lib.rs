@@ -21,8 +21,10 @@ use models::*;
 use spin::Mutex;
 
 use crate::{
-	crypto::decrypt_cryptojs_passphrase, drm_tool::DrmToolWasm, env::SECRET_DATA_CHAPTER,
-	utils::extract_data_chapter_block,
+	crypto::decrypt_cryptojs_passphrase,
+	drm_tool::DrmToolWasm,
+	env::SECRET_DATA_CHAPTER,
+	utils::{extract_data_chapter_block, extract_next_object},
 };
 
 pub const BASE_URL: &str = "https://minotruyenv5.xyz";
