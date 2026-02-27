@@ -130,7 +130,7 @@ impl From<BookItem> for Manga {
 			viewer,
 			chapters: value
 				.chapters
-				.map(|v| v.into_iter().map(|c| c.into()).collect::<Vec<_>>()),
+				.map(|v| v.into_iter().map(|ref c| c.into()).collect::<Vec<_>>()),
 			..Default::default()
 		}
 	}
@@ -140,9 +140,9 @@ impl From<BookItem> for MangaWithChapter {
 		let chapter = value
 			.chapters
 			.as_ref()
-			.and_then(|v| v.first().cloned())
-			.unwrap_or_default()
-			.into();
+			.and_then(|v| v.first())
+			.map(|v| v.into())
+			.unwrap_or_default();
 		Self {
 			manga: value.into(),
 			chapter,
@@ -170,15 +170,16 @@ pub struct VChapter {
 	pub chapter_number: f32,
 	pub num: Option<String>,
 }
-impl From<VChapter> for Chapter {
-	fn from(value: VChapter) -> Self {
+impl From<&VChapter> for Chapter {
+	fn from(value: &VChapter) -> Self {
 		Self {
 			key: format!("chapter-{}-{}", value.chapter_number, value.chapter_number),
 			chapter_number: Some(value.chapter_number),
-			title: value.num.map(|v| format!("Chap {v}")),
+			title: value.num.as_ref().map(|v| format!("Chap {v}")),
 			date_uploaded: value
 				.created_at
-				.and_then(|v| parse_datetime_to_timestamp(&v)),
+				.as_ref()
+				.and_then(|v| parse_datetime_to_timestamp(v)),
 			..Default::default()
 		}
 	}
