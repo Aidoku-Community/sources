@@ -1,12 +1,12 @@
 {
-  "info": {
-    "id": "vi.minotruyen",
-    "name": "Mino Truyện",
-    "version": 2,
-    "url": "https://minotruyenv5.xyz",
-    "contentRating": 1,
-    "languages": [
-      "vi"
-    ]
-  }
+	"info": {
+		"id": "vi.minotruyen",
+		"name": "Mino Truyện",
+		"version": 2,
+		"url": "https://minotruyenv5.xyz",
+		"contentRating": 1,
+		"languages": [
+			"vi"
+		]
+	}
 }
