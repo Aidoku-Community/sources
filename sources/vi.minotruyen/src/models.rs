@@ -1,6 +1,6 @@
 use crate::{
 	BASE_URL,
-	utils::{capitalize, get_viewer, parse_datetime_to_timestamp},
+	utils::{capitalize, get_viewer},
 };
 use aidoku::{
 	Chapter, Manga, MangaStatus, MangaWithChapter, Page, PageContent, PageContext,
@@ -128,9 +128,9 @@ impl From<BookItem> for Manga {
 			},
 			content_rating,
 			viewer,
-			chapters: value
-				.chapters
-				.map(|v| v.into_iter().map(|ref c| c.into()).collect::<Vec<_>>()),
+			// chapters: value
+			// 	.chapters
+			// 	.map(|v| v.into_iter().map(|ref c| c.into()).collect::<Vec<_>>()),
 			..Default::default()
 		}
 	}
@@ -164,7 +164,9 @@ pub struct Cover {
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct VChapter {
 	#[serde(rename = "createdAt")]
-	pub created_at: Option<String>,
+	pub created_at: Option<DateTime<Utc>>,
+	#[serde(rename = "updatedAt")]
+	pub updated_at: Option<DateTime<Utc>>,
 
 	#[serde(rename = "chapterNumber")]
 	pub chapter_number: f32,
@@ -176,10 +178,7 @@ impl From<&VChapter> for Chapter {
 			key: format!("chapter-{}-{}", value.chapter_number, value.chapter_number),
 			chapter_number: Some(value.chapter_number),
 			title: value.num.as_ref().map(|v| format!("Chap {v}")),
-			date_uploaded: value
-				.created_at
-				.as_ref()
-				.and_then(|v| parse_datetime_to_timestamp(v)),
+			date_uploaded: value.updated_at.or(value.created_at).map(|v| v.timestamp()),
 			..Default::default()
 		}
 	}

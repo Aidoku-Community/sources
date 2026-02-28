@@ -1,9 +1,7 @@
 use aidoku::{
 	ContentRating, Viewer,
 	alloc::string::{String, ToString},
-	imports::std::get_utc_offset,
 };
-use chrono::{FixedOffset, NaiveDateTime, TimeZone};
 
 pub fn extract_data_chapter_block(script: &str) -> Option<String> {
 	// Regex matches: <hex32>:<value>
@@ -48,15 +46,6 @@ pub fn get_viewer(categories: &[String], category: &str) -> (ContentRating, View
 	}
 
 	(nsfw, viewer)
-}
-
-pub fn parse_datetime_to_timestamp(s: &str) -> Option<i64> {
-	// Format "YYYY-MM-DD HH:MM:SS"
-	let naive = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()?;
-	let offset = FixedOffset::east_opt(get_utc_offset() as i32)?;
-
-	let dt = offset.from_local_datetime(&naive).single()?;
-	Some(dt.timestamp())
 }
 
 pub fn extract_next_object(input: &str, skip: Option<usize>) -> Option<String> {

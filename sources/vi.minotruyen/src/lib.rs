@@ -1,11 +1,10 @@
 #![no_std]
-use core::ops::Deref;
+use core::{cell::RefCell, ops::Deref};
 
 use aidoku::{
-	AidokuError, Chapter, FilterValue, Home, HomeComponent, HomeLayout, HomePartialResult,
-	ImageResponse, Manga, MangaPageResult, MangaWithChapter, Page, PageContext, PageImageProcessor,
-	Result, Source,
-	alloc::{String, Vec, borrow::ToOwned, string::ToString, sync::Arc, vec},
+	Chapter, FilterValue, Home, HomeComponent, HomeLayout, HomePartialResult, ImageResponse, Manga,
+	MangaPageResult, MangaWithChapter, Page, PageContext, PageImageProcessor, Result, Source,
+	alloc::{String, Vec, borrow::ToOwned, string::ToString, vec},
 	helpers::uri::QueryParameters,
 	imports::{canvas::ImageRef, defaults::defaults_get, net::Request, std::send_partial_result},
 	prelude::*,
@@ -18,7 +17,6 @@ mod models;
 mod utils;
 
 use models::*;
-use spin::Mutex;
 
 use crate::{
 	crypto::decrypt_cryptojs_passphrase,
@@ -31,7 +29,7 @@ pub const BASE_URL: &str = "https://minotruyenv5.xyz";
 pub const API_URL: &str = "https://api.cloudkk.art";
 
 struct MinoTruyen {
-	drm_tool: Arc<Mutex<Option<DrmToolWasm>>>,
+	drm_tool: RefCell<Option<DrmToolWasm>>,
 }
 
 impl Home for MinoTruyen {
@@ -67,8 +65,7 @@ impl Home for MinoTruyen {
 					API_URL,
 					if is_manga { "manga" } else { "comics" }
 				))?
-				.send()?
-				.get_json::<FeaturedRoot>()?
+				.json_owned::<FeaturedRoot>()?
 				.data
 				.books
 				.into_iter()
@@ -87,8 +84,7 @@ impl Home for MinoTruyen {
 					API_URL,
 					if is_manga { "manga" } else { "comics" }
 				))?
-				.send()?
-				.get_json::<SideHomeRoot>()?
+				.json_owned::<SideHomeRoot>()?
 				.top_books_view
 				.into_iter()
 				.map(|v| Manga::from(v).into())
@@ -149,7 +145,7 @@ impl Home for MinoTruyen {
 impl Source for MinoTruyen {
 	fn new() -> Self {
 		Self {
-			drm_tool: Arc::new(Mutex::new(None)),
+			drm_tool: RefCell::new(None),
 		}
 	}
 
@@ -188,8 +184,7 @@ impl Source for MinoTruyen {
 		}
 
 		let (entries, has_next_page) = Request::get(format!("{API_URL}/api/books?{qs}"))?
-			.send()?
-			.get_json::<FeaturedBooksData>()
+			.json_owned::<FeaturedBooksData>()
 			.map(|res| {
 				(
 					res.books.into_iter().map(Manga::from).collect(),
@@ -211,8 +206,7 @@ impl Source for MinoTruyen {
 	) -> Result<Manga> {
 		if needs_details {
 			let html = Request::get(format!("{BASE_URL}/{}", manga.key.replace("/", "/books/")))?
-				.send()?
-				.get_html()?;
+				.html()?;
 
 			let text = html
 				.select("script")
@@ -238,8 +232,7 @@ impl Source for MinoTruyen {
 				"{API_URL}/api/chapters/{}?order=desc&take=5000",
 				manga.key.rsplit('-').next().unwrap_or_default()
 			))?
-			.send()?
-			.get_json::<Chapters>()?
+			.json_owned::<Chapters>()?
 			.chapters
 			.into_iter()
 			.map(|c| VChapterF::to(c, &manga))
@@ -257,8 +250,7 @@ impl Source for MinoTruyen {
 			manga.key.replace("/", "/books/"),
 			chapter.key
 		))?
-		.send()?
-		.get_html()?;
+		.html()?;
 
 		let Some(data) = html.select("script").and_then(|f| {
 			for n in f {
@@ -278,9 +270,7 @@ impl Source for MinoTruyen {
 		)?;
 
 		let server = defaults_get::<String>("server").unwrap_or("0".to_owned());
-		let first_server = servers
-			.first()
-			.ok_or(AidokuError::Message("server not found".to_owned()))?;
+		let first_server = servers.first().ok_or(error!("server not found"))?;
 
 		let selected = servers
 			.iter()
@@ -316,13 +306,11 @@ impl PageImageProcessor for MinoTruyen {
 			return Ok(response.image);
 		}
 
-		let mut drm_tool = self.drm_tool.lock();
+		let mut drm_tool = self.drm_tool.borrow_mut();
 		if drm_tool.is_none() {
-			let mut tool = DrmToolWasm::new()
-				.map_err(|_| AidokuError::Message("drm tool not found".to_owned()))?;
+			let mut tool = DrmToolWasm::new().map_err(|_| error!("drm tool not found"))?;
 
-			tool.start()
-				.map_err(|_| AidokuError::Message("drm tool start error".to_owned()))?;
+			tool.start().map_err(|_| error!("drm tool start error"))?;
 
 			drm_tool.replace(tool);
 		}
@@ -331,7 +319,7 @@ impl PageImageProcessor for MinoTruyen {
 			.as_mut()
 			.unwrap()
 			.render_image(response, context.as_ref())
-			.map_err(|_| AidokuError::Message("drm tool render image error".to_owned()))?;
+			.map_err(|_| error!("drm tool render image error"))?;
 
 		// render_image(response, context)
 		Ok(image)
