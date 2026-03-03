@@ -3,9 +3,8 @@ extern crate alloc;
 
 use aidoku::{
 	BasicLoginHandler, Chapter, DeepLinkHandler, DeepLinkResult, DynamicSettings, FilterValue,
-	GroupSetting, Home, HomeLayout, ImageRequestProvider, Listing, ListingProvider,
-	Manga, MangaPageResult, NotificationHandler, Page, PageContent, PageContext,
-	Result, Setting, Source,
+	GroupSetting, Home, HomeLayout, ImageRequestProvider, Listing, ListingProvider, Manga,
+	MangaPageResult, NotificationHandler, Page, PageContent, PageContext, Result, Setting, Source,
 	alloc::{String, Vec, format, string::ToString},
 	helpers::uri::QueryParameters,
 	imports::net::Request,
@@ -89,7 +88,10 @@ impl Source for Zaimanhua {
 				net::auth_request(&url, settings::get_current_token().as_deref())?.json_owned()?;
 			let data: Vec<models::RankItem> = response.data.unwrap_or_default();
 			if data.is_empty() {
-				return Ok(MangaPageResult { entries: Vec::new(), has_next_page: false });
+				return Ok(MangaPageResult {
+					entries: Vec::new(),
+					has_next_page: false,
+				});
 			}
 			return Ok(models::manga_list_from_ranks(data));
 		}
@@ -105,7 +107,8 @@ impl Source for Zaimanhua {
 		let url = format!("{}&size=20", net::urls::filter(&qs.to_string(), page));
 		let response: models::ApiResponse<models::FilterData> =
 			net::auth_request(&url, settings::get_current_token().as_deref())?.json_owned()?;
-		let data = response.data
+		let data = response
+			.data
 			.map(|d| d.comic_list)
 			.ok_or_else(|| error!("Missing filter data"))?;
 		Ok(models::manga_list_from_filter(data))
@@ -133,13 +136,14 @@ impl Source for Zaimanhua {
 
 		match (needs_details, needs_chapters) {
 			(true, true) => {
-				// Clone for chapters, consume for details
 				let chapters_source = manga_detail.clone();
 				manga.copy_from(manga_detail.into_manga(manga.key.clone()));
+				aidoku::imports::std::send_partial_result(&manga);
 				manga.chapters = Some(chapters_source.into_chapters(&manga.key));
 			}
 			(true, false) => {
 				manga.copy_from(manga_detail.into_manga(manga.key.clone()));
+				aidoku::imports::std::send_partial_result(&manga);
 			}
 			(false, true) => {
 				manga.chapters = Some(manga_detail.into_chapters(&manga.key));
@@ -151,13 +155,17 @@ impl Source for Zaimanhua {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let (comic_id, chapter_id) = chapter.key.split_once('/')
+		let (comic_id, chapter_id) = chapter
+			.key
+			.split_once('/')
 			.unwrap_or((manga.key.as_str(), chapter.key.as_str()));
 
 		let url = net::urls::chapter(comic_id, chapter_id);
 		let response: models::ApiResponse<models::ChapterData> =
 			net::auth_request(&url, settings::get_current_token().as_deref())?.json_owned()?;
-		let chapter_data = response.data.ok_or_else(|| error!("Missing chapter data"))?;
+		let chapter_data = response
+			.data
+			.ok_or_else(|| error!("Missing chapter data"))?;
 		let page_data = chapter_data.data;
 
 		let page_urls = page_data
@@ -211,7 +219,8 @@ impl DeepLinkHandler for Zaimanhua {
 		// Handle chapter pages URL
 		if let Some(start) = url.find("/chapter/") {
 			// Safe substring access using iterator
-			let mut segments = url.get(start + 9..)
+			let mut segments = url
+				.get(start + 9..)
 				.unwrap_or("")
 				.split('/')
 				.filter(|s| !s.is_empty());
@@ -296,31 +305,31 @@ impl DynamicSettings for Zaimanhua {
 
 		// User Info Display (with Fallback)
 		if settings::get_token().is_some() {
-			let (username, _) = settings::get_credentials().unwrap_or(("未知用户".into(), "".into()));
+			let (username, _) =
+				settings::get_credentials().unwrap_or(("未知用户".into(), "".into()));
 
-			let (level_str, status_str, level_warning) = if let Some(user_cache) = settings::get_user_cache() {
-				let checkin_status = if user_cache.is_sign { "已签到" } else { "未签到" };
-				let warning = if user_cache.level < 1 {
-					Some("※ 增强浏览需要等级达到 Lv.1 可用 (绑定手机号码)")
+			let (level_str, status_str) = if let Some(user_cache) = settings::get_user_cache() {
+				let checkin_status = if user_cache.is_sign {
+					"已签到"
 				} else {
-					None
+					"未签到"
 				};
-				(format!("Lv.{}", user_cache.level), checkin_status.to_string(), warning)
+				(
+					format!("Lv.{}", user_cache.level),
+					checkin_status.to_string(),
+				)
 			} else {
 				// Fallback for missing cache
-				("Lv.?".to_string(), "获取中...".to_string(), None)
+				("Lv.?".to_string(), "获取中...".to_string())
 			};
 
-			let mut footer_text = format!("用户：{} | 等级：{} | {}", username, level_str, status_str);
-			
-			// Enhanced mode active: show general note first
-			if settings::get_enhanced_mode() {
-				footer_text = format!("{}\n※ 访问内容受等级与时段限制", footer_text);
-			}
-			
-			// Level warning (when < Lv.1)
-			if let Some(warning) = level_warning {
-				footer_text = format!("{}\n{}", footer_text, warning);
+			let mut footer_text = format!(
+				"用户：{} | 等级：{} | {}\n※ 访问内容受等级与时段限制",
+				username, level_str, status_str
+			);
+
+			if settings::get_user_cache().is_none_or(|c| c.level < 1) {
+				footer_text = format!("{}\n※ 绑定手机号码访问更多内容", footer_text);
 			}
 
 			settings.push(
@@ -354,7 +363,10 @@ impl ListingProvider for Zaimanhua {
 				net::auth_request(&url, settings::get_current_token().as_deref())?.json_owned()?;
 			let data = response.data.unwrap_or_default();
 			if data.is_empty() {
-				return Ok(MangaPageResult { entries: Vec::new(), has_next_page: false });
+				return Ok(MangaPageResult {
+					entries: Vec::new(),
+					has_next_page: false,
+				});
 			}
 			return Ok(models::manga_list_from_ranks(data));
 		}

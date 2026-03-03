@@ -4,9 +4,9 @@ use aidoku::{
 	HomeComponent, HomeLayout, HomePartialResult, Listing, ListingKind, Manga, MangaStatus,
 	MangaWithChapter, Result,
 	alloc::{Vec, format, string::ToString, vec},
+	imports::html::Document,
 	imports::net::Response,
 	imports::std::send_partial_result,
-	imports::html::Document,
 };
 
 use crate::models::{ApiResponse, DetailData};
@@ -21,7 +21,6 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 	}
 
 	send_partial_result(&HomePartialResult::Layout(HomeLayout {
-
 		components: vec![
 			HomeComponent {
 				title: None,
@@ -254,9 +253,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		},
 	});
 
-	let shounen_links = resp_shounen
-		.map(parse_filter_response)
-		.unwrap_or_default();
+	let shounen_links = resp_shounen.map(parse_filter_response).unwrap_or_default();
 	components.push(HomeComponent {
 		title: Some("少年漫画".into()),
 		subtitle: None,
@@ -270,9 +267,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		},
 	});
 
-	let shoujo_links = resp_shoujo
-		.map(parse_filter_response)
-		.unwrap_or_default();
+	let shoujo_links = resp_shoujo.map(parse_filter_response).unwrap_or_default();
 	components.push(HomeComponent {
 		title: Some("少女漫画".into()),
 		subtitle: None,
@@ -286,9 +281,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		},
 	});
 
-	let seinen_links = resp_seinen
-		.map(parse_filter_response)
-		.unwrap_or_default();
+	let seinen_links = resp_seinen.map(parse_filter_response).unwrap_or_default();
 	components.push(HomeComponent {
 		title: Some("男青漫画".into()),
 		subtitle: None,
@@ -302,9 +295,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		},
 	});
 
-	let josei_links = resp_josei
-		.map(parse_filter_response)
-		.unwrap_or_default();
+	let josei_links = resp_josei.map(parse_filter_response).unwrap_or_default();
 	components.push(HomeComponent {
 		title: Some("女青漫画".into()),
 		subtitle: None,
@@ -361,12 +352,22 @@ fn parse_manga_news_doc(doc: Document) -> Vec<aidoku::Link> {
 				break;
 			}
 
-			let Some(img_node) = el.select_first(".dec_img img") else { continue };
-			let Some(image_url) = img_node.attr("src") else { continue };
+			let Some(img_node) = el.select_first(".dec_img img") else {
+				continue;
+			};
+			let Some(image_url) = img_node.attr("src") else {
+				continue;
+			};
 
-			let Some(link_node) = el.select_first("h3 a") else { continue };
-			let Some(title) = link_node.text() else { continue };
-			let Some(url) = link_node.attr("href") else { continue };
+			let Some(link_node) = el.select_first("h3 a") else {
+				continue;
+			};
+			let Some(title) = link_node.text() else {
+				continue;
+			};
+			let Some(url) = link_node.attr("href") else {
+				continue;
+			};
 
 			if image_url.is_empty() || url.is_empty() {
 				continue;

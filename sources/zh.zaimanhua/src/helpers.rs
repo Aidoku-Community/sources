@@ -10,8 +10,6 @@ use hashbrown::HashSet;
 
 // === Public Types ===
 
-/// Encapsulates result merging with ID-based deduplication.
-/// Uses i64 IDs for deduplication to avoid string allocation overhead.
 pub struct MangaMerger {
 	seen_ids: HashSet<i64>,
 	results: Vec<Manga>,
@@ -25,7 +23,6 @@ impl MangaMerger {
 		}
 	}
 
-	/// Try to add a manga by its numeric ID. Returns true if added (not duplicate).
 	pub fn try_add(&mut self, id: i64, manga: Manga) -> bool {
 		if id > 0 && !self.seen_ids.contains(&id) {
 			self.seen_ids.insert(id);
@@ -36,7 +33,6 @@ impl MangaMerger {
 		}
 	}
 
-	/// Add a manga, parsing its key as i64. Returns true if added.
 	pub fn add(&mut self, manga: Manga) -> bool {
 		if let Ok(id) = manga.key.parse::<i64>() {
 			self.try_add(id, manga)
@@ -45,15 +41,12 @@ impl MangaMerger {
 		}
 	}
 
-	/// Extend with an iterator of Manga, deduplicating by parsed key.
 	pub fn extend<I: IntoIterator<Item = Manga>>(&mut self, iter: I) {
 		for manga in iter {
 			self.add(manga);
 		}
 	}
 
-	/// Extend with items directly, marking IDs as seen but NOT checking for duplicates.
-	/// Use this for "trusted" sources (like hidden content) that handle their own dedup.
 	pub fn extend_unchecked<I: IntoIterator<Item = Manga>>(&mut self, iter: I) {
 		for manga in iter {
 			if let Ok(id) = manga.key.parse::<i64>()
@@ -65,17 +58,14 @@ impl MangaMerger {
 		}
 	}
 
-	/// Consume and return the deduplicated results.
 	pub fn finish(self) -> Vec<Manga> {
 		self.results
 	}
 
-	/// Get current result count.
 	pub fn len(&self) -> usize {
 		self.results.len()
 	}
 
-	/// Check if results are empty.
 	pub fn is_empty(&self) -> bool {
 		self.results.is_empty()
 	}
@@ -89,8 +79,6 @@ pub fn search_by_keyword(keyword: &str, page: i32) -> Result<MangaPageResult> {
 	}
 
 	// URL/ID Parsing (Direct Access)
-	// If the keyword is a numeric ID or a recognized URL, try to fetch it directly.
-	// This bypasses the Search API which might hide some content.
 	if page == 1
 		&& let Some(id) = parse_manga_id(keyword)
 		&& let Some(manga) = fetch_manga_by_id(&id)
@@ -108,11 +96,12 @@ pub fn search_by_keyword(keyword: &str, page: i32) -> Result<MangaPageResult> {
 	for retry_count in 0..2 {
 		let token_ref = token.as_deref();
 		let search_url = net::urls::search(keyword, page);
-		let request = net::auth_request(&search_url, token_ref)
-			.unwrap_or_else(|_| net::get_request(&search_url).expect("Invalid URL"));
+		let request =
+			net::auth_request(&search_url, token_ref).or_else(|_| net::get_request(&search_url))?;
 
 		if let Ok(response) = request.send()
-			&& let Ok(api_resp) = response.get_json_owned::<models::ApiResponse<models::SearchData>>()
+			&& let Ok(api_resp) =
+				response.get_json_owned::<models::ApiResponse<models::SearchData>>()
 		{
 			if api_resp.errno.unwrap_or(0) == 99 {
 				// Token expired, try refresh
@@ -129,7 +118,6 @@ pub fn search_by_keyword(keyword: &str, page: i32) -> Result<MangaPageResult> {
 		}
 	}
 
-	// Result Merging
 	let mut results: Vec<Manga> = if let Some(data) = search_data {
 		data.list.into_iter().map(Into::into).collect()
 	} else {
@@ -143,14 +131,17 @@ pub fn search_by_keyword(keyword: &str, page: i32) -> Result<MangaPageResult> {
 
 	// Hidden Content Scan (if enabled)
 	let mut hidden_has_next = false;
-	if settings::deep_search_enabled() {
+	let should_scan_hidden =
+		settings::deep_search_enabled() && (results.is_empty() || (page == 1 && results.len() < 5));
+	if should_scan_hidden {
 		let hidden_manga = scan_hidden_content(
 			page,
 			keyword,
 			&mut seen_ids,
 			token.as_deref(),
-			true,   // match_by_name: true for keyword search
-			false,  // strict_mode: not applicable for name matching
+			true,  // match_by_name: true for keyword search
+			false, // strict_mode: not applicable for name matching
+			2,
 		);
 		if !hidden_manga.is_empty() {
 			hidden_has_next = true;
@@ -172,15 +163,22 @@ pub fn search_by_author(author: &str, page: i32) -> Result<MangaPageResult> {
 	}
 	let mut strict_ids: Vec<i64> = Vec::new();
 	let mut partial_ids: Vec<i64> = Vec::new();
-	let mut seen_authors: Vec<String> = Vec::new();
+	let mut seen_manga_ids: Vec<i64> = Vec::new();
 	let mut strict_manga: Vec<Manga> = Vec::new();
 
 	let token = settings::get_current_token();
 	let token_ref = token.as_deref();
 
 	// Direct Search
-	let mut keyword_manga =
-		collect_tags_from_search(author, author, &mut seen_authors, &mut strict_ids, &mut partial_ids, &mut strict_manga, token_ref)?;
+	let mut keyword_manga = collect_tags_from_search(
+		author,
+		author,
+		&mut seen_manga_ids,
+		&mut strict_ids,
+		&mut partial_ids,
+		&mut strict_manga,
+		token_ref,
+	)?;
 
 	// Global Strict Priority Decision
 	let exact_match_found = !strict_ids.is_empty();
@@ -191,14 +189,20 @@ pub fn search_by_author(author: &str, page: i32) -> Result<MangaPageResult> {
 		partial_ids // Fallback to partials if NO strict found
 	};
 
-	// Fuzzy Fallback (only if NO tags found at all)
 	let final_tag_ids = if direct_ids.is_empty() && keyword_manga.is_empty() {
 		let mut fuzzy_strict = Vec::new();
 		let mut fuzzy_partial = Vec::new();
-		let fuzzy_manga = try_fuzzy_author_search(author, &mut seen_authors, &mut fuzzy_strict, &mut fuzzy_partial, &mut strict_manga, token_ref)?;
-		
+		let fuzzy_manga = try_fuzzy_author_search(
+			author,
+			&mut seen_manga_ids,
+			&mut fuzzy_strict,
+			&mut fuzzy_partial,
+			&mut strict_manga,
+			token_ref,
+		)?;
+
 		keyword_manga.extend(fuzzy_manga);
-		
+
 		if !fuzzy_strict.is_empty() {
 			fuzzy_strict
 		} else {
@@ -208,32 +212,30 @@ pub fn search_by_author(author: &str, page: i32) -> Result<MangaPageResult> {
 		direct_ids
 	};
 
-	// Tag Search & Merge
 	let (tag_manga, tag_total) = fetch_manga_by_tags(&final_tag_ids, page, token_ref)?;
 
 	let mut merger = MangaMerger::new();
+	let tag_iter = tag_manga.into_iter().map(|i| -> Manga { i.into() });
+
+	if exact_match_found {
+		merger.extend(tag_iter.chain(strict_manga));
+	} else {
+		let keyword_iter = keyword_manga.into_iter().map(|i| -> Manga { i.into() });
+		merger.extend(tag_iter.chain(keyword_iter));
+	}
 
 	if settings::deep_search_enabled() {
 		let mut hidden_seen: HashSet<i64> = HashSet::new();
-		let hidden_manga = scan_hidden_content(page, author, &mut hidden_seen, token_ref, false, exact_match_found);
+		let hidden_manga = scan_hidden_content(
+			page,
+			author,
+			&mut hidden_seen,
+			token_ref,
+			false,
+			exact_match_found,
+			3,
+		);
 		merger.extend_unchecked(hidden_manga);
-	}
-
-	// Add results based on Strict Priority
-	let tag_iter = tag_manga.into_iter().map(|i| -> Manga { i.into() });
-
-	// Result Merging:
-	// If strict matches exist, enable "Strict Mode":
-	// 1. Only include results that were strictly matched (ID-based or Name-based).
-	// 2. Discard fuzzy candidates from the initial keyword search to eliminate noise.
-
-	if exact_match_found {
-		// Strict Mode: Use Token/Tag results AND Verified Strict Candidates.
-		merger.extend(tag_iter.chain(strict_manga));
-	} else {
-		// Fallback/Fuzzy Mode: Merge everything.
-		let keyword_iter = keyword_manga.into_iter().map(|i| -> Manga { i.into() });
-		merger.extend(tag_iter.chain(keyword_iter));
 	}
 
 	if !merger.is_empty() {
@@ -273,12 +275,11 @@ struct AuthorMatchResult {
 /// Parse manga ID from keyword (numeric ID or URL)
 fn parse_manga_id(keyword: &str) -> Option<String> {
 	let trimmed = keyword.trim();
-	
-	// Direct numeric ID
+
 	if trimmed.chars().all(|c| c.is_ascii_digit()) && !trimmed.is_empty() {
 		return Some(trimmed.to_string());
 	}
-	
+
 	// URL patterns: /details/ID or /comic/ID
 	if trimmed.contains("zaimanhua.com") {
 		// Extract ID from URL like https://manhua.zaimanhua.com/details/70258
@@ -290,7 +291,7 @@ fn parse_manga_id(keyword: &str) -> Option<String> {
 			}
 		}
 	}
-	
+
 	None
 }
 
@@ -298,14 +299,17 @@ fn parse_manga_id(keyword: &str) -> Option<String> {
 fn fetch_manga_by_id(id: &str) -> Option<Manga> {
 	let url = net::urls::detail(id.parse::<i64>().unwrap_or(0));
 	let token = settings::get_current_token();
-	
-	let response: models::ApiResponse<models::DetailData> = 
-		net::auth_request(&url, token.as_deref()).ok()?.json_owned().ok()?;
-	
+
+	let response: models::ApiResponse<models::DetailData> =
+		net::auth_request(&url, token.as_deref())
+			.ok()?
+			.json_owned()
+			.ok()?;
+
 	if response.errno.unwrap_or(0) != 0 {
 		return None;
 	}
-	
+
 	let detail = response.data?.data?;
 	Some(detail.into_manga(id.to_string()))
 }
@@ -313,7 +317,7 @@ fn fetch_manga_by_id(id: &str) -> Option<Manga> {
 fn collect_tags_from_search(
 	keyword: &str,
 	target_author: &str,
-	seen_authors: &mut Vec<String>,
+	seen_manga_ids: &mut Vec<i64>,
 	strict_ids: &mut Vec<i64>,
 	partial_ids: &mut Vec<i64>,
 	strict_manga: &mut Vec<Manga>,
@@ -326,8 +330,8 @@ fn collect_tags_from_search(
 	if let Ok(response) = net::send_authed_request::<models::SearchData>(&url, token)
 		&& let Some(data) = response.data
 	{
-		// Identify Candidate Items locally
-		let candidates: Vec<&models::SearchItem> = data.list
+		let candidates: Vec<&models::SearchItem> = data
+			.list
 			.iter()
 			.filter(|item| item.matches_author(target_author))
 			.collect();
@@ -336,37 +340,33 @@ fn collect_tags_from_search(
 			return Ok(matched_items);
 		}
 
-		// Batch Verify Candidates
 		let requests: Vec<Request> = candidates
 			.iter()
-			.map(|item| {
+			.filter_map(|item| {
 				let url = net::urls::detail(item.id);
 				net::auth_request(&url, token)
-					.unwrap_or_else(|_| net::get_request(&url).expect("Invalid URL"))
+					.or_else(|_| net::get_request(&url))
+					.ok()
 			})
 			.collect();
 
 		let responses = Request::send_all(requests);
 
-		// Process Responses
 		for (i, response_result) in responses.into_iter().enumerate() {
 			let candidate = candidates[i];
-			let manga_authors = candidate.authors.as_deref().unwrap_or("");
-			let author_key = manga_authors.to_string();
 
-			// Ensure "seen_authors" constraint logic is respected
-			if seen_authors.contains(&author_key) {
+			if seen_manga_ids.contains(&candidate.id) {
 				matched_items.push(candidate.clone());
 				continue;
 			}
 
-			// Validate response
 			if let Ok(resp) = response_result
-				&& let Ok(api_resp) = resp.get_json_owned::<models::ApiResponse<models::DetailData>>()
+				&& let Ok(api_resp) =
+					resp.get_json_owned::<models::ApiResponse<models::DetailData>>()
 				&& let Some(data_root) = api_resp.data
 				&& let Some(detail) = data_root.data
 			{
-				seen_authors.push(author_key);
+				seen_manga_ids.push(candidate.id);
 
 				// Use pure logic extractor (returns new struct)
 				let result = extract_author_tags_from_detail(&detail, target_author);
@@ -377,10 +377,10 @@ fn collect_tags_from_search(
 					MatchResult::Strict => {
 						matched_items.push(candidate.clone());
 						strict_manga.push(candidate.clone().into());
-					},
+					}
 					MatchResult::Partial => {
 						matched_items.push(candidate.clone());
-					},
+					}
 					MatchResult::None => {}
 				}
 			}
@@ -391,7 +391,7 @@ fn collect_tags_from_search(
 
 fn try_fuzzy_author_search(
 	author: &str,
-	seen_authors: &mut Vec<String>,
+	seen_manga_ids: &mut Vec<i64>,
 	strict_ids: &mut Vec<i64>,
 	partial_ids: &mut Vec<i64>,
 	strict_manga: &mut Vec<Manga>,
@@ -407,11 +407,20 @@ fn try_fuzzy_author_search(
 	let mut matched_items = Vec::new();
 
 	for core in [core_name, short_core.as_str()] {
-		if core.is_empty() || core == author || (!strict_ids.is_empty() || !partial_ids.is_empty()) {
+		if core.is_empty() || core == author || (!strict_ids.is_empty() || !partial_ids.is_empty())
+		{
 			continue;
 		}
 
-		let keywords = collect_tags_from_search(core, author, seen_authors, strict_ids, partial_ids, strict_manga, token)?;
+		let keywords = collect_tags_from_search(
+			core,
+			author,
+			seen_manga_ids,
+			strict_ids,
+			partial_ids,
+			strict_manga,
+			token,
+		)?;
 		matched_items.extend(keywords);
 
 		if !strict_ids.is_empty() || !partial_ids.is_empty() {
@@ -421,7 +430,11 @@ fn try_fuzzy_author_search(
 	Ok(matched_items)
 }
 
-fn fetch_manga_by_tags(tag_ids: &[i64], page: i32, token: Option<&str>) -> Result<(Vec<models::FilterItem>, i32)> {
+fn fetch_manga_by_tags(
+	tag_ids: &[i64],
+	page: i32,
+	token: Option<&str>,
+) -> Result<(Vec<models::FilterItem>, i32)> {
 	if tag_ids.is_empty() {
 		return Ok((Vec::new(), 0));
 	}
@@ -456,27 +469,26 @@ fn scan_hidden_content(
 	token: Option<&str>,
 	match_by_name: bool,
 	strict_mode: bool,
+	max_batches: i32,
 ) -> Vec<Manga> {
 	let mut found_manga = Vec::new();
 	let hidden_start_page = (page - 1) * 5 + 1;
-	let scanner = net::HiddenContentScanner::new(hidden_start_page, 3, token);
+	let scanner = net::HiddenContentScanner::new(hidden_start_page, max_batches, token);
 	let target_lower = target.to_lowercase();
 
 	for items in scanner {
 		let mut batch_found_any = false;
 		for item in items {
 			let is_match = if match_by_name {
-				// Name OR author contains target (for keyword search)
 				let name_lower = item.name.to_lowercase();
 				let auth_lower = item.authors.as_deref().unwrap_or("").to_lowercase();
 				name_lower.contains(&target_lower) || auth_lower.contains(&target_lower)
 			} else if strict_mode {
-				// Exact author match (Case Insensitive)
-				item.authors.as_ref()
+				item.authors
+					.as_ref()
 					.map(|a| a.split(',').any(|s| s.trim().eq_ignore_ascii_case(target)))
 					.unwrap_or(false)
 			} else {
-				// Fuzzy author match
 				item.matches_author(target)
 			};
 
@@ -494,7 +506,6 @@ fn scan_hidden_content(
 	found_manga
 }
 
-/// Pure function: extracts author tag IDs from manga detail.
 fn extract_author_tags_from_detail(
 	detail: &models::MangaDetail,
 	target_author: &str,
@@ -503,38 +514,38 @@ fn extract_author_tags_from_detail(
 		return AuthorMatchResult::default();
 	};
 
-	let mut seen_strict: HashSet<i64> = HashSet::new();
-	let mut seen_partial: HashSet<i64> = HashSet::new();
+	let target_trimmed = target_author.trim();
+	let target_lower = target_trimmed.to_lowercase();
 
-	// Single-pass: collect strict and partial matches
-	let (strict_ids, partial_ids): (Vec<i64>, Vec<i64>) = authors
-		.iter()
-		.filter_map(|author| {
-			let name = author.tag_name.as_ref()?;
-			let tid = author.tag_id.filter(|&id| id > 0)?;
-			if name.trim().is_empty() {
-				return None;
+	let mut strict_ids = Vec::with_capacity(2);
+	let mut partial_ids = Vec::with_capacity(2);
+
+	for author in authors {
+		let Some(name) = author.tag_name.as_ref() else {
+			continue;
+		};
+		let Some(tid) = author.tag_id.filter(|&id| id > 0) else {
+			continue;
+		};
+
+		let name_trimmed = name.trim();
+		if name_trimmed.is_empty() {
+			continue;
+		}
+
+		if name_trimmed.eq_ignore_ascii_case(target_trimmed) {
+			if !strict_ids.contains(&tid) {
+				strict_ids.push(tid);
 			}
-
-			let name_trimmed = name.trim();
-			let target_trimmed = target_author.trim();
-			let target_lower = target_trimmed.to_lowercase();
-
-			if name_trimmed.eq_ignore_ascii_case(target_trimmed) && seen_strict.insert(tid) {
-				return Some((Some(tid), None)); // Strict match
-			} else if (name_trimmed.to_lowercase().contains(&target_lower)
-				|| target_lower.contains(&name_trimmed.to_lowercase()))
-				&& seen_partial.insert(tid)
+		} else {
+			let name_lower = name_trimmed.to_lowercase();
+			if (name_lower.contains(&target_lower) || target_lower.contains(&name_lower))
+				&& !partial_ids.contains(&tid)
 			{
-				return Some((None, Some(tid))); // Partial match
+				partial_ids.push(tid);
 			}
-			None
-		})
-		.fold((Vec::new(), Vec::new()), |(mut s, mut p), (strict, partial)| {
-			if let Some(id) = strict { s.push(id); }
-			if let Some(id) = partial { p.push(id); }
-			(s, p)
-		});
+		}
+	}
 
 	let match_type = if !strict_ids.is_empty() {
 		MatchResult::Strict
@@ -544,5 +555,9 @@ fn extract_author_tags_from_detail(
 		MatchResult::None
 	};
 
-	AuthorMatchResult { strict_ids, partial_ids, match_type }
+	AuthorMatchResult {
+		strict_ids,
+		partial_ids,
+		match_type,
+	}
 }

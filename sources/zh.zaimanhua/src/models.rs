@@ -1,8 +1,8 @@
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Viewer,
+	Chapter, ContentRating, Link, LinkValue, Manga, MangaPageResult, MangaStatus, MangaWithChapter,
+	Viewer,
 	alloc::{String, Vec, format, string::ToString, vec},
 	serde::Deserialize,
-	Link, LinkValue,
 };
 
 // === API Response Wrapper ===
@@ -282,10 +282,10 @@ impl MangaDetail {
 			status,
 			content_rating,
 			viewer: match self.islong {
-				Some(1) => Viewer::Webtoon,          // islong=1 = Long Strip (Webtoon)
+				Some(1) => Viewer::Webtoon, // islong=1 = Long Strip (Webtoon)
 				_ => match self.direction {
-					Some(2) => Viewer::LeftToRight,  // direction=2 = LTR
-					_ => Viewer::RightToLeft,        // default = RTL
+					Some(2) => Viewer::LeftToRight, // direction=2 = LTR
+					_ => Viewer::RightToLeft,       // default = RTL
 				},
 			},
 			url,
@@ -304,7 +304,10 @@ impl MangaDetail {
 					let chapter_id = item.chapter_id.to_string();
 					let url = Some(format!(
 						"{}/view/{}/{}/{}",
-						crate::WEB_URL, comic_py, manga_id, chapter_id
+						crate::WEB_URL,
+						comic_py,
+						manga_id,
+						chapter_id
 					));
 
 					all_chapters.push(Chapter {
@@ -404,7 +407,9 @@ fn matches_author_str(authors_str: &str, target_author: &str) -> bool {
 
 	// Allow loose matching only for specific queries (Multibyte or >3 chars)
 	if target_author.len() > 3 || !target_author.is_ascii() {
-		return authors_str.to_lowercase().contains(&target_author.to_lowercase());
+		return authors_str
+			.to_lowercase()
+			.contains(&target_author.to_lowercase());
 	}
 
 	false
@@ -415,9 +420,7 @@ fn matches_author_str(authors_str: &str, target_author: &str) -> bool {
 pub fn manga_list_from_filter(items: Vec<FilterItem>) -> MangaPageResult {
 	let entries: Vec<Manga> = items
 		.into_iter()
-		.filter_map(|item| {
-			if item.id > 0 { Some(item.into()) } else { None }
-		})
+		.filter_map(|item| if item.id > 0 { Some(item.into()) } else { None })
 		.collect();
 	let has_next_page = !entries.is_empty();
 	MangaPageResult {
@@ -430,7 +433,11 @@ pub fn manga_list_from_ranks(items: Vec<RankItem>) -> MangaPageResult {
 	let entries: Vec<Manga> = items
 		.into_iter()
 		.filter_map(|item| {
-			if item.comic_id > 0 { Some(item.into()) } else { None }
+			if item.comic_id > 0 {
+				Some(item.into())
+			} else {
+				None
+			}
 		})
 		.collect();
 	let has_next_page = !entries.is_empty();
@@ -493,4 +500,6 @@ pub struct UserInfo {
 	#[serde(rename = "user_level")]
 	pub level: Option<i64>,
 	pub is_sign: Option<bool>,
+	#[serde(rename = "is_vip")]
+	pub is_vip: Option<bool>,
 }

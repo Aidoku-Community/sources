@@ -16,33 +16,54 @@ use aidoku::helpers::uri::encode_uri_component;
 
 pub mod urls {
 	use crate::V4_API_URL;
-	use aidoku::{alloc::{String, format}, helpers::uri::encode_uri_component};
+	use aidoku::{
+		alloc::{String, format},
+		helpers::uri::encode_uri_component,
+	};
 
 	/// Build search API URL
 	pub fn search(keyword: &str, page: i32) -> String {
-		format!("{}/search/index?keyword={}&source=0&page={}",
-			V4_API_URL, encode_uri_component(keyword), page)
+		format!(
+			"{}/search/index?keyword={}&source=0&page={}",
+			V4_API_URL,
+			encode_uri_component(keyword),
+			page
+		)
 	}
 
 	/// Build search API URL with custom size (for author search)
 	pub fn search_sized(keyword: &str, page: i32, size: i32) -> String {
-		format!("{}/search/index?keyword={}&source=0&page={}&size={}",
-			V4_API_URL, encode_uri_component(keyword), page, size)
+		format!(
+			"{}/search/index?keyword={}&source=0&page={}&size={}",
+			V4_API_URL,
+			encode_uri_component(keyword),
+			page,
+			size
+		)
 	}
 
 	/// Build filter/list API URL with query string
 	pub fn filter(query_string: &str, page: i32) -> String {
-		format!("{}/comic/filter/list?{}&page={}", V4_API_URL, query_string, page)
+		format!(
+			"{}/comic/filter/list?{}&page={}",
+			V4_API_URL, query_string, page
+		)
 	}
 
 	/// Build filter/list API URL with sortType and size (for Home page)
 	pub fn filter_latest_sized(page: i32, size: i32) -> String {
-		format!("{}/comic/filter/list?sortType=1&page={}&size={}", V4_API_URL, page, size)
+		format!(
+			"{}/comic/filter/list?sortType=1&page={}&size={}",
+			V4_API_URL, page, size
+		)
 	}
 
 	/// Build filter/list API URL by category
 	pub fn filter_cate(cate: i64, page: i32, size: i32) -> String {
-		format!("{}/comic/filter/list?cate={}&size={}&page={}", V4_API_URL, cate, size, page)
+		format!(
+			"{}/comic/filter/list?cate={}&size={}&page={}",
+			V4_API_URL, cate, size, page
+		)
 	}
 
 	/// Build manga detail API URL
@@ -52,7 +73,10 @@ pub mod urls {
 
 	/// Build rank/list API URL
 	pub fn rank(by_time: i32, page: i32) -> String {
-		format!("{}/comic/rank/list?rank_type=0&by_time={}&page={}", V4_API_URL, by_time, page)
+		format!(
+			"{}/comic/rank/list?rank_type=0&by_time={}&page={}",
+			V4_API_URL, by_time, page
+		)
 	}
 
 	/// Build recommend/list API URL (for Home page banner)
@@ -67,12 +91,18 @@ pub mod urls {
 
 	/// Build filter by theme (author tag) API URL
 	pub fn filter_theme(theme_id: i64, page: i32) -> String {
-		format!("{}/comic/filter/list?theme={}&page={}", V4_API_URL, theme_id, page)
+		format!(
+			"{}/comic/filter/list?theme={}&page={}",
+			V4_API_URL, theme_id, page
+		)
 	}
 
 	/// Build subscription list API URL
 	pub fn sub_list(page: i32) -> String {
-		format!("{}/comic/sub/list?status=0&firstLetter=&page={}&size=50", V4_API_URL, page)
+		format!(
+			"{}/comic/sub/list?status=0&firstLetter=&page={}&size=50",
+			V4_API_URL, page
+		)
 	}
 
 	/// Build manga news page URL
@@ -82,7 +112,10 @@ pub mod urls {
 
 	/// Build filter/list for hidden scanner (large page size)
 	pub fn filter_scanner(page: i32) -> String {
-		format!("{}/comic/filter/list?sortType=1&page={}&size=100", V4_API_URL, page)
+		format!(
+			"{}/comic/filter/list?sortType=1&page={}&size=100",
+			V4_API_URL, page
+		)
 	}
 }
 
@@ -111,10 +144,11 @@ const PROXY_BLOCKED_URLS: &[&str] = &[
 
 /// Check if a URL should be blocked in proxy mode.
 pub fn should_block(url: &str) -> bool {
-	settings::get_use_proxy() &&
-		PROXY_BLOCKED_URLS.iter().any(|blocked| url.starts_with(blocked))
+	settings::get_use_proxy()
+		&& PROXY_BLOCKED_URLS
+			.iter()
+			.any(|blocked| url.starts_with(blocked))
 }
-
 
 // === HTTP Request Helpers ===
 
@@ -170,7 +204,9 @@ pub fn send_authed_request<T: DeserializeOwned>(
 		&& let Ok(Some(new_token)) = try_refresh_token()
 	{
 		// Retry with new token
-		return auth_request(url, Some(&new_token))?.send()?.get_json_owned();
+		return auth_request(url, Some(&new_token))?
+			.send()?
+			.get_json_owned();
 	}
 	Ok(resp)
 }
@@ -214,15 +250,16 @@ pub fn get_user_info(token: &str) -> Result<models::UserInfoData> {
 }
 
 /// Helper to fetch and cache user profile (Level & Sign status)
-/// Returns Ok(()) on success, Err if network fails.
-pub fn refresh_user_profile(token: &str) -> Result<()> {
+/// Returns Ok(is_vip) on success, Err if network fails.
+pub fn refresh_user_profile(token: &str) -> Result<bool> {
 	let info_data = get_user_info(token)?;
 	if let Some(info) = info_data.user_info {
 		let level = info.level.unwrap_or(0) as i32;
 		let is_sign = info.is_sign.unwrap_or(false);
 		settings::set_user_cache(level, is_sign);
+		return Ok(info.is_vip.unwrap_or(false));
 	}
-	Ok(())
+	Ok(false)
 }
 
 /// Perform silent background updates: auto check-in and cache refresh.
@@ -238,7 +275,11 @@ pub fn perform_silent_updates(token: &str) {
 	{
 		settings::set_last_checkin();
 		checkin_performed = true;
-		let _ = refresh_user_profile(token);
+		let is_vip = refresh_user_profile(token).ok() == Some(true);
+		if is_vip {
+			let reward_url = format!("{}task/get_reward?task_id=16", SIGN_API);
+			let _ = send_authed_request::<aidoku::serde::de::IgnoredAny>(&reward_url, Some(token));
+		}
 	}
 
 	// Stale Cache Update (if no check-in just happened)
@@ -257,7 +298,11 @@ pub struct RequestBatch {
 
 impl RequestBatch {
 	pub fn new() -> Self {
-		Self { requests: Vec::new(), index_map: Vec::new(), total_slots: 0 }
+		Self {
+			requests: Vec::new(),
+			index_map: Vec::new(),
+			total_slots: 0,
+		}
 	}
 
 	/// Add a GET request. automatically checking for blocking.
@@ -276,7 +321,6 @@ impl RequestBatch {
 		Ok(self.add(auth_request(url, token)?))
 	}
 
-	/// Add a request that MUST execute. Returns the slot index.
 	fn add(&mut self, req: Request) -> usize {
 		self.add_if(Some(req))
 	}
@@ -359,7 +403,7 @@ impl Iterator for HiddenContentScanner {
 			let make_requests = |token: Option<&str>| -> Vec<Request> {
 				(self.current_page..=end_page)
 					.filter_map(|p| {
-					let url = urls::filter_scanner(p);
+						let url = urls::filter_scanner(p);
 						auth_request(&url, token).ok()
 					})
 					.collect()
@@ -376,9 +420,7 @@ impl Iterator for HiddenContentScanner {
 
 			let has_auth_error = parsed_responses.iter().any(|r| r.errno.unwrap_or(0) == 99);
 
-			if has_auth_error
-				&& let Ok(Some(new_token)) = try_refresh_token()
-			{
+			if has_auth_error && let Ok(Some(new_token)) = try_refresh_token() {
 				// Retry the batch with the new token
 				let requests = make_requests(Some(&new_token));
 				let responses = Request::send_all(requests);
@@ -409,10 +451,6 @@ impl Iterator for HiddenContentScanner {
 			}
 		}
 
-		if batch_found {
-			Some(items)
-		} else {
-			None
-		}
+		if batch_found { Some(items) } else { None }
 	}
 }

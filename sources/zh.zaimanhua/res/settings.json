@@ -25,23 +25,11 @@
 			},
 			{
 				"type": "switch",
-				"key": "enhancedMode",
-				"title": "增强浏览",
-				"subtitle": "解锁全部内容",
-				"default": false,
-				"requires": "login",
-				"refreshes": [
-					"content",
-					"settings"
-				]
-			},
-			{
-				"type": "switch",
 				"key": "deepSearch",
 				"title": "深度检索",
 				"subtitle": "搜索隐藏内容",
 				"default": false,
-				"requires": "enhancedMode",
+				"requires": "login",
 				"refreshes": [
 					"content",
 					"settings"

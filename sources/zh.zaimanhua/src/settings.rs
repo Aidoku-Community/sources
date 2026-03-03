@@ -14,10 +14,8 @@ const JUST_LOGGED_IN_KEY: &str = "justLoggedIn";
 const AUTO_CHECKIN_KEY: &str = "autoCheckin";
 const LAST_CHECKIN_KEY: &str = "lastCheckin";
 
-// Enhanced Mode
-const ENHANCED_MODE_KEY: &str = "enhancedMode";
+// Deep Search
 const DEEP_SEARCH_KEY: &str = "deepSearch";
-const MIN_ENHANCED_LEVEL: i32 = 1;
 
 // Proxy
 const USE_PROXY_KEY: &str = "useProxy";
@@ -52,11 +50,7 @@ pub fn set_token(token: &str) {
 }
 
 pub fn get_current_token() -> Option<String> {
-	if get_enhanced_mode() {
-		get_token()
-	} else {
-		None
-	}
+	get_token()
 }
 
 pub fn clear_token() {
@@ -107,27 +101,11 @@ pub fn clear_checkin_flag() {
 	defaults_set(LAST_CHECKIN_KEY, DefaultValue::Null);
 }
 
-// === Enhanced Mode & Deep Search ===
+// === Deep Search ===
 
-/// Check if user meets minimum level requirement for enhanced features
-pub fn user_meets_level_requirement() -> bool {
-	if let Some(cache) = get_user_cache() {
-		cache.level >= MIN_ENHANCED_LEVEL
-	} else {
-		false // No cache = require login to enable enhanced mode
-	}
-}
-
-/// Enhanced mode requires: toggle ON + valid token + Lv.1+
-pub fn get_enhanced_mode() -> bool {
-	defaults_get::<bool>(ENHANCED_MODE_KEY).unwrap_or(false) 
-		&& get_token().is_some()
-		&& user_meets_level_requirement()
-}
-
-/// Deep Search: requires Enhanced Mode + toggle ON
+/// Deep Search: requires login + toggle ON
 pub fn deep_search_enabled() -> bool {
-	get_enhanced_mode() && defaults_get::<bool>(DEEP_SEARCH_KEY).unwrap_or(false)
+	get_token().is_some() && defaults_get::<bool>(DEEP_SEARCH_KEY).unwrap_or(false)
 }
 
 // === Proxy Mode ===
@@ -139,9 +117,7 @@ pub fn get_use_proxy() -> bool {
 pub fn get_proxy_url() -> Option<String> {
 	defaults_get::<String>(PROXY_URL_KEY)
 		.filter(|url| {
-			url.starts_with("https://")
-				&& url.len() > 10
-				&& !url.contains("your-worker") // Exclude placeholder
+			url.starts_with("https://") && url.len() > 10 && !url.contains("your-worker") // Exclude placeholder
 		})
 		.map(|url| url.trim_end_matches('/').to_string()) // Normalize: remove trailing slash
 }
@@ -154,7 +130,6 @@ pub struct UserCache {
 	pub is_sign: bool,
 	pub timestamp: f64,
 }
-
 
 pub fn get_user_cache() -> Option<UserCache> {
 	aidoku::imports::defaults::defaults_get::<UserCache>(USER_CACHE_KEY)
@@ -187,6 +162,5 @@ pub fn is_cache_stale() -> bool {
 
 pub fn reset_dependent_settings() {
 	defaults_set(AUTO_CHECKIN_KEY, DefaultValue::Null);
-	defaults_set(ENHANCED_MODE_KEY, DefaultValue::Null);
 	defaults_set(DEEP_SEARCH_KEY, DefaultValue::Null);
 }
