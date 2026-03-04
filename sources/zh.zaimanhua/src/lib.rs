@@ -138,12 +138,10 @@ impl Source for Zaimanhua {
 			(true, true) => {
 				let chapters_source = manga_detail.clone();
 				manga.copy_from(manga_detail.into_manga(manga.key.clone()));
-				aidoku::imports::std::send_partial_result(&manga);
 				manga.chapters = Some(chapters_source.into_chapters(&manga.key));
 			}
 			(true, false) => {
 				manga.copy_from(manga_detail.into_manga(manga.key.clone()));
-				aidoku::imports::std::send_partial_result(&manga);
 			}
 			(false, true) => {
 				manga.chapters = Some(manga_detail.into_chapters(&manga.key));

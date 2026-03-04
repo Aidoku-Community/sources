@@ -198,15 +198,13 @@ pub fn send_authed_request<T: DeserializeOwned>(
 	token: Option<&str>,
 ) -> Result<models::ApiResponse<T>> {
 	let req = auth_request(url, token)?;
-	let resp: models::ApiResponse<T> = req.send()?.get_json_owned()?;
+	let resp: models::ApiResponse<T> = req.json_owned()?;
 
 	if resp.errno.unwrap_or(0) == 99
 		&& let Ok(Some(new_token)) = try_refresh_token()
 	{
 		// Retry with new token
-		return auth_request(url, Some(&new_token))?
-			.send()?
-			.get_json_owned();
+		return auth_request(url, Some(&new_token))?.json_owned();
 	}
 	Ok(resp)
 }
