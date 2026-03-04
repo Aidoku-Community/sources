@@ -1,0 +1,71 @@
+[
+	{
+		"type": "text",
+		"id": "artist",
+		"title": "Artist",
+		"placeholder": "Artist name"
+	},
+	{
+		"type": "text",
+		"id": "group",
+		"title": "Group",
+		"placeholder": "Group name"
+	},
+	{
+		"type": "sort",
+		"id": "sort",
+		"title": "Sort",
+		"canAscend": false,
+		"options": ["Latest", "Popular", "Top Yesterday", "Top Month", "Top Year", "Top All"]
+	},
+	{
+		"type": "multi-select",
+		"id": "categories",
+		"title": "Categories",
+		"options": ["Doujinshi", "Manga", "Artist CG", "Game CG", "Western", "Non-H", "Image Set", "Cosplay", "Asian Porn", "Misc"],
+		"ids": ["f_doujinshi", "f_manga", "f_artistcg", "f_gamecg", "f_western", "f_non-h", "f_imageset", "f_cosplay", "f_asianporn", "f_misc"],
+		"defaultIncluded": ["f_doujinshi", "f_manga", "f_artistcg", "f_gamecg", "f_western", "f_non-h", "f_imageset", "f_cosplay", "f_asianporn", "f_misc"]
+	},
+	{
+		"type": "select",
+		"id": "min_rating",
+		"title": "Minimum Rating",
+		"options": ["Any", "2 stars", "3 stars", "4 stars", "5 stars"],
+		"ids": ["0", "2", "3", "4", "5"],
+		"default": "0"
+	},
+	{
+		"type": "text",
+		"id": "tags",
+		"title": "Tags",
+		"placeholder": "tag1, -excluded, ~or_tag"
+	},
+	{
+		"type": "text",
+		"id": "min_pages",
+		"title": "Minimum Pages",
+		"placeholder": "e.g. 10"
+	},
+	{
+		"type": "text",
+		"id": "max_pages",
+		"title": "Maximum Pages",
+		"placeholder": "e.g. 100"
+	},
+	{
+		"type": "select",
+		"id": "expunged",
+		"title": "Browse Expunged Galleries",
+		"options": ["Off", "On"],
+		"ids": ["off", "on"],
+		"default": "off"
+	},
+	{
+		"type": "multi-select",
+		"id": "disable_custom",
+		"title": "Disable Custom Filter",
+		"options": ["Language", "Uploader", "Tags"],
+		"ids": ["f_sfl", "f_sfu", "f_sft"],
+		"defaultIncluded": []
+	}
+]

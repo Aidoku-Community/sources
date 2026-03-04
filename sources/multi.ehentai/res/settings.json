@@ -1,0 +1,68 @@
+[
+	{
+		"type": "group",
+		"title": "Account",
+		"footer": "Enter your E-Hentai cookies to access ExHentai.",
+		"items": [
+			{
+				"type": "text",
+				"key": "ipb_member_id",
+				"title": "ipb_member_id",
+				"placeholder": "Cookie value from e-hentai.org",
+				"refreshes": ["listings", "content"]
+			},
+			{
+				"type": "text",
+				"key": "ipb_pass_hash",
+				"title": "ipb_pass_hash",
+				"placeholder": "Cookie value from e-hentai.org",
+				"refreshes": ["listings", "content"]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Source",
+		"items": [
+			{
+				"type": "select",
+				"key": "domain",
+				"title": "Domain",
+				"values": ["e-hentai.org", "exhentai.org"],
+				"titles": ["E-Hentai", "ExHentai"],
+				"default": "e-hentai.org",
+				"refreshes": ["listings", "content"]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Title Preferences",
+		"items": [
+			{
+				"type": "select",
+				"key": "titlePreference",
+				"title": "Preferred Title",
+				"values": ["english", "japanese"],
+				"titles": ["English / Original", "Japanese"],
+				"default": "english"
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Blocklist",
+		"items": [
+			{
+				"type": "editable-list",
+				"key": "blocklist",
+				"title": "Add Blocked Tag",
+				"lineLimit": 1,
+				"inline": true,
+				"placeholder": "Tag to block (e.g. guro, f:loli)",
+				"default": [],
+				"refreshes": ["listings", "content"]
+			}
+		]
+	}
+]
