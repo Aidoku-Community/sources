@@ -16,15 +16,55 @@
 		"id": "sort",
 		"title": "Sort",
 		"canAscend": false,
-		"options": ["Latest", "Popular", "Top Yesterday", "Top Month", "Top Year", "Top All"]
+		"options": [
+			"Latest",
+			"Popular",
+			"Top Yesterday",
+			"Top Month",
+			"Top Year",
+			"Top All"
+		]
 	},
 	{
 		"type": "multi-select",
 		"id": "categories",
 		"title": "Categories",
-		"options": ["Doujinshi", "Manga", "Artist CG", "Game CG", "Western", "Non-H", "Image Set", "Cosplay", "Asian Porn", "Misc"],
-		"ids": ["f_doujinshi", "f_manga", "f_artistcg", "f_gamecg", "f_western", "f_non-h", "f_imageset", "f_cosplay", "f_asianporn", "f_misc"],
-		"defaultIncluded": ["f_doujinshi", "f_manga", "f_artistcg", "f_gamecg", "f_western", "f_non-h", "f_imageset", "f_cosplay", "f_asianporn", "f_misc"]
+		"options": [
+			"Doujinshi",
+			"Manga",
+			"Artist CG",
+			"Game CG",
+			"Western",
+			"Non-H",
+			"Image Set",
+			"Cosplay",
+			"Asian Porn",
+			"Misc"
+		],
+		"ids": [
+			"f_doujinshi",
+			"f_manga",
+			"f_artistcg",
+			"f_gamecg",
+			"f_western",
+			"f_non-h",
+			"f_imageset",
+			"f_cosplay",
+			"f_asianporn",
+			"f_misc"
+		],
+		"defaultIncluded": [
+			"f_doujinshi",
+			"f_manga",
+			"f_artistcg",
+			"f_gamecg",
+			"f_western",
+			"f_non-h",
+			"f_imageset",
+			"f_cosplay",
+			"f_asianporn",
+			"f_misc"
+		]
 	},
 	{
 		"type": "select",
@@ -65,7 +105,6 @@
 		"id": "disable_custom",
 		"title": "Disable Custom Filter",
 		"options": ["Language", "Uploader", "Tags"],
-		"ids": ["f_sfl", "f_sfu", "f_sft"],
-		"defaultIncluded": []
+		"ids": ["f_sfl", "f_sfu", "f_sft"]
 	}
 ]

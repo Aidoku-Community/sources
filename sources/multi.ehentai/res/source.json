@@ -5,7 +5,24 @@
 		"version": 1,
 		"url": "https://e-hentai.org",
 		"contentRating": 2,
-		"languages": ["All", "ja", "en", "zh", "nl", "fr", "de", "hu", "it", "ko", "pl", "pt-BR", "ru", "es", "th", "vi"]
+		"languages": [
+			"All",
+			"ja",
+			"en",
+			"zh",
+			"nl",
+			"fr",
+			"de",
+			"hu",
+			"it",
+			"ko",
+			"pl",
+			"pt-BR",
+			"ru",
+			"es",
+			"th",
+			"vi"
+		]
 	},
 	"config": {
 		"languageSelectType": "single",
