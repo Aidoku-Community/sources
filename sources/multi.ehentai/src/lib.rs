@@ -163,7 +163,7 @@ impl Source for EHentai {
 
 		// Language filter from settings
 		// Note: toplist does not support language filtering, so save query before appending
-		let query_str_for_toplist = query_str.clone();
+		let query_str_for_toplist: String = query_str.trim().into();
 		if let Some(lang) = get_language_filter() {
 			query_str.push_str(&format!(" language:\"{}$\"", lang));
 		}
@@ -208,17 +208,17 @@ impl Source for EHentai {
 
 		if let Some(tl) = toplist_tl {
 			let p = page - 1;
-			let toplist_qs = if !query_str_for_toplist.trim().is_empty() {
+			let toplist_qs = if !query_str_for_toplist.is_empty() {
 				format!(
 					"tl={tl}&p={p}&f_apply=Apply+Filter&f_search={}",
-					encode_uri_component(query_str_for_toplist.trim())
+					encode_uri_component(query_str_for_toplist)
 				)
 			} else {
 				format!("tl={tl}&p={p}")
 			};
 			let url = format!("https://e-hentai.org/toplist.php?{toplist_qs}");
 			let html = eh_get_html(&url, &cookies, USER_AGENT)?;
-			let (items, has_next) = parse_toplist(&html, &base_url);
+			let (items, has_next) = parse_toplist(&html, &base_url, None);
 			let blocklist = get_blocklist();
 			return Ok(items_to_manga_page(items, has_next, &blocklist));
 		}
@@ -251,28 +251,14 @@ impl Source for EHentai {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		if !needs_details && !needs_chapters {
-			return Ok(manga);
-		}
-
-		let url = &manga.key;
-		let url = rewrite_domain(url);
+		let url = rewrite_domain(&manga.key);
 		let cookies = build_cookie_header();
 
 		let html = eh_get_html(&url, &cookies, USER_AGENT)?;
 
-		let gallery = if needs_details || needs_chapters {
-			parse_gallery_detail(&html, &url)
-		} else {
-			None
-		};
+		let gallery = parse_gallery_detail(&html, &url);
 
-		if needs_details && let Some(ref g) = gallery {
-			let updated: Manga = g.clone().into();
-			manga.copy_from(updated);
-		}
-
-		if needs_chapters {
+		let chapter = if needs_chapters {
 			let scanlators = gallery.as_ref().and_then(|g| {
 				if g.language.is_empty() {
 					return None;
@@ -292,7 +278,7 @@ impl Source for EHentai {
 				parse_date(&g.posted, "yyyy-MM-dd HH:mm")
 			});
 
-			let chapter = Chapter {
+			Some(Chapter {
 				key: manga.key.clone(),
 				title: gallery.as_ref().and_then(|g| {
 					if g.category.is_empty() {
@@ -303,11 +289,21 @@ impl Source for EHentai {
 				}),
 				chapter_number: Some(1.0),
 				date_uploaded,
-				url: Some(url.clone()),
+				url: Some(url),
 				scanlators,
 				..Default::default()
-			};
-			manga.chapters = Some(vec![chapter]);
+			})
+		} else {
+			None
+		};
+
+		if needs_details && let Some(g) = gallery {
+			let updated: Manga = g.into();
+			manga.copy_from(updated);
+		}
+
+		if needs_chapters {
+			manga.chapters = chapter.map(|c| vec![c]);
 		}
 
 		Ok(manga)
@@ -426,7 +422,7 @@ impl ListingProvider for EHentai {
 			let p = page - 1;
 			let url = format!("https://e-hentai.org/toplist.php?tl={tl}&p={p}");
 			let html = eh_get_html(&url, &cookies, USER_AGENT)?;
-			let (items, has_next) = parse_toplist(&html, &base_url);
+			let (items, has_next) = parse_toplist(&html, &base_url, None);
 			let blocklist = get_blocklist();
 			return Ok(items_to_manga_page(items, has_next, &blocklist));
 		}
@@ -547,20 +543,17 @@ impl ImageRequestProvider for EHentai {
 		let cookies = build_cookie_header();
 		let base_url = get_base_url();
 
-		if let Some(ctx) = context {
-			let mode = ctx.get("mode").cloned().unwrap_or_default();
-			let imgkey = ctx.get("imgkey").cloned().unwrap_or_default();
-			let gid = ctx.get("gid").cloned().unwrap_or_default();
-			let page_str = ctx.get("page").cloned().unwrap_or_default();
-			let viewer_url = ctx
-				.get("viewer_url")
-				.cloned()
-				.unwrap_or_else(|| url.clone());
+		if let Some(mut ctx) = context {
+			let mode = ctx.remove("mode").unwrap_or_default();
+			let imgkey = ctx.remove("imgkey").unwrap_or_default();
+			let gid = ctx.remove("gid").unwrap_or_default();
+			let page_str = ctx.remove("page").unwrap_or_default();
+			let viewer_url = ctx.remove("viewer_url").unwrap_or_else(|| url.clone());
 			let page: u32 = page_str.parse().unwrap_or(1);
 
 			if !imgkey.is_empty() && !gid.is_empty() {
 				if mode == "mpv" {
-					let mpvkey = ctx.get("mpvkey").cloned().unwrap_or_default();
+					let mpvkey = ctx.remove("mpvkey").unwrap_or_default();
 					if !mpvkey.is_empty()
 						&& let Some((img_url, nl_val)) =
 							api_imagedispatch(&gid, &imgkey, page, &mpvkey, None, &cookies)
@@ -588,7 +581,7 @@ impl ImageRequestProvider for EHentai {
 						}
 					}
 				} else {
-					let showkey = ctx.get("showkey").cloned().unwrap_or_default();
+					let showkey = ctx.remove("showkey").unwrap_or_default();
 					if !showkey.is_empty()
 						&& let Some((img_url, nl_val)) =
 							api_showpage(&gid, &imgkey, page, &showkey, None, &cookies)

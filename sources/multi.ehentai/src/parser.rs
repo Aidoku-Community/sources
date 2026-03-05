@@ -66,7 +66,11 @@ pub fn parse_gallery_list(
 	(items, has_next_page, last_gid)
 }
 
-pub fn parse_toplist(html: &Document, base_url: &str) -> (Vec<EHGalleryItem>, bool) {
+pub fn parse_toplist(
+	html: &Document,
+	base_url: &str,
+	limit: Option<usize>,
+) -> (Vec<EHGalleryItem>, bool) {
 	let mut items = Vec::new();
 
 	if let Some(rows) = html.select("table.itg tr") {
@@ -76,6 +80,11 @@ pub fn parse_toplist(html: &Document, base_url: &str) -> (Vec<EHGalleryItem>, bo
 			}
 			if let Some(item) = parse_toplist_row(&row, base_url) {
 				items.push(item);
+				if let Some(limit) = limit
+					&& items.len() >= limit
+				{
+					break;
+				}
 			}
 		}
 	}
@@ -189,8 +198,8 @@ fn parse_gallery_row(row: &Element, _base_url: &str) -> Option<EHGalleryItem> {
 		.and_then(|e| e.text())
 		.or_else(|| link_el.text())
 		.and_then(|s| {
-			let s = s.trim().to_string();
-			if s.is_empty() { None } else { Some(s) }
+			let s = s.trim();
+			if s.is_empty() { None } else { Some(s.into()) }
 		});
 
 	let title = title_opt?;
@@ -233,8 +242,8 @@ fn parse_gallery_extended(row: &Element, _base_url: &str) -> Option<EHGalleryIte
 		.or_else(|| row.select_first(".glink"))?;
 
 	let title = glink_el.text().and_then(|s| {
-		let s = s.trim().to_string();
-		if s.is_empty() { None } else { Some(s) }
+		let s = s.trim();
+		if s.is_empty() { None } else { Some(s.into()) }
 	})?;
 
 	let alt_title = glink_el.attr("title").unwrap_or_default();
@@ -283,8 +292,8 @@ fn parse_gallery_thumb(thumb: &Element, _base_url: &str) -> Option<EHGalleryItem
 
 	let glink = thumb.select_first(".glink");
 	let title_opt = glink.as_ref().and_then(|e| e.text()).and_then(|s| {
-		let s = s.trim().to_string();
-		if s.is_empty() { None } else { Some(s) }
+		let s = s.trim();
+		if s.is_empty() { None } else { Some(s.into()) }
 	});
 
 	let title = title_opt?;
@@ -329,8 +338,8 @@ pub fn parse_gallery_detail(html: &Document, gallery_url: &str) -> Option<EHGall
 		.select_first("#gn")
 		.and_then(|e| e.text())
 		.and_then(|s| {
-			let s = s.trim().to_string();
-			if s.is_empty() { None } else { Some(s) }
+			let s = s.trim();
+			if s.is_empty() { None } else { Some(s.into()) }
 		});
 
 	if let Some(parsed_title) = parsed_title_opt {
@@ -648,7 +657,7 @@ pub fn items_to_manga_page(
 				})
 			})
 		})
-		.map(|item| item.into())
+		.map(|item| item.into_basic_manga())
 		.collect();
 	MangaPageResult {
 		entries,

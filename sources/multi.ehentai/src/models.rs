@@ -5,14 +5,13 @@ use aidoku::{
 	prelude::*,
 };
 
-#[derive(Debug, Clone)]
 pub struct EHTag {
 	pub namespace: String,
 	pub name: String,
 	pub is_weak: bool,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Default)]
 pub struct EHGallery {
 	pub gid: String,
 	pub token: String,
@@ -34,7 +33,6 @@ pub struct EHGallery {
 }
 
 /// Compact gallery info parsed from gallery list pages
-#[derive(Debug, Clone)]
 pub struct EHGalleryItem {
 	pub url: String,
 	pub title: String,
@@ -63,6 +61,24 @@ fn select_title(title: String, alt_title: String) -> String {
 /// Return `Some(v)` if `v` is non-empty, else `None`.
 fn non_empty<T: AsRef<[U]>, U>(v: T) -> Option<T> {
 	if v.as_ref().is_empty() { None } else { Some(v) }
+}
+
+impl EHGalleryItem {
+	pub fn into_basic_manga(self) -> Manga {
+		Manga {
+			key: self.url.clone(),
+			title: select_title(self.title, self.alt_title),
+			cover: non_empty(self.cover),
+			url: Some(self.url),
+			content_rating: if self.category == "non-h" {
+				ContentRating::Safe
+			} else {
+				ContentRating::NSFW
+			},
+			status: MangaStatus::Completed,
+			..Default::default()
+		}
+	}
 }
 
 impl From<EHGalleryItem> for Manga {
@@ -99,16 +115,11 @@ impl From<EHGalleryItem> for Manga {
 
 		// has artist → use artist as authors; no artist → use group as authors
 		let use_artist = !authors.is_empty();
-		let combined_authors: Vec<String> = if use_artist {
-			authors.clone()
-		} else {
-			groups.clone()
-		};
 
 		let other_author_prefix = if use_artist { "group:" } else { "artist:" };
 		let tags: Vec<String> = item
 			.tags
-			.iter()
+			.into_iter()
 			.filter(|t| {
 				(t.starts_with("female:") || t.starts_with("male:") || t.starts_with("mixed:"))
 					|| t.starts_with(other_author_prefix)
@@ -124,7 +135,7 @@ impl From<EHGalleryItem> for Manga {
 					};
 					format!("{}:{}", short, rest)
 				} else {
-					t.clone()
+					t
 				}
 			})
 			.collect();
@@ -154,12 +165,13 @@ impl From<EHGalleryItem> for Manga {
 		if !location_tags.is_empty() {
 			desc_parts.push(format!("Location: {}", location_tags.join(", ")));
 		}
-
 		let description = if desc_parts.is_empty() {
 			None
 		} else {
 			Some(desc_parts.join("  \n"))
 		};
+
+		let combined_authors: Vec<String> = if use_artist { authors } else { groups };
 
 		Manga {
 			key: item.url.clone(),
@@ -183,125 +195,7 @@ impl From<EHGalleryItem> for Manga {
 
 impl From<EHGallery> for Manga {
 	fn from(gallery: EHGallery) -> Self {
-		let title = select_title(gallery.title.clone(), gallery.alt_title.clone());
-
-		let artists: Vec<String> = gallery
-			.tags
-			.iter()
-			.filter(|t| t.namespace == "artist")
-			.map(|t| t.name.clone())
-			.collect();
-
-		let groups: Vec<String> = gallery
-			.tags
-			.iter()
-			.filter(|t| t.namespace == "group")
-			.map(|t| t.name.clone())
-			.collect();
-
-		// has artist → use artist as authors; no artist → use group as authors
-		let use_artist = !artists.is_empty();
-		let combined_authors: Vec<String> = if use_artist {
-			artists.clone()
-		} else {
-			groups.clone()
-		};
-
-		let other_author_ns = if use_artist { "group" } else { "artist" };
-		let tags: Vec<String> = gallery
-			.tags
-			.iter()
-			.filter(|t| {
-				(t.namespace == "female" || t.namespace == "male" || t.namespace == "mixed")
-					|| t.namespace == other_author_ns
-			})
-			.map(|t| {
-				let short = if t.namespace == "mixed" {
-					'x'
-				} else {
-					t.namespace.chars().next().unwrap_or('?')
-				};
-				format!("{}:{}", short, t.name)
-			})
-			.collect();
-
-		let mut desc_parts: Vec<String> = Vec::new();
-		if !gallery.visible.is_empty() && !gallery.visible.eq_ignore_ascii_case("yes") {
-			desc_parts.push(format!("Visible: {}", gallery.visible));
-		}
-		// the namespace NOT chosen as authors goes into description
-		if use_artist && !groups.is_empty() {
-			desc_parts.push(format!("Group: {}", groups.join(", ")));
-		}
-		if gallery.length > 0 {
-			desc_parts.push(format!("Pages: {}", gallery.length));
-		}
-		if gallery.avg_rating > 0.0 {
-			desc_parts.push(format!(
-				"Rating: {:.1} ({} votes)",
-				gallery.avg_rating, gallery.rating_count
-			));
-		}
-		if gallery.favorites > 0 {
-			desc_parts.push(format!("Favorites: {}", gallery.favorites));
-		}
-		let cosplay: Vec<String> = gallery
-			.tags
-			.iter()
-			.filter(|t| t.namespace == "cosplay")
-			.map(|t| t.name.clone())
-			.collect();
-		if !cosplay.is_empty() {
-			desc_parts.push(format!("Cosplay: {}", cosplay.join(", ")));
-		}
-		let parodies: Vec<String> = gallery
-			.tags
-			.iter()
-			.filter(|t| t.namespace == "parody" && t.name != "original" && t.name != "various")
-			.map(|t| t.name.clone())
-			.collect();
-		if !parodies.is_empty() {
-			desc_parts.push(format!("Parody: {}", parodies.join(", ")));
-		}
-		let characters: Vec<String> = gallery
-			.tags
-			.iter()
-			.filter(|t| t.namespace == "character")
-			.map(|t| t.name.clone())
-			.collect();
-		if !characters.is_empty() {
-			desc_parts.push(format!("Characters: {}", characters.join(", ")));
-		}
-		let other_ns: Vec<String> = gallery
-			.tags
-			.iter()
-			.filter(|t| t.namespace == "other")
-			.map(|t| t.name.clone())
-			.collect();
-		if !other_ns.is_empty() {
-			desc_parts.push(format!("Other: {}", other_ns.join(", ")));
-		}
-		let locations: Vec<String> = gallery
-			.tags
-			.iter()
-			.filter(|t| t.namespace == "location")
-			.map(|t| t.name.clone())
-			.collect();
-		if !locations.is_empty() {
-			desc_parts.push(format!("Location: {}", locations.join(", ")));
-		}
-		if !gallery.file_size.is_empty() {
-			desc_parts.push(format!("File Size: {}", gallery.file_size));
-		}
-		if !gallery.uploader.is_empty() {
-			desc_parts.push(format!("Uploader: {}", gallery.uploader));
-		}
-
-		let description = if desc_parts.is_empty() {
-			None
-		} else {
-			Some(desc_parts.join("  \n"))
-		};
+		let title = select_title(gallery.title, gallery.alt_title);
 
 		let viewer = {
 			let cat = gallery.category.to_ascii_lowercase();
@@ -341,6 +235,99 @@ impl From<EHGallery> for Manga {
 				}
 			}
 		};
+
+		let mut artists: Vec<String> = Vec::new();
+		let mut groups: Vec<String> = Vec::new();
+		let mut parodies: Vec<String> = Vec::new();
+		let mut characters: Vec<String> = Vec::new();
+		let mut cosplay_tags: Vec<String> = Vec::new();
+		let mut other_tags: Vec<String> = Vec::new();
+		let mut location_tags: Vec<String> = Vec::new();
+		let mut tags: Vec<String> = Vec::new();
+
+		for t in gallery.tags {
+			match t.namespace.as_str() {
+				"artist" => artists.push(t.name),
+				"group" => groups.push(t.name),
+				"parody" => {
+					if t.name != "original" && t.name != "various" {
+						parodies.push(t.name);
+					}
+				}
+				"character" => characters.push(t.name),
+				"cosplay" => cosplay_tags.push(t.name),
+				"other" => other_tags.push(t.name),
+				"location" => location_tags.push(t.name),
+
+				"female" | "male" | "mixed" => {
+					let short = if t.namespace == "mixed" {
+						'x'
+					} else {
+						t.namespace.chars().next().unwrap_or('?')
+					};
+					tags.push(format!("{}:{}", short, t.name));
+				}
+
+				_ => {}
+			}
+		}
+
+		// has artist → use artist as authors; no artist → use group as authors
+		let use_artist = !artists.is_empty();
+		if use_artist {
+			tags.extend(groups.iter().map(|g| format!("g:{g}")));
+		} else {
+			tags.extend(artists.iter().map(|a| format!("a:{a}")));
+		}
+
+		let mut desc_parts: Vec<String> = Vec::new();
+		if !gallery.visible.is_empty() && !gallery.visible.eq_ignore_ascii_case("yes") {
+			desc_parts.push(format!("Visible: {}", gallery.visible));
+		}
+		// the namespace NOT chosen as authors goes into description
+		if use_artist && !groups.is_empty() {
+			desc_parts.push(format!("Group: {}", groups.join(", ")));
+		}
+		if gallery.length > 0 {
+			desc_parts.push(format!("Pages: {}", gallery.length));
+		}
+		if gallery.avg_rating > 0.0 {
+			desc_parts.push(format!(
+				"Rating: {:.1} ({} votes)",
+				gallery.avg_rating, gallery.rating_count
+			));
+		}
+		if gallery.favorites > 0 {
+			desc_parts.push(format!("Favorites: {}", gallery.favorites));
+		}
+		if !cosplay_tags.is_empty() {
+			desc_parts.push(format!("Cosplay: {}", cosplay_tags.join(", ")));
+		}
+		if !parodies.is_empty() {
+			desc_parts.push(format!("Parody: {}", parodies.join(", ")));
+		}
+		if !characters.is_empty() {
+			desc_parts.push(format!("Characters: {}", characters.join(", ")));
+		}
+		if !other_tags.is_empty() {
+			desc_parts.push(format!("Other: {}", other_tags.join(", ")));
+		}
+		if !location_tags.is_empty() {
+			desc_parts.push(format!("Location: {}", location_tags.join(", ")));
+		}
+		if !gallery.file_size.is_empty() {
+			desc_parts.push(format!("File Size: {}", gallery.file_size));
+		}
+		if !gallery.uploader.is_empty() {
+			desc_parts.push(format!("Uploader: {}", gallery.uploader));
+		}
+		let description = if desc_parts.is_empty() {
+			None
+		} else {
+			Some(desc_parts.join("  \n"))
+		};
+
+		let combined_authors: Vec<String> = if use_artist { artists.clone() } else { groups };
 
 		let base = get_base_url();
 		let url = format!(

@@ -1,5 +1,4 @@
-use crate::settings::*;
-use crate::{EHentai, USER_AGENT, parser::*};
+use crate::{EHentai, USER_AGENT, models::EHGalleryItem, parser::*, settings::*};
 use aidoku::{
 	Home, HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Link, Listing,
 	ListingKind, Manga, Result,
@@ -12,7 +11,7 @@ use aidoku::{
 	prelude::*,
 };
 
-fn items_to_links(items: Vec<crate::models::EHGalleryItem>) -> Vec<Link> {
+fn items_to_links(items: Vec<EHGalleryItem>) -> Vec<Link> {
 	items
 		.into_iter()
 		.map(|item| -> Manga { item.into() })
@@ -20,7 +19,7 @@ fn items_to_links(items: Vec<crate::models::EHGalleryItem>) -> Vec<Link> {
 		.collect()
 }
 
-fn is_blocked(item: &crate::models::EHGalleryItem, blocklist: &[String]) -> bool {
+fn is_blocked(item: &EHGalleryItem, blocklist: &[String]) -> bool {
 	if blocklist.is_empty() {
 		return false;
 	}
@@ -45,7 +44,7 @@ fn build_and_send_toplist_big(
 ) {
 	let Ok(resp) = resp else { return };
 	let Ok(html) = resp.get_html() else { return };
-	let (items, _) = parse_toplist(&html, "https://e-hentai.org");
+	let (items, _) = parse_toplist(&html, "https://e-hentai.org", Some(10));
 	if items.is_empty() {
 		return;
 	}
@@ -72,7 +71,7 @@ fn build_and_send_toplist_list(
 ) {
 	let Ok(resp) = resp else { return };
 	let Ok(html) = resp.get_html() else { return };
-	let (items, _) = parse_toplist(&html, "https://e-hentai.org");
+	let (items, _) = parse_toplist(&html, "https://e-hentai.org", Some(25));
 	if items.is_empty() {
 		return;
 	}
@@ -113,12 +112,13 @@ fn build_and_send_gallery_scroller(
 	let items: Vec<_> = items
 		.into_iter()
 		.filter(|item| !is_blocked(item, &blocklist))
+		.map(|item| item.into_basic_manga().into())
 		.collect();
 	send_partial_result(&HomePartialResult::Component(HomeComponent {
 		title: Some(title.into()),
 		subtitle: None,
 		value: HomeComponentValue::Scroller {
-			entries: items_to_links(items),
+			entries: items,
 			listing: Some(Listing {
 				id: listing_id.into(),
 				name: title.into(),
