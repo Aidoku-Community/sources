@@ -2,7 +2,7 @@
 	"info": {
 		"id": "multi.mangadex",
 		"name": "MangaDex",
-		"version": 12,
+		"version": 13,
 		"url": "https://mangadex.org",
 		"contentRating": 1,
 		"languages": [

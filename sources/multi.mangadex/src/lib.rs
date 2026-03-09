@@ -1,8 +1,8 @@
 #![no_std]
 use aidoku::{
 	AlternateCoverProvider, Chapter, DeepLinkHandler, DeepLinkResult, DynamicListings, FilterValue,
-	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result,
-	Source,
+	ImageRequestProvider, Listing, ListingKind, ListingProvider, Manga, MangaPageResult, Page,
+	PageContent, Result, Source,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::QueryParameters,
 	imports::{
@@ -26,6 +26,7 @@ use models::*;
 
 const API_URL: &str = "https://api.mangadex.org";
 const COVER_URL: &str = "https://uploads.mangadex.org";
+const REFERER: &str = "https://mangadex.org/";
 
 const PAGE_SIZE: i32 = 20;
 const CUSTOM_LIST_PREFIX: &str = "list-";
@@ -638,11 +639,24 @@ impl DeepLinkHandler for MangaDex {
 	}
 }
 
+impl ImageRequestProvider for MangaDex {
+	fn get_image_request(
+		&self,
+		url: String,
+		_context: Option<aidoku::PageContext>,
+	) -> Result<Request> {
+		Ok(Request::get(url)?
+			.header("User-Agent", "Aidoku")
+			.header("Referer", REFERER))
+	}
+}
+
 register_source!(
 	MangaDex,
 	Home,
 	ListingProvider,
 	DynamicListings,
 	AlternateCoverProvider,
-	DeepLinkHandler
+	DeepLinkHandler,
+	ImageRequestProvider
 );
