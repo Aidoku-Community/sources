@@ -14,6 +14,10 @@ impl Impl for Armageddon {
 	fn params(&self) -> Params {
 		Params {
 			base_url: BASE_URL.into(),
+			series_title_selector: "h1.kdt8-left-title".into(),
+			series_cover_selector: ".kdt8-cover img".into(),
+			series_description_selector: ".kdt8-synopsis".into(),
+			series_genre_selector: ".kdt8-genres a.kdt8-genre-tag".into(),
 			..Default::default()
 		}
 	}
