@@ -2,12 +2,12 @@
 	"info": {
 		"id": "en.asurascans",
 		"name": "Asura Scans",
-		"version": 11,
-		"url": "https://asuracomic.net",
+		"version": 12,
+		"url": "https://asurascans.com",
 		"contentRating": 0,
 		"languages": ["en"]
 	},
 	"config": {
-		"breakingChangeVersion": 11
+		"breakingChangeVersion": 12
 	}
 }
