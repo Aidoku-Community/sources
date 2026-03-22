@@ -1,0 +1,22 @@
+[
+	{
+		"type": "group",
+		"title": "Settings",
+		"items": [
+			{
+				"type": "switch",
+				"key": "eng_title",
+				"title": "Название на англ.",
+				"default": false,
+				"refreshes": ["content"]
+			},
+			{
+				"type": "text",
+				"key": "domain",
+				"title": "Домен",
+				"default": "desu.uno",
+				"refreshes": ["content"]
+			}
+		]
+	}
+]
