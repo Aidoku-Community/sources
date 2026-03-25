@@ -38,13 +38,6 @@ pub struct DesuAuthor {
 	pub people_name: String,
 }
 
-#[derive(Deserialize)]
-pub struct DesuTranslator {
-	pub id: i32,
-	pub name: String,
-	pub site: Option<String>,
-}
-
 #[derive(Deserialize, Clone)]
 pub struct DesuChapter {
 	pub id: i64,
@@ -82,7 +75,6 @@ pub struct DesuItem {
 	pub genres: Option<Vec<DesuTerm>>,
 	#[serde(deserialize_with = "deserialize_authors")]
 	pub authors: Option<Vec<DesuAuthor>>,
-	pub translators: Option<Vec<DesuTranslator>>,
 	pub chapters: Option<DesuDataSummary<DesuChapter>>,
 	pub pages: Option<DesuDataSummary<DesuPage>>,
 }
@@ -203,9 +195,6 @@ impl From<DesuItem> for Manga {
 			authors: value
 				.authors
 				.map(|l| l.into_iter().map(|v| v.people_name).collect()),
-			artists: value
-				.translators
-				.map(|l| l.into_iter().map(|v| v.name).collect()),
 			tags: value
 				.genres
 				.map(|l| l.into_iter().map(|v| v.russian).collect()),
