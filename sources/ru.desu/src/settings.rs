@@ -1,7 +1,7 @@
 use aidoku::imports::defaults::defaults_get;
 use alloc::string::{String, ToString};
 
-const ENGLISH_TITLE_KEY: &str = "eng_title";
+const ENGLISH_TITLE_KEY: &str = "englishTitles";
 const DOMAIN_KEY: &str = "domain";
 
 pub fn eng_title() -> bool {

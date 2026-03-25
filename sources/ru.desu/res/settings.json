@@ -5,8 +5,8 @@
 		"items": [
 			{
 				"type": "switch",
-				"key": "eng_title",
-				"title": "Название на англ.",
+				"key": "englishTitles",
+				"title": "Английские заголовки",
 				"default": false,
 				"refreshes": ["content"]
 			},
