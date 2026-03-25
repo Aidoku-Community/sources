@@ -80,6 +80,7 @@ pub struct DesuItem {
 	pub description: Option<String>,
 	#[serde(deserialize_with = "deserialize_genres")]
 	pub genres: Option<Vec<DesuTerm>>,
+	#[serde(deserialize_with = "deserialize_authors")]
 	pub authors: Option<Vec<DesuAuthor>>,
 	pub translators: Option<Vec<DesuTranslator>>,
 	pub chapters: Option<DesuDataSummary<DesuChapter>>,
@@ -107,6 +108,31 @@ where
 				id: 0,
 				text: name.trim().to_string(),
 				russian: name.trim().to_string(),
+			})
+			.collect(),
+	}))
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum RawAuthors {
+	String(String),
+	Array(Vec<DesuAuthor>),
+}
+
+fn deserialize_authors<'de, D>(deserializer: D) -> Result<Option<Vec<DesuAuthor>>, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	let opt = Option::<RawAuthors>::deserialize(deserializer)?;
+
+	Ok(opt.map(|raw| match raw {
+		RawAuthors::Array(vec) => vec,
+		RawAuthors::String(s) => s
+			.split(',')
+			.map(|name| DesuAuthor {
+				people_id: 0,
+				people_name: name.trim().to_string(),
 			})
 			.collect(),
 	}))
