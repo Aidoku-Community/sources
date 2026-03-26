@@ -8,13 +8,12 @@ mod settings;
 use crate::helpers::{apply_headers, fetch_by_id, fetch_chapter, get_base_url, search};
 use aidoku::imports::net::{Request, TimeUnit, set_rate_limit};
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider, Listing,
-	ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext, Result, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider, Manga,
+	MangaPageResult, Page, PageContent, PageContext, Result, Source,
 	alloc::{String, Vec},
 	prelude::*,
 };
 use alloc::string::ToString;
-use alloc::vec;
 
 struct Desu;
 
@@ -66,15 +65,6 @@ impl Source for Desu {
 	}
 }
 
-impl ListingProvider for Desu {
-	fn get_manga_list(&self, _listing: Listing, page: i32) -> Result<MangaPageResult> {
-		search(None, page, vec![]).map(|r| MangaPageResult {
-			has_next_page: r.len() >= helpers::PAGE_SIZE,
-			entries: r.into_iter().map(Manga::from).collect(),
-		})
-	}
-}
-
 impl DeepLinkHandler for Desu {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		let Some(path) = url.strip_prefix(get_base_url().as_str()) else {
@@ -99,4 +89,4 @@ impl ImageRequestProvider for Desu {
 	}
 }
 
-register_source!(Desu, ListingProvider, DeepLinkHandler, ImageRequestProvider);
+register_source!(Desu, DeepLinkHandler, ImageRequestProvider);
