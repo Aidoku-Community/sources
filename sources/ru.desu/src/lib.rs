@@ -76,8 +76,8 @@ impl ListingProvider for Desu {
 }
 
 impl DeepLinkHandler for Desu {
-	fn handle_deep_link(&self, _url: String) -> Result<Option<DeepLinkResult>> {
-		let Some(path) = _url.strip_prefix(get_base_url().as_str()) else {
+	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
+		let Some(path) = url.strip_prefix(get_base_url().as_str()) else {
 			return Ok(None);
 		};
 
