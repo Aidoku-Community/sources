@@ -15,7 +15,10 @@
 				"key": "domain",
 				"title": "Домен",
 				"default": "desu.uno",
-				"refreshes": ["content"]
+				"refreshes": ["content"],
+				"keyboardType": 3,
+				"returnKeyType": 9,
+				"autocorrectionDisabled": true
 			}
 		]
 	}
