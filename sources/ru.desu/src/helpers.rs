@@ -25,9 +25,7 @@ pub fn apply_headers(request: Request) -> Request {
 
 pub fn fetch_by_id(id: &str) -> Result<DesuItem> {
 	let url = format!("{}/{}", get_base_api_url(), id);
-	let response = apply_headers(Request::get(url)?)
-		.send()?
-		.get_json::<DesuResponse<DesuItem>>()?;
+	let response = apply_headers(Request::get(url)?).json_owned::<DesuResponse<DesuItem>>()?;
 
 	if let Some(err) = response.error {
 		Err(error!("Failed to fetch \"{}\": {}", id, err))
@@ -40,9 +38,7 @@ pub fn fetch_by_id(id: &str) -> Result<DesuItem> {
 
 pub fn fetch_chapter(item_id: &str, id: &str) -> Result<DesuItem> {
 	let url = format!("{}/{}/chapter/{}", get_base_api_url(), item_id, id);
-	let response = apply_headers(Request::get(url)?)
-		.send()?
-		.get_json::<DesuResponse<DesuItem>>()?;
+	let response = apply_headers(Request::get(url)?).json_owned::<DesuResponse<DesuItem>>()?;
 
 	if let Some(err) = response.error {
 		Err(error!("Failed to fetch \"{}/ch/{}\": {}", item_id, id, err))
@@ -105,9 +101,7 @@ pub fn search(
 	}
 
 	let url = format!("{}/?{}", get_base_api_url(), params);
-	let response = apply_headers(Request::get(url)?)
-		.send()?
-		.get_json::<DesuResponse<Vec<DesuItem>>>()?;
+	let response = apply_headers(Request::get(url)?).json_owned::<DesuResponse<Vec<DesuItem>>>()?;
 
 	if let Some(err) = response.error {
 		Err(error!("Failed to run search: {}", err))
