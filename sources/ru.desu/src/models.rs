@@ -71,9 +71,9 @@ pub struct DesuItem {
 	pub released_on: Option<i64>,
 	pub score: Option<f32>,
 	pub description: Option<String>,
-	#[serde(deserialize_with = "deserialize_genres")]
+	#[serde(default, deserialize_with = "deserialize_genres")]
 	pub genres: Option<Vec<DesuTerm>>,
-	#[serde(deserialize_with = "deserialize_authors")]
+	#[serde(default, deserialize_with = "deserialize_authors")]
 	pub authors: Option<Vec<DesuAuthor>>,
 	pub chapters: Option<DesuDataSummary<DesuChapter>>,
 	pub pages: Option<DesuDataSummary<DesuPage>>,
