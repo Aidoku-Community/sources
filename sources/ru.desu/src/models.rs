@@ -169,7 +169,7 @@ impl From<DesuItem> for Manga {
 					"16_plus" => ContentRating::Suggestive,
 					_ => ContentRating::Safe,
 				})
-				.unwrap_or(ContentRating::Unknown),
+				.unwrap_or_default(),
 			status: value
 				.status
 				.map(|v| match v.as_str() {
@@ -178,7 +178,7 @@ impl From<DesuItem> for Manga {
 					"released" => MangaStatus::Completed,
 					_ => MangaStatus::Unknown,
 				})
-				.unwrap_or(MangaStatus::Unknown),
+				.unwrap_or_default(),
 			viewer: match value.kind.as_str() {
 				// since they can set read_mode to RTL even for manhwa/manhua I decided to do this
 				"manhwa" | "manhua" => Viewer::Webtoon,
