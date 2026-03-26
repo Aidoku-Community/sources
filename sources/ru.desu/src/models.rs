@@ -143,22 +143,45 @@ impl From<DesuChapter> for Chapter {
 	}
 }
 
+impl DesuItem {
+	pub fn get_key(&self) -> String {
+		self.id.to_string()
+	}
+
+	pub fn get_title(&self) -> String {
+		if eng_title() {
+			self.name.clone()
+		} else {
+			self.russian.clone().unwrap_or_else(|| self.name.clone())
+		}
+	}
+
+	pub fn get_cover(&self) -> Option<String> {
+		self.image.as_ref().and_then(|v| {
+			v.original
+				.clone()
+				.or_else(|| v.preview.clone())
+				.or_else(|| v.x225.clone())
+				.or_else(|| v.x120.clone())
+		})
+	}
+
+	pub fn to_slim_item(&self) -> Manga {
+		Manga {
+			key: self.get_key(),
+			title: self.get_title(),
+			cover: self.get_cover(),
+			..Default::default()
+		}
+	}
+}
+
 impl From<DesuItem> for Manga {
 	fn from(value: DesuItem) -> Self {
 		Self {
-			key: value.id.to_string(),
-			title: if eng_title() {
-				value.name
-			} else {
-				value.russian.unwrap_or(value.name)
-			},
-			cover: value.image.map(|v| {
-				v.original
-					.or(v.preview)
-					.or(v.x225)
-					.or(v.x120)
-					.unwrap_or_default()
-			}),
+			key: value.get_key(),
+			title: value.get_title(),
+			cover: value.get_cover(),
 			url: value.url,
 			description: value.description,
 			content_rating: value

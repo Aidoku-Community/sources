@@ -32,7 +32,7 @@ impl Source for Desu {
 	) -> Result<MangaPageResult> {
 		search(query, page, filters).map(|r| MangaPageResult {
 			has_next_page: r.len() >= helpers::PAGE_SIZE,
-			entries: r.into_iter().map(Manga::from).collect(),
+			entries: r.into_iter().map(|m| m.to_slim_item()).collect(),
 		})
 	}
 
