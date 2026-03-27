@@ -48,7 +48,7 @@ impl Impl for TruyenQQ {
 			chapter_parse_id: |url| {
 				String::from(
 					url.rsplit_once("-chap-")
-						.map(|(_, tail)| tail.trim_end_matches(""))
+						.map(|(_, tail)| tail)
 						.unwrap_or_default(),
 				)
 			},
@@ -77,7 +77,7 @@ impl Impl for TruyenQQ {
 					params.base_url, manga.key, chapter.key
 				)
 			},
-            home_manga_cover_selector: ".book_avatar img",
+			home_manga_cover_selector: ".book_avatar img",
 			get_search_url: |params, q, page, filters| {
 				let mut query = QueryParameters::new();
 				query.push("q", q.as_deref());
