@@ -42,7 +42,7 @@ impl Source for Desu {
 		_needs_details: bool,
 		_needs_chapters: bool,
 	) -> Result<Manga> {
-		fetch_by_id(manga.key.as_str()).map(Manga::from)
+		fetch_by_id(manga.key.as_str()).map(|x| x.to_manga(_needs_details, _needs_chapters))
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
