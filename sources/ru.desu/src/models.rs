@@ -116,18 +116,20 @@ fn deserialize_authors<'de, D>(deserializer: D) -> Result<Option<Vec<DesuAuthor>
 where
 	D: Deserializer<'de>,
 {
-	let opt = Option::<RawAuthors>::deserialize(deserializer)?;
-
-	Ok(opt.map(|raw| match raw {
-		RawAuthors::Array(vec) => vec,
-		RawAuthors::String(s) => s
-			.split(',')
-			.map(|name| DesuAuthor {
-				people_id: 0,
-				people_name: name.trim().to_string(),
-			})
-			.collect(),
-	}))
+	Ok(Option::<RawAuthors>::deserialize(deserializer)?
+		.map(|raw| match raw {
+			RawAuthors::Array(vec) => vec,
+			RawAuthors::String(s) => s
+				.split(',')
+				.map(|name| name.trim())
+				.filter(|name| !name.is_empty())
+				.map(|name| DesuAuthor {
+					people_id: 0,
+					people_name: name.to_string(),
+				})
+				.collect(),
+		})
+		.filter(|l| !l.is_empty()))
 }
 
 impl From<DesuChapter> for Chapter {
