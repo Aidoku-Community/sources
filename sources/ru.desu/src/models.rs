@@ -16,8 +16,6 @@ pub struct DesuImage {
 	pub preview: Option<String>,
 	pub x225: Option<String>,
 	pub x120: Option<String>,
-	pub x48: Option<String>,
-	pub x32: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -27,14 +25,11 @@ pub struct DesuDataSummary<T> {
 
 #[derive(Deserialize)]
 pub struct DesuTerm {
-	pub id: i32,
-	pub text: String,
 	pub russian: String,
 }
 
 #[derive(Deserialize)]
 pub struct DesuAuthor {
-	pub people_id: i32,
 	pub people_name: String,
 }
 
@@ -49,9 +44,6 @@ pub struct DesuChapter {
 
 #[derive(Deserialize)]
 pub struct DesuPage {
-	pub page: i32,
-	pub width: i32,
-	pub height: i32,
 	pub img: Option<String>,
 }
 
@@ -66,10 +58,6 @@ pub struct DesuItem {
 	pub reading: Option<String>,
 	pub age_limit: Option<String>,
 	pub status: Option<String>,
-	pub trans_status: Option<String>,
-	pub aired_on: Option<i64>,
-	pub released_on: Option<i64>,
-	pub score: Option<f32>,
 	pub description: Option<String>,
 	#[serde(default, deserialize_with = "deserialize_genres")]
 	pub genres: Option<Vec<DesuTerm>>,
@@ -97,8 +85,6 @@ where
 		RawGenres::String(s) => s
 			.split(',')
 			.map(|name| DesuTerm {
-				id: 0,
-				text: name.trim().to_string(),
 				russian: name.trim().to_string(),
 			})
 			.collect(),
@@ -124,7 +110,6 @@ where
 				.map(|name| name.trim())
 				.filter(|name| !name.is_empty())
 				.map(|name| DesuAuthor {
-					people_id: 0,
 					people_name: name.to_string(),
 				})
 				.collect(),
