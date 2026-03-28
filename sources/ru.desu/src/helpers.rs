@@ -65,18 +65,18 @@ pub fn search(
 		params.push("search", Some(q.as_str()));
 	}
 
+	let mut order = "updated"; // "по обновлению" (idx: 3), default
 	let mut genres: Vec<String> = vec![];
 	for filter in filters {
 		match filter {
-			FilterValue::Sort { id, index, .. } => params.push(
-				&id,
-				Some(match index {
+			FilterValue::Sort { index, .. } => {
+				order = match index {
 					0 => "id",
 					1 => "name",
 					2 => "popular",
-					_ => "updated", // "по обновлению" (idx: 3), default
-				}),
-			),
+					_ => order,
+				}
+			}
 			FilterValue::MultiSelect {
 				id,
 				included,
@@ -96,6 +96,7 @@ pub fn search(
 			_ => continue,
 		}
 	}
+	params.push("order", Some(order));
 	if !genres.is_empty() {
 		params.push("genres", Some(&genres.join(",")))
 	}
