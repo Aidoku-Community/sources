@@ -55,7 +55,7 @@ impl Source for Desu {
 			.into_iter()
 			.filter_map(|p| {
 				p.img.map(|u| Page {
-					content: PageContent::Url(u, None),
+					content: PageContent::url(u),
 					..Page::default()
 				})
 			})
