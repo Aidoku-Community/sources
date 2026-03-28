@@ -39,10 +39,10 @@ impl Source for Desu {
 	fn get_manga_update(
 		&self,
 		manga: Manga,
-		_needs_details: bool,
-		_needs_chapters: bool,
+		needs_details: bool,
+		needs_chapters: bool,
 	) -> Result<Manga> {
-		fetch_by_id(manga.key.as_str()).map(|x| x.to_manga(_needs_details, _needs_chapters))
+		fetch_by_id(manga.key.as_str()).map(|x| x.to_manga(needs_details, needs_chapters))
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
