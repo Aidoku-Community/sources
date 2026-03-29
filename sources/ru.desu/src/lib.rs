@@ -32,7 +32,10 @@ impl Source for Desu {
 	) -> Result<MangaPageResult> {
 		search(query, page, filters).map(|r| MangaPageResult {
 			has_next_page: r.len() >= helpers::PAGE_SIZE,
-			entries: r.into_iter().map(|m| m.to_slim_item()).collect(),
+			entries: r
+				.into_iter()
+				.map(|m| m.into_manga(None, true, false, false))
+				.collect(),
 		})
 	}
 
@@ -42,7 +45,8 @@ impl Source for Desu {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		fetch_by_id(manga.key.as_str()).map(|x| x.to_manga(needs_details, needs_chapters))
+		fetch_by_id(manga.key.as_str())
+			.map(|x| x.into_manga(Some(manga), false, needs_details, needs_chapters))
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {

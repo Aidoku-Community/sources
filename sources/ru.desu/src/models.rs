@@ -131,121 +131,88 @@ impl From<DesuChapter> for Chapter {
 }
 
 impl DesuItem {
-	pub fn get_key(&self) -> String {
-		self.id.to_string()
-	}
+	pub fn into_manga(
+		self,
+		manga: Option<Manga>,
+		slim: bool,
+		details: bool,
+		chapters: bool,
+	) -> Manga {
+		let mut item = manga.unwrap_or(Manga {
+			key: self.id.to_string(),
+			..Default::default()
+		});
 
-	pub fn get_title(&self) -> String {
-		if eng_title() {
-			self.name.clone()
+		item.title = if eng_title() {
+			self.name
 		} else {
-			self.russian.clone().unwrap_or_else(|| self.name.clone())
+			self.russian.unwrap_or(self.name)
+		};
+
+		item.cover = self
+			.image
+			.and_then(|v| v.original.or(v.preview).or(v.x225).or(v.x120));
+
+		if slim {
+			return item;
 		}
-	}
 
-	pub fn get_cover(&self) -> Option<String> {
-		self.image.as_ref().and_then(|v| {
-			v.original
-				.clone()
-				.or_else(|| v.preview.clone())
-				.or_else(|| v.x225.clone())
-				.or_else(|| v.x120.clone())
-		})
-	}
-
-	pub fn get_status(&self) -> MangaStatus {
-		self.status
-			.as_ref()
-			.map(|v| match v.as_str() {
-				// looks like they don't have hiatus status and so on
-				"ongoing" => MangaStatus::Ongoing,
-				"released" => MangaStatus::Completed,
-				_ => MangaStatus::Unknown,
-			})
-			.unwrap_or_default()
-	}
-
-	pub fn get_rating(&self) -> ContentRating {
-		self.age_limit
-			.as_ref()
-			.map(|v| match v.as_str() {
-				// "no" if no age limit. I guess safe by default is ok...
-				"18_plus" => ContentRating::NSFW,
-				"16_plus" => ContentRating::Suggestive,
-				_ => ContentRating::Safe,
-			})
-			.unwrap_or_default()
-	}
-
-	pub fn get_viewer(&self) -> Viewer {
-		match self.kind.as_ref() {
-			// since they can set read_mode to RTL even for manhwa/manhua I decided to do this
-			"manhwa" | "manhua" => Viewer::Webtoon,
-			_ => self
-				.reading
-				.as_ref()
+		if details {
+			item.content_rating = self
+				.age_limit
 				.map(|v| match v.as_str() {
-					"right-to-left" => Viewer::RightToLeft,
-					"left-to-right" => Viewer::LeftToRight,
-					"top-to-bottom" => Viewer::Webtoon,
-					_ => Viewer::RightToLeft,
+					// "no" if no age limit. I guess safe by default is ok...
+					"18_plus" => ContentRating::NSFW,
+					"16_plus" => ContentRating::Suggestive,
+					_ => ContentRating::Safe,
 				})
-				.unwrap_or(Viewer::RightToLeft),
+				.unwrap_or_default();
+
+			item.status = self
+				.status
+				.map(|v| match v.as_str() {
+					// looks like they don't have hiatus status and so on
+					"ongoing" => MangaStatus::Ongoing,
+					"released" => MangaStatus::Completed,
+					_ => MangaStatus::Unknown,
+				})
+				.unwrap_or_default();
+
+			item.viewer = match self.kind.as_str() {
+				// since they can set read_mode to RTL even for manhwa/manhua I decided to do this
+				"manhwa" | "manhua" => Viewer::Webtoon,
+				_ => self
+					.reading
+					.as_ref()
+					.map(|v| match v.as_str() {
+						"right-to-left" => Viewer::RightToLeft,
+						"left-to-right" => Viewer::LeftToRight,
+						"top-to-bottom" => Viewer::Webtoon,
+						_ => Viewer::RightToLeft,
+					})
+					.unwrap_or(Viewer::RightToLeft),
+			};
+
+			item.authors = self
+				.authors
+				.map(|l| l.into_iter().map(|v| v.people_name).collect());
+
+			item.description = self.description;
+
+			item.url = self.url;
+
+			item.tags = self
+				.genres
+				.map(|l| l.into_iter().map(|v| v.russian).collect());
 		}
-	}
 
-	pub fn get_authors(&self) -> Option<Vec<String>> {
-		self.authors
-			.as_ref()
-			.map(|l| l.iter().map(|v| v.people_name.clone()).collect())
-	}
-
-	pub fn get_tags(&self) -> Option<Vec<String>> {
-		self.genres
-			.as_ref()
-			.map(|l| l.iter().map(|v| v.russian.clone()).collect())
-	}
-
-	pub fn get_chapters(&self) -> Option<Vec<Chapter>> {
-		self.chapters
-			.as_ref()
-			.and_then(|s| s.list.as_ref())
-			.map(|l| l.iter().map(|x| Chapter::from(x.clone())).collect())
-	}
-
-	pub fn to_slim_item(&self) -> Manga {
-		Manga {
-			key: self.get_key(),
-			title: self.get_title(),
-			cover: self.get_cover(),
-			..Default::default()
+		if chapters {
+			item.chapters = self
+				.chapters
+				.and_then(|s| s.list)
+				.map(|l| l.into_iter().map(Chapter::from).collect())
 		}
-	}
 
-	pub fn to_manga(&self, details: bool, chapters: bool) -> Manga {
-		Manga {
-			// those data always copied
-			key: self.get_key(),
-			title: self.get_title(),
-			content_rating: self.get_rating(),
-			status: self.get_status(),
-			viewer: self.get_viewer(),
-			// those should be copied only if required
-			cover: if details { self.get_cover() } else { None },
-			authors: if details { self.get_authors() } else { None },
-			description: if details && self.description.is_some() {
-				self.description.clone()
-			} else {
-				None
-			},
-			url: if details && self.url.is_some() {
-				self.url.clone()
-			} else {
-				None
-			},
-			tags: if details { self.get_tags() } else { None },
-			chapters: if chapters { self.get_chapters() } else { None },
-			..Default::default()
-		}
+		item
 	}
 }
