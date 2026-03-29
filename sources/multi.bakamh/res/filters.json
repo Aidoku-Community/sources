@@ -1,0 +1,80 @@
+[
+	{
+		"type": "sort",
+		"title": "Sort",
+		"canAscend": false,
+		"options": [
+			"Newest",
+			"Latest",
+			"Top read"
+		]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"All",
+			"Completed",
+			"Ongoing"
+		]
+	},
+	{
+		"type": "select",
+		"id": "genre",
+		"title": "Genre",
+		"isGenre": true,
+		"options": [
+			"All",
+			"BL",
+			"GL",
+			"All Ages",
+			"English",
+			"Animation",
+			"Doujinshi (Chinese)",
+			"Translated JP Manga",
+			"Korean Comics"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "tags",
+		"title": "Tags",
+		"isGenre": true,
+		"options": [
+			"Drama",
+			"Romance",
+			"Comedy",
+			"Affair",
+			"College",
+			"Friends",
+			"Love",
+			"Secret",
+			"Triangle",
+			"Age Gap",
+			"Teacher",
+			"Fetish",
+			"Furry",
+			"Hardcore",
+			"Tentacles",
+			"Married",
+			"GL",
+			"Ancient Style",
+			"Cool Girl",
+			"Gentle Heroine",
+			"Pure Heroine",
+			"Rich Heroine",
+			"Trauma",
+			"Living Together",
+			"Older Uke",
+			"Younger Seme",
+			"Age Difference",
+			"Daily Life",
+			"Gentle Seme",
+			"Modern",
+			"Pure Seme",
+			"Neighbor",
+			"Deadpan Uke"
+		]
+	}
+]

@@ -1,0 +1,14 @@
+{
+	"info": {
+		"id": "multi.bakamh",
+		"name": "bakamh",
+		"version": 1,
+		"url": "https://bakamh.com/",
+		"contentRating": 2,
+		"languages": [
+			"en",
+			"zh",
+			"Ko"
+		]
+	}
+}
