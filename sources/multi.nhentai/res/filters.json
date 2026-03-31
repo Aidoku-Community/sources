@@ -15,7 +15,12 @@
 		"type": "sort",
 		"title": "Sort",
 		"canAscend": false,
-		"options": ["Latest", "Popular Today", "Popular Week", "Popular All"]
+		"options": [
+			"Latest",
+			"Popular Today",
+			"Popular Week",
+			"Popular All"
+		]
 	},
 	{
 		"type": "multi-select",
@@ -24,6 +29,7 @@
 		"isGenre": true,
 		"canExclude": true,
 		"options": [
+			"4terabyte",
 			"4uu",
 			"a kyokufuri",
 			"abortion",
@@ -299,6 +305,7 @@
 			"gender change",
 			"gender morph",
 			"genital piercing",
+			"gensou no yume",
 			"ghost",
 			"giant",
 			"giant sperm",
@@ -391,9 +398,11 @@
 			"kindergarten uniform",
 			"kissing",
 			"kitamatsuya",
+			"kitano ken",
 			"kiyama haru",
 			"kiyomiya ryou",
 			"kneepit sex",
+			"knotted penis",
 			"kodomo doushi",
 			"kodomo only",
 			"kunoichi",
@@ -621,6 +630,7 @@
 			"sex toys",
 			"shapening",
 			"shared senses",
+			"shark boy",
 			"shark girl",
 			"shaved head",
 			"sheep girl",
@@ -629,6 +639,7 @@
 			"shimaidon",
 			"shimapan",
 			"shimon ryuushirou",
+			"shinsen",
 			"shisha no mukuro",
 			"shotacon",
 			"shrinking",
@@ -665,6 +676,7 @@
 			"speculum",
 			"spider",
 			"spider girl",
+			"split tongue",
 			"squid boy",
 			"squid girl",
 			"squirrel girl",

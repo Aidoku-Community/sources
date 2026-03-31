@@ -1,14 +1,18 @@
-use crate::{models::NHentaiSearchResponse, settings, NHentai, API_URL};
+use crate::{API_URL, NHentai, models::NHentaiSearchResponse, settings};
 use aidoku::{
-	alloc::{vec, Vec},
+	Home, HomeComponent, HomeLayout, HomePartialResult, Listing, ListingKind, Manga, Result,
+	alloc::{Vec, vec},
 	helpers::uri::encode_uri_component,
 	imports::{
 		net::{Request, RequestError, Response},
 		std::send_partial_result,
 	},
 	prelude::*,
-	Home, HomeComponent, HomeLayout, HomePartialResult, Listing, ListingKind, Manga, Result,
 };
+
+fn send_component(component: HomeComponent) {
+	send_partial_result(&HomePartialResult::Component(component));
+}
 
 impl Home for NHentai {
 	fn get_home(&self) -> Result<HomeLayout> {
@@ -39,29 +43,38 @@ impl Home for NHentai {
 		}));
 
 		let blocklist = settings::get_blocklist();
-		let query = encode_uri_component(
-			settings::get_language()
-				.map(|language| format!("language:{language}"))
-				.unwrap_or(" ".into()),
-		);
+		let mut query_parts = Vec::new();
+
+		if let Some(language) = settings::get_language() {
+			query_parts.push(format!("language:{language}"));
+		}
+		for blocked in blocklist.iter() {
+			if !blocked.is_empty() {
+				query_parts.push(format!("-tag:\"{blocked}\""));
+			}
+		}
+
+		let query = encode_uri_component(if query_parts.is_empty() {
+			" ".into()
+		} else {
+			query_parts.join(" ")
+		});
 
 		let responses: [core::result::Result<Response, RequestError>; 4] = Request::send_all([
 			// popular today
 			Request::get(format!(
-				"{API_URL}/galleries/search?query={query}&page=1&sort=popular-today"
+				"{API_URL}/search?query={query}&page=1&sort=popular-today"
 			))?,
 			// popular week
 			Request::get(format!(
-				"{API_URL}/galleries/search?query={query}&page=1&sort=popular-week"
+				"{API_URL}/search?query={query}&page=1&sort=popular-week"
 			))?,
 			// popular all
 			Request::get(format!(
-				"{API_URL}/galleries/search?query={query}&page=1&sort=popular"
+				"{API_URL}/search?query={query}&page=1&sort=popular"
 			))?,
 			// latest
-			Request::get(format!(
-				"{API_URL}/galleries/search?query={query}&page=1&sort=recent"
-			))?,
+			Request::get(format!("{API_URL}/search?query={query}&page=1&sort=date"))?,
 		])
 		.try_into()
 		.expect("requests vec length should be 4");
@@ -71,15 +84,6 @@ impl Home for NHentai {
 				Ok(res?
 					.result
 					.into_iter()
-					.filter(|gallery| {
-						if blocklist.is_empty() {
-							return true;
-						}
-						!gallery
-							.tags
-							.iter()
-							.any(|tag| blocklist.contains(&tag.name.to_lowercase()))
-					})
 					.map(|gallery| gallery.into())
 					.collect::<Vec<Manga>>())
 			});
@@ -89,10 +93,8 @@ impl Home for NHentai {
 		let popular_all = popular_all?;
 		let recent = recent?;
 
-		let mut components = Vec::new();
-
 		if !popular_today.is_empty() {
-			components.push(HomeComponent {
+			send_component(HomeComponent {
 				title: Some("Popular Today".into()),
 				subtitle: None,
 				value: aidoku::HomeComponentValue::BigScroller {
@@ -103,7 +105,7 @@ impl Home for NHentai {
 		}
 
 		if !popular_week.is_empty() {
-			components.push(HomeComponent {
+			send_component(HomeComponent {
 				title: Some("Popular This Week".into()),
 				subtitle: None,
 				value: aidoku::HomeComponentValue::MangaList {
@@ -124,7 +126,7 @@ impl Home for NHentai {
 		}
 
 		if !popular_all.is_empty() {
-			components.push(HomeComponent {
+			send_component(HomeComponent {
 				title: Some("Popular All Time".into()),
 				subtitle: None,
 				value: aidoku::HomeComponentValue::MangaList {
@@ -145,7 +147,7 @@ impl Home for NHentai {
 		}
 
 		if !recent.is_empty() {
-			components.push(HomeComponent {
+			send_component(HomeComponent {
 				title: Some("Latest".into()),
 				subtitle: None,
 				value: aidoku::HomeComponentValue::Scroller {
@@ -163,6 +165,6 @@ impl Home for NHentai {
 			});
 		}
 
-		Ok(HomeLayout { components })
+		Ok(HomeLayout::default())
 	}
 }

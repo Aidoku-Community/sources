@@ -15,7 +15,7 @@ mod settings;
 use models::*;
 
 const BASE_URL: &str = "https://nhentai.net";
-const API_URL: &str = "https://nhentai.net/api";
+const API_URL: &str = "https://nhentai.net/api/v2";
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) \
 						  AppleWebKit/605.1.15 (KHTML, like Gecko) GSA/300.0.598994205 \
 						  Mobile/15E148 Safari/604";
@@ -37,7 +37,7 @@ impl Source for NHentai {
 		if let Some(q) = &query
 			&& let Ok(id) = q.parse::<i32>()
 		{
-			let url = format!("{API_URL}/gallery/{id}");
+			let url = format!("{API_URL}/galleries/{id}");
 			let gallery: NHentaiGallery = Request::get(&url)?
 				.header("User-Agent", USER_AGENT)
 				.json_owned()?;
@@ -53,7 +53,7 @@ impl Source for NHentai {
 			query_parts.push(q);
 		}
 
-		let mut sort = "recent";
+		let mut sort = "date";
 
 		// parse filters
 		for filter in filters {
@@ -72,11 +72,11 @@ impl Source for NHentai {
 				},
 				FilterValue::Sort { index, .. } => {
 					sort = match index {
-						0 => "recent",        // Latest
+						0 => "date",          // Latest
 						1 => "popular-today", // Popular Today
 						2 => "popular-week",  // Popular Week
 						3 => "popular",       // Popular All
-						_ => "recent",
+						_ => "date",
 					};
 				}
 				FilterValue::MultiSelect {
@@ -107,34 +107,30 @@ impl Source for NHentai {
 			query_parts.push(format!("language:{language}"));
 		}
 
+		for blocked in settings::get_blocklist() {
+			if !blocked.is_empty() {
+				query_parts.push(format!("-tag:\"{blocked}\""));
+			}
+		}
+
 		let combined_query = if query_parts.is_empty() {
 			" ".into()
 		} else {
 			query_parts.join(" ")
 		};
+
 		let url = format!(
-			"{API_URL}/galleries/search?query={}&page={page}&sort={sort}",
+			"{API_URL}/search?query={}&page={page}&sort={sort}",
 			encode_uri_component(combined_query),
 		);
 		let response: NHentaiSearchResponse = Request::get(&url)?
 			.header("User-Agent", USER_AGENT)
 			.json_owned()?;
 
-		let blocklist = settings::get_blocklist();
-
 		let entries = response
 			.result
 			.into_iter()
-			.filter(|gallery| {
-				if blocklist.is_empty() {
-					return true;
-				}
-				!gallery
-					.tags
-					.iter()
-					.any(|tag| blocklist.contains(&tag.name.to_lowercase()))
-			})
-			.map(|gallery| gallery.into())
+			.map(|item| item.into())
 			.collect::<Vec<Manga>>();
 		let has_next_page = page < response.num_pages;
 
@@ -151,7 +147,7 @@ impl Source for NHentai {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		if needs_details || needs_chapters {
-			let url = format!("{API_URL}/gallery/{}", manga.key);
+			let url = format!("{API_URL}/galleries/{}", manga.key);
 			let gallery: NHentaiGallery = Request::get(&url)?
 				.header("User-Agent", USER_AGENT)
 				.json_owned()?;
@@ -161,7 +157,6 @@ impl Source for NHentai {
 			}
 
 			if needs_chapters {
-				// nhentai galleries are single chapter
 				let mut languages = Vec::new();
 				for tag in &gallery.tags {
 					if tag.r#type == "language" && tag.name != "translated" && tag.name != "rewrite"
@@ -190,24 +185,27 @@ impl Source for NHentai {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let api_url = format!("{}/gallery/{}", API_URL, chapter.key);
-		let gallery: NHentaiGallery = Request::get(&api_url)?
+		let api_url = format!("{API_URL}/galleries/{}/pages", chapter.key);
+		let response: NHentaiGalleryPagesResponse = Request::get(&api_url)?
 			.header("User-Agent", USER_AGENT)
 			.json_owned()?;
 
-		let pages = gallery
-			.images
+		let pages = response
 			.pages
-			.iter()
-			.enumerate()
-			.map(|(i, page)| Page {
-				content: PageContent::url(format!(
-					"https://i.nhentai.net/galleries/{}/{}.{}",
-					gallery.media_id,
-					i + 1,
-					extension_from_type(&page.t)
-				)),
-				..Default::default()
+			.into_iter()
+			.map(|page| {
+				let path = if page.path.starts_with("http") {
+					page.path
+				} else if page.path.starts_with('/') {
+					format!("https://i.nhentai.net{}", page.path)
+				} else {
+					format!("https://i.nhentai.net/{}", page.path)
+				};
+
+				Page {
+					content: PageContent::url(path),
+					..Default::default()
+				}
 			})
 			.collect::<Vec<Page>>();
 
