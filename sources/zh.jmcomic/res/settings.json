@@ -1,0 +1,33 @@
+[
+	{
+		"type": "group",
+		"title": "账号",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"title": "登录",
+				"logoutTitle": "登出",
+				"method": "basic",
+				"notification": "login",
+				"refreshes": ["settings", "content"]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "屏蔽",
+		"footer": "支持填写漫画 ID，或会出现在标题、作者、简介、类别等位置的文本；命中后将会于可见处隐藏，并适时阻止访问。",
+		"items": [
+			{
+				"type": "editable-list",
+				"key": "blockedMetadataKeywords",
+				"title": "内容屏蔽",
+				"lineLimit": 1,
+				"inline": true,
+				"placeholder": "输入需隐藏的关键字",
+				"refreshes": ["content"]
+			}
+		]
+	}
+]

@@ -1,0 +1,27 @@
+{
+	"info": {
+		"id": "zh.jmcomic",
+		"name": "禁漫天堂",
+		"version": 1,
+		"languages": [
+			"zh"
+		],
+		"contentRating": 2,
+		"url": "https://18comic.vip"
+	},
+	"listings": [
+		{
+			"id": "o:mr",
+			"name": "最新漫画"
+		},
+		{
+			"id": "o:mv",
+			"name": "最多收藏"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true,
+		"supportsTagSearch": true,
+		"supportsAuthorSearch": true
+	}
+}
