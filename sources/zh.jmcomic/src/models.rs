@@ -68,6 +68,10 @@ impl BlockState {
 		Self { keywords, ids }
 	}
 
+	pub fn from_parts(keywords: Vec<String>, ids: Vec<String>) -> Self {
+		Self { keywords, ids }
+	}
+
 	pub fn is_empty(&self) -> bool {
 		self.keywords.is_empty() && self.ids.is_empty()
 	}
@@ -267,16 +271,15 @@ impl AlbumResp {
 	}
 
 	fn content_rating(&self) -> ContentRating {
-		let mut rating = ContentRating::NSFW;
 		for label in self.labels() {
+			if label == "青年漫" {
+				return ContentRating::Suggestive;
+			}
 			if label == "非H" {
 				return ContentRating::Safe;
 			}
-			if label == "青年漫" {
-				rating = ContentRating::Suggestive;
-			}
 		}
-		rating
+		ContentRating::NSFW
 	}
 
 	pub fn into_manga(self, key: &str, cdn_base: &str) -> Manga {

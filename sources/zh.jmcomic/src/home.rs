@@ -19,7 +19,7 @@ const PROMOTE_PAGE_SIZE: usize = 80;
 impl Home for JMComic {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let api = net::context()?;
-		let block = block_ctx();
+		let block = block_ctx(Some(&api));
 		let (groups, single) = net::home_data(&api)?;
 
 		let mut components: Vec<HomeComponent> = groups

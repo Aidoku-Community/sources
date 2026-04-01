@@ -52,6 +52,15 @@ pub fn clear_just_logged_in() {
 	defaults_set(JUST_LOGGED_IN_KEY, DefaultValue::Null);
 }
 
+pub fn block_id_cache(keywords: &[String]) -> Option<Vec<String>> {
+	let (kw, ids): (Vec<String>, Vec<String>) = get_json("blockIdCache")?;
+	(kw == keywords).then_some(ids)
+}
+
+pub fn set_block_id_cache(keywords: &[String], ids: &[String]) {
+	set_json("blockIdCache", &(keywords, ids));
+}
+
 pub fn blocked_entries() -> Vec<String> {
 	defaults_get::<Vec<String>>(BLOCKED_CONTENT_KEY)
 		.unwrap_or_default()

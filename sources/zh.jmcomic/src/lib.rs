@@ -38,10 +38,13 @@ impl Source for JMComic {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let api = net::context()?;
-		let block = block_ctx();
+		let block = block_ctx(None);
 		let (order, category, keyword) = Self::parse_filters(query.as_deref(), &filters);
 
 		if let Some(kw) = keyword {
+			if block.is_blocked("", [kw]) {
+				return finish_search_result(page, MangaPageResult::default());
+			}
 			if page <= 1
 				&& category.is_empty()
 				&& let Some(key) = parse_manga_key(&api, kw)?
@@ -67,7 +70,7 @@ impl Source for JMComic {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let api = net::context()?;
-		let resp = visible_album(&api, &manga.key, &block_ctx())?;
+		let resp = visible_album(&api, &manga.key, &block_ctx(None))?;
 
 		if needs_chapters {
 			manga.chapters = Some(resp.to_chapters(&manga.key));
@@ -81,7 +84,7 @@ impl Source for JMComic {
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let api = net::context()?;
-		let block = block_ctx();
+		let block = block_ctx(None);
 		if !block.is_empty() {
 			visible_album(&api, &manga.key, &block)?;
 		}
@@ -110,10 +113,17 @@ impl Source for JMComic {
 impl ListingProvider for JMComic {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let api = net::context()?;
-		let block = block_ctx();
+		let block = block_ctx(None);
 		match listing.id.as_str() {
 			id if id.starts_with("promo:") => home::listing_page(&api, &id[6..], page, &block),
-			id => search_result(&api, &Self::listing_url(id, page)?, &block),
+			id => {
+				if let Some(q) = id.strip_prefix("q:")
+					&& block.is_blocked("", [q])
+				{
+					return Ok(MangaPageResult::default());
+				}
+				search_result(&api, &Self::listing_url(id, page)?, &block)
+			}
 		}
 	}
 }
@@ -289,8 +299,30 @@ impl JMComic {
 	}
 }
 
-fn block_ctx() -> BlockState {
-	BlockState::new(settings::blocked_entries())
+fn block_ctx(api: Option<&ApiContext>) -> BlockState {
+	let entries = settings::blocked_entries();
+	let Some(api) = api else {
+		return BlockState::new(entries);
+	};
+	let (keywords, mut ids): (Vec<String>, Vec<String>) = entries
+		.into_iter()
+		.partition(|e| !e.chars().all(|c| c.is_ascii_digit()));
+	if !keywords.is_empty() {
+		let resolved = settings::block_id_cache(&keywords).unwrap_or_else(|| {
+			let mut resolved = Vec::new();
+			for kw in &keywords {
+				for page in 1..=2 {
+					if let Ok(r) = api.get::<SearchResp>(&net::url::search(kw, "mr", "", page)) {
+						resolved.extend(r.content.into_iter().map(|i| i.id));
+					}
+				}
+			}
+			settings::set_block_id_cache(&keywords, &resolved);
+			resolved
+		});
+		ids.extend(resolved);
+	}
+	BlockState::from_parts(keywords, ids)
 }
 
 fn search_result(api: &ApiContext, path: &str, block: &BlockState) -> Result<MangaPageResult> {
