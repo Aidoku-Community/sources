@@ -1,0 +1,38 @@
+[
+	{
+		"type": "sort",
+		"id": "type",
+		"title": "Type",
+		"canAscend": false,
+		"options": [
+			"All",
+			"Manga",
+			"Manhwa",
+			"Manhua"
+		]
+	},
+	{
+		"type": "sort",
+		"id": "sort",
+		"title": "Sort",
+		"canAscend": false,
+		"options": [
+			"Default",
+			"A-Z",
+			"Newest",
+			"Latest",
+			"Rating",
+			"Trending"
+		]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"All",
+			"Completed",
+			"Ongoing"
+		]
+	}
+]
