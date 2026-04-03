@@ -3,6 +3,7 @@ use aidoku::{
 	Chapter, ContentRating, FilterItem, FilterValue, HomeComponent, HomeComponentValue, HomeLayout,
 	Link, LinkValue, Listing, ListingKind, Manga, MangaPageResult, MangaStatus, MangaWithChapter,
 	Result, Source, Viewer,
+	alloc::string::ToString,
 	alloc::{String, Vec, vec},
 	imports::net::Request,
 	prelude::*,
@@ -50,6 +51,107 @@ impl Impl for AquaManga {
 			return ContentRating::Suggestive;
 		}
 		ContentRating::Safe
+	}
+
+	fn get_search_manga_list(
+		&self,
+		_params: &madara::Params,
+		query: Option<String>,
+		page: i32,
+		filters: Vec<FilterValue>,
+	) -> Result<MangaPageResult> {
+		use aidoku::helpers::uri::QueryParameters;
+		let mut qs = QueryParameters::new();
+		qs.push("s", Some(&query.unwrap_or_default()));
+		qs.push("post_type", Some("wp-manga"));
+
+		for filter in filters {
+			match filter {
+				FilterValue::Sort { id, index, .. } if id == "type" => {
+					let genre = match index {
+						1 => Some("manga"),
+						2 => Some("manhwa"),
+						3 => Some("manhua"),
+						_ => None,
+					};
+					if let Some(g) = genre {
+						qs.push("genre[]", Some(g));
+					}
+				}
+				FilterValue::Sort { id, index, .. } if id == "sort" => {
+					let order = match index {
+						1 => "alphabet",
+						2 => "new-manga",
+						3 => "latest",
+						4 => "rating",
+						5 => "trending",
+						_ => "",
+					};
+					if !order.is_empty() {
+						qs.push("m_orderby", Some(order));
+					}
+				}
+				FilterValue::Select { id, value } if id == "status" => {
+					let status = match value.as_str() {
+						"Completed" => Some("end"),
+						"Ongoing" => Some("on-going"),
+						_ => None,
+					};
+					if let Some(s) = status {
+						qs.push("status[]", Some(s));
+					}
+				}
+				FilterValue::MultiSelect { id, included, .. } if id == "genre[]" => {
+					for genre_id in included {
+						qs.push("genre[]", Some(&genre_id));
+					}
+				}
+				_ => {}
+			}
+		}
+
+		let page_str;
+		let url = if page <= 1 {
+			format!("{}/?{qs}", BASE_URL)
+		} else {
+			page_str = page.to_string();
+			let _ = &page_str;
+			format!("{}/page/{page}/?{qs}", BASE_URL)
+		};
+
+		let html = Request::get(&url)?.html()?;
+		let mut entries: Vec<Manga> = Vec::new();
+
+		if let Some(items) = html.select(".c-tabs-item__content") {
+			for item in items {
+				let key = strip_base(
+					item.select_first(".tab-thumb a")
+						.and_then(|a| a.attr("href"))
+						.unwrap_or_default(),
+				);
+				let title = item
+					.select_first(".post-title a")
+					.and_then(|el| el.text())
+					.unwrap_or_default();
+				let cover = item
+					.select_first(".tab-thumb img")
+					.and_then(|img| img.img_attr(false));
+				if !key.is_empty() && !title.is_empty() {
+					entries.push(Manga {
+						key,
+						title,
+						cover,
+						..Default::default()
+					});
+				}
+			}
+		}
+
+		let has_next_page = html.select_first("a[class*='next']").is_some();
+		Ok(MangaPageResult {
+			entries,
+			has_next_page,
+		})
 	}
 
 	fn get_manga_list(
@@ -436,6 +538,7 @@ fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 	let html = Request::get(url)?.html()?;
 	let mut entries: Vec<Manga> = Vec::new();
 
+	// manga listing pages (/manga/?m_orderby=...)
 	if let Some(items) = html.select(".col-6.col-md-3") {
 		for item in items {
 			let key = strip_base(
@@ -524,7 +627,6 @@ register_source!(
 	Madara<AquaManga>,
 	ListingProvider,
 	Home,
-	DynamicFilters,
 	MigrationHandler,
 	ImageRequestProvider
 );
