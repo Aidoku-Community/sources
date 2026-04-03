@@ -12,6 +12,7 @@ use aidoku::{
 	prelude::*,
 };
 
+mod hash;
 mod helpers;
 mod models;
 mod settings;
@@ -195,9 +196,16 @@ impl Source for Comix {
 			let mut chapter_map: HashMap<String, ComixChapter> = HashMap::new();
 			let mut chapter_list: Vec<ComixChapter> = Vec::new();
 			loop {
+				let path = format!("/manga/{}/chapters", manga.key);
+				let time = 1;
+				let token = hash::generate_hash(&path, 0, time);
 				let url = format!(
-					"{API_URL}/manga/{}/chapters?limit={limit}&page={page}&order[number]=desc",
-					manga.key
+					"{API_URL}{path}\
+						?limit={limit}\
+						&page={page}\
+						&order[number]=desc\
+						&time={time}\
+						&_={token}"
 				);
 
 				let res = Request::get(url)?.json_owned::<ChapterDetailsResponse>()?;
