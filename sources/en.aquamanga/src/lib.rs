@@ -436,7 +436,6 @@ fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 	let html = Request::get(url)?.html()?;
 	let mut entries: Vec<Manga> = Vec::new();
 
-	// manga listing pages (/manga/?m_orderby=...)
 	if let Some(items) = html.select(".col-6.col-md-3") {
 		for item in items {
 			let key = strip_base(
@@ -462,7 +461,6 @@ fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 		}
 	}
 
-	// search/filter pages (use tab-thumb + post-title)
 	if entries.is_empty()
 		&& let Some(items) = html.select(".c-tabs-item__content")
 	{
@@ -490,7 +488,6 @@ fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 		}
 	}
 
-	// homepage latest updates
 	if entries.is_empty()
 		&& let Some(items) = html.select(".page-item-detail")
 	{
