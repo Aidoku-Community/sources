@@ -436,7 +436,36 @@ fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 	let html = Request::get(url)?.html()?;
 	let mut entries: Vec<Manga> = Vec::new();
 
-	if let Some(items) = html.select(".c-tabs-item__content") {
+	// manga listing pages (/manga/?m_orderby=...)
+	if let Some(items) = html.select(".col-6.col-md-3") {
+		for item in items {
+			let key = strip_base(
+				item.select_first(".item-thumb a")
+					.and_then(|a| a.attr("href"))
+					.unwrap_or_default(),
+			);
+			let title = item
+				.select_first(".item-thumb a")
+				.and_then(|a| a.attr("title"))
+				.unwrap_or_default();
+			let cover = item
+				.select_first(".item-thumb img")
+				.and_then(|img| img.img_attr(false));
+			if !key.is_empty() && !title.is_empty() {
+				entries.push(Manga {
+					key,
+					title,
+					cover,
+					..Default::default()
+				});
+			}
+		}
+	}
+
+	// search/filter pages (use tab-thumb + post-title)
+	if entries.is_empty()
+		&& let Some(items) = html.select(".c-tabs-item__content")
+	{
 		for item in items {
 			let key = strip_base(
 				item.select_first(".tab-thumb a")
@@ -459,7 +488,10 @@ fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 				});
 			}
 		}
-	} else if entries.is_empty()
+	}
+
+	// homepage latest updates
+	if entries.is_empty()
 		&& let Some(items) = html.select(".page-item-detail")
 	{
 		for item in items {
