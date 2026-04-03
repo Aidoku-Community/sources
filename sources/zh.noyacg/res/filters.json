@@ -1,0 +1,32 @@
+[
+	{
+		"type": "select",
+		"id": "sort",
+		"title": "排序",
+		"options": ["最新內容", "最近上載", "最多瀏覽", "最多收藏", "最高評分"],
+		"ids": ["new", "upload", "views", "favorites", "rating"],
+		"default": "new"
+	},
+	{
+		"type": "select",
+		"id": "leaderboard",
+		"title": "榜單",
+		"options": ["不使用", "閱讀日榜", "閱讀週榜", "閱讀月榜", "收藏日榜", "收藏週榜", "收藏月榜"],
+		"ids": ["", "read:day", "read:week", "read:moon", "fav:day", "fav:week", "fav:moon"],
+		"default": ""
+	},
+	{
+		"type": "multi-select",
+		"id": "finished",
+		"title": "狀態",
+		"options": ["連載中", "已完結"],
+		"ids": ["false", "true"]
+	},
+	{
+		"type": "multi-select",
+		"id": "rating",
+		"title": "分級",
+		"options": ["全年齡內容", "限制級內容"],
+		"ids": ["false", "true"]
+	}
+]

@@ -1,0 +1,35 @@
+{
+	"info": {
+		"id": "zh.noyacg",
+		"name": "NoyAcg",
+		"version": 1,
+		"languages": [
+			"zh"
+		],
+		"contentRating": 1,
+		"url": "https://beta.noyteam.online"
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "更新"
+		},
+		{
+			"id": "completed",
+			"name": "完結"
+		},
+		{
+			"id": "proportion",
+			"name": "精選"
+		},
+		{
+			"id": "favorite",
+			"name": "收藏"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": false,
+		"supportsTagSearch": true,
+		"supportsAuthorSearch": true
+	}
+}
