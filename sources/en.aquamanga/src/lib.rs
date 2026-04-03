@@ -124,26 +124,26 @@ impl Impl for AquaManga {
 
 		if let Some(items) = html.select(".c-tabs-item__content") {
 			for item in items {
-				let key = strip_base(
-					item.select_first(".tab-thumb a")
-						.and_then(|a| a.attr("href"))
-						.unwrap_or_default(),
-				);
-				let title = item
-					.select_first(".post-title a")
-					.and_then(|el| el.text())
-					.unwrap_or_default();
+				let Some(href) = item
+					.select_first(".tab-thumb a")
+					.and_then(|a| a.attr("href"))
+				else {
+					continue;
+				};
+				let Some(title) = item.select_first(".post-title a").and_then(|el| el.text())
+				else {
+					continue;
+				};
+				let key = strip_base(href);
 				let cover = item
 					.select_first(".tab-thumb img")
 					.and_then(|img| img.img_attr(false));
-				if !key.is_empty() && !title.is_empty() {
-					entries.push(Manga {
-						key,
-						title,
-						cover,
-						..Default::default()
-					});
-				}
+				entries.push(Manga {
+					key,
+					title,
+					cover,
+					..Default::default()
+				});
 			}
 		}
 
@@ -541,78 +541,74 @@ fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 	// manga listing pages (/manga/?m_orderby=...)
 	if let Some(items) = html.select(".col-6.col-md-3") {
 		for item in items {
-			let key = strip_base(
-				item.select_first(".item-thumb a")
-					.and_then(|a| a.attr("href"))
-					.unwrap_or_default(),
-			);
-			let title = item
-				.select_first(".item-thumb a")
-				.and_then(|a| a.attr("title"))
-				.unwrap_or_default();
+			let Some(link) = item.select_first(".item-thumb a") else {
+				continue;
+			};
+			let Some(href) = link.attr("href") else {
+				continue;
+			};
+			let Some(title) = link.attr("title") else {
+				continue;
+			};
+			let key = strip_base(href);
 			let cover = item
 				.select_first(".item-thumb img")
 				.and_then(|img| img.img_attr(false));
-			if !key.is_empty() && !title.is_empty() {
-				entries.push(Manga {
-					key,
-					title,
-					cover,
-					..Default::default()
-				});
-			}
+			entries.push(Manga {
+				key,
+				title,
+				cover,
+				..Default::default()
+			});
 		}
 	}
 
+	// search/filter pages (use tab-thumb + post-title)
 	if entries.is_empty()
 		&& let Some(items) = html.select(".c-tabs-item__content")
 	{
 		for item in items {
-			let key = strip_base(
-				item.select_first(".tab-thumb a")
-					.and_then(|a| a.attr("href"))
-					.unwrap_or_default(),
-			);
-			let title = item
-				.select_first(".post-title a")
-				.and_then(|el| el.text())
-				.unwrap_or_default();
+			let Some(href) = item
+				.select_first(".tab-thumb a")
+				.and_then(|a| a.attr("href"))
+			else {
+				continue;
+			};
+			let Some(title) = item.select_first(".post-title a").and_then(|el| el.text()) else {
+				continue;
+			};
+			let key = strip_base(href);
 			let cover = item
 				.select_first(".tab-thumb img")
 				.and_then(|img| img.img_attr(false));
-			if !key.is_empty() && !title.is_empty() {
-				entries.push(Manga {
-					key,
-					title,
-					cover,
-					..Default::default()
-				});
-			}
+			entries.push(Manga {
+				key,
+				title,
+				cover,
+				..Default::default()
+			});
 		}
 	}
 
+	// homepage latest updates
 	if entries.is_empty()
 		&& let Some(items) = html.select(".page-item-detail")
 	{
 		for item in items {
-			let key = strip_base(
-				item.select_first("a")
-					.and_then(|a| a.attr("href"))
-					.unwrap_or_default(),
-			);
-			let title = item
-				.select_first(".post-title")
-				.and_then(|el| el.text())
-				.unwrap_or_default();
+			let Some(href) = item.select_first("a").and_then(|a| a.attr("href")) else {
+				continue;
+			};
+			let Some(title) = item.select_first(".post-title").and_then(|el| el.text()) else {
+				continue;
+			};
+			let key = strip_base(href);
 			let cover = item.select_first("img").and_then(|img| img.img_attr(false));
-			if !key.is_empty() && !title.is_empty() {
-				entries.push(Manga {
-					key,
-					title,
-					cover,
-					..Default::default()
-				});
-			}
+			entries.push(Manga {
+				key,
+				title,
+				cover,
+				..Default::default()
+			});
 		}
 	}
 
