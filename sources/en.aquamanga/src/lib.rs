@@ -15,6 +15,24 @@ use madara::{
 
 const BASE_URL: &str = "https://aquareader.net";
 
+const BROWSE_GENRES: &[(&str, &str)] = &[
+	("Action", "action"),
+	("Adventure", "adventure"),
+	("Comedy", "comedy"),
+	("Drama", "drama"),
+	("Fantasy", "fantasy"),
+	("Romance", "romance"),
+	("Isekai", "isekai"),
+	("Supernatural", "supernatural"),
+	("Horror", "horror"),
+	("Mystery", "mystery"),
+	("Martial Arts", "martial-arts"),
+	("Regression", "regression"),
+	("Reincarnation", "reincarnation"),
+	("Survival", "survival"),
+	("System", "system"),
+];
+
 struct AquaManga;
 
 impl Impl for AquaManga {
@@ -67,11 +85,11 @@ impl Impl for AquaManga {
 
 		for filter in filters {
 			match filter {
-				FilterValue::Sort { id, index, .. } if id == "type" => {
-					let genre = match index {
-						1 => Some("manga"),
-						2 => Some("manhwa"),
-						3 => Some("manhua"),
+				FilterValue::Select { id, value } if id == "type" => {
+					let genre = match value.as_str() {
+						"Manga" => Some("manga"),
+						"Manhwa" => Some("manhwa"),
+						"Manhua" => Some("manhua"),
 						_ => None,
 					};
 					if let Some(g) = genre {
@@ -231,58 +249,6 @@ impl Impl for AquaManga {
 
 		let mut components: Vec<HomeComponent> = Vec::new();
 
-		let latest_html = Request::get(format!("{}/", BASE_URL))?.html()?;
-		let mut latest_entries: Vec<MangaWithChapter> = Vec::new();
-		if let Some(items) = latest_html.select(".page-item-detail") {
-			for item in items.take(10) {
-				let key = strip_base(
-					item.select_first("a")
-						.and_then(|a| a.attr("href"))
-						.unwrap_or_default(),
-				);
-				let title = item
-					.select_first(".post-title")
-					.and_then(|el| el.text())
-					.unwrap_or_default();
-				let cover = item.select_first("img").and_then(|img| img.img_attr(false));
-				let chapter_key = strip_base(
-					item.select_first(".chapter-item a")
-						.and_then(|a| a.attr("href"))
-						.unwrap_or_default(),
-				);
-				let chapter_title = item.select_first(".chapter-item a").and_then(|a| a.text());
-				let date_uploaded = item
-					.select_first(".post-on .c-new-tag")
-					.and_then(|a| a.attr("title"))
-					.map(|s: String| helpers::parse_chapter_date(params, s.trim()));
-				if !key.is_empty() && !title.is_empty() {
-					latest_entries.push(MangaWithChapter {
-						manga: Manga {
-							key,
-							title,
-							cover,
-							..Default::default()
-						},
-						chapter: Chapter {
-							key: chapter_key,
-							title: chapter_title,
-							date_uploaded,
-							..Default::default()
-						},
-					});
-				}
-			}
-		}
-		components.push(HomeComponent {
-			title: Some(String::from("Latest Updates")),
-			value: HomeComponentValue::MangaChapterList {
-				page_size: Some(5),
-				entries: latest_entries,
-				listing: Some(make_listing("Latest Updates", "Latest Updates")),
-			},
-			..Default::default()
-		});
-
 		let mut popular_entries: Vec<Manga> = Vec::new();
 		if let Ok(popular) = parse_manga_list(&format!("{}/manga/?m_orderby=views", BASE_URL)) {
 			for manga in popular.entries.into_iter().take(5) {
@@ -336,6 +302,56 @@ impl Impl for AquaManga {
 			});
 		}
 
+		let latest_html = Request::get(format!("{}/", BASE_URL))?.html()?;
+		let latest_entries: Vec<MangaWithChapter> = latest_html
+			.select(".page-item-detail")
+			.map(|items| {
+				items
+					.take(10)
+					.filter_map(|item| {
+						let href = item.select_first("a").and_then(|a| a.attr("href"))?;
+						let title = item.select_first(".post-title").and_then(|el| el.text())?;
+						let key = strip_base(href);
+						let cover = item.select_first("img").and_then(|img| img.img_attr(false));
+						let chapter_key = strip_base(
+							item.select_first(".chapter-item a")
+								.and_then(|a| a.attr("href"))
+								.unwrap_or_default(),
+						);
+						let chapter_title =
+							item.select_first(".chapter-item a").and_then(|a| a.text());
+						let date_uploaded = item
+							.select_first(".post-on .c-new-tag")
+							.and_then(|a| a.attr("title"))
+							.map(|s: String| helpers::parse_chapter_date(params, s.trim()));
+						Some(MangaWithChapter {
+							manga: Manga {
+								key,
+								title,
+								cover,
+								..Default::default()
+							},
+							chapter: Chapter {
+								key: chapter_key,
+								title: chapter_title,
+								date_uploaded,
+								..Default::default()
+							},
+						})
+					})
+					.collect()
+			})
+			.unwrap_or_default();
+		components.push(HomeComponent {
+			title: Some(String::from("Latest Updates")),
+			value: HomeComponentValue::MangaChapterList {
+				page_size: Some(5),
+				entries: latest_entries,
+				listing: Some(make_listing("Latest Updates", "Latest Updates")),
+			},
+			..Default::default()
+		});
+
 		if let Ok(result) = parse_manga_list(&format!("{}/manga/?m_orderby=trending", BASE_URL)) {
 			components.push(HomeComponent {
 				title: Some(String::from("Trending")),
@@ -361,168 +377,58 @@ impl Impl for AquaManga {
 			});
 		}
 
+		let mut browse_items: Vec<FilterItem> = vec![
+			FilterItem {
+				title: String::from("Manga"),
+				values: Some(vec![FilterValue::Select {
+					id: String::from("type"),
+					value: String::from("Manga"),
+				}]),
+			},
+			FilterItem {
+				title: String::from("Manhwa"),
+				values: Some(vec![FilterValue::Select {
+					id: String::from("type"),
+					value: String::from("Manhwa"),
+				}]),
+			},
+			FilterItem {
+				title: String::from("Manhua"),
+				values: Some(vec![FilterValue::Select {
+					id: String::from("type"),
+					value: String::from("Manhua"),
+				}]),
+			},
+			FilterItem {
+				title: String::from("Completed"),
+				values: Some(vec![FilterValue::Select {
+					id: String::from("status"),
+					value: String::from("Completed"),
+				}]),
+			},
+			FilterItem {
+				title: String::from("Ongoing"),
+				values: Some(vec![FilterValue::Select {
+					id: String::from("status"),
+					value: String::from("Ongoing"),
+				}]),
+			},
+		];
+
+		for (title, slug) in BROWSE_GENRES {
+			browse_items.push(FilterItem {
+				title: String::from(*title),
+				values: Some(vec![FilterValue::MultiSelect {
+					id: String::from("genre[]"),
+					included: vec![String::from(*slug)],
+					excluded: vec![],
+				}]),
+			});
+		}
+
 		components.push(HomeComponent {
 			title: Some(String::from("Browse")),
-			value: HomeComponentValue::Filters(vec![
-				FilterItem {
-					title: String::from("Manga"),
-					values: Some(vec![FilterValue::Sort {
-						id: String::from("type"),
-						index: 1,
-						ascending: false,
-					}]),
-				},
-				FilterItem {
-					title: String::from("Manhwa"),
-					values: Some(vec![FilterValue::Sort {
-						id: String::from("type"),
-						index: 2,
-						ascending: false,
-					}]),
-				},
-				FilterItem {
-					title: String::from("Manhua"),
-					values: Some(vec![FilterValue::Sort {
-						id: String::from("type"),
-						index: 3,
-						ascending: false,
-					}]),
-				},
-				FilterItem {
-					title: String::from("Completed"),
-					values: Some(vec![FilterValue::Select {
-						id: String::from("status"),
-						value: String::from("Completed"),
-					}]),
-				},
-				FilterItem {
-					title: String::from("Ongoing"),
-					values: Some(vec![FilterValue::Select {
-						id: String::from("status"),
-						value: String::from("Ongoing"),
-					}]),
-				},
-				FilterItem {
-					title: String::from("Action"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("action")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Adventure"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("adventure")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Comedy"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("comedy")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Drama"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("drama")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Fantasy"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("fantasy")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Romance"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("romance")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Isekai"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("isekai")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Supernatural"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("supernatural")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Horror"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("horror")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Mystery"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("mystery")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Martial Arts"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("martial-arts")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Regression"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("regression")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Reincarnation"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("reincarnation")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("Survival"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("survival")],
-						excluded: vec![],
-					}]),
-				},
-				FilterItem {
-					title: String::from("System"),
-					values: Some(vec![FilterValue::MultiSelect {
-						id: String::from("genre[]"),
-						included: vec![String::from("system")],
-						excluded: vec![],
-					}]),
-				},
-			]),
+			value: HomeComponentValue::Filters(browse_items),
 			..Default::default()
 		});
 
@@ -538,7 +444,6 @@ fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 	let html = Request::get(url)?.html()?;
 	let mut entries: Vec<Manga> = Vec::new();
 
-	// manga listing pages (/manga/?m_orderby=...)
 	if let Some(items) = html.select(".col-6.col-md-3") {
 		for item in items {
 			let Some(link) = item.select_first(".item-thumb a") else {
@@ -563,7 +468,6 @@ fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 		}
 	}
 
-	// search/filter pages (use tab-thumb + post-title)
 	if entries.is_empty()
 		&& let Some(items) = html.select(".c-tabs-item__content")
 	{
@@ -590,7 +494,6 @@ fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 		}
 	}
 
-	// homepage latest updates
 	if entries.is_empty()
 		&& let Some(items) = html.select(".page-item-detail")
 	{

@@ -1,7 +1,7 @@
 [
 	{
 		"id": "type",
-		"type": "sort",
+		"type": "select",
 		"title": "Type",
 		"canAscend": false,
 		"options": [
