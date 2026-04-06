@@ -1,8 +1,8 @@
 {
 	"info": {
 		"id": "zh.zaimanhua",
-		"name": "再漫畫",
-		"version": 4,
+		"name": "再漫画",
+		"version": 5,
 		"languages": [
 			"zh"
 		],
@@ -37,6 +37,7 @@
 	],
 	"config": {
 		"hidesFiltersWhileSearching": true,
-		"supportsAuthorSearch": true
+		"supportsAuthorSearch": true,
+		"supportsTagSearch": true
 	}
 }

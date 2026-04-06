@@ -1,18 +1,11 @@
-use crate::models;
-use crate::settings;
-
-use crate::{ACCOUNT_API, SIGN_API, USER_AGENT};
+use crate::{ACCOUNT_API, SIGN_API, USER_AGENT, models, settings};
 use aidoku::{
 	Result,
-	alloc::{String, Vec, format, string::ToString},
+	alloc::{String, Vec, format},
+	helpers::uri::encode_uri_component,
 	imports::net::{Request, Response},
 	serde::de::DeserializeOwned,
 };
-
-use aidoku::helpers::uri::encode_uri_component;
-
-// === URL Builders ===
-// Centralized URL construction for API endpoints.
 
 pub mod urls {
 	use crate::V4_API_URL;
@@ -21,119 +14,72 @@ pub mod urls {
 		helpers::uri::encode_uri_component,
 	};
 
-	/// Build search API URL
 	pub fn search(keyword: &str, page: i32) -> String {
-		format!(
-			"{}/search/index?keyword={}&source=0&page={}",
-			V4_API_URL,
-			encode_uri_component(keyword),
-			page
-		)
+		let keyword = encode_uri_component(keyword);
+		format!("{V4_API_URL}/search/index?keyword={keyword}&source=0&page={page}")
 	}
 
-	/// Build search API URL with custom size (for author search)
 	pub fn search_sized(keyword: &str, page: i32, size: i32) -> String {
-		format!(
-			"{}/search/index?keyword={}&source=0&page={}&size={}",
-			V4_API_URL,
-			encode_uri_component(keyword),
-			page,
-			size
-		)
+		let keyword = encode_uri_component(keyword);
+		format!("{V4_API_URL}/search/index?keyword={keyword}&source=0&page={page}&size={size}")
 	}
 
-	/// Build filter/list API URL with query string
 	pub fn filter(query_string: &str, page: i32) -> String {
-		format!(
-			"{}/comic/filter/list?{}&page={}",
-			V4_API_URL, query_string, page
-		)
+		format!("{V4_API_URL}/comic/filter/list?{query_string}&page={page}")
 	}
 
-	/// Build filter/list API URL with sortType and size (for Home page)
 	pub fn filter_latest_sized(page: i32, size: i32) -> String {
-		format!(
-			"{}/comic/filter/list?sortType=1&page={}&size={}",
-			V4_API_URL, page, size
-		)
+		format!("{V4_API_URL}/comic/filter/list?sortType=1&page={page}&size={size}")
 	}
 
-	/// Build filter/list API URL by category
 	pub fn filter_cate(cate: i64, page: i32, size: i32) -> String {
-		format!(
-			"{}/comic/filter/list?cate={}&size={}&page={}",
-			V4_API_URL, cate, size, page
-		)
+		format!("{V4_API_URL}/comic/filter/list?cate={cate}&size={size}&page={page}")
 	}
 
-	/// Build manga detail API URL
 	pub fn detail(id: i64) -> String {
-		format!("{}/comic/detail/{}?channel=android", V4_API_URL, id)
+		format!("{V4_API_URL}/comic/detail/{id}?channel=android")
 	}
 
-	/// Build rank/list API URL
 	pub fn rank(by_time: i32, page: i32) -> String {
-		format!(
-			"{}/comic/rank/list?rank_type=0&by_time={}&page={}",
-			V4_API_URL, by_time, page
-		)
+		format!("{V4_API_URL}/comic/rank/list?rank_type=0&by_time={by_time}&page={page}")
 	}
 
-	/// Build recommend/list API URL (for Home page banner)
 	pub fn recommend() -> String {
-		format!("{}/comic/recommend/list", V4_API_URL)
+		format!("{V4_API_URL}/comic/recommend/list")
 	}
 
-	/// Build chapter pages API URL
 	pub fn chapter(comic_id: &str, chapter_id: &str) -> String {
-		format!("{}/comic/chapter/{}/{}", V4_API_URL, comic_id, chapter_id)
+		format!("{V4_API_URL}/comic/chapter/{comic_id}/{chapter_id}")
 	}
 
-	/// Build filter by theme (author tag) API URL
 	pub fn filter_theme(theme_id: i64, page: i32) -> String {
-		format!(
-			"{}/comic/filter/list?theme={}&page={}",
-			V4_API_URL, theme_id, page
-		)
+		format!("{V4_API_URL}/comic/filter/list?theme={theme_id}&page={page}")
 	}
 
-	/// Build subscription list API URL
+	pub fn classify() -> String {
+		format!("{V4_API_URL}/comic/filter/classify")
+	}
+
 	pub fn sub_list(page: i32) -> String {
-		format!(
-			"{}/comic/sub/list?status=0&firstLetter=&page={}&size=50",
-			V4_API_URL, page
-		)
+		format!("{V4_API_URL}/comic/sub/list?status=0&firstLetter=&page={page}&size=50")
 	}
 
-	/// Build manga news page URL
 	pub fn manga_news() -> String {
-		format!("{}/manhuaqingbao", crate::NEWS_URL)
-	}
-
-	/// Build filter/list for hidden scanner (large page size)
-	pub fn filter_scanner(page: i32) -> String {
-		format!(
-			"{}/comic/filter/list?sortType=1&page={}&size=100",
-			V4_API_URL, page
-		)
+		let news_url = crate::NEWS_URL;
+		format!("{news_url}/manhuaqingbao")
 	}
 }
 
-/// Resolves URL through proxy if proxy toggle is enabled and valid URL is configured.
 pub fn resolve_url(url: &str) -> String {
 	if settings::get_use_proxy()
 		&& let Some(proxy) = settings::get_proxy_url()
 	{
 		let encoded = encode_uri_component(url);
-		return format!("{}/?url={}", proxy, encoded);
+		return format!("{proxy}/?url={encoded}");
 	}
 	url.into()
 }
 
-// === Proxy Block List ===
-
-/// URLs that should be blocked in proxy mode (requests not sent).
-/// Uses existing constants for single source of truth.
 const PROXY_BLOCKED_URLS: &[&str] = &[
 //	NEWS_URL,                       // Banner
 //	SIGN_API,                       // User Info API
@@ -142,15 +88,12 @@ const PROXY_BLOCKED_URLS: &[&str] = &[
 //	ACCOUNT_API,                    // Login API
 ];
 
-/// Check if a URL should be blocked in proxy mode.
 pub fn should_block(url: &str) -> bool {
 	settings::get_use_proxy()
 		&& PROXY_BLOCKED_URLS
 			.iter()
 			.any(|blocked| url.starts_with(blocked))
 }
-
-// === HTTP Request Helpers ===
 
 pub fn md5_hex(input: &str) -> String {
 	let digest = md5::compute(input.as_bytes());
@@ -170,19 +113,13 @@ pub fn post_request(url: &str) -> Result<Request> {
 }
 
 pub fn auth_request(url: &str, token: Option<&str>) -> Result<Request> {
-	let resolved = resolve_url(url);
-	match token {
-		Some(t) => Ok(Request::get(&resolved)?
-			.header("User-Agent", USER_AGENT)
-			.header("Authorization", &format!("Bearer {}", t))),
-		None => get_request(url),
-	}
+	let req = get_request(url)?;
+	Ok(match token {
+		Some(t) => req.header("Authorization", &format!("Bearer {t}")),
+		None => req,
+	})
 }
 
-// === API Methods ===
-
-/// Attempts to refresh the token using stored credentials.
-/// Returns Ok(Some(new_token)) if successful, Ok(None) if no credentials or login failed.
 pub fn try_refresh_token() -> Result<Option<String>> {
 	if let Some((username, password)) = settings::get_credentials()
 		&& let Ok(Some(new_token)) = login(&username, &password)
@@ -203,17 +140,18 @@ pub fn send_authed_request<T: DeserializeOwned>(
 	if resp.errno.unwrap_or(0) == 99
 		&& let Ok(Some(new_token)) = try_refresh_token()
 	{
-		// Retry with new token
 		return auth_request(url, Some(&new_token))?.json_owned();
 	}
 	Ok(resp)
 }
 
-/// Authenticates via username/password and extracts the user token.
 pub fn login(username: &str, password: &str) -> Result<Option<String>> {
 	let password_hash = md5_hex(password);
-	let url = format!("{}login/passwd", ACCOUNT_API);
-	let body = format!("username={}&passwd={}", username, password_hash);
+	let url = format!("{ACCOUNT_API}/login/passwd");
+	let body = format!(
+		"username={}&passwd={password_hash}",
+		encode_uri_component(username),
+	);
 
 	let response: models::ApiResponse<models::LoginData> =
 		post_request(&url)?.body(body.as_bytes()).json_owned()?;
@@ -225,68 +163,85 @@ pub fn login(username: &str, password: &str) -> Result<Option<String>> {
 	Ok(response.data.and_then(|d| d.user).and_then(|u| u.token))
 }
 
-/// Perform daily check-in (POST request required!)
-pub fn check_in(token: &str) -> Result<bool> {
-	let url = format!("{}task/sign_in", SIGN_API);
-
-	let response: models::ApiResponse<aidoku::serde::de::IgnoredAny> = Request::post(&url)?
-		.header("User-Agent", USER_AGENT)
-		.header("Authorization", &format!("Bearer {}", token))
+fn check_in(token: &str) -> Result<bool> {
+	let url = format!("{SIGN_API}/task/sign_in");
+	let response: models::ApiResponse<aidoku::serde::de::IgnoredAny> = post_request(&url)?
+		.header("Authorization", &format!("Bearer {token}"))
 		.json_owned()?;
-
 	Ok(response.errno.unwrap_or(-1) == 0)
 }
 
-/// Get user info (for level, points, VIP status etc)
 pub fn get_user_info(token: &str) -> Result<models::UserInfoData> {
-	let url = format!("{}userInfo/get", SIGN_API);
+	let url = format!("{SIGN_API}/userInfo/get");
 	let response: models::ApiResponse<models::UserInfoData> =
 		send_authed_request(&url, Some(token))?;
-	response
-		.data
-		.ok_or_else(|| aidoku::error!("Missing user info"))
+	response.data.ok_or_else(|| aidoku::error!("用户信息缺失"))
 }
 
-/// Helper to fetch and cache user profile (Level & Sign status)
-/// Returns Ok(is_vip) on success, Err if network fails.
-pub fn refresh_user_profile(token: &str) -> Result<bool> {
+pub fn refresh_user_profile(token: &str) -> Result<()> {
 	let info_data = get_user_info(token)?;
 	if let Some(info) = info_data.user_info {
 		let level = info.level.unwrap_or(0) as i32;
 		let is_sign = info.is_sign.unwrap_or(false);
 		settings::set_user_cache(level, is_sign);
-		return Ok(info.is_vip.unwrap_or(false));
 	}
-	Ok(false)
+	Ok(())
 }
 
-/// Perform silent background updates: auto check-in and cache refresh.
-/// Called from home page to avoid blocking user. Errors are swallowed.
-pub fn perform_silent_updates(token: &str) {
-	let mut checkin_performed = false;
+fn claim_pending_rewards(token: &str) {
+	let url = format!("{SIGN_API}/task/list");
+	let Ok(resp) = send_authed_request::<models::TaskListData>(&url, Some(token)) else {
+		return;
+	};
+	let Some(task) = resp.data.and_then(|d| d.task) else {
+		return;
+	};
 
-	// Auto Check-in
+	let claimable = task
+		.day_task
+		.iter()
+		.flatten()
+		.chain(
+			task.sum_sign_task
+				.iter()
+				.flat_map(|s| s.list.iter().flatten()),
+		)
+		.filter(|t| t.status == Some(2));
+
+	for item in claimable {
+		let reward_url = format!("{SIGN_API}/task/get_reward?task_id={}", item.id);
+		let _ = send_authed_request::<aidoku::serde::de::IgnoredAny>(&reward_url, Some(token));
+	}
+}
+
+pub fn perform_silent_updates() {
+	let Some(token) = settings::get_token() else {
+		return;
+	};
+
 	if settings::get_auto_checkin()
 		&& !settings::has_checkin_flag()
 		&& !should_block(crate::SIGN_API)
-		&& check_in(token).ok() == Some(true)
 	{
-		settings::set_last_checkin();
-		checkin_performed = true;
-		let is_vip = refresh_user_profile(token).ok() == Some(true);
-		if is_vip {
-			let reward_url = format!("{}task/get_reward?task_id=16", SIGN_API);
-			let _ = send_authed_request::<aidoku::serde::de::IgnoredAny>(&reward_url, Some(token));
+		let _ = refresh_user_profile(&token);
+		// re-read in case token was refreshed via errno=99 retry
+		let token = settings::get_token().unwrap_or(token);
+
+		let already_signed = settings::get_user_cache().is_some_and(|c| c.is_sign);
+		let signed = already_signed || check_in(&token).unwrap_or(false);
+
+		if signed {
+			settings::set_last_checkin();
+			claim_pending_rewards(&token);
+			let _ = refresh_user_profile(&token);
 		}
+		return;
 	}
 
-	// Stale Cache Update (if no check-in just happened)
-	if !checkin_performed && settings::is_cache_stale() && !should_block(crate::SIGN_API) {
-		let _ = refresh_user_profile(token);
+	if settings::is_cache_stale() && !should_block(crate::SIGN_API) {
+		let _ = refresh_user_profile(&token);
 	}
 }
-
-// === Request Batch Builder ===
 
 pub struct RequestBatch {
 	requests: Vec<Request>,
@@ -303,7 +258,6 @@ impl RequestBatch {
 		}
 	}
 
-	/// Add a GET request. automatically checking for blocking.
 	pub fn get(&mut self, url: &str) -> Result<usize> {
 		if should_block(url) {
 			return Ok(self.add_if(None));
@@ -311,7 +265,6 @@ impl RequestBatch {
 		Ok(self.add(get_request(url)?))
 	}
 
-	/// Add an Authenticated GET request, automatically checking for blocking.
 	pub fn auth(&mut self, url: &str, token: Option<&str>) -> Result<usize> {
 		if should_block(url) {
 			return Ok(self.add_if(None));
@@ -323,8 +276,7 @@ impl RequestBatch {
 		self.add_if(Some(req))
 	}
 
-	/// Conditionally add a request. If None, it takes a slot but executes nothing.
-	pub fn add_if(&mut self, req: Option<Request>) -> usize {
+	fn add_if(&mut self, req: Option<Request>) -> usize {
 		let slot = self.total_slots;
 		if let Some(r) = req {
 			self.requests.push(r);
@@ -334,7 +286,6 @@ impl RequestBatch {
 		slot
 	}
 
-	/// If blocked, zero network overhead is incurred.
 	pub fn add_unless_blocked(&mut self, url: &str) -> usize {
 		let req = if should_block(url) {
 			None
@@ -344,111 +295,14 @@ impl RequestBatch {
 		self.add_if(req)
 	}
 
-	/// Execute all accumulated requests and map responses back to their slots.
 	pub fn send_all(self) -> Vec<Option<Response>> {
 		let responses = Request::send_all(self.requests);
-		let mut result: Vec<Option<Response>> = Vec::with_capacity(self.total_slots);
-		for _ in 0..self.total_slots {
-			result.push(None);
-		}
+		let mut result: Vec<Option<Response>> = (0..self.total_slots).map(|_| None).collect();
 		for (resp, slot) in responses.into_iter().zip(self.index_map) {
 			if let Ok(r) = resp {
 				result[slot] = Some(r);
 			}
 		}
 		result
-	}
-}
-
-// === Hidden Content Scanner ===
-// Scanner for hidden content, implementing Iterator for lazy fetching
-
-pub struct HiddenContentScanner {
-	current_page: i32,
-	scanned_batches: i32,
-	max_batches: i32,
-	token: Option<String>,
-}
-
-impl HiddenContentScanner {
-	pub fn new(start_page: i32, max_batches: i32, token: Option<&str>) -> Self {
-		Self {
-			current_page: start_page,
-			scanned_batches: 0,
-			max_batches,
-			token: token.map(|s| s.to_string()),
-		}
-	}
-}
-
-impl Iterator for HiddenContentScanner {
-	type Item = Vec<models::FilterItem>;
-
-	fn next(&mut self) -> Option<Self::Item> {
-		if self.scanned_batches >= self.max_batches {
-			return None;
-		}
-
-		let mut batch_found = false;
-		let mut items: Vec<models::FilterItem> = Vec::new();
-
-		while self.scanned_batches < self.max_batches {
-			self.scanned_batches += 1;
-			let end_page = self.current_page + 4;
-
-			// === Parallel Batch Scan ===
-			// Efficiently fetch multiple pages at once to find hidden content quickly.
-			let make_requests = |token: Option<&str>| -> Vec<Request> {
-				(self.current_page..=end_page)
-					.filter_map(|p| {
-						let url = urls::filter_scanner(p);
-						auth_request(&url, token).ok()
-					})
-					.collect()
-			};
-
-			let requests = make_requests(self.token.as_deref());
-			let responses = Request::send_all(requests);
-
-			let mut parsed_responses: Vec<models::ApiResponse<models::FilterData>> = responses
-				.into_iter()
-				.flatten()
-				.filter_map(|resp| resp.get_json_owned().ok())
-				.collect();
-
-			let has_auth_error = parsed_responses.iter().any(|r| r.errno.unwrap_or(0) == 99);
-
-			if has_auth_error && let Ok(Some(new_token)) = try_refresh_token() {
-				// Retry the batch with the new token
-				let requests = make_requests(Some(&new_token));
-				let responses = Request::send_all(requests);
-				parsed_responses = responses
-					.into_iter()
-					.flatten()
-					.filter_map(|resp| resp.get_json_owned().ok())
-					.collect();
-
-				self.token = Some(new_token);
-			}
-
-			items = parsed_responses
-				.into_iter()
-				.filter_map(|r| r.data)
-				.flat_map(|data| data.comic_list)
-				.collect();
-
-			self.current_page += 5;
-
-			if !items.is_empty() {
-				batch_found = true;
-				break;
-			}
-			// Early exit: if first batch is empty, don't waste time
-			if self.scanned_batches == 1 {
-				break;
-			}
-		}
-
-		if batch_found { Some(items) } else { None }
 	}
 }

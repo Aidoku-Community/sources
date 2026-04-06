@@ -1,7 +1,6 @@
 [
 	{
 		"type": "group",
-		"key": "account",
 		"title": "账号",
 		"items": [
 			{
@@ -13,7 +12,8 @@
 				"notification": "login",
 				"refreshes": [
 					"settings",
-					"content"
+					"content",
+					"filters"
 				]
 			},
 			{
@@ -22,24 +22,11 @@
 				"title": "自动签到",
 				"default": false,
 				"requires": "login"
-			},
-			{
-				"type": "switch",
-				"key": "deepSearch",
-				"title": "深度检索",
-				"subtitle": "搜索隐藏内容",
-				"default": false,
-				"requires": "login",
-				"refreshes": [
-					"content",
-					"settings"
-				]
 			}
 		]
 	},
 	{
 		"type": "group",
-		"key": "advanced",
 		"title": "高级",
 		"items": [
 			{

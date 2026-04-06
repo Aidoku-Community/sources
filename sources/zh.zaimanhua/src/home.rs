@@ -1,24 +1,12 @@
-use crate::net;
-use crate::settings;
+use crate::{models, net, settings};
 use aidoku::{
-	HomeComponent, HomeLayout, HomePartialResult, Listing, ListingKind, Manga, MangaStatus,
-	MangaWithChapter, Result,
+	HomeComponent, HomeLayout, HomePartialResult, Listing, Manga, MangaWithChapter, Result,
 	alloc::{Vec, format, string::ToString, vec},
-	imports::html::Document,
-	imports::net::Response,
-	imports::std::send_partial_result,
+	imports::{html::Document, net::Response, std::send_partial_result},
 };
 
-use crate::models::{ApiResponse, DetailData};
-
-// === Public API ===
-
-/// Build the home page layout
 pub fn get_home_layout() -> Result<HomeLayout> {
-	// Silent background updates (check-in + cache refresh)
-	if let Some(token) = settings::get_token() {
-		net::perform_silent_updates(&token);
-	}
+	net::perform_silent_updates();
 
 	send_partial_result(&HomePartialResult::Layout(HomeLayout {
 		components: vec![
@@ -66,7 +54,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 	}));
 
 	// Build parallel requests
-	let token = settings::get_current_token();
+	let token = settings::get_token();
 	let token_ref = token.as_deref();
 
 	let recommend_url = net::urls::recommend();
@@ -79,11 +67,9 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 
 	let mut batch = net::RequestBatch::new();
 
-	// 0: banner
 	let manga_news_url = net::urls::manga_news();
 	let slot_banner = batch.add_unless_blocked(&manga_news_url);
 
-	// 1-7: Standard requests
 	let slot_recommend = batch.get(&recommend_url)?;
 	let slot_latest = batch.auth(&latest_url, token_ref)?;
 	let slot_rank = batch.auth(&rank_url, token_ref)?;
@@ -102,39 +88,34 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 	let resp_seinen = responses[slot_seinen].take();
 	let resp_josei = responses[slot_josei].take();
 
-	let mut components = Vec::new();
-
 	let mut big_scroller_manga: Vec<Manga> = Vec::new();
 	let mut banner_links: Vec<aidoku::Link> = Vec::new();
 
-	// Banner: Fetch separately only when NOT using proxy (news.zaimanhua.com has DNSSEC issues)
-	// Banner Processing
+	// news.zaimanhua.com has DNSSEC issues in proxy mode
 	if let Some(resp) = responses[slot_banner].take()
 		&& let Ok(doc) = resp.get_html()
 	{
 		banner_links = parse_manga_news_doc(doc);
 	}
 
-	// Parse recommend/list response - returns raw List, NOT ApiResponse
+	// recommend/list returns raw List, not ApiResponse
 	if let Some(resp) = resp_recommend
-		&& let Ok(categories) = resp.get_json_owned::<Vec<crate::models::RecommendCategory>>()
+		&& let Ok(categories) = resp.get_json_owned::<Vec<models::RecommendCategory>>()
 	{
 		for cat in categories {
-			// Only handle category 109 (Premium Recommend) as BigScroller
+			// category_id=109: Premium Recommend
 			if cat.category_id != 109 || cat.data.is_empty() {
 				continue;
 			}
 
 			big_scroller_manga = cat.data.into_iter()
-				// Filter only Manga type (1)
-				.filter(|item| item.obj_id > 0 && item.item_type == 1)
+				.filter(|item| item.obj_id > 0 && item.item_type == 1) // type=1: Manga
 				.map(|item| {
 					let mut real_title = item.title.clone();
-					let mut manga_cover = item.cover.clone().unwrap_or_default();
+					let mut manga_cover = item.cover;
 
-					// Fetch details for high-res assets
 					if let Ok(req) = net::get_request(&net::urls::detail(item.obj_id))
-						&& let Ok(resp) = req.json_owned::<ApiResponse<DetailData>>()
+						&& let Ok(resp) = req.json_owned::<models::ApiResponse<models::DetailData>>()
 						&& let Some(detail_root) = resp.data
 						&& let Some(detail) = detail_root.data
 					{
@@ -145,17 +126,16 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 						if let Some(c) = detail.cover
 							&& !c.is_empty()
 						{
-							manga_cover = c;
+							manga_cover = Some(c);
 						}
 					}
 
 					Manga {
 						key: item.obj_id.to_string(),
 						title: real_title,
-						authors: Some(vec![item.sub_title.unwrap_or_default()]),
+						authors: item.sub_title.map(|s| vec![s]),
 						description: Some(item.title),
-						cover: Some(manga_cover),
-						status: MangaStatus::Unknown,
+						cover: manga_cover,
 						..Default::default()
 					}
 				})
@@ -165,8 +145,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 
 	let mut latest_entries: Vec<MangaWithChapter> = Vec::new();
 	if let Some(resp) = resp_latest
-		&& let Ok(response) =
-			resp.get_json_owned::<crate::models::ApiResponse<crate::models::FilterData>>()
+		&& let Ok(response) = resp.get_json_owned::<models::ApiResponse<models::FilterData>>()
 		&& let Some(data) = response.data
 	{
 		latest_entries = data
@@ -182,7 +161,8 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		hot_entries.extend(parse_rank_response(resp));
 	}
 
-	// Only show banner if links exist (proxy mode skips this)
+	let mut components = Vec::new();
+
 	if !banner_links.is_empty() {
 		components.push(HomeComponent {
 			title: None,
@@ -213,28 +193,11 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 		value: aidoku::HomeComponentValue::MangaList {
 			ranking: true,
 			page_size: Some(2),
-			entries: hot_entries
-				.into_iter()
-				.map(|manga| {
-					// Only show author in subtitle
-					let subtitle = manga
-						.authors
-						.as_ref()
-						.filter(|a| !a.is_empty())
-						.map(|a| a.join(", "));
-
-					aidoku::Link {
-						title: manga.title.clone(),
-						subtitle,
-						image_url: manga.cover.clone(),
-						value: Some(aidoku::LinkValue::Manga(manga)),
-					}
-				})
-				.collect(),
+			entries: hot_entries.into_iter().map(Into::into).collect(),
 			listing: Some(Listing {
 				id: "rank-monthly".into(),
 				name: "人气推荐".into(),
-				kind: ListingKind::default(),
+				..Default::default()
 			}),
 		},
 	});
@@ -248,7 +211,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 			listing: Some(Listing {
 				id: "latest".into(),
 				name: "更新".into(),
-				kind: ListingKind::default(),
+				..Default::default()
 			}),
 		},
 	});
@@ -262,7 +225,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 			listing: Some(Listing {
 				id: "shounen".into(),
 				name: "少年漫画".into(),
-				kind: ListingKind::default(),
+				..Default::default()
 			}),
 		},
 	});
@@ -276,7 +239,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 			listing: Some(Listing {
 				id: "shoujo".into(),
 				name: "少女漫画".into(),
-				kind: ListingKind::default(),
+				..Default::default()
 			}),
 		},
 	});
@@ -290,7 +253,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 			listing: Some(Listing {
 				id: "seinen".into(),
 				name: "男青漫画".into(),
-				kind: ListingKind::default(),
+				..Default::default()
 			}),
 		},
 	});
@@ -304,7 +267,7 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 			listing: Some(Listing {
 				id: "josei".into(),
 				name: "女青漫画".into(),
-				kind: ListingKind::default(),
+				..Default::default()
 			}),
 		},
 	});
@@ -312,12 +275,8 @@ pub fn get_home_layout() -> Result<HomeLayout> {
 	Ok(HomeLayout { components })
 }
 
-// === Private Helpers ===
-
-/// Parse rank API response into Manga list
 fn parse_rank_response(resp: Response) -> Vec<Manga> {
-	if let Ok(response) =
-		resp.get_json_owned::<crate::models::ApiResponse<Vec<crate::models::RankItem>>>()
+	if let Ok(response) = resp.get_json_owned::<models::ApiResponse<Vec<models::RankItem>>>()
 		&& let Some(list) = response.data
 	{
 		return list
@@ -329,23 +288,23 @@ fn parse_rank_response(resp: Response) -> Vec<Manga> {
 	Vec::new()
 }
 
-/// Parse filter API response into Link list (for audience scrollers)
 fn parse_filter_response(resp: Response) -> Vec<aidoku::Link> {
-	if let Ok(response) =
-		resp.get_json_owned::<crate::models::ApiResponse<crate::models::FilterData>>()
+	if let Ok(response) = resp.get_json_owned::<models::ApiResponse<models::FilterData>>()
 		&& let Some(data) = response.data
 	{
-		return data.comic_list.into_iter().map(Into::into).collect();
+		return data
+			.comic_list
+			.into_iter()
+			.map(Into::<Manga>::into)
+			.map(Into::into)
+			.collect();
 	}
 	Vec::new()
 }
 
-/// Parse manga news HTML document into Link list
-/// HTML structure: .briefnews_con_li contains .dec_img img (image) and h3 a (link)
 fn parse_manga_news_doc(doc: Document) -> Vec<aidoku::Link> {
 	let mut links = Vec::new();
 
-	// Use generic class selector (div or li)
 	if let Some(list) = doc.select(".briefnews_con_li") {
 		for el in list {
 			if links.len() >= 5 {
@@ -373,16 +332,18 @@ fn parse_manga_news_doc(doc: Document) -> Vec<aidoku::Link> {
 				continue;
 			}
 
+			let news_url = crate::NEWS_URL;
+
 			let final_image_url = if image_url.starts_with("http") {
 				image_url
 			} else {
-				format!("{}{}", crate::NEWS_URL, image_url)
+				format!("{news_url}{image_url}")
 			};
 
 			let full_url = if url.starts_with("http") {
 				url
 			} else {
-				format!("{}{}", crate::NEWS_URL, url)
+				format!("{news_url}{url}")
 			};
 
 			links.push(aidoku::Link {
