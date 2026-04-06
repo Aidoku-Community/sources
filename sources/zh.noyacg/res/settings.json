@@ -10,7 +10,7 @@
 				"logoutTitle": "登出",
 				"method": "basic",
 				"notification": "login",
-				"refreshes": ["content"]
+				"refreshes": ["filters", "content"]
 			},
 			{
 				"type": "switch",
@@ -34,7 +34,7 @@
 				"titles": ["全年齡內容", "限制級內容"],
 				"default": ["false"],
 				"requires": "login",
-				"refreshes": ["content"]
+				"refreshes": ["filters", "content"]
 			}
 		]
 	},
