@@ -1,9 +1,8 @@
 #![no_std]
 use aidoku::{
 	Chapter, ContentRating, FilterItem, FilterValue, HomeComponent, HomeComponentValue, HomeLayout,
-	Link, LinkValue, Listing, ListingKind, Manga, MangaPageResult, MangaStatus, MangaWithChapter,
-	Result, Source, Viewer,
-	alloc::string::ToString,
+	Link, Listing, ListingKind, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Result,
+	Source, Viewer,
 	alloc::{String, Vec, vec},
 	imports::net::Request,
 	prelude::*,
@@ -50,10 +49,10 @@ impl Impl for AquaManga {
 	}
 
 	fn get_manga_status(&self, str: &str) -> MangaStatus {
-		match str {
-			"OnGoing" | "Ongoing" | "ongoing" | "Serialization" => MangaStatus::Ongoing,
-			"Completed" | "completed" => MangaStatus::Completed,
-			"Cancelled" | "cancelled" | "Dropped" => MangaStatus::Cancelled,
+		match str.to_ascii_lowercase().as_str() {
+			"ongoing" | "serialization" => MangaStatus::Ongoing,
+			"completed" => MangaStatus::Completed,
+			"cancelled" | "dropped" => MangaStatus::Cancelled,
 			_ => MangaStatus::Unknown,
 		}
 	}
@@ -98,18 +97,18 @@ impl Impl for AquaManga {
 				}
 				FilterValue::Sort { id, index, .. } if id == "sort" => {
 					let order = match index {
-						1 => "alphabet",
-						2 => "new-manga",
-						3 => "latest",
-						4 => "rating",
-						5 => "trending",
+						1 => "latest",
+						2 => "alphabet",
+						3 => "rating",
+						4 => "trending",
+						5 => "new-manga",
 						_ => "",
 					};
 					if !order.is_empty() {
 						qs.push("m_orderby", Some(order));
 					}
 				}
-				FilterValue::Select { id, value } if id == "status" => {
+				FilterValue::Select { id, value } if id == "status[]" => {
 					let status = match value.as_str() {
 						"Completed" => Some("end"),
 						"Ongoing" => Some("on-going"),
@@ -128,12 +127,9 @@ impl Impl for AquaManga {
 			}
 		}
 
-		let page_str;
 		let url = if page <= 1 {
 			format!("{}/?{qs}", BASE_URL)
 		} else {
-			page_str = page.to_string();
-			let _ = &page_str;
 			format!("{}/page/{page}/?{qs}", BASE_URL)
 		};
 
@@ -232,20 +228,8 @@ impl Impl for AquaManga {
 			kind: ListingKind::Default,
 		};
 
-		let manga_to_links = |entries: Vec<Manga>| -> Vec<Link> {
-			entries
-				.into_iter()
-				.map(|m| Link {
-					title: m.title,
-					image_url: m.cover,
-					value: Some(LinkValue::Manga(Manga {
-						key: m.key,
-						..Default::default()
-					})),
-					..Default::default()
-				})
-				.collect()
-		};
+		let manga_to_links =
+			|entries: Vec<Manga>| -> Vec<Link> { entries.into_iter().map(Into::into).collect() };
 
 		let mut components: Vec<HomeComponent> = Vec::new();
 
@@ -402,14 +386,14 @@ impl Impl for AquaManga {
 			FilterItem {
 				title: String::from("Completed"),
 				values: Some(vec![FilterValue::Select {
-					id: String::from("status"),
+					id: String::from("status[]"),
 					value: String::from("Completed"),
 				}]),
 			},
 			FilterItem {
 				title: String::from("Ongoing"),
 				values: Some(vec![FilterValue::Select {
-					id: String::from("status"),
+					id: String::from("status[]"),
 					value: String::from("Ongoing"),
 				}]),
 			},

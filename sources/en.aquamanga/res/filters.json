@@ -18,15 +18,15 @@
 		"canAscend": false,
 		"options": [
 			"Default",
-			"A-Z",
-			"Newest",
 			"Latest",
+			"A-Z",
 			"Rating",
-			"Trending"
+			"Trending",
+			"Newest"
 		]
 	},
 	{
-		"id": "status",
+		"id": "status[]",
 		"type": "select",
 		"title": "Status",
 		"options": [
@@ -174,7 +174,7 @@
 			"video-games",
 			"villainess",
 			"virtual-reality",
-			"voilence",
+			"violence",
 			"webcomic",
 			"wuxia",
 			"zombies"
