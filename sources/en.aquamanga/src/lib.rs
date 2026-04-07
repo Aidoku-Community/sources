@@ -4,7 +4,7 @@ use aidoku::{
 	Link, Listing, ListingKind, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Result,
 	Source, Viewer,
 	alloc::{String, Vec, vec},
-	imports::net::Request,
+	imports::net::{Request, RequestError, Response},
 	prelude::*,
 };
 use madara::{
@@ -70,104 +70,6 @@ impl Impl for AquaManga {
 		ContentRating::Safe
 	}
 
-	fn get_search_manga_list(
-		&self,
-		_params: &madara::Params,
-		query: Option<String>,
-		page: i32,
-		filters: Vec<FilterValue>,
-	) -> Result<MangaPageResult> {
-		use aidoku::helpers::uri::QueryParameters;
-		let mut qs = QueryParameters::new();
-		qs.push("s", Some(&query.unwrap_or_default()));
-		qs.push("post_type", Some("wp-manga"));
-
-		for filter in filters {
-			match filter {
-				FilterValue::Select { id, value } if id == "type" => {
-					let genre = match value.as_str() {
-						"Manga" => Some("manga"),
-						"Manhwa" => Some("manhwa"),
-						"Manhua" => Some("manhua"),
-						_ => None,
-					};
-					if let Some(g) = genre {
-						qs.push("genre[]", Some(g));
-					}
-				}
-				FilterValue::Sort { id, index, .. } if id == "sort" => {
-					let order = match index {
-						1 => "latest",
-						2 => "alphabet",
-						3 => "rating",
-						4 => "trending",
-						5 => "new-manga",
-						_ => "",
-					};
-					if !order.is_empty() {
-						qs.push("m_orderby", Some(order));
-					}
-				}
-				FilterValue::Select { id, value } if id == "status[]" => {
-					let status = match value.as_str() {
-						"Completed" => Some("end"),
-						"Ongoing" => Some("on-going"),
-						_ => None,
-					};
-					if let Some(s) = status {
-						qs.push("status[]", Some(s));
-					}
-				}
-				FilterValue::MultiSelect { id, included, .. } if id == "genre[]" => {
-					for genre_id in included {
-						qs.push("genre[]", Some(&genre_id));
-					}
-				}
-				_ => {}
-			}
-		}
-
-		let url = if page <= 1 {
-			format!("{}/?{qs}", BASE_URL)
-		} else {
-			format!("{}/page/{page}/?{qs}", BASE_URL)
-		};
-
-		let html = Request::get(&url)?.html()?;
-		let mut entries: Vec<Manga> = Vec::new();
-
-		if let Some(items) = html.select(".c-tabs-item__content") {
-			for item in items {
-				let Some(href) = item
-					.select_first(".tab-thumb a")
-					.and_then(|a| a.attr("href"))
-				else {
-					continue;
-				};
-				let Some(title) = item.select_first(".post-title a").and_then(|el| el.text())
-				else {
-					continue;
-				};
-				let key = strip_base(href);
-				let cover = item
-					.select_first(".tab-thumb img")
-					.and_then(|img| img.img_attr(false));
-				entries.push(Manga {
-					key,
-					title,
-					cover,
-					..Default::default()
-				});
-			}
-		}
-
-		let has_next_page = html.select_first("a[class*='next']").is_some();
-		Ok(MangaPageResult {
-			entries,
-			has_next_page,
-		})
-	}
-
 	fn get_manga_list(
 		&self,
 		_params: &madara::Params,
@@ -231,41 +133,75 @@ impl Impl for AquaManga {
 		let manga_to_links =
 			|entries: Vec<Manga>| -> Vec<Link> { entries.into_iter().map(Into::into).collect() };
 
-		let mut components: Vec<HomeComponent> = Vec::new();
+		let responses: [core::result::Result<Response, RequestError>; 5] = Request::send_all([
+			Request::get(format!("{}/manga/?m_orderby=views", BASE_URL))?,
+			Request::get(format!("{}/manga/?m_orderby=new-manga", BASE_URL))?,
+			Request::get(format!("{}/", BASE_URL))?,
+			Request::get(format!("{}/manga/?m_orderby=trending", BASE_URL))?,
+			Request::get(format!(
+				"{}/page/1/?s&post_type=wp-manga&status[]=end&m_orderby=modified",
+				BASE_URL
+			))?,
+		])
+		.try_into()
+		.expect("requests vec length should be 5");
+
+		let [
+			popular_resp,
+			new_resp,
+			latest_resp,
+			trending_resp,
+			completed_resp,
+		] = responses;
+
+		let top_popular: Vec<Manga> = popular_resp
+			.ok()
+			.and_then(|r| r.get_html().ok())
+			.map(|html| parse_manga_html(html).entries)
+			.unwrap_or_default()
+			.into_iter()
+			.take(5)
+			.collect();
+
+		let detail_responses = Request::send_all(
+			top_popular
+				.iter()
+				.map(|m| Request::get(format!("{}{}", BASE_URL, m.key)).unwrap()),
+		);
 
 		let mut popular_entries: Vec<Manga> = Vec::new();
-		if let Ok(popular) = parse_manga_list(&format!("{}/manga/?m_orderby=views", BASE_URL)) {
-			for manga in popular.entries.into_iter().take(5) {
-				let detail_url = format!("{}{}", BASE_URL, manga.key);
-				if let Ok(detail_html) = Request::get(&detail_url).and_then(|r| r.html()) {
-					let description = detail_html
-						.select_first(&params.details_description_selector)
-						.and_then(|el| el.text());
-					let cover = detail_html
-						.select_first(&params.details_cover_selector)
-						.and_then(|img| img.img_attr(false))
-						.or(manga.cover);
-					let tags: Option<Vec<String>> = detail_html
-						.select(&params.details_tag_selector)
-						.map(|els| {
-							els.filter_map(|el| el.text())
-								.filter(|s: &String| !s.is_empty())
-								.collect()
-						})
-						.filter(|v: &Vec<String>| !v.is_empty());
-					popular_entries.push(Manga {
-						key: manga.key,
-						title: manga.title,
-						cover,
-						description,
-						tags,
-						..Default::default()
-					});
-				} else {
-					popular_entries.push(manga);
-				}
+		for (manga, detail_resp) in top_popular.into_iter().zip(detail_responses.into_iter()) {
+			if let Some(detail_html) = detail_resp.ok().and_then(|r| r.get_html().ok()) {
+				let description = detail_html
+					.select_first(&params.details_description_selector)
+					.and_then(|el| el.text());
+				let cover = detail_html
+					.select_first(&params.details_cover_selector)
+					.and_then(|img| img.img_attr(false))
+					.or(manga.cover);
+				let tags: Option<Vec<String>> = detail_html
+					.select(&params.details_tag_selector)
+					.map(|els| {
+						els.filter_map(|el| el.text())
+							.filter(|s: &String| !s.is_empty())
+							.collect()
+					})
+					.filter(|v: &Vec<String>| !v.is_empty());
+				popular_entries.push(Manga {
+					key: manga.key,
+					title: manga.title,
+					cover,
+					description,
+					tags,
+					..Default::default()
+				});
+			} else {
+				popular_entries.push(manga);
 			}
 		}
+
+		let mut components: Vec<HomeComponent> = Vec::new();
+
 		components.push(HomeComponent {
 			title: Some(String::from("Popular Series")),
 			value: HomeComponentValue::BigScroller {
@@ -275,18 +211,18 @@ impl Impl for AquaManga {
 			..Default::default()
 		});
 
-		if let Ok(result) = parse_manga_list(&format!("{}/manga/?m_orderby=new-manga", BASE_URL)) {
+		if let Some(html) = new_resp.ok().and_then(|r| r.get_html().ok()) {
 			components.push(HomeComponent {
 				title: Some(String::from("New Comic Releases")),
 				value: HomeComponentValue::Scroller {
-					entries: manga_to_links(result.entries),
+					entries: manga_to_links(parse_manga_html(html).entries),
 					listing: Some(make_listing("New Releases", "New Releases")),
 				},
 				..Default::default()
 			});
 		}
 
-		let latest_html = Request::get(format!("{}/", BASE_URL))?.html()?;
+		let latest_html = latest_resp?.get_html()?;
 		let latest_entries: Vec<MangaWithChapter> = latest_html
 			.select(".page-item-detail")
 			.map(|items| {
@@ -336,25 +272,22 @@ impl Impl for AquaManga {
 			..Default::default()
 		});
 
-		if let Ok(result) = parse_manga_list(&format!("{}/manga/?m_orderby=trending", BASE_URL)) {
+		if let Some(html) = trending_resp.ok().and_then(|r| r.get_html().ok()) {
 			components.push(HomeComponent {
 				title: Some(String::from("Trending")),
 				value: HomeComponentValue::Scroller {
-					entries: manga_to_links(result.entries),
+					entries: manga_to_links(parse_manga_html(html).entries),
 					listing: Some(make_listing("Trending", "Trending")),
 				},
 				..Default::default()
 			});
 		}
 
-		if let Ok(result) = parse_manga_list(&format!(
-			"{}/page/1/?s&post_type=wp-manga&status[]=end&m_orderby=modified",
-			BASE_URL
-		)) {
+		if let Some(html) = completed_resp.ok().and_then(|r| r.get_html().ok()) {
 			components.push(HomeComponent {
 				title: Some(String::from("Latest Completed")),
 				value: HomeComponentValue::Scroller {
-					entries: manga_to_links(result.entries),
+					entries: manga_to_links(parse_manga_html(html).entries),
 					listing: Some(make_listing("Latest Completed", "Latest Completed")),
 				},
 				..Default::default()
@@ -364,23 +297,26 @@ impl Impl for AquaManga {
 		let mut browse_items: Vec<FilterItem> = vec![
 			FilterItem {
 				title: String::from("Manga"),
-				values: Some(vec![FilterValue::Select {
-					id: String::from("type"),
-					value: String::from("Manga"),
+				values: Some(vec![FilterValue::MultiSelect {
+					id: String::from("genre[]"),
+					included: vec![String::from("manga")],
+					excluded: vec![],
 				}]),
 			},
 			FilterItem {
 				title: String::from("Manhwa"),
-				values: Some(vec![FilterValue::Select {
-					id: String::from("type"),
-					value: String::from("Manhwa"),
+				values: Some(vec![FilterValue::MultiSelect {
+					id: String::from("genre[]"),
+					included: vec![String::from("manhwa")],
+					excluded: vec![],
 				}]),
 			},
 			FilterItem {
 				title: String::from("Manhua"),
-				values: Some(vec![FilterValue::Select {
-					id: String::from("type"),
-					value: String::from("Manhua"),
+				values: Some(vec![FilterValue::MultiSelect {
+					id: String::from("genre[]"),
+					included: vec![String::from("manhua")],
+					excluded: vec![],
 				}]),
 			},
 			FilterItem {
@@ -424,8 +360,7 @@ fn strip_base(s: String) -> String {
 	s.strip_prefix(BASE_URL).map(String::from).unwrap_or(s)
 }
 
-fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
-	let html = Request::get(url)?.html()?;
+fn parse_manga_html(html: aidoku::imports::html::Document) -> MangaPageResult {
 	let mut entries: Vec<Manga> = Vec::new();
 
 	if let Some(items) = html.select(".col-6.col-md-3") {
@@ -500,10 +435,14 @@ fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 	}
 
 	let has_next_page = html.select_first("a[class*='next']").is_some();
-	Ok(MangaPageResult {
+	MangaPageResult {
 		entries,
 		has_next_page,
-	})
+	}
+}
+
+fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
+	Ok(parse_manga_html(Request::get(url)?.html()?))
 }
 
 register_source!(

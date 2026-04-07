@@ -1,18 +1,6 @@
 [
 	{
-		"id": "type",
-		"type": "select",
-		"title": "Type",
-		"canAscend": false,
-		"options": [
-			"All",
-			"Manga",
-			"Manhwa",
-			"Manhua"
-		]
-	},
-	{
-		"id": "sort",
+		"id": "m_orderby",
 		"type": "sort",
 		"title": "Sort",
 		"canAscend": false,
@@ -22,6 +10,7 @@
 			"A-Z",
 			"Rating",
 			"Trending",
+			"Views",
 			"Newest"
 		]
 	},
@@ -31,9 +20,11 @@
 		"title": "Status",
 		"options": [
 			"All",
+			"Ongoing",
 			"Completed",
-			"Ongoing"
-		]
+			"Cancelled"
+		],
+		"ids": ["", "on-going", "end", "canceled"]
 	},
 	{
 		"id": "genre[]",
@@ -42,6 +33,9 @@
 		"isGenre": true,
 		"canExclude": false,
 		"options": [
+			"Manga",
+			"Manhwa",
+			"Manhua",
 			"Academy",
 			"Action",
 			"Adaptation",
@@ -111,6 +105,9 @@
 			"Zombies"
 		],
 		"ids": [
+			"manga",
+			"manhwa",
+			"manhua",
 			"academy",
 			"action",
 			"adaptation",
