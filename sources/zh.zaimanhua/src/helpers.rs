@@ -3,6 +3,7 @@ use aidoku::{
 	Manga, MangaPageResult, Result,
 	alloc::{String, Vec, string::ToString, vec},
 	imports::net::Request,
+	prelude::error,
 };
 use hashbrown::HashSet;
 
@@ -402,4 +403,23 @@ fn extract_author_tags_from_detail(
 		partial_ids,
 		match_type,
 	}
+}
+
+pub fn resolve_theme_id(name: &str) -> Result<String> {
+	let url = net::urls::classify();
+	let response: models::ApiResponse<models::ClassifyData> =
+		net::get_request(&url)?.json_owned()?;
+	let data = response.data.ok_or_else(|| error!("分类数据缺失"))?;
+
+	let target = models::normalize_tag_name(name.to_string());
+
+	data.classify_list
+		.into_iter()
+		.find(|g| g.id == 1)
+		.and_then(|g| {
+			g.list.into_iter().find_map(|t| {
+				(models::normalize_tag_name(t.tag_name) == target).then(|| t.tag_id.to_string())
+			})
+		})
+		.ok_or_else(|| error!("未找到标签: {name}"))
 }

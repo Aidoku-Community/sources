@@ -59,6 +59,7 @@ impl Source for Zaimanhua {
 		let mut cate: Option<&str> = None;
 		let mut theme: Option<&str> = None;
 		let mut rank_mode: Option<&str> = None;
+		let mut genre: Option<&str> = None;
 
 		for filter in &filters {
 			if let FilterValue::Select { id, value } = filter {
@@ -69,6 +70,7 @@ impl Source for Zaimanhua {
 					"受众" => cate = Some(value.as_str()),
 					"题材" => theme = Some(value.as_str()),
 					"榜单" => rank_mode = Some(value.as_str()),
+					"genre" => genre = Some(value.as_str()),
 					_ => {}
 				}
 			}
@@ -88,12 +90,14 @@ impl Source for Zaimanhua {
 			return Ok(models::manga_list_from_ranks(data));
 		}
 
+		let genre = genre.map(helpers::resolve_theme_id).transpose()?;
+
 		let mut qs = QueryParameters::new();
 		qs.push("sortType", Some(sort_type.unwrap_or("1")));
 		qs.push("cate", Some(cate.unwrap_or("0")));
 		qs.push("status", Some(status.unwrap_or("0")));
 		qs.push("zone", Some(zone.unwrap_or("0")));
-		qs.push("theme", Some(theme.unwrap_or("0")));
+		qs.push("theme", Some(genre.as_deref().or(theme).unwrap_or("0")));
 
 		let url = format!("{}&size=20", net::urls::filter(&qs.to_string(), page));
 		let response: models::ApiResponse<models::FilterData> =
