@@ -1,0 +1,14 @@
+[
+	{
+		"type": "group",
+		"title": "SETTINGS",
+		"items": [
+			{
+				"type": "switch",
+				"key": "showLocked",
+				"title": "Show Locked Chapters",
+				"default": true
+			}
+		]
+	}
+]

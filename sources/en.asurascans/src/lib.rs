@@ -6,8 +6,9 @@ use aidoku::{
 	alloc::{String, Vec, string::ToString},
 	helpers::uri::QueryParameters,
 	imports::{
+		defaults::defaults_get,
 		net::{Request, TimeUnit, set_rate_limit},
-		std::{current_date, parse_date},
+		std::parse_date,
 	},
 	prelude::*,
 };
@@ -171,43 +172,55 @@ impl Source for AsuraScans {
 		}
 
 		if needs_chapters {
-			manga.chapters = html
-				.select("astro-island > div > div > div.divide-y > a:not(.bg-gradient-to-r)")
-				.map(|els| {
-					els.filter_map(|el| {
-						let raw_url = el.attr("abs:href")?;
-						let key = helpers::get_chapter_key(&raw_url)?;
-						let title = el.select("span.block").and_then(|els| els.text());
-						let chapter_number = el
-							.select_first("span.font-medium")
-							.and_then(|el| el.own_text())
-							.and_then(|s| s.trim_start_matches("Chapter ").parse().ok());
-						let date_uploaded = el
-							.select_first("div.text-right > span")
-							.and_then(|els| els.own_text())
-							.and_then(|s| {
-								if s.ends_with("ago") {
-									Some(helpers::parse_relative_date(&s, current_date()))
-								} else if s == "last week" {
-									Some(current_date() - 7 * 24 * 60 * 60)
-								} else {
-									parse_date(s, "MMM d, yyyy")
-								}
-							});
+			let island_props = html
+				.select_first(
+					"astro-island[component-url*=ChapterListReact], astro-island[opts*=ChapterListReact]",
+				)
+				.and_then(|el| el.attr("props"))
+				.ok_or_else(|| error!("Missing astro-island"))?;
+
+			let json = serde_json::from_str::<serde_json::Value>(&island_props)
+				.map_err(AidokuError::JsonParseError)?;
+			let chapters_arr = json["chapters"][1]
+				.as_array()
+				.ok_or_else(|| error!("Missing chapters"))?;
+
+			let skip_locked = !defaults_get::<bool>("showLocked").unwrap_or(true);
+
+			manga.chapters = Some(
+				chapters_arr
+					.iter()
+					.filter_map(|obj| {
+						let obj = obj[1].as_object()?;
+
+						let locked = obj["is_locked"][1].as_bool().unwrap_or_default();
+						if skip_locked && locked {
+							return None;
+						}
+
+						let chapter_number = obj["number"][1].as_f64().map(|f| f as f32)?;
+						let key = chapter_number.to_string();
+						const DATE_FORMAT: &str = "yyyy-MM-dd'T'HH:mm:ss'Z'";
+						let date_uploaded = obj["published_at"][1].as_str().and_then(|s| {
+							if let Some((before_dot, _)) = s.split_once('.') {
+								parse_date(format!("{before_dot}Z"), DATE_FORMAT)
+							} else {
+								parse_date(s, DATE_FORMAT)
+							}
+						});
 						let url = helpers::get_chapter_url(&key, &manga.key);
-						// let locked = el.has_class("bg-gradient-to-r");
+
 						Some(Chapter {
 							key,
-							title,
-							chapter_number,
+							chapter_number: Some(chapter_number),
 							date_uploaded,
 							url: Some(url),
-							// locked,
+							locked,
 							..Default::default()
 						})
 					})
-					.collect()
-				})
+					.collect(),
+			);
 		}
 
 		Ok(manga)
