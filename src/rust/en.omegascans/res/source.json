@@ -1,0 +1,24 @@
+{
+	"info": {
+		"id": "en.omegascans",
+		"lang": "en",
+		"name": "Omega Scans",
+		"version": 4,
+		"url": "https://omegascans.org",
+		"nsfw": 2
+	},
+	"listings": [
+		{
+			"name": "Latest Updates"
+		},
+		{
+			"name": "Popular"
+		},
+		{
+			"name": "Newest"
+		},
+		{
+			"name": "Alphabetical"
+		}
+	]
+}
