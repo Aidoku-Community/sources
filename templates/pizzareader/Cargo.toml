@@ -1,24 +1,13 @@
 [package]
-name = "fmteamfr"
+name = "pizzareader"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", features = ["json"] }
-pizzareader = { path = "../../templates/pizzareader" }
+serde = { version = "1", default-features = false, features = ["derive"] }
+chrono = { version = "0.4", default-features = false }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
 aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }
-
-[lib]
-crate-type = ["cdylib"]
-
-[profile.dev]
-panic = "abort"
-
-[profile.release]
-panic = "abort"
-opt-level = "s"
-strip = true
-lto = true
