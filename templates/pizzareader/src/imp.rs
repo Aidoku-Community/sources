@@ -252,28 +252,25 @@ pub trait Impl {
 	}
 
 	fn handle_deep_link(&self, params: &Params, url: String) -> Result<Option<DeepLinkResult>> {
-		if !url.starts_with(params.base_url.as_ref()) {
+		let normalized_url = url.split(['#', '?']).next().unwrap_or(url.as_str());
+
+		let Some(path) = normalized_url.strip_prefix(params.base_url.as_ref()) else {
 			return Ok(None);
-		}
+		};
 
-		if let Some(path) = url.strip_prefix(params.base_url.as_ref()) {
-			let path_parts: Vec<&str> = path.trim_matches('/').split('/').collect();
-			if path_parts.len() >= 2 && path_parts[0] == "comics" {
-				let manga_key = path_parts[1];
-				return Ok(Some(DeepLinkResult::Manga {
-					key: manga_key.into(),
-				}));
-			}
+		let mut parts = path.trim_matches('/').split('/');
 
-			if path_parts.len() >= 4 && path_parts[0] == "read" {
-				let manga_key = path_parts[1];
-				return Ok(Some(DeepLinkResult::Chapter {
+		match (parts.next(), parts.next(), parts.next(), parts.next()) {
+			(Some("comics"), Some(manga_key), _, _) => Ok(Some(DeepLinkResult::Manga {
+				key: manga_key.into(),
+			})),
+			(Some("read"), Some(manga_key), Some(_), Some(_)) => {
+				Ok(Some(DeepLinkResult::Chapter {
 					manga_key: manga_key.into(),
 					key: path.into(),
-				}));
+				}))
 			}
+			_ => Ok(None),
 		}
-
-		Ok(None)
 	}
 }
