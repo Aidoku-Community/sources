@@ -1,21 +1,47 @@
 use super::Params;
 use crate::models::*;
 use aidoku::{
-	AidokuError, Chapter, DeepLinkResult, FilterValue, HomeLayout, Manga, MangaPageResult, Page,
-	Result,
+	Chapter, DeepLinkResult, FilterValue, HomeLayout, Manga, MangaPageResult, Page, Result,
 	alloc::{String, Vec, vec},
-	imports::net::Request,
+	helpers::uri::encode_uri_component,
+	imports::{net::Request, std::parse_date},
 	prelude::*,
 };
-use chrono::{DateTime, Utc};
+
+impl From<PizzaComicDto> for Manga {
+	fn from(comic: PizzaComicDto) -> Self {
+		let PizzaComicDto {
+			slug,
+			artist,
+			author,
+			description,
+			title,
+			thumbnail,
+			url,
+			..
+		} = comic;
+
+		Manga {
+			key: slug,
+			title,
+			description: Some(description),
+			url: Some(url),
+			cover: Some(thumbnail),
+			authors: Some(vec![author]),
+			artists: artist.filter(|a| !a.is_empty()).map(|a| vec![a]),
+			viewer: aidoku::Viewer::RightToLeft,
+			..Default::default()
+		}
+	}
+}
 
 pub trait Impl {
 	fn new() -> Self;
 
 	fn params(&self) -> Params;
 
-	fn to_manga_status(&self, status: String) -> aidoku::MangaStatus {
-		match status.as_str() {
+	fn to_manga_status(&self, status: &str) -> aidoku::MangaStatus {
+		match status {
 			"En cours" | "On going" => aidoku::MangaStatus::Ongoing,
 			"Terminé" | "Completed" => aidoku::MangaStatus::Completed,
 			_ => aidoku::MangaStatus::Unknown,
@@ -31,22 +57,14 @@ pub trait Impl {
 	}
 
 	fn to_manga(&self, comic: PizzaComicDto, base_url: &str) -> Manga {
-		Manga {
-			key: comic.slug,
-			title: comic.title,
-			description: Some(comic.description),
-			url: Some(format!("{}{}", base_url, comic.url)),
-			cover: Some(comic.thumbnail),
-			authors: Some(vec![comic.author]),
-			artists: comic
-				.artist
-				.filter(|a| !a.is_empty())
-				.map(|a| vec![a.clone()]),
-			viewer: aidoku::Viewer::RightToLeft,
-			content_rating: self.to_manga_content_rating(comic.adult),
-			status: self.to_manga_status(comic.status.unwrap_or("".into())),
-			..Default::default()
-		}
+		let status = self.to_manga_status(comic.status.as_deref().unwrap_or(""));
+		let content_rating = self.to_manga_content_rating(comic.adult);
+
+		let mut manga: Manga = comic.into();
+		manga.url = Some(format!("{}{}", base_url, manga.url.unwrap_or_default()));
+		manga.status = status;
+		manga.content_rating = content_rating;
+		manga
 	}
 
 	fn to_mangas(&self, comics: Vec<PizzaComicDto>, base_url: &str) -> Vec<Manga> {
@@ -89,7 +107,7 @@ pub trait Impl {
 	) -> Result<MangaPageResult> {
 		let url = if let Some(q) = query {
 			if q.len() > 2 {
-				format!("{}/api/search/{}", params.base_url, q)
+				format!("{}/api/search/{}", params.base_url, encode_uri_component(q))
 			} else {
 				format!("{}/api/comics", params.base_url)
 			}
@@ -113,45 +131,73 @@ pub trait Impl {
 	) -> Result<Manga> {
 		let slug = manga.key.trim();
 		if slug.is_empty() {
-			return Err(AidokuError::message("Manga key is empty"));
+			bail!("Manga key is empty");
 		}
 
 		let response: PizzaResultDto =
 			Request::get(format!("{}/api/comics/{slug}", params.base_url))?.json_owned()?;
-		let comic = response.comic.ok_or_else(|| {
-			AidokuError::message(format!(
-				"Comic not found with {}/api/comics/{slug}",
-				params.base_url
-			))
-		})?;
-
-		if needs_details {
-			manga = self.to_manga(comic.clone(), &params.base_url);
-		}
+		let PizzaComicDto {
+			chapters,
+			slug,
+			artist,
+			author,
+			description,
+			title,
+			thumbnail,
+			url,
+			status,
+			adult,
+			last_chapter,
+			genres,
+		} = response
+			.comic
+			.ok_or_else(|| error!("Comic not found with {}/api/comics/{slug}", params.base_url))?;
 
 		if needs_chapters {
-			let mut chapters: Vec<Chapter> = Vec::new();
+			let mut mapped_chapters: Vec<Chapter> = Vec::new();
 
-			for chapter in comic.chapters {
-				let chapter_title = chapter
-					.title
-					.filter(|t| !t.is_empty())
-					.or(Some(chapter.full_title));
-
-				let date_uploaded = DateTime::parse_from_rfc3339(&chapter.published_on)
-					.ok()
-					.map(|dt| dt.with_timezone(&Utc).timestamp());
-
-				chapters.push(Chapter {
+			for chapter in chapters {
+				mapped_chapters.push(Chapter {
 					key: chapter.url,
-					title: chapter_title,
+					title: chapter
+						.title
+						.filter(|t| !t.is_empty())
+						.or(Some(chapter.full_title)),
 					chapter_number: chapter.chapter.map(|n| n as f32),
-					date_uploaded,
+					volume_number: chapter.volume.map(|n| n as f32),
+					date_uploaded: parse_date(
+						&chapter.published_on,
+						"yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'",
+					),
 					..Default::default()
 				});
 			}
 
-			manga.chapters = Some(chapters);
+			manga.chapters = Some(mapped_chapters);
+		}
+
+		if needs_details {
+			let mut details = self.to_manga(
+				PizzaComicDto {
+					chapters: Vec::new(),
+					slug,
+					artist,
+					author,
+					description,
+					title,
+					thumbnail,
+					url,
+					status,
+					adult,
+					last_chapter,
+					genres,
+				},
+				&params.base_url,
+			);
+			if manga.chapters.is_some() {
+				details.chapters = manga.chapters
+			}
+			manga = details;
 		}
 
 		Ok(manga)
@@ -160,7 +206,7 @@ pub trait Impl {
 	fn get_page_list(&self, params: &Params, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let chapter_path = chapter.key.trim();
 		if chapter_path.is_empty() {
-			return Err(AidokuError::message("Chapter key is empty"));
+			bail!("Chapter key is empty");
 		}
 
 		let response: PizzaReaderDto =
@@ -173,7 +219,7 @@ pub trait Impl {
 					.pages
 					.into_iter()
 					.map(|url| Page {
-						content: aidoku::PageContent::Url(url, None),
+						content: aidoku::PageContent::url(url),
 						..Default::default()
 					})
 					.collect::<Vec<_>>()

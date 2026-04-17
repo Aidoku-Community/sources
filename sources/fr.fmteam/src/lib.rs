@@ -4,9 +4,9 @@ use pizzareader::{Impl, Params, PizzaReader};
 
 const BASE_URL: &str = "https://fmteam.fr";
 
-struct Fmteam;
+struct FMTeam;
 
-impl Impl for Fmteam {
+impl Impl for FMTeam {
 	fn new() -> Self {
 		Self
 	}
@@ -18,4 +18,4 @@ impl Impl for Fmteam {
 	}
 }
 
-register_source!(PizzaReader<Fmteam>, DeepLinkHandler, Home);
+register_source!(PizzaReader<FMTeam>, DeepLinkHandler, Home);

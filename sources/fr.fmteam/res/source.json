@@ -1,10 +1,10 @@
 {
-  "info": {
-    "id": "fr.fmteam",
-    "name": "FMTeam",
-    "version": 1,
-    "url": "https://fmteam.fr",
-    "contentRating": 0,
-    "languages": ["fr"]
-  }
+	"info": {
+		"id": "fr.fmteam",
+		"name": "FMTeam.fr",
+		"version": 1,
+		"url": "https://fmteam.fr",
+		"contentRating": 0,
+		"languages": ["fr"]
+	}
 }

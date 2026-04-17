@@ -36,7 +36,7 @@ pub struct PizzaComicDto {
 	pub description: String,
 	#[serde(default)]
 	pub genres: Vec<PizzaGenreDto>,
-	#[serde(rename = "last_chapter", default)]
+	#[serde(default)]
 	pub last_chapter: Option<PizzaChapterDto>,
 	#[serde(default)]
 	pub status: Option<String>,
@@ -59,14 +59,16 @@ pub struct PizzaGenreDto {
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct PizzaChapterDto {
 	#[serde(default)]
+	pub volume: Option<i32>,
+	#[serde(default)]
 	pub chapter: Option<i32>,
-	#[serde(rename = "full_title", default)]
+	#[serde(default)]
 	pub full_title: String,
 	#[serde(default)]
 	pub title: Option<String>,
 	#[serde(default)]
 	pub pages: Vec<String>,
-	#[serde(rename = "published_on", default)]
+	#[serde(default)]
 	pub published_on: String,
 	#[serde(default)]
 	pub subchapter: Option<i32>,
