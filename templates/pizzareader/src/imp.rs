@@ -74,11 +74,12 @@ pub trait Impl {
 			.collect::<Vec<_>>()
 	}
 
-	fn get_latest_mangas(&self, base_url: &str) -> Result<Vec<Manga>> {
-		let response: PizzaResultsDto =
-			Request::get(format!("{}/api/comics", base_url))?.json_owned()?;
+	fn get_all_mangas(&self, base_url: &str) -> Result<PizzaResultsDto> {
+		Request::get(format!("{}/api/comics", base_url))?.json_owned()
+	}
 
-		let mut comics = response.comics;
+	fn get_latest_mangas(&self, base_url: &str) -> Result<Vec<Manga>> {
+		let mut comics = self.get_all_mangas(base_url)?.comics;
 		comics.sort_by(|a, b| {
 			let a_date = a
 				.last_chapter
@@ -98,6 +99,19 @@ pub trait Impl {
 		Ok(self.to_mangas(comics, base_url))
 	}
 
+	fn search_mangas(&self, base_url: &str, query: &str) -> Result<PizzaResultsDto> {
+		Request::get(format!(
+			"{}/api/search/{}",
+			base_url,
+			encode_uri_component(query)
+		))?
+		.json_owned()
+	}
+
+	fn get_manga_details(&self, base_url: &str, slug: &str) -> Result<PizzaResultDto> {
+		Request::get(format!("{base_url}/api/comics/{slug}"))?.json_owned()
+	}
+
 	fn get_search_manga_list(
 		&self,
 		params: &Params,
@@ -105,16 +119,13 @@ pub trait Impl {
 		_page: i32,
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let url = if let Some(q) = query {
-			if q.len() > 2 {
-				format!("{}/api/search/{}", params.base_url, encode_uri_component(q))
-			} else {
-				format!("{}/api/comics", params.base_url)
-			}
+		let response: PizzaResultsDto = if let Some(q) = query
+			&& q.len() > 2
+		{
+			self.search_mangas(&params.base_url, &q)?
 		} else {
-			format!("{}/api/comics", params.base_url)
+			self.get_all_mangas(&params.base_url)?
 		};
-		let response: PizzaResultsDto = Request::get(url)?.json_owned()?;
 
 		Ok(MangaPageResult {
 			entries: self.to_mangas(response.comics, &params.base_url),
@@ -134,8 +145,6 @@ pub trait Impl {
 			bail!("Manga key is empty");
 		}
 
-		let response: PizzaResultDto =
-			Request::get(format!("{}/api/comics/{slug}", params.base_url))?.json_owned()?;
 		let PizzaComicDto {
 			chapters,
 			slug,
@@ -149,9 +158,10 @@ pub trait Impl {
 			adult,
 			last_chapter,
 			genres,
-		} = response
+		} = self
+			.get_manga_details(&params.base_url, slug)?
 			.comic
-			.ok_or_else(|| error!("Comic not found with {}/api/comics/{slug}", params.base_url))?;
+			.ok_or_else(|| error!("Comic not found with {slug}"))?;
 
 		if needs_chapters {
 			let mut mapped_chapters: Vec<Chapter> = Vec::new();
