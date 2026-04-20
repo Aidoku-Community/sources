@@ -157,7 +157,7 @@ pub trait Impl {
 			bail!("Manga key is empty");
 		}
 
-		let comic = self
+		let mut comic = self
 			.get_manga_details(&params.base_url, slug)?
 			.comic
 			.ok_or_else(|| error!("Comic not found with {slug}"))?;
@@ -166,14 +166,15 @@ pub trait Impl {
 			manga.chapters = Some(
 				comic
 					.chapters
-					.iter()
+					.take()
+					.unwrap_or_default()
+					.into_iter()
 					.map(|chapter| Chapter {
-						key: chapter.url.clone(),
+						key: chapter.url,
 						title: chapter
 							.title
-							.clone()
 							.filter(|t| !t.is_empty())
-							.or(Some(chapter.full_title.clone())),
+							.or(Some(chapter.full_title)),
 						chapter_number: chapter.chapter.map(|n| n as f32),
 						volume_number: chapter.volume.map(|n| n as f32),
 						date_uploaded: parse_date(

@@ -4,19 +4,19 @@ use aidoku::{
 };
 use serde::Deserialize;
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 pub struct PizzaResultsDto {
 	#[serde(default)]
 	pub comics: Vec<PizzaComicDto>,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 pub struct PizzaResultDto {
 	#[serde(default)]
 	pub comic: Option<PizzaComicDto>,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 pub struct PizzaReaderDto {
 	#[serde(default)]
 	pub chapter: Option<PizzaChapterDto>,
@@ -25,7 +25,7 @@ pub struct PizzaReaderDto {
 	pub comic: Option<PizzaComicDto>,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 pub struct PizzaComicDto {
 	#[serde(default)]
 	pub slug: String,
@@ -34,7 +34,7 @@ pub struct PizzaComicDto {
 	#[serde(default)]
 	pub author: String,
 	#[serde(default)]
-	pub chapters: Vec<PizzaChapterDto>,
+	pub chapters: Option<Vec<PizzaChapterDto>>,
 	#[serde(default)]
 	pub description: String,
 	#[serde(default)]
@@ -57,13 +57,13 @@ pub struct PizzaComicDto {
 	pub adult: i32,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 pub struct PizzaGenreDto {
 	#[serde(default)]
 	pub name: String,
 }
 
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default)]
 pub struct PizzaChapterDto {
 	#[serde(default)]
 	pub volume: Option<i32>,
