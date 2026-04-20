@@ -96,7 +96,7 @@ pub trait Impl {
 					1 => {
 						response
 							.comics
-							.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase()));
+							.sort_by_key(|b| core::cmp::Reverse(b.title.to_lowercase()));
 					}
 					2 => {
 						response.comics.sort_by(|a, b| {
@@ -121,7 +121,7 @@ pub trait Impl {
 							.sort_by(|a, b| b.rating.total_cmp(&a.rating));
 					}
 					4 => {
-						response.comics.sort_by(|a, b| b.views.cmp(&a.views));
+						response.comics.sort_by_key(|b| core::cmp::Reverse(b.views));
 					}
 					_ => {}
 				},
