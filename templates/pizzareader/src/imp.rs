@@ -146,7 +146,9 @@ pub trait Impl {
 					}
 					_ => {}
 				},
-				FilterValue::Select { id, value, .. } if id == "genre" && value.trim() != "All" => {
+				FilterValue::Select { id, value, .. }
+					if id == "genre" && value.trim() != "Tout" =>
+				{
 					let selected = value.to_lowercase();
 					response.comics.retain(|comic| {
 						self.to_manga_genres(&comic.genres)
@@ -249,7 +251,7 @@ pub trait Impl {
 
 		genres.sort_by_key(|a| a.to_lowercase());
 		genres.dedup();
-		genres.insert(0, "All".into());
+		genres.insert(0, "Tout".into());
 
 		Ok(vec![aidoku::Filter {
 			id: "genre".into(),
@@ -260,7 +262,7 @@ pub trait Impl {
 				uses_tag_style: true,
 				options: genres.into_iter().map(|s| s.into()).collect(),
 				ids: None,
-				default: Some("All".into()),
+				default: Some("Tout".into()),
 			},
 		}])
 	}
