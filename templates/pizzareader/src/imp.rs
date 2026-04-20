@@ -62,27 +62,6 @@ pub trait Impl {
 		Request::get(format!("{}/api/comics", base_url))?.json_owned()
 	}
 
-	fn get_latest_mangas(&self, base_url: &str) -> Result<Vec<Manga>> {
-		let mut comics = self.get_all_mangas(base_url)?.comics;
-		comics.sort_by(|a, b| {
-			let a_date = a
-				.last_chapter
-				.as_ref()
-				.map(|c| c.published_on.as_str())
-				.unwrap_or("");
-
-			let b_date = b
-				.last_chapter
-				.as_ref()
-				.map(|c| c.published_on.as_str())
-				.unwrap_or("");
-
-			b_date.cmp(a_date)
-		});
-
-		Ok(self.to_mangas(comics, base_url))
-	}
-
 	fn search_mangas(&self, base_url: &str, query: &str) -> Result<PizzaResultsDto> {
 		Request::get(format!(
 			"{}/api/search/{}",
