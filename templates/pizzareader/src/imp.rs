@@ -1,39 +1,12 @@
 use super::Params;
 use crate::models::*;
 use aidoku::{
-	Chapter, DeepLinkResult, FilterValue, HomeLayout, Manga, MangaPageResult, Page, Result,
+	Chapter, DeepLinkResult, Filter, FilterValue, Manga, MangaPageResult, Page, Result,
 	alloc::{String, Vec, vec},
 	helpers::uri::encode_uri_component,
 	imports::{net::Request, std::parse_date},
 	prelude::*,
 };
-
-impl From<PizzaComicDto> for Manga {
-	fn from(comic: PizzaComicDto) -> Self {
-		let PizzaComicDto {
-			slug,
-			artist,
-			author,
-			description,
-			title,
-			thumbnail,
-			url,
-			..
-		} = comic;
-
-		Manga {
-			key: slug,
-			title,
-			description: Some(description),
-			url: Some(url),
-			cover: Some(thumbnail),
-			authors: Some(vec![author]),
-			artists: artist.filter(|a| !a.is_empty()).map(|a| vec![a]),
-			viewer: aidoku::Viewer::RightToLeft,
-			..Default::default()
-		}
-	}
-}
 
 pub trait Impl {
 	fn new() -> Self;
@@ -56,14 +29,25 @@ pub trait Impl {
 		}
 	}
 
+	fn to_manga_genres(&self, genres: &[PizzaGenreDto]) -> Vec<String> {
+		genres
+			.iter()
+			.flat_map(|g| g.name.trim().split(['-', '/']).map(str::trim))
+			.filter(|s| !s.is_empty())
+			.map(String::from)
+			.collect()
+	}
+
 	fn to_manga(&self, comic: PizzaComicDto, base_url: &str) -> Manga {
 		let status = self.to_manga_status(comic.status.as_deref().unwrap_or(""));
 		let content_rating = self.to_manga_content_rating(comic.adult);
+		let genres = self.to_manga_genres(&comic.genres);
 
 		let mut manga: Manga = comic.into();
 		manga.url = Some(format!("{}{}", base_url, manga.url.unwrap_or_default()));
 		manga.status = status;
 		manga.content_rating = content_rating;
+		manga.tags = Some(genres);
 		manga
 	}
 
@@ -117,15 +101,62 @@ pub trait Impl {
 		params: &Params,
 		query: Option<String>,
 		_page: i32,
-		_filters: Vec<FilterValue>,
+		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let response: PizzaResultsDto = if let Some(q) = query
+		let mut response: PizzaResultsDto = if let Some(q) = query
 			&& q.len() > 2
 		{
 			self.search_mangas(&params.base_url, &q)?
 		} else {
 			self.get_all_mangas(&params.base_url)?
 		};
+
+		for filter in filters {
+			match filter {
+				FilterValue::Sort { id, index, .. } if id == "order" => match index {
+					1 => {
+						response
+							.comics
+							.sort_by(|a, b| b.title.to_lowercase().cmp(&a.title.to_lowercase()));
+					}
+					2 => {
+						response.comics.sort_by(|a, b| {
+							let a_date = a
+								.last_chapter
+								.as_ref()
+								.map(|c| c.published_on.as_str())
+								.unwrap_or("");
+
+							let b_date = b
+								.last_chapter
+								.as_ref()
+								.map(|c| c.published_on.as_str())
+								.unwrap_or("");
+
+							b_date.cmp(a_date)
+						});
+					}
+					3 => {
+						response
+							.comics
+							.sort_by(|a, b| b.rating.total_cmp(&a.rating));
+					}
+					4 => {
+						response.comics.sort_by(|a, b| b.views.cmp(&a.views));
+					}
+					_ => {}
+				},
+				FilterValue::Select { id, value, .. } if id == "genre" && value.trim() != "All" => {
+					let selected = value.to_lowercase();
+					response.comics.retain(|comic| {
+						self.to_manga_genres(&comic.genres)
+							.into_iter()
+							.any(|genre| genre.to_lowercase() == selected)
+					});
+				}
+				_ => {}
+			}
+		}
 
 		Ok(MangaPageResult {
 			entries: self.to_mangas(response.comics, &params.base_url),
@@ -145,69 +176,37 @@ pub trait Impl {
 			bail!("Manga key is empty");
 		}
 
-		let PizzaComicDto {
-			chapters,
-			slug,
-			artist,
-			author,
-			description,
-			title,
-			thumbnail,
-			url,
-			status,
-			adult,
-			last_chapter,
-			genres,
-		} = self
+		let comic = self
 			.get_manga_details(&params.base_url, slug)?
 			.comic
 			.ok_or_else(|| error!("Comic not found with {slug}"))?;
 
 		if needs_chapters {
-			let mut mapped_chapters: Vec<Chapter> = Vec::new();
-
-			for chapter in chapters {
-				mapped_chapters.push(Chapter {
-					key: chapter.url,
-					title: chapter
-						.title
-						.filter(|t| !t.is_empty())
-						.or(Some(chapter.full_title)),
-					chapter_number: chapter.chapter.map(|n| n as f32),
-					volume_number: chapter.volume.map(|n| n as f32),
-					date_uploaded: parse_date(
-						&chapter.published_on,
-						"yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'",
-					),
-					..Default::default()
-				});
-			}
-
-			manga.chapters = Some(mapped_chapters);
+			manga.chapters = Some(
+				comic
+					.chapters
+					.iter()
+					.map(|chapter| Chapter {
+						key: chapter.url.clone(),
+						title: chapter
+							.title
+							.clone()
+							.filter(|t| !t.is_empty())
+							.or(Some(chapter.full_title.clone())),
+						chapter_number: chapter.chapter.map(|n| n as f32),
+						volume_number: chapter.volume.map(|n| n as f32),
+						date_uploaded: parse_date(
+							&chapter.published_on,
+							"yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'",
+						),
+						..Default::default()
+					})
+					.collect(),
+			);
 		}
 
 		if needs_details {
-			let mut details = self.to_manga(
-				PizzaComicDto {
-					chapters: Vec::new(),
-					slug,
-					artist,
-					author,
-					description,
-					title,
-					thumbnail,
-					url,
-					status,
-					adult,
-					last_chapter,
-					genres,
-				},
-				&params.base_url,
-			);
-			if manga.chapters.is_some() {
-				details.chapters = manga.chapters
-			}
-			manga = details;
+			manga.copy_from(self.to_manga(comic, &params.base_url));
 		}
 
 		Ok(manga)
@@ -239,26 +238,31 @@ pub trait Impl {
 		Ok(pages)
 	}
 
-	fn get_home(&self, params: &Params) -> Result<HomeLayout> {
-		let entries = self
-			.get_latest_mangas(&params.base_url)?
+	fn get_dynamic_filters(&self, params: &Params) -> Result<Vec<Filter>> {
+		let mut genres: Vec<String> = self
+			.get_all_mangas(&params.base_url)?
+			.comics
 			.into_iter()
-			.take(10)
-			.map(|manga| manga.into())
+			.flat_map(|comic| self.to_manga_genres(&comic.genres))
+			.filter(|name| !name.is_empty())
 			.collect();
 
-		Ok(HomeLayout {
-			components: vec![aidoku::HomeComponent {
-				title: Some("Last Updated".into()),
-				subtitle: None,
-				value: aidoku::HomeComponentValue::MangaList {
-					ranking: false,
-					page_size: Some(10),
-					entries,
-					listing: None,
-				},
-			}],
-		})
+		genres.sort_by_key(|a| a.to_lowercase());
+		genres.dedup();
+		genres.insert(0, "All".into());
+
+		Ok(vec![aidoku::Filter {
+			id: "genre".into(),
+			hide_from_header: Some(false),
+			title: Some("Genre".into()),
+			kind: aidoku::FilterKind::Select {
+				is_genre: true,
+				uses_tag_style: true,
+				options: genres.into_iter().map(|s| s.into()).collect(),
+				ids: None,
+				default: Some("All".into()),
+			},
+		}])
 	}
 
 	fn handle_deep_link(&self, params: &Params, url: String) -> Result<Option<DeepLinkResult>> {

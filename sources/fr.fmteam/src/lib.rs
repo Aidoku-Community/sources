@@ -18,4 +18,4 @@ impl Impl for FMTeam {
 	}
 }
 
-register_source!(PizzaReader<FMTeam>, DeepLinkHandler, Home);
+register_source!(PizzaReader<FMTeam>, DynamicFilters, DeepLinkHandler);

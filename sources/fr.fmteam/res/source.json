@@ -6,5 +6,8 @@
 		"url": "https://fmteam.fr",
 		"contentRating": 0,
 		"languages": ["fr"]
+	},
+	"config": {
+		"supportsTagSearch": true
 	}
 }

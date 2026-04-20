@@ -1,4 +1,7 @@
-use aidoku::alloc::{String, Vec};
+use aidoku::{
+	Manga,
+	alloc::{String, Vec, vec},
+};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -41,6 +44,10 @@ pub struct PizzaComicDto {
 	#[serde(default)]
 	pub status: Option<String>,
 	#[serde(default)]
+	pub rating: f32,
+	#[serde(default)]
+	pub views: i32,
+	#[serde(default)]
 	pub title: String,
 	#[serde(default)]
 	pub thumbnail: String,
@@ -74,4 +81,31 @@ pub struct PizzaChapterDto {
 	pub subchapter: Option<i32>,
 	#[serde(default)]
 	pub url: String,
+}
+
+impl From<PizzaComicDto> for Manga {
+	fn from(comic: PizzaComicDto) -> Self {
+		let PizzaComicDto {
+			slug,
+			artist,
+			author,
+			description,
+			title,
+			thumbnail,
+			url,
+			..
+		} = comic;
+
+		Manga {
+			key: slug,
+			title,
+			description: Some(description),
+			url: Some(url),
+			cover: Some(thumbnail),
+			authors: Some(vec![author]),
+			artists: artist.filter(|a| !a.is_empty()).map(|a| vec![a]),
+			viewer: aidoku::Viewer::RightToLeft,
+			..Default::default()
+		}
+	}
 }

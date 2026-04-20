@@ -1,6 +1,6 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeLayout, Manga,
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Manga,
 	MangaPageResult, Page, Result, Source,
 	alloc::{String, Vec, borrow::Cow},
 };
@@ -66,9 +66,9 @@ impl<T: Impl> Source for PizzaReader<T> {
 	}
 }
 
-impl<T: Impl> Home for PizzaReader<T> {
-	fn get_home(&self) -> Result<HomeLayout> {
-		self.inner.get_home(&self.params)
+impl<T: Impl> DynamicFilters for PizzaReader<T> {
+	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
+		self.inner.get_dynamic_filters(&self.params)
 	}
 }
 
