@@ -1,19 +1,20 @@
 use crate::BASE_URL;
 use aidoku::{
-	alloc::{string::ToString as _, String, Vec},
-	error,
-	imports::net::Request,
-	prelude::format,
 	Page, Result,
+	alloc::{String, Vec, string::ToString as _},
+	error,
+	imports::{net::Request, std::current_date},
+	prelude::format,
 };
 
 pub struct PageList;
 
 impl PageList {
 	pub fn get_pages(manga_id: String, chapter_id: String) -> Result<Vec<Page>> {
+		let request_id = (current_date() * 1000).to_string();
 		let url = format!(
-			"{}/v2.0/apis/manga/reading?code={}&cid={}&v=v3.1919111",
-			BASE_URL, manga_id, chapter_id
+			"{}/v2.0/apis/manga/reading?code={}&cid={}&v=v4.203411&_t={}",
+			BASE_URL, manga_id, chapter_id, request_id
 		);
 		let json: serde_json::Value = Request::get(url.clone())?
 			.header(
@@ -22,6 +23,8 @@ impl PageList {
 			)
 			.header("Origin", BASE_URL)
 			.header("X-Requested-With", "XMLHttpRequest")
+			.header("X-Requested-Id", &request_id)
+			.header("Accept", "application/json")
 			.send()?
 			.get_json()?;
 		let data = json
@@ -49,11 +52,19 @@ impl PageList {
 				continue;
 			}
 
-			let url = item
+			let mut url = item
 				.get("url")
 				.and_then(|v| v.as_str())
 				.unwrap_or_default()
 				.to_string();
+
+			let width = item.get("width").and_then(|v| v.as_i64()).unwrap_or(0);
+			let height = item.get("height").and_then(|v| v.as_i64()).unwrap_or(0);
+			if (width > 16383 || height > 16383)
+				&& let Some(stripped) = url.split("?q=").next()
+			{
+				url = stripped.to_string();
+			}
 
 			pages.push(Page {
 				content: aidoku::PageContent::url(url),
