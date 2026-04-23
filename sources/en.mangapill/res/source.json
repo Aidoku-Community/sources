@@ -1,0 +1,25 @@
+{
+	"info": {
+		"id": "en.mangapill",
+		"name": "MangaPill",
+		"version": 1,
+		"url": "https://mangapill.com",
+		"contentRating": 1,
+		"languages": [
+			"en"
+		]
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "Latest Updates"
+		},
+		{
+			"id": "popular",
+			"name": "Popular"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}
