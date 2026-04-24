@@ -4,7 +4,7 @@ use aidoku::{
 	alloc::{String, Vec, string::ToString as _},
 	error,
 	imports::{net::Request, std::current_date},
-	prelude::format,
+	prelude::*,
 };
 
 pub struct PageList;
@@ -34,10 +34,24 @@ impl PageList {
 			.get("data")
 			.and_then(|v| v.as_object())
 			.ok_or_else(|| error!("Expected data object"))?;
-		let list = data
-			.get("scans")
-			.and_then(|v| v.as_array())
-			.ok_or_else(|| error!("Expected scans array"))?;
+		// `scans` can be either an array or a JSON string
+		let list: Vec<serde_json::Value> = match data.get("scans") {
+			Some(v) => {
+				if let Some(arr) = v.as_array() {
+					arr.clone()
+				} else if let Some(s) = v.as_str() {
+					let parsed: serde_json::Value = serde_json::from_str(s)
+						.map_err(|_| error!("Failed to parse scans JSON string"))?;
+					parsed
+						.as_array()
+						.ok_or_else(|| error!("Expected scans array after parsing"))?
+						.clone()
+				} else {
+					bail!("Expected scans array or JSON string");
+				}
+			}
+			None => bail!("Expected scans array"),
+		};
 		let mut pages: Vec<Page> = Vec::new();
 
 		for item in list.iter() {
