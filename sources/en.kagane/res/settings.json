@@ -1,0 +1,66 @@
+[
+    {
+        "type": "group",
+        "title": "Access",
+        "footer": "A WVD (Widevine Device) file is required to read chapters. Paste the file contents (no newlines) encoded as base64.",
+        "items": [
+            {
+                "type": "text",
+                "key": "wvdKey",
+                "title": "WVD File (base64)",
+                "placeholder": "Paste your WVD base64 here"
+            }
+        ]
+    },
+    {
+        "type": "group",
+        "title": "Reading",
+        "items": [
+            {
+                "type": "switch",
+                "key": "dataSaver",
+                "title": "Data Saver",
+                "subtitle": "Use smaller, more compressed images",
+                "default": false
+            },
+            {
+                "type": "select",
+                "key": "chapterTitleMode",
+                "title": "Chapter Title Format",
+                "values": ["optional", "always", "vol_chapter"],
+                "titles": [
+                    "Title only (e.g. 'Ch.5' / 'Manga Title')",
+                    "Ch.X + title (e.g. 'Ch.5 Manga Title')",
+                    "Vol.X Ch.Y + title (e.g. 'Vol.1 Ch.5 Manga Title')"
+                ],
+                "default": "optional"
+            }
+        ]
+    },
+    {
+        "type": "group",
+        "title": "Display",
+        "items": [
+            {
+                "type": "select",
+                "key": "contentRating",
+                "title": "Max Content Rating",
+                "values": ["safe", "suggestive", "erotica", "pornographic"],
+                "titles": ["Safe", "Suggestive", "Erotica", "Pornographic"],
+                "default": "pornographic"
+            },
+            {
+                "type": "switch",
+                "key": "showEdition",
+                "title": "Show Edition in Title",
+                "default": false
+            },
+            {
+                "type": "switch",
+                "key": "showSource",
+                "title": "Show Source in Title",
+                "default": false
+            }
+        ]
+    }
+]

@@ -1,0 +1,41 @@
+[
+    {
+        "type": "sort",
+        "title": "Sort By",
+        "canAscend": true,
+        "options": [
+            "Relevance",
+            "Popular (Total Views)",
+            "Popular (Average Views)",
+            "Popular (Today)",
+            "Popular (Week)",
+            "Popular (Month)",
+            "Latest",
+            "By Name",
+            "Books Count",
+            "Created At"
+        ],
+        "default": { "index": 6, "ascending": false }
+    },
+    {
+        "type": "multi-select",
+        "id": "content_rating",
+        "title": "Content Rating",
+        "options": ["Safe", "Suggestive", "Erotica", "Pornographic"],
+        "ids":     ["Safe", "Suggestive", "Erotica", "Pornographic"]
+    },
+    {
+        "type": "multi-select",
+        "id": "format",
+        "title": "Format",
+        "options": ["Manga", "Manhwa", "Manhua", "Comic", "Other"],
+        "ids":     ["Manga", "Manhwa", "Manhua", "Comic", "Other"]
+    },
+    {
+        "type": "multi-select",
+        "id": "upload_status",
+        "title": "Status",
+        "options": ["Ongoing", "Completed", "Hiatus",  "Cancelled"],
+        "ids":     ["Ongoing", "Completed", "Hiatus",  "Abandoned"]
+    }
+]
