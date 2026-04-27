@@ -1,0 +1,25 @@
+{
+	"info": {
+		"id": "zh.komiic",
+		"name": "Komiic",
+		"version": 1,
+		"url": "https://komiic.com",
+		"contentRating": 0,
+		"languages": ["zh"]
+	},
+	"listings": [
+		{
+			"id": "recent_update",
+			"name": "最近更新"
+		},
+		{
+			"id": "recommendations",
+			"name": "个性化推荐"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true,
+		"supportsAuthorSearch": true,
+		"supportsTagSearch": true
+	}
+}
