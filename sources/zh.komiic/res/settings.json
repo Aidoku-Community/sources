@@ -1,0 +1,39 @@
+[
+	{
+		"type": "group",
+		"title": "阅读设置",
+		"items": [
+			{
+				"type": "switch",
+				"key": "preferBooks",
+				"title": "优先显示单行本",
+				"default": true,
+				"refreshes": ["content"]
+			}
+		],
+		"footer": "Komiic 同一作品可能同时提供 Web 连载和单行本，两者是不同发行版本。"
+	},
+	{
+		"type": "group",
+		"title": "账号",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"title": "登录",
+				"logoutTitle": "登出",
+				"method": "basic",
+				"useEmail": true,
+				"notification": "login",
+				"refreshes": ["settings", "listings", "content"]
+			},
+			{
+				"type": "link",
+				"title": "内容警告偏好",
+				"url": "https://komiic.com/settings/warnings",
+				"external": true,
+				"requires": "login"
+			}
+		]
+	}
+]
