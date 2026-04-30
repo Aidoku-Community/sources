@@ -12,6 +12,7 @@ use crate::{
 	endpoints::Url,
 	filters::FilterProcessor,
 	home,
+	json::ResponseJsonExt,
 	models::{
 		chapter::LibGroupChapterListItem,
 		responses::{
@@ -57,7 +58,7 @@ pub trait Impl {
 
 		let response = Request::get(search_url)?
 			.authed(&ctx)?
-			.get_json::<MangaListResponse>()?;
+			.parse_json::<MangaListResponse>()?;
 
 		let entries: Vec<Manga> = response
 			.data
@@ -100,7 +101,7 @@ pub trait Impl {
 			manga.copy_from(
 				Request::get(details_url)?
 					.authed(&ctx)?
-					.get_json::<MangaDetailResponse>()?
+					.parse_json::<MangaDetailResponse>()?
 					.data
 					.into_manga(&ctx),
 			);
@@ -116,7 +117,7 @@ pub trait Impl {
 			let chapters = LibGroupChapterListItem::flatten_chapters(
 				Request::get(chapters_url)?
 					.authed(&ctx)?
-					.get_json::<ChaptersResponse>()?
+					.parse_json::<ChaptersResponse>()?
 					.data,
 				ctx.base_url.as_str(),
 				&slug_url,
@@ -153,7 +154,7 @@ pub trait Impl {
 
 		let pages = Request::get(pages_url)?
 			.authed(&ctx)?
-			.get_json::<ChapterResponse>()?
+			.parse_json::<ChapterResponse>()?
 			.data
 			.ok_or_else(|| AidokuError::message("Chapter is empty"))?
 			.into_pages(&ctx);
@@ -192,7 +193,7 @@ pub trait Impl {
 
 				let response = Request::get(popular_url)?
 					.authed(&ctx)?
-					.get_json::<MangaListResponse>()?;
+					.parse_json::<MangaListResponse>()?;
 
 				let entries: Vec<Manga> = response
 					.data
@@ -220,7 +221,7 @@ pub trait Impl {
 
 				let response = Request::get(currently_reading_url)?
 					.authed(&ctx)?
-					.get_json::<MangaListResponse>()?;
+					.parse_json::<MangaListResponse>()?;
 
 				let entries: Vec<Manga> = response
 					.data
@@ -247,7 +248,7 @@ pub trait Impl {
 
 				let response = Request::get(latest_url)?
 					.authed(&ctx)?
-					.get_json::<MangaListResponse>()?;
+					.parse_json::<MangaListResponse>()?;
 
 				let entries: Vec<Manga> = response
 					.data
@@ -288,7 +289,7 @@ pub trait Impl {
 
 		Ok(Request::get(covers_url)?
 			.authed(&ctx)?
-			.get_json::<MangaCoversResponse>()?
+			.parse_json::<MangaCoversResponse>()?
 			.data
 			.iter()
 			.map(|c| c.cover.get_cover_url(&ctx.cover_quality))

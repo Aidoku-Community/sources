@@ -6,7 +6,11 @@ use aidoku::{
 use spin::{Once, RwLock};
 
 use crate::{
-	auth::AuthRequest, context::Context, endpoints::Url, models::responses::ConstantsResponse,
+	auth::AuthRequest,
+	context::Context,
+	endpoints::Url,
+	json::ResponseJsonExt,
+	models::responses::ConstantsResponse,
 	settings::get_image_server_url,
 };
 
@@ -97,7 +101,7 @@ impl ImageServerCache {
 
 		let response = Request::get(constants_url)?
 			.authed(ctx)?
-			.get_json::<ConstantsResponse>()?;
+			.parse_json::<ConstantsResponse>()?;
 
 		let mut servers_by_site: BTreeMap<u8, BTreeMap<String, String>> = BTreeMap::new();
 

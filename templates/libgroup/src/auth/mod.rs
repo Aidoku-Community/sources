@@ -11,6 +11,7 @@ use aidoku::{
 use crate::{
 	context::Context,
 	endpoints::Url,
+	json::ResponseJsonExt,
 	models::responses::{LocalStorageWrapper, TokenResponse, UserResponse},
 	settings::get_api_url,
 };
@@ -116,7 +117,7 @@ fn set_token(token_json: String) {
 fn fetch_and_store_user_id(ctx: &Context) -> Result<()> {
 	let user_response = Request::get(Url::auth_me(&get_api_url()))?
 		.authed(ctx)?
-		.get_json::<UserResponse>()?;
+		.parse_json::<UserResponse>()?;
 
 	defaults_set(USER_ID_KEY, DefaultValue::Int(user_response.data.id));
 	Ok(())

@@ -5,7 +5,12 @@ use aidoku::{
 };
 use serde::Deserialize;
 
-use crate::{context::Context, endpoints::Url, models::common::LibGroupRating};
+use crate::{
+	context::Context,
+	converters::convert_model_to_markdown,
+	endpoints::Url,
+	models::{chapter::LibGroupContentModel, common::LibGroupRating},
+};
 
 use super::common::{
 	LibGroupAgeRestriction, LibGroupCover, LibGroupMediaType, LibGroupStatus, LibGroupTag,
@@ -24,7 +29,7 @@ pub struct LibGroupManga {
 	pub age_restriction: LibGroupAgeRestriction,
 	#[serde(rename = "type")]
 	pub media_type: LibGroupMediaType,
-	pub summary: Option<String>,
+	pub summary: Option<LibGroupContentModel>,
 	pub rating: Option<LibGroupRating>,
 	pub tags: Option<Vec<LibGroupTag>>,
 	pub authors: Option<Vec<LibGroupAuthor>>,
@@ -77,7 +82,7 @@ impl LibGroupManga {
 					})
 					.collect()
 			}),
-			description: Some(Self::detailed_description(&self)),
+			description: Some(Self::detailed_description(&self, ctx)),
 			url: Some(Url::manga_page(&ctx.base_url, &self.slug_url)),
 			tags: self
 				.tags
@@ -113,15 +118,16 @@ impl LibGroupManga {
 		}
 	}
 
-	fn detailed_description(maga: &LibGroupManga) -> String {
+	fn detailed_description(maga: &LibGroupManga, ctx: &Context) -> String {
 		let mut description = String::new();
 
 		// Summary
-		if let Some(summary) = &maga.summary
-			&& !summary.is_empty()
-		{
-			description.push_str(summary);
-			description.push_str("\n\n");
+		if let Some(summary) = &maga.summary {
+			let text = convert_model_to_markdown(summary, &[], ctx);
+			if !text.is_empty() {
+				description.push_str(&text);
+				description.push_str("\n\n");
+			}
 		}
 
 		// Rating section
