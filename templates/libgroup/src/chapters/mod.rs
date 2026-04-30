@@ -9,6 +9,7 @@ use crate::{
 	auth::AuthRequest,
 	context::Context,
 	endpoints::Url,
+	json::ResponseJsonExt,
 	models::{chapter::LibGroupChapterListItem, responses::ChaptersResponse},
 };
 
@@ -74,7 +75,7 @@ impl ChaptersCache {
 		let chapters_url = Url::manga_chapters(&ctx.api_url, manga_key);
 		let chapters = Request::get(chapters_url)?
 			.authed(ctx)?
-			.get_json::<ChaptersResponse>()?
+			.parse_json::<ChaptersResponse>()?
 			.data;
 
 		guard.insert(manga_key.to_string(), TimedVec::new(chapters.clone(), now));

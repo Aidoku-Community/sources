@@ -9,6 +9,7 @@ use crate::{
 	auth::{self, AuthRequest},
 	context::Context,
 	endpoints::Url,
+	json::ResponseJsonExt,
 	models::responses::{MangaDetailResponse, MangaListResponse},
 };
 
@@ -59,7 +60,7 @@ pub fn load_popular_manga(ctx: &Context) -> Result<()> {
 
 	let response = Request::get(&url)?
 		.authed(ctx)?
-		.get_json::<MangaListResponse>()?;
+		.parse_json::<MangaListResponse>()?;
 
 	let entries: Vec<Manga> = response
 		.data
@@ -83,7 +84,7 @@ pub fn load_currently_reading(ctx: &Context) -> Result<()> {
 
 	let response = Request::get(url)?
 		.authed(ctx)?
-		.get_json::<MangaListResponse>()?;
+		.parse_json::<MangaListResponse>()?;
 
 	let entries: Vec<Link> = response
 		.data
@@ -114,7 +115,7 @@ pub fn load_latest_updates(ctx: &Context) -> Result<()> {
 
 	let response = Request::get(url)?
 		.authed(ctx)?
-		.get_json::<MangaListResponse>()?;
+		.parse_json::<MangaListResponse>()?;
 
 	let entries: Vec<Link> = response
 		.data
@@ -137,7 +138,7 @@ fn fetch_manga_details(slug_url: &str, ctx: &Context) -> Result<Manga> {
 
 	let manga = Request::get(details_url)?
 		.authed(ctx)?
-		.get_json::<MangaDetailResponse>()?
+		.parse_json::<MangaDetailResponse>()?
 		.data
 		.into_manga(ctx);
 
