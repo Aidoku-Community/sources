@@ -5,7 +5,7 @@
 		"title": "Order by",
 		"canAscend": false,
 		"options": [
-			"Relevence",
+			"Default",
 			"Latest",
 			"A-Z",
 			"Rating",
