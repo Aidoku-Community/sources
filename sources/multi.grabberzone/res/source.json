@@ -1,0 +1,14 @@
+{
+	"info": {
+		"id": "multi.grabberzone",
+		"name": "GrabberZone",
+		"version": 1,
+		"url": "https://grabber.zone/",
+		"contentRating": 0,
+		"languages": ["multi"],
+		"minAppVersion": "0.7.1"
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}
