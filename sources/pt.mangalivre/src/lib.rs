@@ -1,8 +1,8 @@
 #![no_std]
-use aidoku::{prelude::*, Source};
+use aidoku::{Source, prelude::*};
 use madara::{Impl, Madara, Params};
 
-const BASE_URL: &str = "https://mangalivre.tv";
+const BASE_URL: &str = "https://mangalivre.to";
 
 struct ManagLivre;
 

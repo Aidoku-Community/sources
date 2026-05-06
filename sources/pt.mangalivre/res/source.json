@@ -2,9 +2,10 @@
 	"info": {
 		"id": "pt.mangalivre",
 		"name": "Manga Livre",
-		"version": 1,
-		"url": "https://mangalivre.tv",
+		"version": 2,
+		"url": "https://mangalivre.to",
 		"contentRating": 1,
-		"languages": ["pt-BR"]
+		"languages": ["pt-BR"],
+		"minAppVersion": "0.7.1"
 	}
 }
