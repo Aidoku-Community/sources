@@ -1,0 +1,11 @@
+{
+	"info": {
+		"id": "en.firescans",
+		"name": "FireScans",
+		"version": 2,
+		"url": "https://firescans.xyz",
+		"contentRating": 0,
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
+	}
+}
