@@ -2,7 +2,7 @@
 use aidoku::{Source, prelude::*};
 use mangathemesia::{Impl, MangaThemesia, Params};
 
-const BASE_URL: &str = "https://athreascans.com/";
+const BASE_URL: &str = "https://athreascans.com";
 
 struct AthreaScans;
 
