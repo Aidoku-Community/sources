@@ -1,4 +1,4 @@
-use crate::{BASE_URL, settings};
+use crate::{BASE_URL, helpers, settings};
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
@@ -8,7 +8,33 @@ use serde::{Deserialize, Deserializer, de};
 
 #[derive(Deserialize)]
 pub struct SearchResponse {
+	#[serde(deserialize_with = "manga_items_or_vec")]
 	pub result: MangaItems,
+}
+
+fn manga_items_or_vec<'de, D>(deserializer: D) -> Result<MangaItems, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	let value = serde_json::Value::deserialize(deserializer)?;
+
+	if let Some(items) = value.get("items") {
+		let items: Vec<ComixManga> =
+			serde_json::from_value(items.clone()).map_err(serde::de::Error::custom)?;
+		let meta = value
+			.get("meta")
+			.map(|m| serde_json::from_value(m.clone()).map_err(serde::de::Error::custom))
+			.transpose()?;
+		Ok(MangaItems { items, meta })
+	} else if value.is_array() {
+		let items: Vec<ComixManga> =
+			serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+		Ok(MangaItems { items, meta: None })
+	} else {
+		Err(serde::de::Error::custom(
+			"Invalid MangaItems or Vec<ComixManga>",
+		))
+	}
 }
 
 impl From<SearchResponse> for MangaPageResult {
@@ -29,7 +55,7 @@ pub struct ChapterDetailsResponse {
 
 #[derive(Deserialize)]
 pub struct ChapterResponse {
-	pub result: Option<ComixChapterWithImages>,
+	pub result: Option<ComixChapterWithPages>,
 }
 
 #[derive(Deserialize)]
@@ -38,15 +64,16 @@ pub struct TermResponse {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Pagination {
-	pub current_page: i32,
+	pub page: i32,
 	pub last_page: i32,
 }
 
 #[derive(Deserialize)]
 pub struct MangaItems {
 	pub items: Vec<ComixManga>,
-	pub pagination: Option<Pagination>,
+	pub meta: Option<Pagination>,
 }
 
 impl MangaItems {
@@ -58,10 +85,7 @@ impl MangaItems {
 				.filter(|m| !m.is_hidden(content_types, hidden_terms))
 				.map(Into::into)
 				.collect(),
-			has_next_page: self
-				.pagination
-				.map(|p| p.current_page < p.last_page)
-				.unwrap_or_default(),
+			has_next_page: self.meta.map(|p| p.page < p.last_page).unwrap_or_default(),
 		}
 	}
 }
@@ -70,10 +94,7 @@ impl From<MangaItems> for MangaPageResult {
 	fn from(value: MangaItems) -> Self {
 		MangaPageResult {
 			entries: value.items.into_iter().map(Into::into).collect(),
-			has_next_page: value
-				.pagination
-				.map(|p| p.current_page < p.last_page)
-				.unwrap_or_default(),
+			has_next_page: value.meta.map(|p| p.page < p.last_page).unwrap_or_default(),
 		}
 	}
 }
@@ -81,7 +102,7 @@ impl From<MangaItems> for MangaPageResult {
 #[derive(Deserialize)]
 pub struct ChapterItems {
 	pub items: Vec<ComixChapter>,
-	pub pagination: Pagination,
+	pub meta: Pagination,
 }
 
 #[derive(Deserialize)]
@@ -91,20 +112,46 @@ pub struct TermItems {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ComixManga {
-	pub hash_id: String,
+	pub hid: String,
 	pub title: String,
 	pub synopsis: Option<String>,
 	pub r#type: String,
 	pub poster: Poster,
 	pub status: String,
-	pub is_nsfw: bool,
-	pub author: Option<Vec<Term>>,
-	pub artist: Option<Vec<Term>>,
-	pub genre: Option<Vec<Term>>,
+	pub content_rating: ComixContentRating,
+	pub authors: Option<Vec<Term>>,
+	pub artists: Option<Vec<Term>>,
+	pub genres: Option<Vec<Term>>,
+	pub tags: Option<Vec<Term>>,
 	pub latest_chapter: Option<f32>,
-	pub chapter_updated_at: Option<i64>,
-	pub term_ids: Option<Vec<i32>>,
+	// pub has_chapters: bool,
+	// pub chapter_updated_at_formatted: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ComixContentRating {
+	Safe,
+	Suggestive,
+	Erotica,
+	Pornographic,
+	#[default]
+	#[serde(other)]
+	Unknown,
+}
+
+impl From<ComixContentRating> for ContentRating {
+	fn from(value: ComixContentRating) -> Self {
+		match value {
+			ComixContentRating::Safe => ContentRating::Safe,
+			ComixContentRating::Suggestive => ContentRating::Suggestive,
+			ComixContentRating::Erotica => ContentRating::NSFW,
+			ComixContentRating::Pornographic => ContentRating::NSFW,
+			ComixContentRating::Unknown => ContentRating::Unknown,
+		}
+	}
 }
 
 impl ComixManga {
@@ -114,10 +161,19 @@ impl ComixManga {
 		}
 
 		if !hidden_terms.is_empty() {
-			self.term_ids
+			let tag_match = self
+				.tags
 				.as_ref()
-				.map(|ids| ids.iter().any(|id| hidden_terms.contains(id)))
-				.unwrap_or_default()
+				.map(|tags| tags.iter().any(|term| hidden_terms.contains(&term.id)))
+				.unwrap_or(false);
+			if tag_match {
+				true
+			} else {
+				self.genres
+					.as_ref()
+					.map(|genres| genres.iter().any(|term| hidden_terms.contains(&term.id)))
+					.unwrap_or(false)
+			}
 		} else {
 			false
 		}
@@ -126,27 +182,33 @@ impl ComixManga {
 
 impl From<ComixManga> for Manga {
 	fn from(value: ComixManga) -> Self {
-		let url = format!("{BASE_URL}/title/{}", value.hash_id);
+		let url = format!("{BASE_URL}/title/{}", value.hid);
 		Self {
-			key: value.hash_id,
+			key: value.hid,
 			title: value.title,
 			cover: match settings::image_quality().as_str() {
-				"small" => Some(value.poster.small),
 				"medium" => Some(value.poster.medium),
 				"large" => Some(value.poster.large),
-				_ => None,
+				_ => Some(value.poster.medium),
 			},
 			artists: value
-				.artist
+				.artists
 				.map(|v| v.into_iter().map(|t| t.title).collect()),
 			authors: value
-				.author
+				.authors
 				.map(|v| v.into_iter().map(|t| t.title).collect()),
 			description: value.synopsis,
 			url: Some(url),
-			tags: value
-				.genre
-				.map(|v| v.into_iter().map(|t| t.title).collect()),
+			tags: {
+				let mut tags = Vec::new();
+				if let Some(genres) = value.genres {
+					tags.extend(genres.into_iter().map(|t| t.title));
+				}
+				if let Some(tags_vec) = value.tags {
+					tags.extend(tags_vec.into_iter().map(|t| t.title));
+				}
+				if tags.is_empty() { None } else { Some(tags) }
+			},
 			status: match value.status.as_str() {
 				"releasing" => MangaStatus::Ongoing,
 				"on_hiatus" => MangaStatus::Hiatus,
@@ -154,11 +216,7 @@ impl From<ComixManga> for Manga {
 				"discontinued" => MangaStatus::Cancelled,
 				_ => MangaStatus::Unknown,
 			},
-			content_rating: if value.is_nsfw {
-				ContentRating::NSFW
-			} else {
-				ContentRating::Safe
-			},
+			content_rating: value.content_rating.into(),
 			viewer: match value.r#type.as_str() {
 				"manhwa" => Viewer::Webtoon,
 				"manhua" => Viewer::Webtoon,
@@ -171,69 +229,73 @@ impl From<ComixManga> for Manga {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ComixChapter {
-	pub chapter_id: i32,
-	pub scanlation_group_id: i32,
+	pub id: i32,
 	pub number: f32,
 	pub name: String,
 	pub votes: i32,
-	pub updated_at: i64,
-	pub scanlation_group: Option<ScanlationGroup>,
+	pub created_at_formatted: String,
+	pub group: Option<ScanlationGroup>,
 	#[serde(deserialize_with = "bool_from_any")]
 	pub is_official: bool,
 }
 
 impl ComixChapter {
+	pub fn created_at(&self) -> i64 {
+		helpers::parse_relative_date_string(&self.created_at_formatted)
+	}
+
 	pub fn into_chapter(self, manga_id: &str) -> Chapter {
+		let created_at = self.created_at();
 		Chapter {
-			key: self.chapter_id.to_string(),
+			key: self.id.to_string(),
 			title: (!self.name.is_empty()).then_some(self.name),
 			chapter_number: Some(self.number),
-			date_uploaded: Some(self.updated_at),
-			scanlators: if let Some(scanlation_group) = self.scanlation_group {
-				Some(vec![scanlation_group.name])
+			date_uploaded: Some(created_at),
+			scanlators: if let Some(group) = self.group {
+				Some(vec![group.name])
 			} else if self.is_official {
 				Some(vec!["Official".into()])
 			} else {
 				None
 			},
-			url: Some(format!("{BASE_URL}/title/{manga_id}/{}", self.chapter_id)),
+			url: Some(format!("{BASE_URL}/title/{manga_id}/{}", self.id)),
 			..Default::default()
 		}
 	}
 }
 
 #[derive(Deserialize)]
-pub struct ComixChapterWithImages {
-	// pub chapter_id: i32,
-	pub images: Vec<Image>,
+pub struct ComixChapterWithPages {
+	pub pages: Vec<ComixPage>,
 }
 
 #[derive(Deserialize)]
 pub struct Poster {
-	pub small: String,
 	pub medium: String,
 	pub large: String,
 }
 
 #[derive(Deserialize)]
 pub struct Term {
-	pub term_id: i32,
+	pub id: i32,
 	pub title: String,
 }
 
 #[derive(Deserialize)]
 pub struct ScanlationGroup {
+	pub id: i32,
 	pub name: String,
 }
 
 #[derive(Deserialize)]
-pub struct Image {
+pub struct ComixPage {
 	pub url: String,
 }
 
-impl From<Image> for Page {
-	fn from(value: Image) -> Self {
+impl From<ComixPage> for Page {
+	fn from(value: ComixPage) -> Self {
 		Page {
 			content: PageContent::url(value.url),
 			..Default::default()

@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["json"] }
 base64 = { version = "0.22", default-features = false, features = ["alloc"] }
 serde = { version = "1.0", features = ["derive", "alloc"], default-features = false }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }

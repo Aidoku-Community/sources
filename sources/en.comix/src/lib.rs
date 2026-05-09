@@ -20,9 +20,10 @@ mod settings;
 use models::*;
 
 const BASE_URL: &str = "https://comix.to";
-const API_URL: &str = "https://comix.to/api/v2";
+const API_URL: &str = "https://comix.to/api/v1";
 
 const CONTENT_TYPES: &[&str] = &["manga", "manhwa", "manhua", "other"];
+// adult, boys love, ecchi, girls love, hentai, smut
 const NSFW_GENRE_IDS: &[&str] = &["87264", "8", "87265", "13", "87266", "87268"];
 
 struct Comix;
@@ -64,7 +65,7 @@ impl Source for Comix {
 						.result
 						.items
 						.first()
-						.map(|t| t.term_id)
+						.map(|t| t.id)
 						.ok_or_else(|| error!("No matching {id}s"))?;
 					qs.push(&format!("{id}s[]"), Some(&id.to_string()));
 				}
@@ -119,17 +120,22 @@ impl Source for Comix {
 								hidden_terms.swap_remove(pos);
 								continue;
 							}
+							qs.push("genres_in[]", Some(&value));
+						} else {
+							qs.push(&id, Some(&value));
 						}
-						qs.push(&id, Some(&value));
 					}
 					for value in excluded {
 						// make sure hidden terms aren't added to query params twice
-						if id == "genres[]"
-							&& hidden_terms.contains(&value.parse().unwrap_or_default())
-						{
-							continue;
+						if id == "genres[]" {
+							if hidden_terms.contains(&value.parse().unwrap_or_default()) {
+								continue;
+							}
+
+							qs.push("genres_ex[]", Some(&value));
+						} else {
+							qs.push(&id, Some(&format!("-{value}")));
 						}
-						qs.push(&id, Some(&format!("-{value}")));
 					}
 				}
 				_ => continue,
@@ -149,12 +155,12 @@ impl Source for Comix {
 		}
 
 		for term in hidden_terms {
-			qs.push("genres[]", Some(&format!("-{term}")));
+			qs.push("genres_ex[]", Some(&term.to_string()));
 		}
 
 		if settings::hide_nsfw() {
 			for genre_id in NSFW_GENRE_IDS {
-				qs.push("genres[]", Some(&format!("-{genre_id}")));
+				qs.push("genres_ex[]", Some(genre_id));
 			}
 		}
 
@@ -197,14 +203,12 @@ impl Source for Comix {
 			let mut chapter_list: Vec<ComixChapter> = Vec::new();
 			loop {
 				let path = format!("/manga/{}/chapters", manga.key);
-				let time = 1;
-				let token = hash::generate_hash(&path, 0, time);
+				let token = hash::generate_hash(&path);
 				let url = format!(
 					"{API_URL}{path}\
 						?limit={limit}\
 						&page={page}\
 						&order[number]=desc\
-						&time={time}\
 						&_={token}"
 				);
 
@@ -220,7 +224,7 @@ impl Source for Comix {
 					chapter_list.extend(items);
 				}
 
-				if res.result.pagination.current_page >= res.result.pagination.last_page {
+				if res.result.meta.page >= res.result.meta.last_page {
 					break;
 				}
 
@@ -254,14 +258,16 @@ impl Source for Comix {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let url = format!("{API_URL}/chapters/{}", chapter.key);
+		let path = format!("/chapters/{}", chapter.key);
+		let token = hash::generate_hash(&path);
+		let url = format!("{API_URL}{path}?_={token}");
 		let json: ChapterResponse = Request::get(url)?.json_owned()?;
 
 		let Some(result) = json.result else {
 			bail!("Missing chapter")
 		};
 
-		Ok(result.images.into_iter().map(Into::into).collect())
+		Ok(result.pages.into_iter().map(Into::into).collect())
 	}
 }
 
@@ -296,7 +302,7 @@ impl Home for Comix {
 		let extra_qs = if settings::hide_nsfw() {
 			NSFW_GENRE_IDS
 				.iter()
-				.map(|id| format!("&genres[]=-{id}"))
+				.map(|id| format!("&genres_ex[]={id}"))
 				.collect::<String>()
 		} else {
 			Default::default()
@@ -308,11 +314,11 @@ impl Home for Comix {
 		let responses: [core::result::Result<Response, RequestError>; 4] = Request::send_all([
 			// most recent popular
 			Request::get(format!(
-				"{API_URL}/top?type=trending&days=1&limit=20{extra_qs}"
+				"{API_URL}/manga/top?type=trending&days=1&limit=20{extra_qs}"
 			))?,
 			// most follows new comics
 			Request::get(format!(
-				"{API_URL}/top?type=follows&days=1&limit=20{extra_qs}"
+				"{API_URL}/manga/top?type=follows&days=1&limit=20{extra_qs}"
 			))?,
 			// latest updates (hot)
 			Request::get(format!(
@@ -372,13 +378,11 @@ impl Home for Comix {
 				.filter(|m| !m.is_hidden(&hidden_types, &hidden_terms))
 				.map(|m| {
 					let chapter_number = m.latest_chapter;
-					let date_uploaded = m.chapter_updated_at;
 					let manga = Manga::from(m);
 					MangaWithChapter {
 						manga,
 						chapter: Chapter {
 							chapter_number,
-							date_uploaded,
 							..Default::default()
 						},
 					}
@@ -429,7 +433,7 @@ impl ListingProvider for Comix {
 			let extra_qs = if settings::hide_nsfw() {
 				NSFW_GENRE_IDS
 					.iter()
-					.map(|id| format!("&genres[]=-{id}"))
+					.map(|id| format!("&genres_ex[]={id}"))
 					.collect::<String>()
 			} else {
 				Default::default()

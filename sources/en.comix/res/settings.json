@@ -7,8 +7,8 @@
 				"type": "select",
 				"key": "thumbnailQuality",
 				"title": "Thumbnail Quality",
-				"values": ["small", "medium", "large"],
-				"titles": ["Small", "Medium", "Large"],
+				"values": ["medium", "large"],
+				"titles": ["Medium", "Large"],
 				"default": "large",
 				"refreshes": ["content"]
 			},

@@ -1,12 +1,12 @@
+use crate::models::ComixChapter;
 use aidoku::{
 	HashMap,
 	alloc::string::{String, ToString},
+	imports::std::current_date,
 };
 
-use crate::models::ComixChapter;
-
 fn is_official_like(ch: &ComixChapter) -> bool {
-	ch.scanlation_group_id == 10702 || ch.is_official
+	ch.group.as_ref().is_some_and(|g| g.id == 10702) || ch.is_official
 }
 
 fn is_better(new_ch: &ComixChapter, cur: &ComixChapter) -> bool {
@@ -27,7 +27,9 @@ fn is_better(new_ch: &ComixChapter, cur: &ComixChapter) -> bool {
 		return false;
 	}
 
-	new_ch.updated_at > cur.updated_at
+	let new_created_at = new_ch.created_at();
+	let cur_created_at = cur.created_at();
+	new_created_at > cur_created_at
 }
 
 pub fn dedup_insert(map: &mut HashMap<String, ComixChapter>, ch: ComixChapter) {
@@ -42,4 +44,39 @@ pub fn dedup_insert(map: &mut HashMap<String, ComixChapter>, ch: ComixChapter) {
 			}
 		}
 	}
+}
+
+// parse strings like "3d", "2w", "1mo", "5mos", "1yr"
+pub fn parse_relative_date_string(string: &str) -> i64 {
+	let now = current_date();
+
+	let s = string.trim();
+	let mut num = String::new();
+	let mut unit = String::new();
+
+	for c in s.chars() {
+		if c.is_whitespace() && !unit.is_empty() {
+			break;
+		}
+		if c.is_ascii_digit() {
+			num.push(c);
+		} else {
+			unit.push(c);
+		}
+	}
+
+	let n: i64 = num.parse().unwrap_or(0);
+
+	let seconds = match unit.to_lowercase().as_str() {
+		"s" | "sec" | "secs" | "second" | "seconds" => n,
+		"m" | "min" | "mins" | "minute" | "minutes" => n * 60,
+		"h" | "hr" | "hrs" | "hour" | "hours" => n * 3600,
+		"d" | "day" | "days" => n * 86400,
+		"w" | "wk" | "wks" | "week" | "weeks" => n * 7 * 86400,
+		"mo" | "mos" | "month" | "months" => n * 30 * 86400,
+		"y" | "yr" | "yrs" | "year" | "years" => n * 365 * 86400,
+		_ => 0,
+	};
+
+	now - seconds
 }
