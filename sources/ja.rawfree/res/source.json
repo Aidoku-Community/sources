@@ -2,10 +2,11 @@
 	"info": {
 		"id": "ja.rawfree",
 		"name": "Raw FREE",
-		"version": 6,
-		"url": "https://rawfree.my",
+		"version": 7,
+		"url": "https://rawfree.im",
 		"contentRating": 1,
-		"languages": ["ja"]
+		"languages": ["ja"],
+		"minAppVersion": "0.7.1"
 	},
 	"config": {
 		"supportsTagSearch": true

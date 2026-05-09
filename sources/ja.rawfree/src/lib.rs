@@ -1,7 +1,7 @@
 #![no_std]
 use aidoku::{
-	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Manga,
-	MangaPageResult, MangaStatus, Page, PageContent, Result, Source, Viewer,
+	AidokuError, BaseUrlProvider, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult,
+	FilterValue, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, Source, Viewer,
 	alloc::{
 		string::{String, ToString},
 		vec::Vec,
@@ -15,10 +15,11 @@ use aidoku::{
 	prelude::*,
 };
 
+mod helpers;
 mod models;
-use models::*;
 
-const BASE_URL: &str = "https://rawfree.my";
+use helpers::*;
+use models::*;
 
 struct RawFree;
 
@@ -40,8 +41,9 @@ impl Source for RawFree {
 			}
 		}
 
+		let base_url = get_base_url();
 		let url = format!(
-			"{BASE_URL}{}/page/{page}/?s={}",
+			"{base_url}{}/page/{page}/?s={}",
 			if let Some(genre) = genre {
 				format!("/category/{}", encode_uri_component(genre))
 			} else {
@@ -58,7 +60,7 @@ impl Source for RawFree {
 				elements
 					.filter_map(|element| {
 						let url = element.select_first("a")?.attr("abs:href")?;
-						let key = url.strip_prefix(BASE_URL).map(String::from)?;
+						let key = url.strip_prefix(&base_url).map(String::from)?;
 						let title = element.select_first("h2")?.attr("title")?;
 						let cover = element.select_first("img")?.attr("abs:src");
 						Some(Manga {
@@ -87,7 +89,8 @@ impl Source for RawFree {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let manga_url = format!("{BASE_URL}{}", manga.key);
+		let base_url = get_base_url();
+		let manga_url = format!("{base_url}{}", manga.key);
 		let html = Request::get(&manga_url)?.html()?;
 
 		if needs_details {
@@ -119,7 +122,7 @@ impl Source for RawFree {
 				ContentRating::Safe
 			};
 
-			manga.viewer = Viewer::RightToLeft;
+			manga.viewer = Viewer::Webtoon; // some chapters are merged into a single page image
 
 			if needs_chapters {
 				send_partial_result(&manga);
@@ -143,7 +146,7 @@ impl Source for RawFree {
 					.filter_map(|element| {
 						let link = element.select_first("a")?;
 						let url = link.attr("abs:href")?;
-						let key = url.strip_prefix(BASE_URL)?.into();
+						let key = url.strip_prefix(&base_url)?.into();
 						let chapter_number = extract_ch_number(&link.text()?);
 						let date_uploaded = element
 							.select_first(".date")
@@ -167,7 +170,8 @@ impl Source for RawFree {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let url = format!("{BASE_URL}{}", chapter.key);
+		let base_url = get_base_url();
+		let url = format!("{base_url}{}", chapter.key);
 		let html = Request::get(url)?.html()?;
 
 		// if there are already page images in the html, we can return them
@@ -218,10 +222,9 @@ impl Source for RawFree {
 		}
 
 		let p = extract_js_value(&chapter_js_data, "p").ok_or(error!("failed to find p value"))?;
-		let chapter_id = extract_js_value(&chapter_js_data, "chapter_id")
-			.ok_or(error!("failed to find chapter id"))?;
-		let nonce = extract_js_value(&zing_js_data, "\"nonce\"")
-			.ok_or(error!("failed to find chapter id"))?;
+		let chapter_id = extract_js_value(&chapter_js_data, "chapter_id");
+		let nonce =
+			extract_js_value(&zing_js_data, "\"nonce\"").ok_or(error!("failed to find nonce"))?;
 
 		let mut content = String::new();
 		let mut img_index = 0;
@@ -231,12 +234,14 @@ impl Source for RawFree {
 			qs.push("action", Some("z_do_ajax"));
 			qs.push("_action", Some("decode_images"));
 			qs.push("p", Some(p));
-			qs.push("chapter_id", Some(chapter_id));
+			if chapter_id.is_some() {
+				qs.push("chapter_id", chapter_id);
+			}
 			qs.push("img_index", Some(&img_index.to_string()));
 			qs.push("content", Some(&content));
 			qs.push("nonce", Some(nonce));
 
-			let response = Request::post(format!("{BASE_URL}/wp-admin/admin-ajax.php"))?
+			let response = Request::post(format!("{base_url}/wp-admin/admin-ajax.php"))?
 				.body(qs.to_string())
 				.header(
 					"Content-Type",
@@ -277,7 +282,8 @@ impl Source for RawFree {
 
 impl DeepLinkHandler for RawFree {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let Some(key) = url.strip_prefix(BASE_URL) else {
+		let base_url = get_base_url();
+		let Some(key) = url.strip_prefix(&base_url) else {
 			return Ok(None);
 		};
 
@@ -293,7 +299,7 @@ impl DeepLinkHandler for RawFree {
 			let manga_key = html
 				.select_first(".manga-name a")
 				.and_then(|e| e.attr("href"))
-				.and_then(|url| url.strip_prefix(BASE_URL).map(|s| s.into()))
+				.and_then(|url| url.strip_prefix(&base_url).map(|s| s.into()))
 				.ok_or(AidokuError::message("Missing manga key"))?;
 
 			Ok(Some(DeepLinkResult::Chapter {
@@ -306,14 +312,10 @@ impl DeepLinkHandler for RawFree {
 	}
 }
 
-fn clean_title(title: String) -> String {
-	let suffixes = ["(Raw – Free)", "(Raw - Free)"];
-	for suffix in suffixes {
-		if let Some(clean) = title.strip_suffix(suffix) {
-			return clean.into();
-		}
+impl BaseUrlProvider for RawFree {
+	fn get_base_url(&self) -> Result<String> {
+		Ok(get_base_url())
 	}
-	title
 }
 
-register_source!(RawFree, DeepLinkHandler);
+register_source!(RawFree, DeepLinkHandler, BaseUrlProvider);

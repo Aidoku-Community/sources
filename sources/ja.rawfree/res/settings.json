@@ -1,0 +1,19 @@
+[
+	{
+		"type": "group",
+		"title": "SETTINGS",
+		"items": [
+			{
+				"key": "baseUrl",
+				"type": "text",
+				"title": "BASE_URL",
+				"placeholder": "https://rawfree.im",
+				"keyboardType": 3,
+				"returnKeyType": 9,
+				"autocorrectionDisabled": true,
+				"autocapitalizationType": 0,
+				"refreshes": ["content"]
+			}
+		]
+	}
+]
