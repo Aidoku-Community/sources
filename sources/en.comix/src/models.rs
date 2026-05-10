@@ -1,6 +1,6 @@
 use crate::{BASE_URL, helpers, settings};
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Page, PageContent, Viewer,
+	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
 	prelude::*,
 };
@@ -268,7 +268,7 @@ impl ComixChapter {
 
 #[derive(Deserialize)]
 pub struct ComixChapterWithPages {
-	pub pages: Vec<ComixPage>,
+	pub pages: ComixPages,
 }
 
 #[derive(Deserialize)]
@@ -290,17 +290,15 @@ pub struct ScanlationGroup {
 }
 
 #[derive(Deserialize)]
-pub struct ComixPage {
-	pub url: String,
+#[serde(rename_all = "camelCase")]
+pub struct ComixPages {
+	pub base_url: String,
+	pub items: Vec<ComixPage>,
 }
 
-impl From<ComixPage> for Page {
-	fn from(value: ComixPage) -> Self {
-		Page {
-			content: PageContent::url(value.url),
-			..Default::default()
-		}
-	}
+#[derive(Deserialize)]
+pub struct ComixPage {
+	pub url: String,
 }
 
 // deserialize a bool from a json bool, number, or string

@@ -2,7 +2,8 @@
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeComponent,
 	HomeLayout, HomePartialResult, ImageRequestProvider, Link, LinkValue, Listing, ListingProvider,
-	Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page, Result, Source,
+	Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page, PageContent, Result,
+	Source,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -12,10 +13,10 @@ use aidoku::{
 	prelude::*,
 };
 
-mod hash;
 mod helpers;
 mod models;
 mod settings;
+mod web;
 
 use models::*;
 
@@ -201,9 +202,12 @@ impl Source for Comix {
 			let deduplicate = settings::dedupchapter();
 			let mut chapter_map: HashMap<String, ComixChapter> = HashMap::new();
 			let mut chapter_list: Vec<ComixChapter> = Vec::new();
+
+			let web_view = web::create_web_view()?;
+			let path = format!("/manga/{}/chapters", manga.key);
+			let token = web::get_token(&web_view, &path)?;
+
 			loop {
-				let path = format!("/manga/{}/chapters", manga.key);
-				let token = hash::generate_hash(&path);
 				let url = format!(
 					"{API_URL}{path}\
 						?limit={limit}\
@@ -212,7 +216,9 @@ impl Source for Comix {
 						&_={token}"
 				);
 
-				let res = Request::get(url)?.json_owned::<ChapterDetailsResponse>()?;
+				let encoded_res = Request::get(&url)?.string()?;
+				let result = web::decode_response(&web_view, &url, &encoded_res)?;
+				let res = serde_json::from_str::<ChapterDetailsResponse>(&result)?;
 
 				let items = res.result.items;
 
@@ -258,16 +264,35 @@ impl Source for Comix {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+		let web_view = web::create_web_view()?;
 		let path = format!("/chapters/{}", chapter.key);
-		let token = hash::generate_hash(&path);
+		let token = web::get_token(&web_view, &path)?;
 		let url = format!("{API_URL}{path}?_={token}");
-		let json: ChapterResponse = Request::get(url)?.json_owned()?;
+		let encoded_res = Request::get(&url)?.string()?;
+		let result = web::decode_response(&web_view, &url, &encoded_res)?;
+		let json: ChapterResponse = serde_json::from_str(&result)?;
 
 		let Some(result) = json.result else {
 			bail!("Missing chapter")
 		};
 
-		Ok(result.pages.into_iter().map(Into::into).collect())
+		let base_url = result.pages.base_url.trim_end_matches('/');
+		Ok(result
+			.pages
+			.items
+			.into_iter()
+			.map(|page| {
+				let url = if page.url.starts_with("http") {
+					page.url
+				} else {
+					format!("{base_url}/{}", page.url.trim_start_matches('/'))
+				};
+				Page {
+					content: PageContent::url(url),
+					..Default::default()
+				}
+			})
+			.collect())
 	}
 }
 
