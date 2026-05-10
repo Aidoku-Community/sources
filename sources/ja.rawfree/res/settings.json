@@ -7,7 +7,7 @@
 				"key": "baseUrl",
 				"type": "text",
 				"title": "BASE_URL",
-				"placeholder": "https://rawfree.im",
+				"placeholder": "https://rawfree.pt",
 				"keyboardType": 3,
 				"returnKeyType": 9,
 				"autocorrectionDisabled": true,
