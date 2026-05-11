@@ -13,17 +13,103 @@ pub fn create_web_view() -> Result<WebView> {
 	Ok(web_view)
 }
 
+pub fn probe_for_function(web_view: &WebView, path: &str) -> Result<String> {
+	let result = web_view.eval(&format!(
+		"(() => {{
+			try {{
+				const probe = '{path}';
+                const tokenRe = /^[A-Za-z0-9_-]{{40,200}}$/;
+                const shortRe = /^[A-Za-z]{{1,3}}$/;
+                const nameRe  = /^vm[A-Za-z]_/;
+
+				function tryProbe(ns, topName) {{
+                    var sig = '', inst = '';
+                    var fnames;
+                    try {{ fnames = Object.keys(ns); }} catch (e) {{ return null; }}
+                    for (var j = 0; j < fnames.length; j++) {{
+                        var fn = ns[fnames[j]];
+                        if (typeof fn !== 'function') continue;
+                        var ref = fnames[j];
+                        if (!sig) {{
+                            try {{
+                                var out = fn(probe);
+                                if (typeof out === 'string' && out !== probe && tokenRe.test(out)) {{
+                                    sig = ref;
+                                }}
+                            }} catch (e) {{}}
+                        }}
+                        if (!inst) {{
+                            try {{
+                                var got = false;
+                                fn({{
+                                    interceptors: {{
+                                        request:  {{ use: function() {{}} }},
+                                        response: {{ use: function() {{ got = true; }} }}
+                                    }},
+                                    defaults: {{ headers: {{ common: {{}} }}, transformRequest: [], transformResponse: [] }}
+                                }});
+                                if (got) inst = ref;
+                            }} catch (e) {{}}
+                        }}
+                        if (sig && inst) return {{ topName: topName, sig: sig, inst: inst }};
+                    }}
+                    return null;
+                }}
+
+				var keys = Object.keys(window);
+
+                // Fast path: matches every observed deploy.
+                for (var i = 0; i < keys.length; i++) {{
+                    var topName = keys[i];
+                    if (!nameRe.test(topName)) continue;
+                    var ns = window[topName];
+                    if (!ns || typeof ns !== 'object' || ns === window) continue;
+                    var hit = tryProbe(ns, topName);
+                    if (hit) return JSON.stringify(hit);
+                }}
+
+				// Fallback: structural fingerprint, no name constraint.
+                for (var i = 0; i < keys.length; i++) {{
+                    var topName = keys[i];
+                    if (nameRe.test(topName)) continue; // already tried
+                    var ns = window[topName];
+                    if (!ns || typeof ns !== 'object' || ns === window) continue;
+                    var fnames;
+                    try {{ fnames = Object.keys(ns); }} catch (e) {{ continue; }}
+                    if (fnames.length < 5) continue;
+                    var shortAlpha = 0;
+                    for (var s = 0; s < fnames.length; s++) {{
+                        if (shortRe.test(fnames[s])) shortAlpha++;
+                    }}
+                    if (shortAlpha < 3) continue;
+                    var hit = tryProbe(ns, topName);
+                    if (hit) return JSON.stringify(hit);
+                }}
+
+				// This probably won't happen but just in case
+				return '';
+			}} catch(e) {{
+				return '';
+			}}
+		}})()"
+	))?;
+	if result.is_empty() {
+		bail!("Failed to fetch token")
+	}
+	Ok(result)
+}
+
 /// * `path`: API path, e.g. "/manga/some-hash/chapters"
-pub fn get_token(web_view: &WebView, path: &str) -> Result<String> {
+pub fn get_token(web_view: &WebView, path: &str, js_function: &str) -> Result<String> {
 	let token = web_view.eval(&format!(
 		"(() => {{
 			try {{
-				const vmKey = Object.keys(window).find(key => key.startsWith('vm'));
-				const vmObj = window[vmKey];
-				if (!vmObj || typeof vmObj.qi !== 'function') {{
+				const vmFnName = JSON.parse('{js_function}');
+				const vmObj = window[vmFnName.topName];
+				if (!vmObj || typeof vmObj[vmFnName.sig] !== 'function') {{
 				    return '';
 				}}
-				return vmObj.qi('{path}');
+				return vmObj[vmFnName.sig]('{path}');
 			}} catch(e) {{
 				return '';
 			}}
@@ -35,13 +121,13 @@ pub fn get_token(web_view: &WebView, path: &str) -> Result<String> {
 	Ok(token)
 }
 
-pub fn decode_response(web_view: &WebView, url: &str, encoded_res: &str) -> Result<String> {
+pub fn decode_response(web_view: &WebView, url: &str, encoded_res: &str, js_function: &str) -> Result<String> {
 	let result = web_view.eval(&format!(
 		"(() => {{
 			try {{
-				const vmKey = Object.keys(window).find(key => key.startsWith('vm'));
-				const vmObj = window[vmKey];
-				if (!vmObj || typeof vmObj.qi !== 'function') {{
+                const vmFnName = JSON.parse('{js_function}');
+				const vmObj = window[vmFnName.topName];
+				if (!vmObj || typeof vmObj[vmFnName.sig] !== 'function') {{
 				    return '';
 				}}
 				var captured = {{ req: null, res: null }};
@@ -64,7 +150,7 @@ pub fn decode_response(web_view: &WebView, url: &str, encoded_res: &str) -> Resu
 						transformResponse: [],
 					}},
 				}};
-				vmObj.v(fakeAxios);
+				vmObj[vmFnName.inst](fakeAxios);
 
 				var raw = JSON.parse('{encoded_res}');
 				var bodyOut;

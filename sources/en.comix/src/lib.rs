@@ -205,7 +205,8 @@ impl Source for Comix {
 
 			let web_view = web::create_web_view()?;
 			let path = format!("/manga/{}/chapters", manga.key);
-			let token = web::get_token(&web_view, &path)?;
+			let js_function = web::probe_for_function(&web_view, &path)?;
+			let token = web::get_token(&web_view, &path, &js_function)?;
 
 			loop {
 				let url = format!(
@@ -217,7 +218,7 @@ impl Source for Comix {
 				);
 
 				let encoded_res = Request::get(&url)?.string()?;
-				let result = web::decode_response(&web_view, &url, &encoded_res)?;
+				let result = web::decode_response(&web_view, &url, &encoded_res, &js_function)?;
 				let res = serde_json::from_str::<ChapterDetailsResponse>(&result)?;
 
 				let items = res.result.items;
@@ -266,10 +267,11 @@ impl Source for Comix {
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let web_view = web::create_web_view()?;
 		let path = format!("/chapters/{}", chapter.key);
-		let token = web::get_token(&web_view, &path)?;
+		let js_function = web::probe_for_function(&web_view, &path)?;
+		let token = web::get_token(&web_view, &path, &js_function)?;
 		let url = format!("{API_URL}{path}?_={token}");
 		let encoded_res = Request::get(&url)?.string()?;
-		let result = web::decode_response(&web_view, &url, &encoded_res)?;
+		let result = web::decode_response(&web_view, &url, &encoded_res, &js_function)?;
 		let json: ChapterResponse = serde_json::from_str(&result)?;
 
 		let Some(result) = json.result else {
