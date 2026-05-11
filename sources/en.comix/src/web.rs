@@ -20,10 +20,10 @@ pub fn get_token(web_view: &WebView, path: &str) -> Result<String> {
 			try {{
 				const vmKey = Object.keys(window).find(key => key.startsWith('vm'));
 				const vmObj = window[vmKey];
-				if (!vmObj || typeof vmObj.Qi !== 'function') {{
+				if (!vmObj || typeof vmObj.qi !== 'function') {{
 				    return '';
 				}}
-				return vmObj.Qi('{path}');
+				return vmObj.qi('{path}');
 			}} catch(e) {{
 				return '';
 			}}
@@ -41,7 +41,7 @@ pub fn decode_response(web_view: &WebView, url: &str, encoded_res: &str) -> Resu
 			try {{
 				const vmKey = Object.keys(window).find(key => key.startsWith('vm'));
 				const vmObj = window[vmKey];
-				if (!vmObj || typeof vmObj.Qi !== 'function') {{
+				if (!vmObj || typeof vmObj.qi !== 'function') {{
 				    return '';
 				}}
 				var captured = {{ req: null, res: null }};
