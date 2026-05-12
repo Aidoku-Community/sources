@@ -2,11 +2,18 @@
 	"info": {
 		"id": "en.asurascans",
 		"name": "Asura Scans",
-		"version": 13,
+		"version": 14,
 		"url": "https://asurascans.com",
 		"contentRating": 0,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	},
+	"listings": [
+		{
+			"id": "Ranking",
+			"kind": 1
+		}
+	],
 	"config": {
 		"breakingChangeVersion": 12
 	}

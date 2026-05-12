@@ -10,5 +10,19 @@
 				"default": true
 			}
 		]
+	},
+	{
+		"type": "group",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"notification": "login",
+				"method": "web",
+				"title": "LOGIN",
+				"url": "https://asurascans.com/login",
+				"refreshes": ["listings"]
+			}
+		]
 	}
 ]

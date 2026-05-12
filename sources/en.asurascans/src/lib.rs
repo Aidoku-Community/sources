@@ -1,9 +1,10 @@
 #![no_std]
 use aidoku::{
-	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home,
-	HomeComponent, HomeComponentValue, HomeLayout, Link, Manga, MangaPageResult, MangaStatus,
-	MangaWithChapter, MigrationHandler, Page, PageContent, Result, Source, Viewer,
-	alloc::{String, Vec, string::ToString},
+	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicListings,
+	FilterValue, HashMap, Home, HomeComponent, HomeComponentValue, HomeLayout, Link, Listing,
+	ListingProvider, Manga, MangaPageResult, MangaStatus, MangaWithChapter, MigrationHandler,
+	NotificationHandler, Page, PageContent, Result, Source, Viewer, WebLoginHandler,
+	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::QueryParameters,
 	imports::{
 		defaults::defaults_get,
@@ -13,9 +14,14 @@ use aidoku::{
 	prelude::*,
 };
 
+mod auth;
 mod helpers;
+mod models;
+
+use models::*;
 
 const BASE_URL: &str = "https://asurascans.com";
+const API_URL: &str = "https://api.asurascans.com/api";
 
 struct AsuraScans;
 
@@ -186,6 +192,7 @@ impl Source for AsuraScans {
 				.ok_or_else(|| error!("Missing chapters"))?;
 
 			let skip_locked = !defaults_get::<bool>("showLocked").unwrap_or(true);
+			let is_subscribed = auth::is_subscribed();
 
 			manga.chapters = Some(
 				chapters_arr
@@ -193,7 +200,8 @@ impl Source for AsuraScans {
 					.filter_map(|obj| {
 						let obj = obj[1].as_object()?;
 
-						let locked = obj["is_locked"][1].as_bool().unwrap_or_default();
+						let locked =
+							!is_subscribed && obj["is_locked"][1].as_bool().unwrap_or_default();
 						if skip_locked && locked {
 							return None;
 						}
@@ -228,7 +236,15 @@ impl Source for AsuraScans {
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = helpers::get_chapter_url(&chapter.key, &manga.key);
-		let html = Request::get(url)?.html()?;
+		let mut req = Request::get(url)?;
+		if auth::is_subscribed() {
+			// untested
+			if let Ok(token) = auth::get_access_token() {
+				req.set_header("Authorization", &format!("Bearer {token}"));
+				req.set_header("Cookie", &format!("access_token={token}"));
+			}
+		}
+		let html = req.html()?;
 
 		let island_props = html
 			.select_first(
@@ -385,4 +401,91 @@ impl MigrationHandler for AsuraScans {
 	}
 }
 
-register_source!(AsuraScans, Home, DeepLinkHandler, MigrationHandler);
+impl ListingProvider for AsuraScans {
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		match listing.id.as_str() {
+			"Ranking" => {
+				let html = Request::get(format!("{BASE_URL}/series-ranking"))?.html()?;
+				let entries = html
+					.select(".comics-ranking-list > a")
+					.map(|els| {
+						els.filter_map(|el| {
+							Some(Manga {
+								key: el
+									.attr("abs:href")
+									.and_then(|url| helpers::get_manga_key(&url))?,
+								title: el.select_first(".flex-1 > .text-sm")?.own_text()?,
+								cover: el.select_first("img").and_then(|el| el.attr("abs:src")),
+								..Default::default()
+							})
+						})
+						.collect()
+					})
+					.unwrap_or_default();
+				Ok(MangaPageResult {
+					entries,
+					has_next_page: false,
+				})
+			}
+			"Bookmarks" => {
+				let offset = 20 * (page - 1);
+				let token = auth::get_access_token()?;
+				let url = format!(
+					"{API_URL}/me/bookmarks?sort=updated&order=desc&limit=20&offset={offset}",
+				);
+				let json: BookmarkResponse = Request::get(url)?
+					.header("Authorization", &format!("Bearer {token}"))
+					.json_owned()?;
+				let entries = json.data.into_iter().map(Into::into).collect();
+				let has_next_page = page < json.meta.total;
+				Ok(MangaPageResult {
+					entries,
+					has_next_page,
+				})
+			}
+			_ => bail!("Invalid listing"),
+		}
+	}
+}
+
+impl DynamicListings for AsuraScans {
+	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
+		if !auth::is_logged_in() {
+			return Ok(Vec::new());
+		}
+		Ok(vec![Listing {
+			id: "Bookmarks".into(),
+			name: "Bookmarks".into(),
+			..Default::default()
+		}])
+	}
+}
+
+impl WebLoginHandler for AsuraScans {
+	fn handle_web_login(&self, _key: String, cookies: HashMap<String, String>) -> Result<bool> {
+		auth::handle_login(cookies)
+	}
+}
+
+impl NotificationHandler for AsuraScans {
+	fn handle_notification(&self, notification: String) {
+		if notification != "login" {
+			return;
+		}
+		let is_logged_in = defaults_get::<String>("login").is_some();
+		if !is_logged_in {
+			auth::logout();
+		}
+	}
+}
+
+register_source!(
+	AsuraScans,
+	Home,
+	DeepLinkHandler,
+	MigrationHandler,
+	ListingProvider,
+	DynamicListings,
+	WebLoginHandler,
+	NotificationHandler
+);
