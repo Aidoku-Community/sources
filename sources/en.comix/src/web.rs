@@ -111,6 +111,7 @@ pub fn decode_response(web_view: &ComixWebView, url: &str, encoded_res: &str) ->
 	let Some(installer_fn) = web_view.installer_fn.as_ref() else {
 		bail!("Missing installer function")
 	};
+	let encoded_res_str = encoded_res.replace("'", "\\'");
 	let result = web_view.web_view.eval(&format!(
 		"(() => {{
 			try {{
@@ -136,7 +137,7 @@ pub fn decode_response(web_view: &ComixWebView, url: &str, encoded_res: &str) ->
 					}},
 				}});
 
-				let raw = JSON.parse('{encoded_res}');
+				let raw = JSON.parse('{encoded_res_str}');
 				let bodyOut;
 				if (raw && typeof raw === 'object' && 'e' in raw && captured.res) {{
 					let fakeResp = {{
@@ -152,7 +153,7 @@ pub fn decode_response(web_view: &ComixWebView, url: &str, encoded_res: &str) ->
 					let decoded = captured.res(fakeResp);
 					bodyOut = JSON.stringify({{ result: decoded && decoded.data }});
 				}} else if (raw && typeof raw === 'object' && 'result' in raw) {{
-					bodyOut = text;
+					bodyOut = 'NOT_ENCODED';
 				}} else {{
 					bodyOut = JSON.stringify({{ result: raw }});
 				}}
@@ -166,6 +167,8 @@ pub fn decode_response(web_view: &ComixWebView, url: &str, encoded_res: &str) ->
 		bail!("{result}");
 	} else if result.is_empty() {
 		bail!("Failed to fetch token")
+	} else if result == "NOT_ENCODED" {
+		return Ok(encoded_res.into());
 	}
 	Ok(result)
 }
