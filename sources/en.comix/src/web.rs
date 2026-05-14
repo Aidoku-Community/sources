@@ -111,7 +111,18 @@ pub fn decode_response(web_view: &ComixWebView, url: &str, encoded_res: &str) ->
 	let Some(installer_fn) = web_view.installer_fn.as_ref() else {
 		bail!("Missing installer function")
 	};
-	let encoded_res_str = encoded_res.replace("'", "\\'");
+
+	let json = serde_json::from_str::<serde_json::Value>(encoded_res)
+		.map_err(|_| error!("Invalid api response"))?;
+	let is_encoded = match json {
+		serde_json::Value::Object(ref map) => map.contains_key("e"),
+		_ => false,
+	};
+	if !is_encoded {
+		return Ok(encoded_res.into());
+	};
+
+	let encoded_res_escaped = encoded_res.replace("'", "\\'");
 	let result = web_view.web_view.eval(&format!(
 		"(() => {{
 			try {{
@@ -136,28 +147,23 @@ pub fn decode_response(web_view: &ComixWebView, url: &str, encoded_res: &str) ->
 						transformResponse: [],
 					}},
 				}});
-
-				let raw = JSON.parse('{encoded_res_str}');
-				let bodyOut;
-				if (raw && typeof raw === 'object' && 'e' in raw && captured.res) {{
-					let fakeResp = {{
-						data: raw,
-						status: 200,
-						statusText: '',
-						headers: {{
-							'x-enc': '1',
-						}},
-						config: {{ url: '{url}', method: 'get', baseURL: '/api/v1' }},
-						request: {{}},
-					}};
-					let decoded = captured.res(fakeResp);
-					bodyOut = JSON.stringify({{ result: decoded && decoded.data }});
-				}} else if (raw && typeof raw === 'object' && 'result' in raw) {{
-					bodyOut = 'NOT_ENCODED';
-				}} else {{
-					bodyOut = JSON.stringify({{ result: raw }});
+				if (!captured.res) {{
+					return 'error: could not capture response handler';
 				}}
-				return bodyOut;
+
+				let raw = JSON.parse('{encoded_res_escaped}');
+				let fakeResp = {{
+					data: raw,
+					status: 200,
+					statusText: '',
+					headers: {{
+						'x-enc': '1',
+					}},
+					config: {{ url: '{url}', method: 'get', baseURL: '/api/v1' }},
+					request: {{}},
+				}};
+				let decoded = captured.res(fakeResp);
+				return JSON.stringify({{ result: decoded && decoded.data }});
 			}} catch(e) {{
 				return 'error: ' + e;
 			}}
@@ -167,8 +173,6 @@ pub fn decode_response(web_view: &ComixWebView, url: &str, encoded_res: &str) ->
 		bail!("{result}");
 	} else if result.is_empty() {
 		bail!("Failed to fetch token")
-	} else if result == "NOT_ENCODED" {
-		return Ok(encoded_res.into());
 	}
 	Ok(result)
 }
