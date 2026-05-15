@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
-madtheme = { path = "../../templates/madtheme" }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["json"] }
+serde = { version = "1.0", features = ["derive", "alloc"], default-features = false }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
