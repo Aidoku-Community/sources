@@ -2,8 +2,8 @@
 	"info": {
 		"id": "ja.rawfree",
 		"name": "Raw FREE",
-		"version": 8,
-		"url": "https://rawfree.pt",
+		"version": 9,
+		"url": "https://rawfree.gg",
 		"contentRating": 1,
 		"languages": ["ja"],
 		"minAppVersion": "0.7.1"
