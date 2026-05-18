@@ -3,11 +3,13 @@
 		"id": "en.novelbuddy",
 		"name": "NovelBuddy",
 		"version": 2,
-		"breakingChangeVersion": 2,
 		"url": "https://novelbuddy.com",
 		"contentRating": 1,
 		"languages": ["en"],
 		"minAppVersion": "0.7.1"
+	},
+	"config": {
+		"breakingChangeVersion": 2
 	},
 	"listings": [
 		{
