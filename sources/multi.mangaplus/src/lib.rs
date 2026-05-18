@@ -81,6 +81,7 @@ impl Source for MangaPlus {
 			let result = Request::get(url())?
 				.header("Referer", &format!("{BASE_URL}/"))
 				.header("User-Agent", USER_AGENT)
+				.header("Session-Token", &helpers::uuid())
 				.json_owned::<MangaPlusResponse>()?
 				.result_or_error("Failed to fetch title list")?;
 
@@ -170,6 +171,7 @@ impl Source for MangaPlus {
 		let result = Request::get(&url)?
 			.header("Referer", &format!("{BASE_URL}/"))
 			.header("User-Agent", USER_AGENT)
+			.header("Session-Token", &helpers::uuid())
 			.json_owned::<MangaPlusResponse>()?
 			.result_or_error("Failed to fetch title")?;
 
@@ -209,6 +211,7 @@ impl Source for MangaPlus {
 		let result = Request::get(&url)?
 			.header("Referer", &format!("{BASE_URL}/"))
 			.header("User-Agent", USER_AGENT)
+			.header("Session-Token", &helpers::uuid())
 			.json_owned::<MangaPlusResponse>()?
 			.result_or_error("Failed to fetch title")?;
 
@@ -280,6 +283,7 @@ impl ListingProvider for MangaPlus {
 			let result = Request::get(url)?
 				.header("Referer", &format!("{BASE_URL}/"))
 				.header("User-Agent", USER_AGENT)
+				.header("Session-Token", &helpers::uuid())
 				.json_owned::<MangaPlusResponse>()?
 				.result_or_error("Failed to fetch home data")?;
 
@@ -336,6 +340,7 @@ impl Home for MangaPlus {
 		let result = Request::get(url)?
 			.header("Referer", &format!("{BASE_URL}/"))
 			.header("User-Agent", USER_AGENT)
+			.header("Session-Token", &helpers::uuid())
 			.json_owned::<MangaPlusResponse>()?
 			.result_or_error("Failed to fetch home data")?;
 
