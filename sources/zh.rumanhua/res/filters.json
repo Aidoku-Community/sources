@@ -1,0 +1,59 @@
+[
+	{
+		"type": "select",
+		"id": "leaderboard",
+		"title": "排行榜",
+		"options": [
+			"无",
+			"总榜",
+			"日榜",
+			"周榜",
+			"月榜",
+			"连载",
+			"完结"
+		],
+		"ids": [
+			"",
+			"top",
+			"day",
+			"week",
+			"month",
+			"serialize",
+			"end"
+		]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "进度",
+		"options": [
+			"全部",
+			"连载",
+			"完结"
+		],
+		"ids": [
+			"",
+			"1",
+			"2"
+		]
+	},
+	{
+		"type": "select",
+		"id": "audience",
+		"title": "受众",
+		"options": [
+			"全部",
+			"国产漫画",
+			"日本漫画",
+			"韩国漫画",
+			"欧美漫画"
+		],
+		"ids": [
+			"",
+			"1",
+			"2",
+			"3",
+			"4"
+		]
+	}
+]
