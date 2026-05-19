@@ -11,7 +11,30 @@
 				"returnKeyType": 9,
 				"autocorrectionDisabled": true,
 				"refreshes": ["content"]
+			},
+			{
+				"type": "select",
+				"key": "authMode",
+				"title": "Auth Mode",
+				"values": ["auto", "none", "basic_auth", "simple_login"],
+				"titles": [
+					"Auto",
+					"None",
+					"Basic Auth",
+					"Simple Login"
+				],
+				"default": "auto",
+				"refreshes": ["content"]
+			},
+			{
+				"type": "login",
+				"method": "basic",
+				"key": "credentials",
+				"title": "Login",
+				"requires": "baseUrl",
+				"refreshes": ["content"]
 			}
-		]
+		],
+		"footer": "Enter your Suwayomi server URL and optionally login with your credentials."
 	}
 ]
