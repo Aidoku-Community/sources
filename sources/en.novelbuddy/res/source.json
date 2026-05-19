@@ -2,9 +2,27 @@
 	"info": {
 		"id": "en.novelbuddy",
 		"name": "NovelBuddy",
-		"version": 1,
+		"version": 2,
 		"url": "https://novelbuddy.com",
 		"contentRating": 1,
-		"languages": ["en"]
-	}
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
+	},
+	"config": {
+		"breakingChangeVersion": 2
+	},
+	"listings": [
+		{
+			"id": "trending-week",
+			"name": "Trending This Week"
+		},
+		{
+			"id": "trending-today",
+			"name": "Trending Today"
+		},
+		{
+			"id": "latest",
+			"name": "Latest Updates"
+		}
+	]
 }
