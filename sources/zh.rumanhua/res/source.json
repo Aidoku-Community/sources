@@ -3,7 +3,10 @@
 		"id": "zh.rumanhua",
 		"name": "入漫画",
 		"version": 1,
-		"url": "https://m.rumanhua.org/",
+		"urls": [
+			"https://m.rumanhua.org",
+			"https://www.rumanhua.org"
+		],
 		"contentRating": 0,
 		"languages": [
 			"zh"

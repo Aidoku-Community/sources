@@ -1,7 +1,7 @@
 use crate::net::{extract_key, get_absolute_url};
 use aidoku::{
 	Manga, MangaPageResult, Result,
-	alloc::{String, Vec},
+	alloc::Vec,
 	imports::html::Document,
 };
 
@@ -9,43 +9,25 @@ pub fn parse_manga_list(html: &Document) -> Result<MangaPageResult> {
 	let mut manga = Vec::new();
 	if let Some(elements) = html.select("div.item, ul.rankList li") {
 		for node in elements {
-			let mut href = String::new();
-			let mut title = String::new();
-			let mut cover_src = String::new();
-
-			if let Some(a) = node.select_first("a") {
-				href = a.attr("href").unwrap_or_else(String::new);
-			}
-
-			if href.is_empty() {
+			let href = node.select_first("a").and_then(|a| a.attr("href"));
+			let Some(href) = href else {
 				continue;
-			}
+			};
+
 			let key = match extract_key(&href) {
 				Some(k) => k,
 				None => continue,
 			};
 
-			if let Some(t) = node
+			let title = node
 				.select_first(".title")
 				.or_else(|| node.select_first("p"))
-			{
-				title = t.text().unwrap_or_else(String::new);
-			}
+				.and_then(|t| t.text())
+				.unwrap_or_default();
 
-			if let Some(img) = node.select_first("img") {
-				if title.is_empty() {
-					title = img
-						.attr("title")
-						.unwrap_or_else(|| img.attr("alt").unwrap_or_else(String::new));
-				}
-				cover_src = img.attr("src").unwrap_or_else(String::new);
-			}
-
-			let cover = if !cover_src.is_empty() {
-				Some(get_absolute_url(&cover_src))
-			} else {
-				None
-			};
+			let cover = node.select_first("img")
+				.and_then(|img| img.attr("src"))
+				.map(|src| get_absolute_url(&src));
 
 			manga.push(Manga {
 				key,
@@ -57,16 +39,15 @@ pub fn parse_manga_list(html: &Document) -> Result<MangaPageResult> {
 		}
 	}
 
-	let mut has_more = false;
-	if let Some(elements) = html.select("a") {
-		for a in elements {
-			let text = a.text().unwrap_or_else(String::new);
-			if text.contains("下一页") || text.contains("下页") {
-				has_more = true;
-				break;
-			}
-		}
-	}
+	let has_more = html.select("a")
+		.map(|mut elements| {
+			elements.any(|a| {
+				a.text()
+					.map(|text| text.contains("下一页") || text.contains("下页"))
+					.unwrap_or(false)
+			})
+		})
+		.unwrap_or(false);
 
 	Ok(MangaPageResult {
 		entries: manga,

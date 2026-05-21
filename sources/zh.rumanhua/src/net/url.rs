@@ -26,7 +26,8 @@ pub fn extract_key(url: &str) -> Option<String> {
 
 pub fn extract_chapter_key(url: &str) -> Option<String> {
 	let clean = url.trim_end_matches('/');
-	let segment = clean.split('/').next_back()?;
+	let path_idx = clean.rfind('/')?;
+	let segment = &clean[path_idx + 1..];
 	if segment.ends_with(".html") {
 		Some(segment.to_string())
 	} else {
@@ -49,9 +50,7 @@ pub fn extract_chapter_number(title: &str) -> Option<f32> {
 }
 
 pub fn get_search_url(query: Option<String>, page: i32, filters: Vec<FilterValue>) -> String {
-	if let Some(q) = query
-		&& !q.is_empty()
-	{
+	if let Some(q) = query {
 		let encoded = aidoku::helpers::uri::encode_uri(q);
 		return if page <= 1 {
 			format!("{}/search/{}", BASE_URL, encoded)
@@ -68,6 +67,7 @@ pub fn get_search_url(query: Option<String>, page: i32, filters: Vec<FilterValue
 		if let FilterValue::Select { id, value } = filter {
 			if id == "leaderboard" {
 				leaderboard_id = value;
+				break;
 			} else if id == "status" {
 				status_id = value;
 			} else if id == "audience" {

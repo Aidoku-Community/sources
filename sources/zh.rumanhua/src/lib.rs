@@ -66,13 +66,13 @@ impl Source for Rumanhua {
 		let html_str = get_request(&url)?.string()?;
 
 		let images = parse_images_from_html(&html_str)?;
-		let mut pages = Vec::new();
-		for img_url in images {
-			pages.push(Page {
+		let pages = images
+			.into_iter()
+			.map(|img_url| Page {
 				content: PageContent::url(img_url),
 				..Default::default()
-			});
-		}
+			})
+			.collect();
 
 		Ok(pages)
 	}

@@ -13,21 +13,18 @@ pub trait RumanhuaDetailsHtml {
 impl RumanhuaDetailsHtml for Document {
 	fn update_details(&self, manga: &mut Manga) -> Result<()> {
 		if let Some(img) = self.select_first("div.detailTop div.content img.cover") {
-			let cover = img.attr("src").unwrap_or_default();
-			let title = img.attr("alt").unwrap_or_default();
-			if !cover.is_empty() {
+			if let Some(cover) = img.attr("src") {
 				manga.cover = Some(get_absolute_url(&cover));
 			}
-			if !title.is_empty() {
+			if let Some(title) = img.attr("alt") {
 				manga.title = title;
 			}
 		}
 
-		if let Some(p) = self.select_first("div.detailContent p") {
-			let desc = p.text().unwrap_or_default();
-			if !desc.is_empty() {
-				manga.description = Some(desc);
-			}
+		if let Some(p) = self.select_first("div.detailContent p")
+			&& let Some(desc) = p.text()
+		{
+			manga.description = Some(desc);
 		}
 
 		let mut authors = Vec::new();
@@ -35,7 +32,7 @@ impl RumanhuaDetailsHtml for Document {
 
 		if let Some(ps) = self.select("div.detailTop div.info p.subtitle") {
 			for p in ps {
-				let text = p.text().unwrap_or_default();
+				let Some(text) = p.text() else { continue; };
 				let clean = text.trim().replace(['\u{00a0}', '\u{3000}'], "");
 				if let Some(author) = clean.strip_prefix("作者：") {
 					let author = author.trim();
@@ -65,8 +62,8 @@ impl RumanhuaDetailsHtml for Document {
 
 		if let Some(elements) = self.select("ul.chapterList li a") {
 			for a in elements {
-				let url = a.attr("href").unwrap_or_default();
-				let title = a.text().unwrap_or_default();
+				let Some(url) = a.attr("href") else { continue; };
+				let Some(title) = a.text() else { continue; };
 				let Some(key) = extract_chapter_key(&url) else {
 					continue;
 				};
