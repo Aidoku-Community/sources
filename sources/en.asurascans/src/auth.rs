@@ -35,14 +35,23 @@ pub fn logout() {
 }
 
 pub fn get_access_token() -> Result<String> {
+	Ok(get_login_status()?.access_token)
+}
+
+pub fn get_login_status() -> Result<LoginStatus> {
 	let old_status = defaults_get::<LoginStatus>(AUTH_KEY).ok_or(error!("Not logged in"))?;
 	let status = refresh(&old_status.refresh_token)?;
-	Ok(status.access_token)
+	defaults_set_data(AUTH_KEY, status.clone());
+	Ok(status)
 }
 
 fn refresh(refresh_token: &str) -> Result<LoginStatus> {
-	let res: RefreshResponse = Request::post(format!("{API_URL}/auth/refresh"))?
+	let mut res: RefreshResponse = Request::post(format!("{API_URL}/auth/refresh"))?
+		.header("Content-Type", "application/json")
 		.body(format!("{{\"refresh_token\":\"{refresh_token}\"}}"))
 		.json_owned()?;
+	if res.data.refresh_token.is_none() {
+		res.data.refresh_token = Some(refresh_token.into());
+	}
 	Ok(LoginStatus::from(res))
 }

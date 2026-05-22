@@ -235,14 +235,50 @@ impl Source for AsuraScans {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+		let api_url = format!("{API_URL}/series/{}/chapters/{}", manga.key, chapter.key);
+		let mut api_req = Request::get(api_url)?;
+		if let Ok(status) = auth::get_login_status() {
+			api_req.set_header("Authorization", &format!("Bearer {}", status.access_token));
+			api_req.set_header(
+				"Cookie",
+				&format!(
+					"access_token={}; refresh_token={}",
+					status.access_token, status.refresh_token
+				),
+			);
+		}
+		if let Ok(json) = api_req.json_owned::<serde_json::Value>() {
+			if let Some(page_arr) = json["data"]["chapter"]["pages"].as_array() {
+				let pages: Vec<Page> = page_arr
+					.iter()
+					.filter_map(|obj| {
+						let url = obj
+							.as_str()
+							.or_else(|| obj["url"].as_str())
+							.or_else(|| obj["url"][1].as_str())?;
+						Some(Page {
+							content: PageContent::url(url),
+							..Default::default()
+						})
+					})
+					.collect();
+				if !pages.is_empty() {
+					return Ok(pages);
+				}
+			}
+		}
+
 		let url = helpers::get_chapter_url(&chapter.key, &manga.key);
 		let mut req = Request::get(url)?;
-		if auth::is_subscribed() {
-			// untested
-			if let Ok(token) = auth::get_access_token() {
-				req.set_header("Authorization", &format!("Bearer {token}"));
-				req.set_header("Cookie", &format!("access_token={token}"));
-			}
+		if let Ok(status) = auth::get_login_status() {
+			req.set_header("Authorization", &format!("Bearer {}", status.access_token));
+			req.set_header(
+				"Cookie",
+				&format!(
+					"access_token={}; refresh_token={}",
+					status.access_token, status.refresh_token
+				),
+			);
 		}
 		let html = req.html()?;
 
