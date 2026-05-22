@@ -247,24 +247,24 @@ impl Source for AsuraScans {
 				),
 			);
 		}
-		if let Ok(json) = api_req.json_owned::<serde_json::Value>() {
-			if let Some(page_arr) = json["data"]["chapter"]["pages"].as_array() {
-				let pages: Vec<Page> = page_arr
-					.iter()
-					.filter_map(|obj| {
-						let url = obj
-							.as_str()
-							.or_else(|| obj["url"].as_str())
-							.or_else(|| obj["url"][1].as_str())?;
-						Some(Page {
-							content: PageContent::url(url),
-							..Default::default()
-						})
+		if let Ok(json) = api_req.json_owned::<serde_json::Value>()
+			&& let Some(page_arr) = json["data"]["chapter"]["pages"].as_array()
+		{
+			let pages: Vec<Page> = page_arr
+				.iter()
+				.filter_map(|obj| {
+					let url = obj
+						.as_str()
+						.or_else(|| obj["url"].as_str())
+						.or_else(|| obj["url"][1].as_str())?;
+					Some(Page {
+						content: PageContent::url(url),
+						..Default::default()
 					})
-					.collect();
-				if !pages.is_empty() {
-					return Ok(pages);
-				}
+				})
+				.collect();
+			if !pages.is_empty() {
+				return Ok(pages);
 			}
 		}
 
