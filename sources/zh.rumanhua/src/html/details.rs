@@ -59,13 +59,13 @@ impl RumanhuaDetailsHtml for Document {
 		let mut chapters = Vec::new();
 
 		if let Some(elements) = self.select("ul.chapterList li a") {
-		for a in elements.rev() {
+		for (index, a) in elements.rev().enumerate() {
 			let Some(url) = a.attr("href") else { continue; };
 			let Some(title) = a.text() else { continue; };
 			let Some(key) = extract_chapter_key(&url) else {
 				continue;
 			};
-			let chapter_num = extract_chapter_number(&title).unwrap_or(0.0);
+			let chapter_num = extract_chapter_number(&title).unwrap_or((index + 1) as f32);
 
 			chapters.push(Chapter {
 				key,
