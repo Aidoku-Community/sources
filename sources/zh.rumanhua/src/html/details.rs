@@ -21,16 +21,18 @@ impl RumanhuaDetailsHtml for Document {
 			}
 		}
 
-		if let Some(desc) = self.select_first("div.detailContent p").and_then(|p| p.text()) {
-			manga.description = Some(desc);
-		}
+		manga.description = self
+			.select_first("div.detailContent p")
+			.and_then(|p| p.text());
 
 		let mut authors = Vec::new();
 		let mut status = MangaStatus::Unknown;
 
 		if let Some(ps) = self.select("div.detailTop div.info p.subtitle") {
 			for p in ps {
-				let Some(text) = p.text() else { continue; };
+				let Some(text) = p.text() else {
+					continue;
+				};
 				let clean = text.trim().replace(['\u{00a0}', '\u{3000}'], "");
 				if let Some(author) = clean.strip_prefix("作者：") {
 					let author = author.trim();
@@ -59,23 +61,27 @@ impl RumanhuaDetailsHtml for Document {
 		let mut chapters = Vec::new();
 
 		if let Some(elements) = self.select("ul.chapterList li a") {
-		for (index, a) in elements.rev().enumerate() {
-			let Some(url) = a.attr("href") else { continue; };
-			let Some(title) = a.text() else { continue; };
-			let Some(key) = extract_chapter_key(&url) else {
-				continue;
-			};
-			let chapter_num = extract_chapter_number(&title).unwrap_or((index + 1) as f32);
+			for (index, a) in elements.rev().enumerate() {
+				let Some(url) = a.attr("href") else {
+					continue;
+				};
+				let Some(title) = a.text() else {
+					continue;
+				};
+				let Some(key) = extract_chapter_key(&url) else {
+					continue;
+				};
+				let chapter_num = extract_chapter_number(&title).unwrap_or((index + 1) as f32);
 
-			chapters.push(Chapter {
-				key,
-				title: Some(title),
-				chapter_number: Some(chapter_num),
-				url: Some(get_absolute_url(&url)),
-				..Default::default()
-			});
+				chapters.push(Chapter {
+					key,
+					title: Some(title),
+					chapter_number: Some(chapter_num),
+					url: Some(get_absolute_url(&url)),
+					..Default::default()
+				});
+			}
 		}
-	}
 		Ok(chapters)
 	}
 }
