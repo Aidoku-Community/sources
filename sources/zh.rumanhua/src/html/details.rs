@@ -21,9 +21,7 @@ impl RumanhuaDetailsHtml for Document {
 			}
 		}
 
-		if let Some(p) = self.select_first("div.detailContent p")
-			&& let Some(desc) = p.text()
-		{
+		if let Some(desc) = self.select_first("div.detailContent p").and_then(|p| p.text()) {
 			manga.description = Some(desc);
 		}
 
@@ -61,27 +59,23 @@ impl RumanhuaDetailsHtml for Document {
 		let mut chapters = Vec::new();
 
 		if let Some(elements) = self.select("ul.chapterList li a") {
-			for a in elements {
-				let Some(url) = a.attr("href") else { continue; };
-				let Some(title) = a.text() else { continue; };
-				let Some(key) = extract_chapter_key(&url) else {
-					continue;
-				};
-				let chapter_num = extract_chapter_number(&title).unwrap_or(0.0);
+		for a in elements.rev() {
+			let Some(url) = a.attr("href") else { continue; };
+			let Some(title) = a.text() else { continue; };
+			let Some(key) = extract_chapter_key(&url) else {
+				continue;
+			};
+			let chapter_num = extract_chapter_number(&title).unwrap_or(0.0);
 
-				chapters.push(Chapter {
-					key,
-					title: Some(title),
-					chapter_number: Some(chapter_num),
-					url: Some(get_absolute_url(&url)),
-					..Default::default()
-				});
-			}
+			chapters.push(Chapter {
+				key,
+				title: Some(title),
+				chapter_number: Some(chapter_num),
+				url: Some(get_absolute_url(&url)),
+				..Default::default()
+			});
 		}
-
-		// Mobile site lists oldest→newest; Aidoku expects newest→oldest
-		chapters.reverse();
-
+	}
 		Ok(chapters)
 	}
 }

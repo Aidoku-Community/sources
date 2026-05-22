@@ -59,33 +59,33 @@ pub fn get_search_url(query: Option<String>, page: i32, filters: Vec<FilterValue
 		};
 	}
 
-	let mut leaderboard_id = String::new();
-	let mut status_id = String::new();
-	let mut audience_id = String::new();
+	let mut leaderboard_id: Option<String> = None;
+	let mut status_id: Option<String> = None;
+	let mut audience_id: Option<String> = None;
 
 	for filter in filters {
 		if let FilterValue::Select { id, value } = filter {
 			if id == "leaderboard" {
-				leaderboard_id = value;
+				leaderboard_id = Some(value);
 				break;
 			} else if id == "status" {
-				status_id = value;
+				status_id = Some(value);
 			} else if id == "audience" {
-				audience_id = value;
+				audience_id = Some(value);
 			}
 		}
 	}
 
-	if !leaderboard_id.is_empty() {
-		return format!("{}/custom/{}?page={}", BASE_URL, leaderboard_id, page);
+	if let Some(id) = leaderboard_id {
+		return format!("{}/custom/{}?page={}", BASE_URL, id, page);
 	}
 
 	let mut url = format!("{}/category", BASE_URL);
-	if !status_id.is_empty() {
-		url = format!("{}/finish/{}", url, status_id);
+	if let Some(id) = status_id {
+		url = format!("{}/finish/{}", url, id);
 	}
-	if !audience_id.is_empty() {
-		url = format!("{}/list/{}", url, audience_id);
+	if let Some(id) = audience_id {
+		url = format!("{}/list/{}", url, id);
 	}
 
 	format!("{}?page={}", url, page)
