@@ -288,7 +288,7 @@ impl Source for Comix {
 					format!("{base_url}/{}", page.url.trim_start_matches('/'))
 				};
 				Page {
-					content: PageContent::url(url),
+					content: PageContent::url(url.replace("/si/", "/i/")),
 					..Default::default()
 				}
 			})
