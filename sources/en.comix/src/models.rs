@@ -126,6 +126,7 @@ pub struct ComixManga {
 	pub genres: Option<Vec<Term>>,
 	pub tags: Option<Vec<Term>>,
 	pub latest_chapter: Option<f32>,
+	pub url: String,
 	// pub has_chapters: bool,
 	// pub chapter_updated_at_formatted: Option<String>,
 }
@@ -182,7 +183,7 @@ impl ComixManga {
 
 impl From<ComixManga> for Manga {
 	fn from(value: ComixManga) -> Self {
-		let url = format!("{BASE_URL}/title/{}", value.hid);
+		let url = format!("{BASE_URL}/{}", value.url.trim_start_matches('/'));
 		Self {
 			key: value.hid,
 			title: value.title,
@@ -239,6 +240,7 @@ pub struct ComixChapter {
 	pub group: Option<ScanlationGroup>,
 	#[serde(deserialize_with = "bool_from_any")]
 	pub is_official: bool,
+	pub url: String,
 }
 
 impl ComixChapter {
@@ -246,7 +248,7 @@ impl ComixChapter {
 		helpers::parse_relative_date_string(&self.created_at_formatted)
 	}
 
-	pub fn into_chapter(self, manga_id: &str) -> Chapter {
+	pub fn into_chapter(self) -> Chapter {
 		let created_at = self.created_at();
 		Chapter {
 			key: self.id.to_string(),
@@ -260,7 +262,7 @@ impl ComixChapter {
 			} else {
 				None
 			},
-			url: Some(format!("{BASE_URL}/title/{manga_id}/{}", self.id)),
+			url: Some(format!("{BASE_URL}/{}", self.url.trim_start_matches('/'))),
 			..Default::default()
 		}
 	}

@@ -243,12 +243,12 @@ impl Source for Comix {
 			let mut chapters: Vec<Chapter> = if deduplicate {
 				chapter_map
 					.into_values()
-					.map(|item| item.into_chapter(&manga.key))
+					.map(|item| item.into_chapter())
 					.collect()
 			} else {
 				chapter_list
 					.into_iter()
-					.map(|item| item.into_chapter(&manga.key))
+					.map(|item| item.into_chapter())
 					.collect()
 			};
 
