@@ -15,17 +15,27 @@ if (!vmObj || typeof vmObj !== 'object' || vmObj === window) {\
 	return '';\
 }";
 
+const JS_PATCHER: &str = "<head><script>window['originalGetImageData'] = HTMLCanvasElement.prototype.toDataURL;</script>";
+
 pub struct ComixWebView {
 	web_view: WebView,
 	installer_fn: Option<String>,
+	descrambler_fn: Option<String>,
 }
 
 pub fn create_web_view() -> Result<ComixWebView> {
 	let web_view = WebView::new();
-	web_view.load_blocking(Request::get(BASE_URL)?)?;
+	web_view.load_html_blocking(
+		Request::get(BASE_URL)?
+			.string()?
+			.replace("<head>", JS_PATCHER)
+			.as_str(),
+		Some(BASE_URL),
+	)?;
 	let mut comix_web_view = ComixWebView {
 		web_view,
 		installer_fn: None,
+		descrambler_fn: None,
 	};
 	if find_functions(&mut comix_web_view).is_err() {
 		find_secure_module_src(&mut comix_web_view)?;
@@ -76,33 +86,50 @@ fn find_functions(web_view: &mut ComixWebView) -> Result<()> {
 			try {{
 				{GET_VMOBJ_JS}
 				let fnames = Object.keys(vmObj);
+				let inst = '', desc = '';
 				for (let j = 0; j < fnames.length; j++) {{
 					let fn = vmObj[fnames[j]];
 					if (typeof fn !== 'function') continue;
-					try {{
-						let got = false;
-						fn({{
-							interceptors: {{
-								request: {{ use: function() {{}} }},
-								response: {{ use: function() {{ got = true; }} }}
-							}},
-							defaults: {{
-								headers: {{ common: {{}} }},
-								transformRequest: [],
-								transformResponse: []
-							}}
-						}});
-						if (got) return 'window[' + JSON.stringify(vmKey) + '].' + fnames[j];
-					}} catch (e) {{}}
+					let ref = 'window[' + JSON.stringify(vmKey) + '].' + fnames[j];
+					if (!inst) {{
+						try {{
+							let got = false;
+							fn({{
+								interceptors: {{
+									request: {{ use: function() {{}} }},
+									response: {{ use: function() {{ got = true; }} }}
+								}},
+								defaults: {{
+									headers: {{ common: {{}} }},
+									transformRequest: [],
+									transformResponse: []
+								}}
+							}});
+							if (got) inst = ref;
+						}} catch (e) {{}}
+					}}
+					if (!desc) {{
+						if (fn.constructor.name === 'AsyncFunction') {{
+							desc = ref;
+						}}
+					}}
 				}}
+				return inst + '||' + desc
 			}} catch(e) {{}}
 			return '';
 		}})()",
 	))?;
-	if result.is_empty() {
+	let Some((installer_expr, descrambler_expr)) = result.split_once("||") else {
+		bail!("Failed to find installer and descrambler functions")
+	};
+	if installer_expr.is_empty() {
 		bail!("Failed to find installer function");
 	};
-	web_view.installer_fn = Some(result);
+	if descrambler_expr.is_empty() {
+		bail!("Failed to find descrambler function");
+	};
+	web_view.installer_fn = Some(installer_expr.into());
+	web_view.descrambler_fn = Some(descrambler_expr.into());
 	Ok(())
 }
 
@@ -207,4 +234,52 @@ pub fn decode_response(web_view: &ComixWebView, url: &str, encoded_res: &str) ->
 		bail!("Failed to fetch token")
 	}
 	Ok(result)
+}
+
+pub fn descramble_image(
+	web_view: &ComixWebView,
+	width: f32,
+	height: f32,
+	url: &str,
+) -> Result<String> {
+	let Some(descrambler_fn) = web_view.descrambler_fn.as_ref() else {
+		bail!("Missing descramble function")
+	};
+
+	web_view.web_view.eval(&format!(
+		"(() => {{
+		const canvas = document.createElement('canvas');
+		canvas.width = {width};
+		canvas.height = {height};
+
+		window['TEMP_CANVAS'] = canvas;
+		window['TEMP_STATE'] = {{ isDone: false, error: null }}
+
+		{GET_VMOBJ_JS}
+		{descrambler_fn}('{url}', canvas)
+			.then(() => window['TEMP_STATE'].isDone = true)
+			.catch((e) => {{ window['TEMP_STATE'].isDone = true; window['TEMP_STATE'].error = e }});
+
+		return '';
+	}})()"
+	))?;
+
+	while web_view
+		.web_view
+		.eval("(() => { return window['TEMP_STATE'].isDone ? 'true' : 'false'; })()")?
+		== "false"
+	{}
+
+	let result = web_view.web_view.eval(
+		"(() => {{
+		const data = window['originalGetImageData'].call(window['TEMP_CANVAS']);
+		return data;
+	}})()",
+	)?;
+
+	if result.is_empty() {
+		bail!("Failed to descramble image")
+	} else {
+		Ok(result)
+	}
 }

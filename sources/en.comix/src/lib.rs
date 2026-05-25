@@ -1,10 +1,11 @@
 #![no_std]
 
+use aidoku::imports::canvas::ImageRef;
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeComponent,
-	HomeLayout, HomePartialResult, ImageRequestProvider, Link, LinkValue, Listing, ListingProvider,
-	Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page, PageContent, PageContext,
-	Result, Source,
+	HomeLayout, HomePartialResult, ImageRequestProvider, ImageResponse, Link, LinkValue, Listing,
+	ListingProvider, Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page,
+	PageContent, PageContext, PageImageProcessor, Result, Source,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -13,6 +14,7 @@ use aidoku::{
 	},
 	prelude::*,
 };
+use base64::{Engine, engine::general_purpose};
 
 mod helpers;
 mod models;
@@ -497,12 +499,27 @@ impl ListingProvider for Comix {
 
 impl ImageRequestProvider for Comix {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-		let request = Request::get(url.replace("/si/", "/i/").replace("/sii/", "/i/"));
-		if request.is_err() {
-			Ok(Request::get(url)?.header("Referer", &format!("{BASE_URL}/")))
-		} else {
-			Ok(request?.header("Referer", &format!("{BASE_URL}/")))
-		}
+		Ok(Request::get(url)?.header("Referer", &format!("{BASE_URL}/")))
+	}
+}
+
+impl PageImageProcessor for Comix {
+	fn process_page_image(
+		&self,
+		response: ImageResponse,
+		_context: Option<PageContext>,
+	) -> Result<ImageRef> {
+		let web_view = web::create_web_view()?;
+		let data_url = web::descramble_image(
+			&web_view,
+			response.image.width(),
+			response.image.height(),
+			response.request.url.unwrap().as_ref(),
+		)?;
+		let base64_data = data_url.split_once(',').map(|(_, data)| data).unwrap();
+		let bytes: Vec<u8> = general_purpose::STANDARD.decode(base64_data).unwrap();
+
+		Ok(ImageRef::new(bytes.as_ref()))
 	}
 }
 
@@ -552,6 +569,7 @@ register_source!(
 	Home,
 	ListingProvider,
 	ImageRequestProvider,
+	PageImageProcessor,
 	NotificationHandler,
 	DeepLinkHandler
 );
