@@ -50,18 +50,16 @@ fn find_secure_module_src(web_view: &mut ComixWebView) -> Result<()> {
 			let secure_script_path = captures.get(1).unwrap().as_str();
 			web_view.web_view.eval(&format!(
 				"(() => {{
-				try {{
-					import('{BASE_URL}{js_asset_path}{secure_script_path}')
-						.then((m) => window['vm'] = m)
-						.catch((e) => window['vm'] = {{}});
-				}} catch (e) => {{ window['vm'] = {{}}; }}
+				import('{BASE_URL}{js_asset_path}{secure_script_path}')
+					.then((m) => window['vm'] = m)
+					.catch((e) => window['vm'] = {{}});
 				return '';
 			}})()"
 			))?;
 			while web_view
 				.web_view
-				.eval("(() => { return window['vm'] != null ? 'true' : 'false'; })()")?
-				.starts_with("false")
+				.eval("(() => { return window['vm'] == null ? 'true' : 'false'; })()")?
+				== "true"
 			{}
 			Ok(())
 		} else {

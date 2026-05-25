@@ -1,9 +1,10 @@
 #![no_std]
+
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeComponent,
 	HomeLayout, HomePartialResult, ImageRequestProvider, Link, LinkValue, Listing, ListingProvider,
-	Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page, PageContent, Result,
-	Source,
+	Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page, PageContent, PageContext,
+	Result, Source,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -288,7 +289,7 @@ impl Source for Comix {
 					format!("{base_url}/{}", page.url.trim_start_matches('/'))
 				};
 				Page {
-					content: PageContent::url(url.replace("/si/", "/i/")),
+					content: PageContent::url(url),
 					..Default::default()
 				}
 			})
@@ -495,12 +496,13 @@ impl ListingProvider for Comix {
 }
 
 impl ImageRequestProvider for Comix {
-	fn get_image_request(
-		&self,
-		url: String,
-		_context: Option<aidoku::PageContext>,
-	) -> Result<Request> {
-		Ok(Request::get(url)?.header("Referer", &format!("{BASE_URL}/")))
+	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
+		let request = Request::get(url.replace("/si/", "/i/").replace("/sii/", "/i/"));
+		if request.is_err() {
+			Ok(Request::get(url)?.header("Referer", &format!("{BASE_URL}/")))
+		} else {
+			Ok(request?.header("Referer", &format!("{BASE_URL}/")))
+		}
 	}
 }
 
