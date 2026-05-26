@@ -247,22 +247,24 @@ impl ComixChapter {
 	pub fn created_at(&self) -> i64 {
 		helpers::parse_relative_date_string(&self.created_at_formatted)
 	}
+}
 
-	pub fn into_chapter(self) -> Chapter {
-		let created_at = self.created_at();
+impl From<ComixChapter> for Chapter {
+	fn from(value: ComixChapter) -> Self {
+		let created_at = value.created_at();
 		Chapter {
-			key: self.id.to_string(),
-			title: (!self.name.is_empty()).then_some(self.name),
-			chapter_number: Some(self.number),
+			key: value.id.to_string(),
+			title: (!value.name.is_empty()).then_some(value.name),
+			chapter_number: Some(value.number),
 			date_uploaded: Some(created_at),
-			scanlators: if let Some(group) = self.group {
+			scanlators: if let Some(group) = value.group {
 				Some(vec![group.name])
-			} else if self.is_official {
+			} else if value.is_official {
 				Some(vec!["Official".into()])
 			} else {
 				None
 			},
-			url: Some(format!("{BASE_URL}/{}", self.url.trim_start_matches('/'))),
+			url: Some(format!("{BASE_URL}/{}", value.url.trim_start_matches('/'))),
 			..Default::default()
 		}
 	}

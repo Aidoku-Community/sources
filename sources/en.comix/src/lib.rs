@@ -241,15 +241,9 @@ impl Source for Comix {
 			}
 
 			let mut chapters: Vec<Chapter> = if deduplicate {
-				chapter_map
-					.into_values()
-					.map(|item| item.into_chapter())
-					.collect()
+				chapter_map.into_values().map(Into::into).collect()
 			} else {
-				chapter_list
-					.into_iter()
-					.map(|item| item.into_chapter())
-					.collect()
+				chapter_list.into_iter().map(Into::into).collect()
 			};
 
 			if deduplicate {
@@ -510,14 +504,21 @@ impl PageImageProcessor for Comix {
 		_context: Option<PageContext>,
 	) -> Result<ImageRef> {
 		let web_view = web::create_web_view()?;
+		let Some(url) = response.request.url else {
+			bail!("Unable to get the image url")
+		};
 		let data_url = web::descramble_image(
 			&web_view,
 			response.image.width(),
 			response.image.height(),
-			response.request.url.unwrap().as_ref(),
+			url.as_ref(),
 		)?;
-		let base64_data = data_url.split_once(',').map(|(_, data)| data).unwrap();
-		let bytes: Vec<u8> = general_purpose::STANDARD.decode(base64_data).unwrap();
+		let Some((_, base64_data)) = data_url.split_once(',') else {
+			bail!("Unable to get the raw image data")
+		};
+		let bytes: Vec<u8> = general_purpose::STANDARD
+			.decode(base64_data)
+			.or_else(|_| bail!("Invalid base64 data given"))?;
 
 		Ok(ImageRef::new(bytes.as_ref()))
 	}

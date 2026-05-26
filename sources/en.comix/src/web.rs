@@ -1,7 +1,7 @@
 // reference: https://github.com/nobottomline/extensions-source/blob/c8fe930f315f3baee23587559edfceab5e969202/src/en/comix/src/eu/kanade/tachiyomi/extension/en/comix/Signer.kt
 use crate::BASE_URL;
 use aidoku::{
-	AidokuError, Result,
+	Result,
 	alloc::string::String,
 	imports::{js::WebView, net::Request},
 	prelude::*,
@@ -50,14 +50,16 @@ fn find_secure_module_src(web_view: &mut ComixWebView) -> Result<()> {
 		.select("head > script[type=\"module\"][src*=\"main\"]")
 		.and_then(|e| e.first())
 		.and_then(|e| e.attr("src"))
-		.ok_or(AidokuError::message("Main module not found"))?;
+		.ok_or(error!("Main module not found"))?;
 	if let Some(js_asset_path_index) = main_module_src.rfind("/") {
 		let js_asset_path = &main_module_src[0..js_asset_path_index + 1];
 		let secure_script_regex = Regex::new("(secure-[A-Za-z0-9-_]+?\\.js)").unwrap();
 		let main_module_contents =
 			Request::get(format!("{BASE_URL}{main_module_src}"))?.string()?;
-		if let Some(captures) = secure_script_regex.captures(main_module_contents.as_str()) {
-			let secure_script_path = captures.get(1).unwrap().as_str();
+		if let Some(secure_script_path) = secure_script_regex
+			.captures(main_module_contents.as_str())
+			.and_then(|captures| captures.get(1).map(|m| m.as_str()))
+		{
 			web_view.web_view.eval(&format!(
 				"(() => {{
 				import('{BASE_URL}{js_asset_path}{secure_script_path}')
