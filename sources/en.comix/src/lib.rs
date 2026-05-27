@@ -503,10 +503,41 @@ impl PageImageProcessor for Comix {
 		response: ImageResponse,
 		_context: Option<PageContext>,
 	) -> Result<ImageRef> {
-		let web_view = web::create_web_view()?;
 		let Some(url) = response.request.url else {
 			bail!("Unable to get the image url")
 		};
+
+		let mut is_scrambled = false;
+
+		if !response.headers.contains_key("x-scramble-grid")
+			|| !response.headers.contains_key("x-scramble-seed")
+		{
+			// There is a bug with the current response header that can be empty when there should be something.
+			// This might not be needed in the future but for now, we need it to ensure correct response header.
+			let image_response = Request::head(&url)?.send()?;
+			if image_response.get_header("x-scramble-grid").is_some()
+				&& image_response
+					.get_header("x-scramble-seed")
+					.is_some_and(|seed| seed != "0")
+			{
+				is_scrambled = true;
+			}
+		} else {
+			// If both exists, we can check if the seed is scrambled or not.
+			if response
+				.headers
+				.get("x-scramble-seed")
+				.is_some_and(|seed| seed != "0")
+			{
+				is_scrambled = true;
+			}
+		}
+
+		if !is_scrambled {
+			return Ok(response.image);
+		}
+
+		let web_view = web::create_web_view()?;
 		let data_url = web::descramble_image(
 			&web_view,
 			response.image.width(),

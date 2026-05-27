@@ -274,6 +274,7 @@ pub fn descramble_image(
 
 	let result = web_view.web_view.eval(
 		"(() => {{
+		if (window['TEMP_STATE'].error) return '';
 		const data = window['originalGetImageData'].call(window['TEMP_CANVAS']);
 		return data;
 	}})()",
