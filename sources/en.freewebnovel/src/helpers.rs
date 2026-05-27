@@ -25,6 +25,16 @@ pub fn build_chapter_url(slug: &str, chapter_key: &str) -> String {
 	format!("{BASE_URL}/novel/{slug}/{chapter_key}")
 }
 
+fn absolute_url(path_or_url: &str) -> String {
+	if path_or_url.starts_with("http") {
+		path_or_url.into()
+	} else if path_or_url.starts_with('/') {
+		format!("{BASE_URL}{path_or_url}")
+	} else {
+		format!("{BASE_URL}/{path_or_url}")
+	}
+}
+
 pub fn parse_novel_and_chapter(url: &str) -> Option<(String, Option<String>)> {
 	let path = url
 		.split(['?', '#'])
@@ -246,41 +256,29 @@ pub fn parse_search_results(html: &Document) -> Vec<Manga> {
 	let mut seen = Vec::new();
 	if let Some(rows) = html.select("div.li-row") {
 		for row in rows {
-			let link = match row.select_first("a[href*='/novel/']") {
-				Some(el) => el,
-				None => continue,
-			};
-			let url = match link.attr("abs:href") {
-				Some(h) => h,
-				None => {
-					println!(
-						"Skipping row without absolute href: {}",
-						row.outer_html().unwrap_or_default()
-					);
-					continue;
-				}
+			let url = row
+				.select_first("div.pic > a")
+				.and_then(|el| el.attr("href"))
+				.or_else(|| row.select_first("a[href*='/novel/']").and_then(|el| el.attr("href")));
+			let Some(url) = url.map(|u| absolute_url(&u)) else {
+				continue;
 			};
 			let Some((slug, chapter_key)) = parse_novel_and_chapter(&url) else {
-				println!("Failed to parse novel and chapter from URL: {}", url);
 				continue;
 			};
 			if chapter_key.is_some() || seen.iter().any(|s| s == &slug) {
-				println!("Skipping element with chapter link or duplicate slug: {}", url);
 				continue;
 			}
 			let title = row
-				.select_first("h3, h2, h4, .book-title, .title")
+				.select_first("div.txt > h3.tit > a")
 				.and_then(|el| el.text())
-				.or_else(|| link.text())
+				.or_else(|| row.select_first("div.txt > h3 > a").and_then(|el| el.text()))
+				.or_else(|| row.select_first("div.txt > h3").and_then(|el| el.text()))
 				.and_then(|t| {
 					let trimmed = t.trim();
 					(!trimmed.is_empty()).then(|| trimmed.to_string())
 				});
 			let Some(title) = title else {
-				println!(
-					"Skipping row without title: {}",
-					row.outer_html().unwrap_or_default()
-				);
 				continue;
 			};
 			let cover = find_cover_image(&row);
@@ -291,7 +289,6 @@ pub fn parse_search_results(html: &Document) -> Vec<Manga> {
 				url: Some(build_novel_url(&slug)),
 				..Default::default()
 			};
-			println!("Adding manga entry: {:?}", manga);
 			entries.push(manga);
 			seen.push(slug);
 		}
@@ -306,33 +303,19 @@ pub fn parse_search_results(html: &Document) -> Vec<Manga> {
 				None => continue,
 			};
 			if !parent.class_name().unwrap_or_default().eq("con") {
-				println!(
-					"Skipping element not in .con container: {}",
-					el.outer_html().unwrap_or_default()
-				);
 				continue;
-			} else {
-				println!(
-					"Processing element: {}",
-					parent.outer_html().unwrap_or_default()
-				);
 			}
-			let url = match parent.select_first("a").and_then(|a| a.attr("abs:href")) {
-				Some(h) => h,
-				None => {
-					println!(
-						"Skipping element without absolute href: {}",
-						el.outer_html().unwrap_or_default()
-					);
-					continue;
-				}
+			let Some(url) = parent
+				.select_first("a")
+				.and_then(|a| a.attr("href"))
+				.map(|u| absolute_url(&u))
+			else {
+				continue;
 			};
 			let Some((slug, chapter_key)) = parse_novel_and_chapter(&url) else {
-				println!("Failed to parse novel and chapter from URL: {}", url);
 				continue;
 			};
 			if chapter_key.is_some() || seen.iter().any(|s| s == &slug) {
-				println!("Skipping element with chapter link or duplicate slug: {}", url);
 				continue;
 			}
 			let title = match el.text() {
@@ -343,13 +326,7 @@ pub fn parse_search_results(html: &Document) -> Vec<Manga> {
 					}
 					trimmed.to_string()
 				}
-				None => {
-					println!(
-						"Skipping element without text: {}",
-						el.outer_html().unwrap_or_default()
-					);
-					continue;
-				}
+				None => continue,
 			};
 			let cover = find_cover_image(&el);
 			let manga = Manga {
@@ -359,7 +336,6 @@ pub fn parse_search_results(html: &Document) -> Vec<Manga> {
 				url: Some(build_novel_url(&slug)),
 				..Default::default()
 			};
-			println!("Adding manga entry: {:?}", manga);
 			entries.push(manga);
 			seen.push(slug);
 		}
@@ -425,27 +401,12 @@ fn clean_block_text(text: &str) -> String {
 }
 
 fn find_cover_image(el: &Element) -> Option<String> {
-	println!("Searching for cover image in element: {}", el.outer_html().unwrap());
-	let img = el.select_first("img");
-	println!("Finding cover image in element: {}", el.outer_html().unwrap());
-	let cover = img.and_then(|img| img.attr("abs:src"));
-	println!("Direct img src: {:?}", cover);
-		// .or_else(|| {
-		// 	el.parent()
-		// 		.and_then(|p| p.select_first("img"))
-		// 		.and_then(|img| img.attr("abs:src"))
-		// })
-		// .or_else(|| {
-		// 	el.parent()
-		// 		.and_then(|p| p.parent())
-		// 		.and_then(|p| p.select_first("img"))
-		// 		.and_then(|img| img.attr("abs:src"))
-		// })
-	// log result for debugging
-	if let Some(ref url) = cover {
-		println!("Found cover image: {}", url);
-	} else {
-		println!("No cover image found");
-	}
-	cover
+	let cover = el
+		.select_first("div.pic > a > img")
+		.and_then(|img| img.attr("src"))
+		.or_else(|| el.select_first("img").and_then(|img| img.attr("src")));
+	cover.and_then(|url| {
+		let trimmed = url.trim();
+		(!trimmed.is_empty()).then(|| absolute_url(trimmed))
+	})
 }
