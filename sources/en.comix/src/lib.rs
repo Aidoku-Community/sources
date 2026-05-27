@@ -285,7 +285,13 @@ impl Source for Comix {
 					format!("{base_url}/{}", page.url.trim_start_matches('/'))
 				};
 				Page {
-					content: PageContent::url(url),
+					content: if let Some(s) = page.s {
+						let mut context = PageContext::new();
+						context.insert("s".into(), s.to_string());
+						PageContent::url_context(url, context)
+					} else {
+						PageContent::url(url)
+					},
 					..Default::default()
 				}
 			})
@@ -501,57 +507,31 @@ impl PageImageProcessor for Comix {
 	fn process_page_image(
 		&self,
 		response: ImageResponse,
-		_context: Option<PageContext>,
+		context: Option<PageContext>,
 	) -> Result<ImageRef> {
-		let Some(url) = response.request.url else {
-			bail!("Unable to get the image url")
-		};
+		if context.is_some_and(|ctx| ctx.get("s").is_some_and(|s| s == "1")) {
+			let Some(url) = response.request.url else {
+				bail!("Unable to get the image url")
+			};
 
-		let mut is_scrambled = false;
+			let web_view = web::create_web_view()?;
+			let data_url = web::descramble_image(
+				&web_view,
+				response.image.width(),
+				response.image.height(),
+				url.as_ref(),
+			)?;
+			let Some((_, base64_data)) = data_url.split_once(',') else {
+				bail!("Unable to get the raw image data")
+			};
+			let bytes: Vec<u8> = general_purpose::STANDARD
+				.decode(base64_data)
+				.or_else(|_| bail!("Invalid base64 data given"))?;
 
-		if !response.headers.contains_key("x-scramble-grid")
-			|| !response.headers.contains_key("x-scramble-seed")
-		{
-			// There is a bug with the current response header that can be empty when there should be something.
-			// This might not be needed in the future but for now, we need it to ensure correct response header.
-			let image_response = Request::head(&url)?.send()?;
-			if image_response.get_header("x-scramble-grid").is_some()
-				&& image_response
-					.get_header("x-scramble-seed")
-					.is_some_and(|seed| seed != "0")
-			{
-				is_scrambled = true;
-			}
+			Ok(ImageRef::new(bytes.as_ref()))
 		} else {
-			// If both exists, we can check if the seed is scrambled or not.
-			if response
-				.headers
-				.get("x-scramble-seed")
-				.is_some_and(|seed| seed != "0")
-			{
-				is_scrambled = true;
-			}
+			Ok(response.image)
 		}
-
-		if !is_scrambled {
-			return Ok(response.image);
-		}
-
-		let web_view = web::create_web_view()?;
-		let data_url = web::descramble_image(
-			&web_view,
-			response.image.width(),
-			response.image.height(),
-			url.as_ref(),
-		)?;
-		let Some((_, base64_data)) = data_url.split_once(',') else {
-			bail!("Unable to get the raw image data")
-		};
-		let bytes: Vec<u8> = general_purpose::STANDARD
-			.decode(base64_data)
-			.or_else(|_| bail!("Invalid base64 data given"))?;
-
-		Ok(ImageRef::new(bytes.as_ref()))
 	}
 }
 
