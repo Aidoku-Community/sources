@@ -12,14 +12,11 @@ use aidoku::{
 mod helpers;
 
 use helpers::{
-	build_chapter_url, build_novel_url, content_rating_from_tags, extract_authors,
-	extract_chapter_text, extract_chapters, extract_cover, extract_description, extract_tags,
-	extract_title, parse_home_section, parse_novel_and_chapter, parse_search_results, request_html,
+	build_chapter_url, build_novel_url, extract_chapter_text, extract_chapters, fill_manga_details,
+	parse_home_section, parse_novel_and_chapter, parse_search_results, request_html,
 };
 
 pub const BASE_URL: &str = "https://freewebnovel.com";
-pub const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 \
-	(KHTML, like Gecko) Version/17.0 Safari/605.1.15";
 const LISTING_LATEST_RELEASE: &str = "latest-release";
 const LISTING_LATEST_NOVEL: &str = "latest-novel";
 const LISTING_COMPLETED_NOVEL: &str = "completed-novel";
@@ -37,16 +34,8 @@ fn build_sort_url(kind: &str, page: i32) -> String {
 fn has_next_page(html: &Document, kind: &str, page: i32) -> bool {
 	let next_page = page + 1;
 	let next_fragment = format!("/sort/{kind}/{next_page}");
-	if let Some(links) = html.select("a[href]") {
-		for link in links {
-			if let Some(href) = link.attr("href")
-				&& href.contains(&next_fragment)
-			{
-				return true;
-			}
-		}
-	}
-	false
+	let query = format!("a[href*='{next_fragment}']");
+	html.select_first(&query).is_some()
 }
 
 impl Source for FreeWebNovel {
@@ -93,22 +82,14 @@ impl Source for FreeWebNovel {
 		let html = request_html(&url)?;
 
 		if needs_details {
-			manga.title = extract_title(&html)?;
-			manga.cover = extract_cover(&html);
-			manga.description = extract_description(&html);
-			manga.authors = extract_authors(&html);
-			manga.tags = extract_tags(&html);
-			if let Some(tags) = manga.tags.as_deref() {
-				manga.content_rating = content_rating_from_tags(tags);
-			}
-			manga.url = Some(url.clone());
+			manga = fill_manga_details(&html, manga)?;
 			if needs_chapters {
 				send_partial_result(&manga);
 			}
 		}
 
 		if needs_chapters {
-			let chapters = extract_chapters(&html, &manga.key);
+			let chapters = extract_chapters(&html);
 			manga.chapters = Some(chapters);
 		}
 
@@ -146,7 +127,6 @@ impl Home for FreeWebNovel {
 				}
 			}
 			hot_entries.retain(|m| !seen.iter().any(|s| s == &m.key));
-			hot_entries.truncate(12);
 		}
 
 		let mut components = Vec::new();

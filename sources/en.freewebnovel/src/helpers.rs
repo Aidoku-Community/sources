@@ -1,7 +1,7 @@
 #![allow(clippy::needless_pass_by_value)]
 use crate::BASE_URL;
 use aidoku::{
-	Chapter, ContentRating, Manga, Result,
+	Chapter, ContentRating, Manga, MangaStatus, Result,
 	alloc::{String, Vec, string::ToString},
 	imports::{
 		html::{Document, Element},
@@ -32,36 +32,17 @@ fn absolute_url(path_or_url: &str) -> String {
 	}
 }
 
-fn split_url_suffix(url: &str) -> (&str, &str) {
-	let mut split_at = url.len();
-	for (idx, ch) in url.char_indices() {
-		if ch == '?' || ch == '#' {
-			split_at = idx;
-			break;
-		}
-	}
-	(&url[..split_at], &url[split_at..])
-}
-
+/// Normalizes cover image URLs by replacing "ss.jpg" with "s.jpg" to get a higher resolution image.
 fn normalize_cover_url(url: &str) -> Option<String> {
-	let trimmed = url.trim();
-	if trimmed.is_empty() {
+	let url = url.trim();
+	if url.is_empty() {
 		return None;
 	}
-	let (base, suffix) = split_url_suffix(trimmed);
-	let normalized_base = if base.ends_with("ss.jpg") && base.len() > 6 {
-		format!("{}s.jpg", &base[..base.len() - 6])
-	} else {
-		base.to_string()
-	};
-	Some(format!("{normalized_base}{suffix}"))
+	Some(url.replace("ss.jpg", "s.jpg"))
 }
 
 pub fn parse_novel_and_chapter(url: &str) -> Option<(String, Option<String>)> {
 	let path = url
-		.split(['?', '#'])
-		.next()
-		.unwrap_or(url)
 		.rsplit("freewebnovel.com")
 		.next()
 		.unwrap_or(url)
@@ -117,197 +98,81 @@ pub fn content_rating_from_tags(tags: &[String]) -> ContentRating {
 	}
 }
 
-pub fn extract_title(html: &Document) -> Result<String> {
-	meta_content(html, "meta[property='og:title']")
-		.or_else(|| meta_content(html, "meta[name='title']"))
-		.or_else(|| {
-			html.select_first("h1, h2, h3")
-				.and_then(|el| el.text())
-		})
-		.filter(|t| !t.is_empty())
-		.ok_or_else(|| error!("title not found"))
-}
-
-pub fn extract_cover(html: &Document) -> Option<String> {
-	meta_content(html, "meta[property='og:image']")
-		.and_then(|url| normalize_cover_url(&url))
-		.map(|url| absolute_url(&url))
-		.or_else(|| {
-			html.select_first("img[src*='/files/article/image/']")
-				.and_then(|el| el.attr("src"))
-				.and_then(|url| normalize_cover_url(&url))
-				.map(|url| absolute_url(&url))
-		})
-}
-
-pub fn extract_description(html: &Document) -> Option<String> {
-	meta_content(html, "meta[property='og:description']")
-		.or_else(|| meta_content(html, "meta[name='description']"))
-		.or_else(|| {
-			let container = html.select_first(
-				"div:has(h4:contains(SUMMARY)), div:has(h3:contains(SUMMARY)), \
-				 div:has(h4:contains(Summary)), div:has(h3:contains(Summary))",
-			)?;
-			container
-				.select("p")
-				.map(extract_text_from_elements)
-				.filter(|t| !t.is_empty())
-		})
-}
-
-pub fn extract_authors(html: &Document) -> Option<Vec<String>> {
-	let mut authors = Vec::new();
-	let elements = html
-		.select_first("div:has(a[href^='/author/'])")
-		.and_then(|el| el.select("a[href^='/author/']"))
-		.or_else(|| html.select("a[href^='/author/']"));
-	if let Some(els) = elements {
-		for el in els {
-			if let Some(text) = el.text() {
-				if !text.is_empty() && !authors.iter().any(|a| a == &text) {
-					authors.push(text.to_string());
-				}
-			}
-		}
-	}
-	(!authors.is_empty()).then_some(authors)
-}
-
-pub fn extract_tags(html: &Document) -> Option<Vec<String>> {
-	let mut tags = extract_meta_tags(html);
-	if tags.is_empty() {
-		let elements = html
-			.select_first("div:has(a[href^='/author/'])")
-			.and_then(|el| el.select("a[href^='/genre/']"))
-			.or_else(|| html.select("a[href^='/genre/']"));
-		if let Some(els) = elements {
-			for el in els {
-				if let Some(text) = el.text() {
-					let tag = text.trim();
-					if !tag.is_empty() && !tags.iter().any(|t| t == tag) {
-						tags.push(tag.to_string());
-						if tags.len() >= 12 {
-							break;
-						}
-					}
-				}
-			}
-		}
-	}
-	(!tags.is_empty()).then_some(tags)
-}
-
-pub fn extract_chapters(html: &Document, slug: &str) -> Vec<Chapter> {
+/// Extract Chapters from Novel page.
+pub fn extract_chapters(html: &Document) -> Vec<Chapter> {
 	let mut chapters = Vec::new();
-	let mut seen = Vec::new();
-	append_chapters_from_doc(html, slug, &mut chapters, &mut seen);
+	append_chapters_from_doc(html, &mut chapters);
 	chapters.reverse();
 	chapters
 }
 
-fn append_chapters_from_doc(
-	doc: &Document,
-	slug: &str,
-	chapters: &mut Vec<Chapter>,
-	seen: &mut Vec<String>,
-) {
-	if let Some(items) = doc.select("div.m-newest2 > ul.ul-list5 > li") {
-		for item in items {
-			let Some(link) = item.select_first("a") else {
-				continue;
-			};
-			let Some(href) = link.attr("href") else {
-				continue;
-			};
-			let url = absolute_url(&href);
-			let Some((link_slug, Some(chapter_key))) = parse_novel_and_chapter(&url) else {
-				continue;
-			};
-			if link_slug != slug || seen.iter().any(|s| s == &chapter_key) {
-				continue;
+fn append_chapters_from_doc(doc: &Document, chapters: &mut Vec<Chapter>) {
+	let Some(items) = doc.select("div.m-newest2 > ul.ul-list5 > li") else {
+		return;
+	};
+
+	for item in items {
+		let Some(link) = item.select_first("a[href]") else {
+			continue;
+		};
+		let Some(href) = link.attr("href") else {
+			continue;
+		};
+		let url = absolute_url(&href);
+		let Some((_, Some(chapter_key))) = parse_novel_and_chapter(&url) else {
+			continue;
+		};
+		let mut title = link.text();
+		let chapter_number = title.as_deref().and_then(parse_chapter_number);
+		title = title.map(|s| {
+			if s.starts_with("Chapter ") && s.contains(":") {
+				s.split(":").nth(1).unwrap_or(&s).trim().to_string()
+			} else {
+				s
 			}
-			let mut title = link
-				.text()
-				.map(|t| t.trim().to_string())
-				.filter(|t| !t.is_empty());
-			let chapter_number = title.as_deref().and_then(parse_chapter_number);
-			title = title.map(|s| {
-				if s.starts_with("Chapter ") {
-					if s.contains(":") {
-						s.trim_start()
-							.split(":")
-							.nth(1)
-							.unwrap_or(&s)
-							.trim()
-							.to_string()
-					} else {
-						"".to_string()
-					}
-				} else {
-					s
-				}
-			});
-			chapters.push(Chapter {
-				key: chapter_key.clone(),
-				title,
-				chapter_number,
-				url: Some(url),
-				..Default::default()
-			});
-			seen.push(chapter_key);
-		}
+		});
+		chapters.push(Chapter {
+			key: chapter_key,
+			title,
+			chapter_number,
+			url: Some(url),
+			..Default::default()
+		});
 	}
 }
 
 pub fn extract_chapter_text(html: &Document) -> Result<String> {
-	let selectors = [
-		"div.txt p",
-		"div#chapter-content p",
-		"div#chaptercontent p",
-		"div.chapter-content p",
-		"div#content p",
-		"article p",
-	];
-	for selector in selectors {
-		if let Some(els) = html.select(selector) {
-			let text = extract_text_from_elements(els);
-			if !text.is_empty() {
-				return Ok(text);
+	let container_selector = "div.txt";
+	let mut parts = Vec::new();
+
+	if let Some(container) = html.select_first(container_selector)
+		&& let Some(elms) = container.select(":not(div)")
+	{
+		for part in elms {
+			// Remove ADs
+			if let Some(thing) = part.select("subtxt") {
+				for ad in thing {
+					ad.remove();
+				}
+			}
+			if let Some(text) = part.text()
+				&& !text.is_empty()
+			{
+				parts.push(text.to_string());
 			}
 		}
 	}
-	let container_selectors = [
-		"div.txt",
-		"div#chapter-content",
-		"div#chaptercontent",
-		"div.chapter-content",
-		"div#content",
-		"article",
-	];
-	for selector in container_selectors {
-		if let Some(el) = html.select_first(selector)
-			&& let Some(text) = el.text()
-		{
-			let cleaned = clean_block_text(&text);
-			if !cleaned.is_empty() {
-				return Ok(cleaned);
-			}
-		}
+	if parts.is_empty() {
+		bail!("chapter text not found");
 	}
-	bail!("chapter text not found")
+	Ok(parts.join("\n\n"))
 }
 
 pub fn parse_search_results(html: &Document) -> Vec<Manga> {
 	let mut entries = Vec::new();
 	let mut seen = Vec::new();
-	if let Some(rows) = html.select("div.li-row") {
-		append_li_rows(rows, &mut entries, &mut seen);
-		if !entries.is_empty() {
-			return entries;
-		}
-	}
 	if let Some(els) = html.select("a[href*='/novel/']") {
-		append_anchor_entries(els, &mut entries, &mut seen, true);
+		append_anchor_entries(els, &mut entries, &mut seen);
 	}
 	entries
 }
@@ -322,120 +187,24 @@ pub fn parse_home_section(html: &Document, heading: &str) -> Vec<Manga> {
 fn parse_entries_from_element(root: &Element) -> Vec<Manga> {
 	let mut entries = Vec::new();
 	let mut seen = Vec::new();
-	if let Some(rows) = root.select("div.li-row") {
-		append_li_rows(rows, &mut entries, &mut seen);
-	}
-	if entries.is_empty()
-		&& let Some(els) = root.select("a[href*='/novel/']")
-	{
-		append_anchor_entries(els, &mut entries, &mut seen, false);
+	if let Some(els) = root.select("a[href*='/novel/']") {
+		append_anchor_entries(els, &mut entries, &mut seen);
 	}
 	entries
 }
 
 fn find_section_container(html: &Document, heading: &str) -> Option<Element> {
-	let heading_selector = format!(
-		"h1:contains({heading}), h2:contains({heading}), h3:contains({heading}), h4:contains({heading}), h5:contains({heading})"
-	);
-	if let Some(heading_el) = html.select_first(&heading_selector) {
-		let mut current = heading_el.parent();
-		for _ in 0..6 {
-			let Some(el) = current else {
-				break;
-			};
-			if el.select_first("div.li-row, a[href*='/novel/']").is_some() {
-				return Some(el);
-			}
-			current = el.parent();
-		}
-	}
-	let selectors = [
-		format!("section:has(h1:contains({heading}))"),
-		format!("section:has(h2:contains({heading}))"),
-		format!("section:has(h3:contains({heading}))"),
-		format!("section:has(h4:contains({heading}))"),
-		format!("section:has(h5:contains({heading}))"),
-		format!("div:has(h1:contains({heading}))"),
-		format!("div:has(h2:contains({heading}))"),
-		format!("div:has(h3:contains({heading}))"),
-		format!("div:has(h4:contains({heading}))"),
-		format!("div:has(h5:contains({heading}))"),
-	];
-	for selector in &selectors {
-		if let Some(el) = html.select_first(selector) {
-			return Some(el);
-		}
-	}
-	None
+	let selector = format!("div > div h3:contains({heading})");
+	html.select_first(&selector)
+		.and_then(|h| h.parent())
+		.and_then(|p| p.parent())
 }
 
-fn append_li_rows<I>(rows: I, entries: &mut Vec<Manga>, seen: &mut Vec<String>)
+fn append_anchor_entries<I>(anchors: I, entries: &mut Vec<Manga>, seen: &mut Vec<String>)
 where
 	I: IntoIterator<Item = Element>,
 {
-	for row in rows {
-		let url = row
-			.select_first("div.pic > a")
-			.and_then(|el| el.attr("href"))
-			.or_else(|| {
-				row.select_first("a[href*='/novel/']")
-					.and_then(|el| el.attr("href"))
-			});
-		let Some(url) = url.map(|u| absolute_url(&u)) else {
-			continue;
-		};
-		let Some((slug, chapter_key)) = parse_novel_and_chapter(&url) else {
-			continue;
-		};
-		if chapter_key.is_some() || seen.iter().any(|s| s == &slug) {
-			continue;
-		}
-		let title = row
-			.select_first("div.txt > h3.tit > a")
-			.and_then(|el| el.text())
-			.or_else(|| {
-				row.select_first("div.txt > h3 > a")
-					.and_then(|el| el.text())
-			})
-			.or_else(|| row.select_first("div.txt > h3").and_then(|el| el.text()))
-			.and_then(|t| {
-				let trimmed = t.trim();
-				(!trimmed.is_empty()).then(|| trimmed.to_string())
-			});
-		let Some(title) = title else {
-			continue;
-		};
-		let cover = find_cover_image(&row);
-		let manga = Manga {
-			key: slug.clone(),
-			title,
-			cover,
-			url: Some(build_novel_url(&slug)),
-			..Default::default()
-		};
-		entries.push(manga);
-		seen.push(slug);
-	}
-}
-
-fn append_anchor_entries<I>(
-	anchors: I,
-	entries: &mut Vec<Manga>,
-	seen: &mut Vec<String>,
-	require_con_parent: bool,
-) where
-	I: IntoIterator<Item = Element>,
-{
 	for el in anchors {
-		if require_con_parent {
-			let parent = match el.parent().and_then(|par| par.parent()) {
-				Some(p) => p,
-				None => continue,
-			};
-			if !parent.class_name().unwrap_or_default().eq("con") {
-				continue;
-			}
-		}
 		let Some(url) = el.attr("href").map(|u| absolute_url(&u)) else {
 			continue;
 		};
@@ -445,13 +214,10 @@ fn append_anchor_entries<I>(
 		if chapter_key.is_some() || seen.iter().any(|s| s == &slug) {
 			continue;
 		}
-		let title = extract_anchor_title(&el)
-			.or_else(|| el.parent().and_then(|p| extract_anchor_title(&p)));
-		let Some(title) = title else {
+		let Some(title) = extract_anchor_title(&el) else {
 			continue;
 		};
-		let cover =
-			find_cover_image(&el).or_else(|| el.parent().and_then(|p| find_cover_image(&p)));
+		let cover = el.parent().and_then(|p| find_cover_image(&p));
 		let manga = Manga {
 			key: slug.clone(),
 			title,
@@ -466,34 +232,71 @@ fn append_anchor_entries<I>(
 
 fn extract_anchor_title(el: &Element) -> Option<String> {
 	let title = el
-		.text()
-		.or_else(|| el.attr("title"))
-		.or_else(|| el.select_first("img").and_then(|img| img.attr("alt")))
-		.or_else(|| el.select_first("h3, h4, h5").and_then(|h| h.text()));
+		.text() // Used by Homepage sections
+		.or_else(|| el.select_first("img").and_then(|img| img.attr("alt"))); // Used by search results
 	title.and_then(|t| {
 		let trimmed = t.trim();
 		(!trimmed.is_empty()).then(|| trimmed.to_string())
 	})
 }
+enum MetaSelector {
+	Title,
+	Cover,
+	Authors,
+	Description,
+	Url,
+	Tags,
+	Status,
+}
+pub fn fill_manga_details(html: &Document, mut manga: Manga) -> Result<Manga> {
+	println!("Filling details for manga: {}", manga.key);
+	let Some(title) = get_meta_data(html, MetaSelector::Title) else {
+		bail!("Title not found");
+	};
+	manga.title = title;
+	manga.cover = get_meta_data(html, MetaSelector::Cover);
+	manga.url = get_meta_data(html, MetaSelector::Url);
+	const DESCRIPTION_QUERY: &str = "h4.abstract + div.txt p";
+	if let Some(parts) = html.select(DESCRIPTION_QUERY) {
+		let description = extract_text_from_elements(parts);
+		if !description.is_empty() {
+			manga.description = Some(description);
+		}
+	} else {
+		manga.description = get_meta_data(html, MetaSelector::Description);
+	}
 
-fn meta_content(html: &Document, selector: &str) -> Option<String> {
-	html.select_first(selector)
-		.and_then(|el| el.attr("content"))
+	manga.authors = get_meta_data(html, MetaSelector::Authors)
+		.map(|authors| authors.split(',').map(|s| s.trim().to_string()).collect());
+	manga.tags = get_meta_data(html, MetaSelector::Tags)
+		.map(|tags| tags.split(',').map(|s| s.trim().to_string()).collect());
+	manga.content_rating = manga
+		.tags
+		.as_deref()
+		.map(content_rating_from_tags)
+		.unwrap_or(ContentRating::Unknown);
+	manga.status = match get_meta_data(html, MetaSelector::Status).as_deref() {
+		Some("OnGoing") => MangaStatus::Ongoing,
+		Some("Completed") => MangaStatus::Completed,
+		_ => MangaStatus::Unknown,
+	};
+	Ok(manga)
 }
 
-fn extract_meta_tags(html: &Document) -> Vec<String> {
-	let mut tags = Vec::new();
-	if let Some(els) = html.select("meta[property='article:tag']") {
-		for el in els {
-			if let Some(content) = el.attr("content") {
-				let tag = content.trim();
-				if !tag.is_empty() && !tags.iter().any(|t| t == tag) {
-					tags.push(tag.to_string());
-				}
-			}
-		}
-	}
-	tags
+fn get_meta_data(html: &Document, selector: MetaSelector) -> Option<String> {
+	let query = match selector {
+		MetaSelector::Title => "meta[property='og:title']",
+		MetaSelector::Description => "meta[property='og:description']",
+		MetaSelector::Cover => "meta[property='og:image']",
+		MetaSelector::Authors => "meta[property='og:novel:author']",
+		MetaSelector::Tags => "meta[property='og:novel:genre']",
+		MetaSelector::Url => "meta[property='og:url']",
+		MetaSelector::Status => "meta[property='og:novel:status']",
+	};
+	html.select_first(query)
+		.and_then(|el| el.attr("content"))
+		.filter(|s| !s.trim().is_empty())
+		.map(|s| s.trim().to_string())
 }
 
 fn extract_text_from_elements<I>(elements: I) -> String
@@ -502,34 +305,13 @@ where
 {
 	let mut parts = Vec::new();
 	for el in elements {
-		if let Some(text) = el.text() {
-			if !text.is_empty() {
-				parts.push(text);
-			}
-		}
-	}
-	parts.join("\n\n")
-}
-
-fn clean_block_text(text: &str) -> String {
-	let mut parts = Vec::new();
-	for line in text.lines() {
-		let trimmed = line.trim();
-		if trimmed.is_empty() {
-			continue;
-		}
-		let lower = trimmed.to_ascii_lowercase();
-		if lower.starts_with("prev chapter")
-			|| lower.starts_with("next chapter")
-			|| lower.starts_with("add to library")
-			|| lower.contains("freewebnovel.com")
-			|| lower.contains("read books online")
+		if let Some(text) = el.text()
+			&& !text.is_empty()
 		{
-			continue;
+			parts.push(text);
 		}
-		parts.push(trimmed.to_string());
 	}
-	parts.join("\n\n")
+	parts.join("\n")
 }
 
 fn find_cover_image(el: &Element) -> Option<String> {
