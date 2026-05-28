@@ -18,7 +18,7 @@ where
 {
 	let value = serde_json::Value::deserialize(deserializer)?;
 
-	if let Some(items) = value.get("items") {
+	let mut result = if let Some(items) = value.get("items") {
 		let items: Vec<ComixManga> =
 			serde_json::from_value(items.clone()).map_err(serde::de::Error::custom)?;
 		let meta = value
@@ -34,7 +34,11 @@ where
 		Err(serde::de::Error::custom(
 			"Invalid MangaItems or Vec<ComixManga>",
 		))
-	}
+	}?;
+
+	// Comix can expose list entries without a usable title route key.
+	result.items.retain(|manga| !manga.hid.is_empty());
+	Ok(result)
 }
 
 impl From<SearchResponse> for MangaPageResult {
@@ -108,7 +112,6 @@ pub struct ChapterItems {
 #[derive(Deserialize)]
 pub struct TermItems {
 	pub items: Vec<Term>,
-	// pub pagination: Pagination,
 }
 
 #[derive(Deserialize)]
@@ -118,7 +121,7 @@ pub struct ComixManga {
 	pub title: String,
 	pub synopsis: Option<String>,
 	pub r#type: String,
-	pub poster: Poster,
+	pub poster: Option<Poster>,
 	pub status: String,
 	pub content_rating: ComixContentRating,
 	pub authors: Option<Vec<Term>>,
@@ -127,8 +130,6 @@ pub struct ComixManga {
 	pub tags: Option<Vec<Term>>,
 	pub latest_chapter: Option<f32>,
 	pub url: String,
-	// pub has_chapters: bool,
-	// pub chapter_updated_at_formatted: Option<String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -184,14 +185,17 @@ impl ComixManga {
 impl From<ComixManga> for Manga {
 	fn from(value: ComixManga) -> Self {
 		let url = format!("{BASE_URL}/{}", value.url.trim_start_matches('/'));
+		let cover = value
+			.poster
+			.map(|poster| match settings::image_quality().as_str() {
+				"medium" => poster.medium,
+				"large" => poster.large,
+				_ => poster.medium,
+			});
 		Self {
 			key: value.hid,
 			title: value.title,
-			cover: match settings::image_quality().as_str() {
-				"medium" => Some(value.poster.medium),
-				"large" => Some(value.poster.large),
-				_ => Some(value.poster.medium),
-			},
+			cover,
 			artists: value
 				.artists
 				.map(|v| v.into_iter().map(|t| t.title).collect()),
@@ -247,24 +251,22 @@ impl ComixChapter {
 	pub fn created_at(&self) -> i64 {
 		helpers::parse_relative_date_string(&self.created_at_formatted)
 	}
-}
 
-impl From<ComixChapter> for Chapter {
-	fn from(value: ComixChapter) -> Self {
-		let created_at = value.created_at();
+	pub fn into_chapter(self) -> Chapter {
+		let created_at = self.created_at();
 		Chapter {
-			key: value.id.to_string(),
-			title: (!value.name.is_empty()).then_some(value.name),
-			chapter_number: Some(value.number),
+			key: self.id.to_string(),
+			title: (!self.name.is_empty()).then_some(self.name),
+			chapter_number: Some(self.number),
 			date_uploaded: Some(created_at),
-			scanlators: if let Some(group) = value.group {
+			scanlators: if let Some(group) = self.group {
 				Some(vec![group.name])
-			} else if value.is_official {
+			} else if self.is_official {
 				Some(vec!["Official".into()])
 			} else {
 				None
 			},
-			url: Some(format!("{BASE_URL}/{}", value.url.trim_start_matches('/'))),
+			url: Some(format!("{BASE_URL}/{}", self.url.trim_start_matches('/'))),
 			..Default::default()
 		}
 	}
@@ -303,8 +305,11 @@ pub struct ComixPages {
 #[derive(Deserialize)]
 pub struct ComixPage {
 	pub url: String,
+	#[serde(default)]
 	pub width: f32,
+	#[serde(default)]
 	pub height: f32,
+	#[serde(default)]
 	pub s: Option<i32>,
 }
 

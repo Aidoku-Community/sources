@@ -1,11 +1,8 @@
 #![no_std]
-
-use aidoku::imports::canvas::ImageRef;
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeComponent,
-	HomeLayout, HomePartialResult, ImageRequestProvider, ImageResponse, Link, LinkValue, Listing,
-	ListingProvider, Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page,
-	PageContent, PageContext, PageImageProcessor, Result, Source,
+	HomeLayout, HomePartialResult, ImageRequestProvider, Link, LinkValue, Listing, ListingProvider,
+	Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page, Result, Source,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -14,9 +11,10 @@ use aidoku::{
 	},
 	prelude::*,
 };
-use base64::{Engine, engine::general_purpose};
+use core::cell::RefCell;
 
 mod helpers;
+mod images;
 mod models;
 mod settings;
 mod web;
@@ -30,11 +28,17 @@ const CONTENT_TYPES: &[&str] = &["manga", "manhwa", "manhua", "other"];
 // adult, boys love, ecchi, girls love, hentai, smut
 const NSFW_GENRE_IDS: &[&str] = &["87264", "8", "87265", "13", "87266", "87268"];
 
-struct Comix;
+struct Comix {
+	web_view: RefCell<Option<web::ComixWebView>>,
+	scramble_maps: RefCell<HashMap<String, Vec<usize>>>,
+}
 
 impl Source for Comix {
 	fn new() -> Self {
-		Self
+		Self {
+			web_view: RefCell::new(None),
+			scramble_maps: RefCell::new(HashMap::new()),
+		}
 	}
 
 	fn get_search_manga_list(
@@ -45,8 +49,9 @@ impl Source for Comix {
 	) -> Result<MangaPageResult> {
 		let mut qs = QueryParameters::new();
 		qs.push("page", Some(&page.to_string()));
-		if query.is_some() {
-			qs.push("keyword", query.as_deref());
+		let query = query.as_deref().map(str::trim).filter(|q| !q.is_empty());
+		if let Some(query) = query {
+			qs.push("keyword", Some(query));
 		}
 
 		let mut hidden_types = {
@@ -180,6 +185,10 @@ impl Source for Comix {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
+		if manga.key.is_empty() {
+			bail!("Comix title is unavailable")
+		}
+
 		if needs_details {
 			let url = format!(
 				"{API_URL}/manga/{}/?includes[]=demographic\
@@ -201,49 +210,57 @@ impl Source for Comix {
 
 		if needs_chapters {
 			let limit = 100;
-			let mut page = 1;
 			let deduplicate = settings::dedupchapter();
 			let mut chapter_map: HashMap<String, ComixChapter> = HashMap::new();
 			let mut chapter_list: Vec<ComixChapter> = Vec::new();
-
-			let web_view = web::create_web_view()?;
 			let path = format!("/manga/{}/chapters", manga.key);
-			let token = web::get_token(&web_view, &path)?;
+			let page_url =
+				|page: i32| format!("{API_URL}{path}?limit={limit}&page={page}&order[number]=desc");
 
-			loop {
-				let url = format!(
-					"{API_URL}{path}\
-						?limit={limit}\
-						&page={page}\
-						&order[number]=desc\
-						&_={token}"
-				);
-
-				let encoded_res = Request::get(&url)?.string()?;
-				let result = web::decode_response(&web_view, &url, &encoded_res)?;
-				let res = serde_json::from_str::<ChapterDetailsResponse>(&result)?;
-
-				let items = res.result.items;
-
+			let absorb = |items: Vec<ComixChapter>,
+			              map: &mut HashMap<String, ComixChapter>,
+			              list: &mut Vec<ComixChapter>| {
 				if deduplicate {
 					for item in items {
-						helpers::dedup_insert(&mut chapter_map, item);
+						helpers::dedup_insert(map, item);
 					}
 				} else {
-					chapter_list.extend(items);
+					list.extend(items);
 				}
+			};
 
-				if res.result.meta.page >= res.result.meta.last_page {
-					break;
+			// Page 1 alone so we can read `last_page` before fetching the rest.
+			let first_body = {
+				let mut web_view = self.web_view.borrow_mut();
+				web::get_api_response(&mut web_view, &path, &page_url(1))?
+			};
+			let first: ChapterDetailsResponse = serde_json::from_str(&first_body)?;
+			let last_page = first.result.meta.last_page;
+			absorb(first.result.items, &mut chapter_map, &mut chapter_list);
+
+			if last_page > 1 {
+				let urls: Vec<String> = (2..=last_page).map(page_url).collect();
+				let url_refs: Vec<&str> = urls.iter().map(String::as_str).collect();
+				let bodies = {
+					let mut web_view = self.web_view.borrow_mut();
+					web::get_api_responses(&mut web_view, &path, &url_refs)?
+				};
+				for body in bodies {
+					let res: ChapterDetailsResponse = serde_json::from_str(&body)?;
+					absorb(res.result.items, &mut chapter_map, &mut chapter_list);
 				}
-
-				page += 1;
 			}
 
 			let mut chapters: Vec<Chapter> = if deduplicate {
-				chapter_map.into_values().map(Into::into).collect()
+				chapter_map
+					.into_values()
+					.map(|item| item.into_chapter())
+					.collect()
 			} else {
-				chapter_list.into_iter().map(Into::into).collect()
+				chapter_list
+					.into_iter()
+					.map(|item| item.into_chapter())
+					.collect()
 			};
 
 			if deduplicate {
@@ -261,49 +278,30 @@ impl Source for Comix {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let web_view = web::create_web_view()?;
 		let path = format!("/chapters/{}", chapter.key);
-		let token = web::get_token(&web_view, &path)?;
-		let url = format!("{API_URL}{path}?_={token}");
-		let encoded_res = Request::get(&url)?.string()?;
-		let result = web::decode_response(&web_view, &url, &encoded_res)?;
+		let url = format!("{API_URL}{path}");
+
+		let result = {
+			let mut web_view = self.web_view.borrow_mut();
+			web::get_api_response(&mut web_view, &path, &url)?
+		};
+
 		let json: ChapterResponse = serde_json::from_str(&result)?;
 
 		let Some(result) = json.result else {
 			bail!("Missing chapter")
 		};
 
-		let base_url = result.pages.base_url.trim_end_matches('/');
-		Ok(result
-			.pages
-			.items
-			.into_iter()
-			.map(|page| {
-				let url = if page.url.starts_with("http") {
-					page.url
-				} else {
-					format!("{base_url}/{}", page.url.trim_start_matches('/'))
-				};
-				Page {
-					content: if let Some(s) = page.s {
-						let mut context = PageContext::new();
-						context.insert("s".into(), s.to_string());
-						context.insert("width".into(), page.width.to_string());
-						context.insert("height".into(), page.height.to_string());
-						PageContent::url_context(url, context)
-					} else {
-						PageContent::url(url)
-					},
-					..Default::default()
-				}
-			})
-			.collect())
+		let pages = images::build_page_list(self, &result.pages.base_url, result.pages.items)?;
+		if pages.is_empty() {
+			bail!("Comix returned an empty page list")
+		}
+		Ok(pages)
 	}
 }
 
 impl Home for Comix {
 	fn get_home(&self) -> Result<HomeLayout> {
-		// send basic layout
 		send_partial_result(&HomePartialResult::Layout(HomeLayout {
 			components: vec![
 				HomeComponent {
@@ -360,7 +358,7 @@ impl Home for Comix {
 			))?,
 		])
 		.try_into()
-		.expect("requests vec length should be 4");
+		.map_err(|_| error!("Comix home returned an unexpected response count"))?;
 
 		let [popular_res, follows_res, latest_res, recent_res] = responses;
 
@@ -480,11 +478,11 @@ impl ListingProvider for Comix {
 			"Trending Webtoon" => trending(vec!["manhua".into(), "manhwa".into()]),
 			"Trending Manga" => trending(vec!["manga".into()]),
 
-			"Most Recent Popular" => {
-				get_listing_page(&format!("{API_URL}/top?type=trending&days=1&limit=50"))
-			}
+			"Most Recent Popular" => get_listing_page(&format!(
+				"{API_URL}/manga/top?type=trending&days=1&limit=50"
+			)),
 			"Most Follows New Comics" => {
-				get_listing_page(&format!("{API_URL}/top?type=follows&days=1&limit=50"))
+				get_listing_page(&format!("{API_URL}/manga/top?type=follows&days=1&limit=50"))
 			}
 
 			"Latest Updates (Hot)" => get_listing_page(&format!(
@@ -500,48 +498,17 @@ impl ListingProvider for Comix {
 }
 
 impl ImageRequestProvider for Comix {
-	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-		Ok(Request::get(url)?.header("Referer", &format!("{BASE_URL}/")))
-	}
-}
-
-impl PageImageProcessor for Comix {
-	fn process_page_image(
+	fn get_image_request(
 		&self,
-		response: ImageResponse,
-		context: Option<PageContext>,
-	) -> Result<ImageRef> {
-		if let Some(context) = context {
-			if context.get("s").is_some_and(|s| s == "1") {
-				let Some(url) = response.request.url else {
-					bail!("Unable to get the image url")
-				};
-
-				let Some(width) = context.get("width").and_then(|s| s.parse::<f32>().ok()) else {
-					bail!("Unable to get the image width")
-				};
-
-				let Some(height) = context.get("height").and_then(|s| s.parse::<f32>().ok()) else {
-					bail!("Unable to get the image height")
-				};
-
-				let web_view = web::create_web_view()?;
-
-				let data_url = web::descramble_image(&web_view, width, height, url.as_ref())?;
-				let Some((_, base64_data)) = data_url.split_once(',') else {
-					bail!("Unable to get the raw image data")
-				};
-				let bytes: Vec<u8> = general_purpose::STANDARD
-					.decode(base64_data)
-					.or_else(|_| bail!("Invalid base64 data given"))?;
-
-				Ok(ImageRef::new(bytes.as_ref()))
-			} else {
-				Ok(response.image)
-			}
-		} else {
-			Ok(response.image)
+		url: String,
+		context: Option<aidoku::PageContext>,
+	) -> Result<Request> {
+		let mut request = Request::get(url)?.header("Referer", &format!("{BASE_URL}/"));
+		// Comix's CDN 404s s:1 images without Origin and 404s non-s:1 images with it.
+		if context.is_some_and(|c| c.get(images::PAGE_S_FLAG_CONTEXT_KEY).is_some()) {
+			request = request.header("Origin", BASE_URL);
 		}
+		Ok(request)
 	}
 }
 
@@ -555,7 +522,7 @@ impl NotificationHandler for Comix {
 
 impl DeepLinkHandler for Comix {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let Some(path) = url.strip_prefix(BASE_URL) else {
+		let Some(path) = url.strip_prefix(&format!("{BASE_URL}/")) else {
 			return Ok(None);
 		};
 
@@ -590,8 +557,8 @@ register_source!(
 	Comix,
 	Home,
 	ListingProvider,
-	ImageRequestProvider,
 	PageImageProcessor,
+	ImageRequestProvider,
 	NotificationHandler,
 	DeepLinkHandler
 );
