@@ -249,7 +249,6 @@ enum MetaSelector {
 	Status,
 }
 pub fn fill_manga_details(html: &Document, mut manga: Manga) -> Result<Manga> {
-	println!("Filling details for manga: {}", manga.key);
 	let Some(title) = get_meta_data(html, MetaSelector::Title) else {
 		bail!("Title not found");
 	};
