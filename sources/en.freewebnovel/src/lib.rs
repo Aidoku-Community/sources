@@ -1,8 +1,8 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
-	HomeComponentValue, HomeLayout, Link, Listing, ListingProvider, Manga, MangaPageResult,
-	Page, PageContent, Result, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
+	HomeLayout, Link, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result,
+	Source,
 	alloc::{String, Vec, vec},
 	helpers::uri::QueryParameters,
 	imports::std::send_partial_result,
@@ -14,8 +14,7 @@ mod helpers;
 use helpers::{
 	build_chapter_url, build_novel_url, content_rating_from_tags, extract_authors,
 	extract_chapter_text, extract_chapters, extract_cover, extract_description, extract_tags,
-	extract_title, parse_home_section, parse_novel_and_chapter, parse_search_results,
-	request_html,
+	extract_title, parse_home_section, parse_novel_and_chapter, parse_search_results, request_html,
 };
 
 pub const BASE_URL: &str = "https://freewebnovel.com";
@@ -135,7 +134,10 @@ impl Home for FreeWebNovel {
 				title: Some("Hot Novels".into()),
 				subtitle: None,
 				value: HomeComponentValue::Scroller {
-					entries: hot_entries.into_iter().map(Into::into).collect::<Vec<Link>>(),
+					entries: hot_entries
+						.into_iter()
+						.map(Into::into)
+						.collect::<Vec<Link>>(),
 					listing: None,
 				},
 				..Default::default()
@@ -197,12 +199,9 @@ impl ListingProvider for FreeWebNovel {
 		let url = build_sort_url(sort_key, page);
 		let html = request_html(&url)?;
 		let entries = parse_search_results(&html);
-		let has_next_page = html
-			.select_first(
-				"a[rel='next'], a:contains(Next), li:contains(Next)",
-			)
-			.is_some()
-			|| entries.len() >= 20;
+		let has_next_page =
+			html.select_first("a[rel='next'], a:contains(Next), li:contains(Next)")
+				.is_some() || entries.len() >= 20;
 		Ok(MangaPageResult {
 			entries,
 			has_next_page,
@@ -303,10 +302,7 @@ mod tests {
 		match &pages[0].content {
 			PageContent::Text(text) => {
 				assert!(!text.is_empty());
-				assert!(
-					text.len() > 50,
-					"expected chapter text to be substantial"
-				);
+				assert!(text.len() > 50, "expected chapter text to be substantial");
 			}
 			_ => panic!("expected PageContent::Text"),
 		}
@@ -317,8 +313,7 @@ mod tests {
 		let source = FreeWebNovel;
 		let result = source
 			.handle_deep_link(
-				"https://freewebnovel.com/novel/swordmasters-youngest-son-novel/chapter-1"
-					.into(),
+				"https://freewebnovel.com/novel/swordmasters-youngest-son-novel/chapter-1".into(),
 			)
 			.expect("deep link failed")
 			.expect("expected Some(DeepLinkResult)");

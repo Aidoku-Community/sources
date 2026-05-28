@@ -1,11 +1,14 @@
 #![allow(clippy::needless_pass_by_value)]
+use crate::{BASE_URL, USER_AGENT};
 use aidoku::{
 	Chapter, ContentRating, Manga, Result,
 	alloc::{String, Vec, string::ToString},
-	imports::{html::{Document, Element}, net::Request},
+	imports::{
+		html::{Document, Element},
+		net::Request,
+	},
 	prelude::*,
 };
-use crate::{BASE_URL, USER_AGENT};
 
 pub fn request_html(url: &str) -> Result<Document> {
 	Ok(Request::get(url)?
@@ -67,10 +70,14 @@ pub fn parse_chapter_number(name: &str) -> Option<f32> {
 		name = name[7..].trim_start();
 		let bytes = name.as_bytes();
 		let mut ch_end = 0;
-		while ch_end < bytes.len() && ((bytes[ch_end] as char).is_ascii_digit() || (bytes[ch_end] as char) == '.') {
+		while ch_end < bytes.len()
+			&& ((bytes[ch_end] as char).is_ascii_digit() || (bytes[ch_end] as char) == '.')
+		{
 			ch_end += 1;
 		}
-		if ch_end > 0 && let Ok(c) = name[..ch_end].parse::<f32>() {
+		if ch_end > 0
+			&& let Ok(c) = name[..ch_end].parse::<f32>()
+		{
 			chapter = Some(c);
 		}
 	}
@@ -78,7 +85,10 @@ pub fn parse_chapter_number(name: &str) -> Option<f32> {
 }
 
 pub fn content_rating_from_tags(tags: &[String]) -> ContentRating {
-	if tags.iter().any(|tag| matches!(tag.as_str(), "Adult" | "Mature")) {
+	if tags
+		.iter()
+		.any(|tag| matches!(tag.as_str(), "Adult" | "Mature"))
+	{
 		ContentRating::NSFW
 	} else if tags
 		.iter()
@@ -200,13 +210,16 @@ fn append_chapters_from_doc(
 				.text()
 				.map(|t| t.trim().to_string())
 				.filter(|t| !t.is_empty());
-			let chapter_number = title
-				.as_deref()
-				.and_then(parse_chapter_number);
+			let chapter_number = title.as_deref().and_then(parse_chapter_number);
 			title = title.map(|s| {
 				if s.starts_with("Chapter ") {
 					if s.contains(":") {
-						s.trim_start().split(":").nth(1).unwrap_or(&s).trim().to_string()
+						s.trim_start()
+							.split(":")
+							.nth(1)
+							.unwrap_or(&s)
+							.trim()
+							.to_string()
 					} else {
 						"".to_string()
 					}
@@ -310,10 +323,7 @@ fn find_section_container(html: &Document, heading: &str) -> Option<Element> {
 			let Some(el) = current else {
 				break;
 			};
-			if el
-				.select_first("div.li-row, a[href*='/novel/']")
-				.is_some()
-			{
+			if el.select_first("div.li-row, a[href*='/novel/']").is_some() {
 				return Some(el);
 			}
 			current = el.parent();
@@ -347,7 +357,10 @@ where
 		let url = row
 			.select_first("div.pic > a")
 			.and_then(|el| el.attr("href"))
-			.or_else(|| row.select_first("a[href*='/novel/']").and_then(|el| el.attr("href")));
+			.or_else(|| {
+				row.select_first("a[href*='/novel/']")
+					.and_then(|el| el.attr("href"))
+			});
 		let Some(url) = url.map(|u| absolute_url(&u)) else {
 			continue;
 		};
@@ -360,7 +373,10 @@ where
 		let title = row
 			.select_first("div.txt > h3.tit > a")
 			.and_then(|el| el.text())
-			.or_else(|| row.select_first("div.txt > h3 > a").and_then(|el| el.text()))
+			.or_else(|| {
+				row.select_first("div.txt > h3 > a")
+					.and_then(|el| el.text())
+			})
 			.or_else(|| row.select_first("div.txt > h3").and_then(|el| el.text()))
 			.and_then(|t| {
 				let trimmed = t.trim();
@@ -387,8 +403,7 @@ fn append_anchor_entries<I>(
 	entries: &mut Vec<Manga>,
 	seen: &mut Vec<String>,
 	require_con_parent: bool,
-)
-where
+) where
 	I: IntoIterator<Item = Element>,
 {
 	for el in anchors {
@@ -401,10 +416,7 @@ where
 				continue;
 			}
 		}
-		let Some(url) = el
-			.attr("href")
-			.map(|u| absolute_url(&u))
-		else {
+		let Some(url) = el.attr("href").map(|u| absolute_url(&u)) else {
 			continue;
 		};
 		let Some((slug, chapter_key)) = parse_novel_and_chapter(&url) else {
@@ -418,8 +430,8 @@ where
 		let Some(title) = title else {
 			continue;
 		};
-		let cover = find_cover_image(&el)
-			.or_else(|| el.parent().and_then(|p| find_cover_image(&p)));
+		let cover =
+			find_cover_image(&el).or_else(|| el.parent().and_then(|p| find_cover_image(&p)));
 		let manga = Manga {
 			key: slug.clone(),
 			title,
