@@ -163,6 +163,23 @@ mod tests {
 	}
 
 	#[aidoku_test]
+	fn chapters_include_first_chapter() {
+		let source = FreeWebNovel;
+		let manga = Manga {
+			key: "swordmasters-youngest-son-novel".into(),
+			..Default::default()
+		};
+		let manga = source
+			.get_manga_update(manga, false, true)
+			.expect("get_manga_update failed");
+		let chapters = manga.chapters.expect("no chapters returned");
+		assert!(
+			chapters.iter().any(|c| c.key == "chapter-1"),
+			"expected chapter-1 to be present"
+		);
+	}
+
+	#[aidoku_test]
 	fn page_list_returns_text_page() {
 		let source = FreeWebNovel;
 		let manga = Manga {
@@ -205,6 +222,23 @@ mod tests {
 				assert_eq!(key, "chapter-1");
 			}
 			_ => panic!("expected Chapter deep link"),
+		}
+	}
+
+	#[aidoku_test]
+	fn deep_link_resolves_series() {
+		let source = FreeWebNovel;
+		let result = source
+			.handle_deep_link(
+				"https://freewebnovel.com/novel/swordmasters-youngest-son-novel".into(),
+			)
+			.expect("deep link failed")
+			.expect("expected Some(DeepLinkResult)");
+		match result {
+			DeepLinkResult::Manga { key } => {
+				assert_eq!(key, "swordmasters-youngest-son-novel");
+			}
+			_ => panic!("expected Manga deep link"),
 		}
 	}
 }

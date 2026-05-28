@@ -5,8 +5,6 @@ use aidoku::{
 	imports::{html::{Document, Element}, net::Request},
 	prelude::*,
 };
-use core::cmp::Ordering;
-
 use crate::{BASE_URL, USER_AGENT};
 
 pub fn request_html(url: &str) -> Result<Document> {
@@ -63,19 +61,20 @@ pub fn parse_novel_and_chapter(url: &str) -> Option<(String, Option<String>)> {
 }
 
 pub fn parse_chapter_number(name: &str) -> Option<f32> {
-	let mut num = String::new();
-	let mut seen_dot = false;
-	for ch in name.chars() {
-		if ch.is_ascii_digit() {
-			num.push(ch);
-		} else if ch == '.' && !seen_dot && !num.is_empty() {
-			seen_dot = true;
-			num.push(ch);
-		} else if !num.is_empty() {
-			break;
+	let mut chapter = None;
+	let mut name = name.trim();
+	if name.starts_with("Chapter") {
+		name = name[7..].trim_start();
+		let bytes = name.as_bytes();
+		let mut ch_end = 0;
+		while ch_end < bytes.len() && ((bytes[ch_end] as char).is_ascii_digit() || (bytes[ch_end] as char) == '.') {
+			ch_end += 1;
+		}
+		if ch_end > 0 && let Ok(c) = name[..ch_end].parse::<f32>() {
+			chapter = Some(c);
 		}
 	}
-	num.parse().ok()
+	chapter
 }
 
 pub fn content_rating_from_tags(tags: &[String]) -> ContentRating {
@@ -170,26 +169,50 @@ pub fn extract_tags(html: &Document) -> Option<Vec<String>> {
 pub fn extract_chapters(html: &Document, slug: &str) -> Vec<Chapter> {
 	let mut chapters = Vec::new();
 	let mut seen = Vec::new();
-	if let Some(els) = html.select("a[href*='/novel/']") {
-		for el in els {
-			let url = match el.attr("abs:href") {
-				Some(u) => u,
-				None => continue,
+	append_chapters_from_doc(html, slug, &mut chapters, &mut seen);
+	chapters.reverse();
+	chapters
+}
+
+fn append_chapters_from_doc(
+	doc: &Document,
+	slug: &str,
+	chapters: &mut Vec<Chapter>,
+	seen: &mut Vec<String>,
+) {
+	if let Some(items) = doc.select("div.m-newest2 > ul.ul-list5 > li") {
+		for item in items {
+			let Some(link) = item.select_first("a") else {
+				continue;
 			};
+			let Some(href) = link.attr("href") else {
+				continue;
+			};
+			let url = absolute_url(&href);
 			let Some((link_slug, Some(chapter_key))) = parse_novel_and_chapter(&url) else {
 				continue;
 			};
 			if link_slug != slug || seen.iter().any(|s| s == &chapter_key) {
 				continue;
 			}
-			let title = el
+			let mut title = link
 				.text()
 				.map(|t| t.trim().to_string())
 				.filter(|t| !t.is_empty());
 			let chapter_number = title
 				.as_deref()
-				.and_then(parse_chapter_number)
-				.or_else(|| parse_chapter_number(&chapter_key));
+				.and_then(parse_chapter_number);
+			title = title.map(|s| {
+				if s.starts_with("Chapter ") {
+					if s.contains(":") {
+						s.trim_start().split(":").nth(1).unwrap_or(&s).trim().to_string()
+					} else {
+						"".to_string()
+					}
+				} else {
+					s
+				}
+			});
 			chapters.push(Chapter {
 				key: chapter_key.clone(),
 				title,
@@ -200,17 +223,6 @@ pub fn extract_chapters(html: &Document, slug: &str) -> Vec<Chapter> {
 			seen.push(chapter_key);
 		}
 	}
-	if chapters.len() > 1 {
-		chapters.sort_by(|a, b| match (a.chapter_number, b.chapter_number) {
-			(Some(left), Some(right)) => left
-				.partial_cmp(&right)
-				.unwrap_or(Ordering::Equal),
-			(Some(_), None) => Ordering::Less,
-			(None, Some(_)) => Ordering::Greater,
-			(None, None) => Ordering::Equal,
-		});
-	}
-	chapters
 }
 
 pub fn extract_chapter_text(html: &Document) -> String {
