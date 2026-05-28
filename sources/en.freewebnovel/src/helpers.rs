@@ -106,15 +106,11 @@ pub fn parse_chapter_number(name: &str) -> Option<f32> {
 }
 
 pub fn content_rating_from_tags(tags: &[String]) -> ContentRating {
-	if tags
-		.iter()
-		.any(|tag| matches!(tag.as_str(), "Adult" | "Mature"))
-	{
+	const NSFW_TAGS: &[&str] = &["Adult", "Mature"];
+	const LITE_TAGS: &[&str] = &["Smut", "Ecchi", "Yaoi", "Yuri"];
+	if tags.iter().any(|tag| NSFW_TAGS.contains(&tag.as_str())) {
 		ContentRating::NSFW
-	} else if tags
-		.iter()
-		.any(|tag| matches!(tag.as_str(), "Smut" | "Ecchi" | "Yaoi" | "Yuri"))
-	{
+	} else if tags.iter().any(|tag| LITE_TAGS.contains(&tag.as_str())) {
 		ContentRating::Suggestive
 	} else {
 		ContentRating::Safe
