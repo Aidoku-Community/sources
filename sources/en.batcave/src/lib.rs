@@ -1,13 +1,13 @@
 #![no_std]
 use aidoku::{
-	alloc::{string::ToString, vec, String, Vec},
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider, Manga,
+	MangaPageResult, MangaStatus, Page, PageContent, Result, Source,
+	alloc::{String, Vec, string::ToString, vec},
 	imports::{
 		net::Request,
 		std::{parse_date, send_partial_result},
 	},
 	prelude::*,
-	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider,
-	Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, Source,
 };
 use regex::Regex;
 use serde::Deserialize;
@@ -185,8 +185,7 @@ impl Source for BatCave {
 				.and_then(|x| x.strip_suffix(";"))
 				.unwrap_or_default();
 
-			let chapter_list = serde_json::from_str::<ChapterList>(json_str)
-				.map_err(AidokuError::JsonParseError)?;
+			let chapter_list = serde_json::from_str::<ChapterList>(json_str)?;
 
 			let chapters = chapter_list
 				.chapters

@@ -1,6 +1,8 @@
-use super::{auth, models::*, parser, AuthedRequest, Params};
+use super::{AuthedRequest, Params, auth, models::*, parser};
 use aidoku::{
-	alloc::{string::ToString, String, Vec},
+	Chapter, DeepLinkResult, FilterValue, HomeLayout, ImageResponse, Listing, Manga,
+	MangaPageResult, Page, PageContent, PageContext, Result, Viewer,
+	alloc::{String, Vec, string::ToString},
 	helpers::uri::QueryParameters,
 	imports::{
 		canvas::{Canvas, ImageRef, Rect},
@@ -9,8 +11,6 @@ use aidoku::{
 		std::send_partial_result,
 	},
 	prelude::*,
-	Chapter, DeepLinkResult, FilterValue, HomeLayout, ImageResponse, Listing, Manga,
-	MangaPageResult, Page, PageContent, PageContext, Result, Viewer,
 };
 
 pub trait Impl {
@@ -150,9 +150,7 @@ pub trait Impl {
 			.select_first("script#episode-json")
 			.and_then(|e| e.attr("data-value"))
 			.ok_or(AidokuError::message("このチャプターは非公開です"))
-			.and_then(|v| {
-				serde_json::from_str::<GigaEpisode>(v.as_ref()).map_err(AidokuError::JsonParseError)
-			})?;
+			.and_then(|v| Ok(serde_json::from_str::<GigaEpisode>(v.as_ref())?))?;
 
 		Ok(episode
 			.readable_product
