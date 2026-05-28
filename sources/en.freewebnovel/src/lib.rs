@@ -3,7 +3,7 @@ use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
 	HomeLayout, Link, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result,
 	Source,
-	alloc::{String, Vec, vec},
+	alloc::{String, Vec, collections::BTreeSet, vec},
 	helpers::uri::QueryParameters,
 	imports::{html::Document, std::send_partial_result},
 	prelude::*,
@@ -116,17 +116,15 @@ impl Home for FreeWebNovel {
 		let completed_novels = parse_home_section(&html, "COMPLETED NOVELS");
 		let mut hot_entries = parse_search_results(&html);
 		if !hot_entries.is_empty() {
-			let mut seen = Vec::new();
+			let mut seen = BTreeSet::new();
 			for entry in latest_release
 				.iter()
 				.chain(latest_novels.iter())
 				.chain(completed_novels.iter())
 			{
-				if !seen.iter().any(|s| s == &entry.key) {
-					seen.push(entry.key.clone());
-				}
+				seen.insert(entry.key.clone());
 			}
-			hot_entries.retain(|m| !seen.iter().any(|s| s == &m.key));
+			hot_entries.retain(|m| !seen.contains(&m.key));
 		}
 
 		let mut components = Vec::new();

@@ -2,7 +2,7 @@
 use crate::BASE_URL;
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaStatus, Result,
-	alloc::{String, Vec, string::ToString},
+	alloc::{String, Vec, collections::BTreeSet, string::ToString},
 	imports::{
 		html::{Document, Element},
 		net::Request,
@@ -170,7 +170,7 @@ pub fn extract_chapter_text(html: &Document) -> Result<String> {
 
 pub fn parse_search_results(html: &Document) -> Vec<Manga> {
 	let mut entries = Vec::new();
-	let mut seen = Vec::new();
+	let mut seen = BTreeSet::new();
 	if let Some(els) = html.select("a[href*='/novel/']") {
 		append_anchor_entries(els, &mut entries, &mut seen);
 	}
@@ -186,7 +186,7 @@ pub fn parse_home_section(html: &Document, heading: &str) -> Vec<Manga> {
 
 fn parse_entries_from_element(root: &Element) -> Vec<Manga> {
 	let mut entries = Vec::new();
-	let mut seen = Vec::new();
+	let mut seen = BTreeSet::new();
 	if let Some(els) = root.select("a[href*='/novel/']") {
 		append_anchor_entries(els, &mut entries, &mut seen);
 	}
@@ -200,7 +200,7 @@ fn find_section_container(html: &Document, heading: &str) -> Option<Element> {
 		.and_then(|p| p.parent())
 }
 
-fn append_anchor_entries<I>(anchors: I, entries: &mut Vec<Manga>, seen: &mut Vec<String>)
+fn append_anchor_entries<I>(anchors: I, entries: &mut Vec<Manga>, seen: &mut BTreeSet<String>)
 where
 	I: IntoIterator<Item = Element>,
 {
@@ -211,7 +211,7 @@ where
 		let Some((slug, chapter_key)) = parse_novel_and_chapter(&url) else {
 			continue;
 		};
-		if chapter_key.is_some() || seen.iter().any(|s| s == &slug) {
+		if chapter_key.is_some() || seen.contains(&slug) {
 			continue;
 		}
 		let Some(title) = extract_anchor_title(&el) else {
@@ -226,7 +226,7 @@ where
 			..Default::default()
 		};
 		entries.push(manga);
-		seen.push(slug);
+		seen.insert(slug);
 	}
 }
 
