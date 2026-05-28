@@ -1,5 +1,5 @@
 #![allow(clippy::needless_pass_by_value)]
-use crate::{BASE_URL, USER_AGENT};
+use crate::BASE_URL;
 use aidoku::{
 	Chapter, ContentRating, Manga, Result,
 	alloc::{String, Vec, string::ToString},
@@ -11,11 +11,7 @@ use aidoku::{
 };
 
 pub fn request_html(url: &str) -> Result<Document> {
-	Ok(Request::get(url)?
-		.header("User-Agent", USER_AGENT)
-		.header("Referer", BASE_URL)
-		.header("Accept", "text/html,application/xhtml+xml")
-		.html()?)
+	Ok(Request::get(url)?.html()?)
 }
 
 pub fn build_novel_url(slug: &str) -> String {
