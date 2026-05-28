@@ -265,12 +265,12 @@ pub fn extract_chapter_text(html: &Document) -> Result<String> {
 		"article",
 	];
 	for selector in container_selectors {
-		if let Some(el) = html.select_first(selector) {
-			if let Some(text) = el.text() {
-				let cleaned = clean_block_text(&text);
-				if !cleaned.is_empty() {
-					return Ok(cleaned);
-				}
+		if let Some(el) = html.select_first(selector)
+			&& let Some(text) = el.text()
+		{
+			let cleaned = clean_block_text(&text);
+			if !cleaned.is_empty() {
+				return Ok(cleaned);
 			}
 		}
 	}
@@ -305,10 +305,10 @@ fn parse_entries_from_element(root: &Element) -> Vec<Manga> {
 	if let Some(rows) = root.select("div.li-row") {
 		append_li_rows(rows, &mut entries, &mut seen);
 	}
-	if entries.is_empty() {
-		if let Some(els) = root.select("a[href*='/novel/']") {
-			append_anchor_entries(els, &mut entries, &mut seen, false);
-		}
+	if entries.is_empty()
+		&& let Some(els) = root.select("a[href*='/novel/']")
+	{
+		append_anchor_entries(els, &mut entries, &mut seen, false);
 	}
 	entries
 }

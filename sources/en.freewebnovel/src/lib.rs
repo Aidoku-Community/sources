@@ -140,7 +140,6 @@ impl Home for FreeWebNovel {
 						.collect::<Vec<Link>>(),
 					listing: None,
 				},
-				..Default::default()
 			});
 		}
 		if !latest_release.is_empty() {
@@ -158,7 +157,6 @@ impl Home for FreeWebNovel {
 						..Default::default()
 					}),
 				},
-				..Default::default()
 			});
 		}
 		if !latest_novels.is_empty() {
@@ -176,7 +174,6 @@ impl Home for FreeWebNovel {
 						..Default::default()
 					}),
 				},
-				..Default::default()
 			});
 		}
 
