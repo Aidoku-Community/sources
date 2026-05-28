@@ -286,16 +286,6 @@ pub fn parse_home_section(html: &Document, heading: &str) -> Vec<Manga> {
 	parse_entries_from_element(&container)
 }
 
-pub fn parse_home_section_any(html: &Document, headings: &[&str]) -> Vec<Manga> {
-	for heading in headings {
-		let entries = parse_home_section(html, heading);
-		if !entries.is_empty() {
-			return entries;
-		}
-	}
-	Vec::new()
-}
-
 fn parse_entries_from_element(root: &Element) -> Vec<Manga> {
 	let mut entries = Vec::new();
 	let mut seen = Vec::new();

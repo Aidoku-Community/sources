@@ -14,8 +14,8 @@ mod helpers;
 use helpers::{
 	build_chapter_url, build_novel_url, content_rating_from_tags, extract_authors,
 	extract_chapter_text, extract_chapters, extract_cover, extract_description, extract_tags,
-	extract_title, parse_home_section, parse_home_section_any, parse_novel_and_chapter,
-	parse_search_results, request_html,
+	extract_title, parse_home_section, parse_novel_and_chapter, parse_search_results,
+	request_html,
 };
 
 pub const BASE_URL: &str = "https://freewebnovel.com";
@@ -117,23 +117,16 @@ impl Home for FreeWebNovel {
 
 		let latest_release = parse_home_section(&html, "LATEST RELEASE NOVELS");
 		let latest_novels = parse_home_section(&html, "LATEST NOVELS");
-		let mut hot_entries = parse_home_section_any(
-			&html,
-			&["HOT NOVELS", "POPULAR NOVELS", "HOT NOVEL", "POPULAR NOVEL", "HOT"],
-		);
-		if hot_entries.is_empty() {
-			let mut fallback = parse_search_results(&html);
-			if !fallback.is_empty() {
-				let mut seen = Vec::new();
-				for entry in latest_release.iter().chain(latest_novels.iter()) {
-					if !seen.iter().any(|s| s == &entry.key) {
-						seen.push(entry.key.clone());
-					}
+		let mut hot_entries = parse_search_results(&html);
+		if !hot_entries.is_empty() {
+			let mut seen = Vec::new();
+			for entry in latest_release.iter().chain(latest_novels.iter()) {
+				if !seen.iter().any(|s| s == &entry.key) {
+					seen.push(entry.key.clone());
 				}
-				fallback.retain(|m| !seen.iter().any(|s| s == &m.key));
-				fallback.truncate(12);
-				hot_entries = fallback;
 			}
+			hot_entries.retain(|m| !seen.iter().any(|s| s == &m.key));
+			hot_entries.truncate(12);
 		}
 
 		let mut components = Vec::new();
