@@ -81,9 +81,11 @@ fn strip_thumbnail_size(src: String) -> String {
 	if let Some(dash) = src.rfind('-') {
 		let suffix = &src[dash + 1..];
 		if let Some((dims, ext)) = suffix.split_once('.')
-			&& dims.contains('x') && dims.chars().all(|c| c.is_ascii_digit() || c == 'x') {
-				return alloc::format!("{}.{}", &src[..dash], ext);
-			}
+			&& dims.contains('x')
+			&& dims.chars().all(|c| c.is_ascii_digit() || c == 'x')
+		{
+			return alloc::format!("{}.{}", &src[..dash], ext);
+		}
 	}
 	src
 }
