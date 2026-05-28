@@ -1,0 +1,10 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"title": "Sort",
+		"canAscend": true,
+		"options": ["Newest", "Relevance", "Random"],
+		"default": { "index": 0, "ascending": false }
+	}
+]
