@@ -1,4 +1,5 @@
 #![no_std]
+extern crate alloc;
 
 use aidoku::imports::canvas::ImageRef;
 use aidoku::{
@@ -480,11 +481,11 @@ impl ListingProvider for Comix {
 			"Trending Webtoon" => trending(vec!["manhua".into(), "manhwa".into()]),
 			"Trending Manga" => trending(vec!["manga".into()]),
 
-			"Most Recent Popular" => {
-				get_listing_page(&format!("{API_URL}/top?type=trending&days=1&limit=50"))
-			}
+			"Most Recent Popular" => get_listing_page(&format!(
+				"{API_URL}/manga/top?type=trending&days=1&limit=50"
+			)),
 			"Most Follows New Comics" => {
-				get_listing_page(&format!("{API_URL}/top?type=follows&days=1&limit=50"))
+				get_listing_page(&format!("{API_URL}/manga/top?type=follows&days=1&limit=50"))
 			}
 
 			"Latest Updates (Hot)" => get_listing_page(&format!(
@@ -555,7 +556,7 @@ impl NotificationHandler for Comix {
 
 impl DeepLinkHandler for Comix {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let Some(path) = url.strip_prefix(BASE_URL) else {
+		let Some(path) = url.strip_prefix(&format!("{BASE_URL}/")) else {
 			return Ok(None);
 		};
 
