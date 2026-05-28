@@ -36,6 +36,31 @@ fn absolute_url(path_or_url: &str) -> String {
 	}
 }
 
+fn split_url_suffix(url: &str) -> (&str, &str) {
+	let mut split_at = url.len();
+	for (idx, ch) in url.char_indices() {
+		if ch == '?' || ch == '#' {
+			split_at = idx;
+			break;
+		}
+	}
+	(&url[..split_at], &url[split_at..])
+}
+
+fn normalize_cover_url(url: &str) -> Option<String> {
+	let trimmed = url.trim();
+	if trimmed.is_empty() {
+		return None;
+	}
+	let (base, suffix) = split_url_suffix(trimmed);
+	let normalized_base = if base.ends_with("ss.jpg") && base.len() > 6 {
+		format!("{}s.jpg", &base[..base.len() - 6])
+	} else {
+		base.to_string()
+	};
+	Some(format!("{normalized_base}{suffix}"))
+}
+
 pub fn parse_novel_and_chapter(url: &str) -> Option<(String, Option<String>)> {
 	let path = url
 		.split(['?', '#'])
@@ -113,10 +138,15 @@ pub fn extract_title(html: &Document) -> Result<String> {
 }
 
 pub fn extract_cover(html: &Document) -> Option<String> {
-	meta_content(html, "meta[property='og:image']").or_else(|| {
-		html.select_first("img[src*='/files/article/image/']")
-			.and_then(|el| el.attr("abs:src"))
-	})
+	meta_content(html, "meta[property='og:image']")
+		.and_then(|url| normalize_cover_url(&url))
+		.map(|url| absolute_url(&url))
+		.or_else(|| {
+			html.select_first("img[src*='/files/article/image/']")
+				.and_then(|el| el.attr("src"))
+				.and_then(|url| normalize_cover_url(&url))
+				.map(|url| absolute_url(&url))
+		})
 }
 
 pub fn extract_description(html: &Document) -> Option<String> {
@@ -518,8 +548,7 @@ fn find_cover_image(el: &Element) -> Option<String> {
 		.select_first("div.pic > a > img")
 		.and_then(|img| img.attr("src"))
 		.or_else(|| el.select_first("img").and_then(|img| img.attr("src")));
-	cover.and_then(|url| {
-		let trimmed = url.trim();
-		(!trimmed.is_empty()).then(|| absolute_url(trimmed))
-	})
+	cover
+		.and_then(|url| normalize_cover_url(&url))
+		.map(|url| absolute_url(&url))
 }

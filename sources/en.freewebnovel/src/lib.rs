@@ -5,7 +5,7 @@ use aidoku::{
 	Source,
 	alloc::{String, Vec, vec},
 	helpers::uri::QueryParameters,
-	imports::std::send_partial_result,
+	imports::{html::Document, std::send_partial_result},
 	prelude::*,
 };
 
@@ -22,6 +22,7 @@ pub const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Ap
 	(KHTML, like Gecko) Version/17.0 Safari/605.1.15";
 const LISTING_LATEST_RELEASE: &str = "latest-release";
 const LISTING_LATEST_NOVEL: &str = "latest-novel";
+const LISTING_COMPLETED_NOVEL: &str = "completed-novel";
 
 struct FreeWebNovel;
 
@@ -31,6 +32,21 @@ fn build_sort_url(kind: &str, page: i32) -> String {
 	} else {
 		format!("{BASE_URL}/sort/{kind}/{page}")
 	}
+}
+
+fn has_next_page(html: &Document, kind: &str, page: i32) -> bool {
+	let next_page = page + 1;
+	let next_fragment = format!("/sort/{kind}/{next_page}");
+	if let Some(links) = html.select("a[href]") {
+		for link in links {
+			if let Some(href) = link.attr("href")
+				&& href.contains(&next_fragment)
+			{
+				return true;
+			}
+		}
+	}
+	false
 }
 
 impl Source for FreeWebNovel {
@@ -116,10 +132,15 @@ impl Home for FreeWebNovel {
 
 		let latest_release = parse_home_section(&html, "LATEST RELEASE NOVELS");
 		let latest_novels = parse_home_section(&html, "LATEST NOVELS");
+		let completed_novels = parse_home_section(&html, "COMPLETED NOVELS");
 		let mut hot_entries = parse_search_results(&html);
 		if !hot_entries.is_empty() {
 			let mut seen = Vec::new();
-			for entry in latest_release.iter().chain(latest_novels.iter()) {
+			for entry in latest_release
+				.iter()
+				.chain(latest_novels.iter())
+				.chain(completed_novels.iter())
+			{
 				if !seen.iter().any(|s| s == &entry.key) {
 					seen.push(entry.key.clone());
 				}
@@ -176,6 +197,23 @@ impl Home for FreeWebNovel {
 				},
 			});
 		}
+		if !completed_novels.is_empty() {
+			components.push(HomeComponent {
+				title: Some("Completed Novels".into()),
+				subtitle: None,
+				value: HomeComponentValue::Scroller {
+					entries: completed_novels
+						.into_iter()
+						.map(Into::into)
+						.collect::<Vec<Link>>(),
+					listing: Some(Listing {
+						id: LISTING_COMPLETED_NOVEL.into(),
+						name: "Completed Novels".into(),
+						..Default::default()
+					}),
+				},
+			});
+		}
 
 		Ok(HomeLayout { components })
 	}
@@ -186,6 +224,7 @@ impl ListingProvider for FreeWebNovel {
 		let sort_key = match listing.id.as_str() {
 			LISTING_LATEST_RELEASE => "latest-release",
 			LISTING_LATEST_NOVEL => "latest-novel",
+			LISTING_COMPLETED_NOVEL => "completed-novel",
 			_ => {
 				return Ok(MangaPageResult {
 					entries: Vec::new(),
@@ -196,9 +235,7 @@ impl ListingProvider for FreeWebNovel {
 		let url = build_sort_url(sort_key, page);
 		let html = request_html(&url)?;
 		let entries = parse_search_results(&html);
-		let has_next_page =
-			html.select_first("a[rel='next'], a:contains(Next), li:contains(Next)")
-				.is_some() || entries.len() >= 20;
+		let has_next_page = has_next_page(&html, sort_key, page);
 		Ok(MangaPageResult {
 			entries,
 			has_next_page,
