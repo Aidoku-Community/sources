@@ -146,7 +146,7 @@ pub fn extract_chapter_text(html: &Document) -> Result<String> {
 	let mut parts = Vec::new();
 
 	if let Some(container) = html.select_first(container_selector)
-		&& let Some(elms) = container.select(":not(div)")
+		&& let Some(elms) = container.select("p, h4")
 	{
 		for part in elms {
 			// Remove ADs
