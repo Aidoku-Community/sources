@@ -1,7 +1,8 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Manga, MangaPageResult, Page,
-	PageContent, Result, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
+	HomeComponentValue, HomeLayout, Link, Listing, ListingProvider, Manga, MangaPageResult,
+	Page, PageContent, Result, Source,
 	alloc::{String, Vec, vec},
 	helpers::uri::QueryParameters,
 	imports::std::send_partial_result,
@@ -13,14 +14,25 @@ mod helpers;
 use helpers::{
 	build_chapter_url, build_novel_url, content_rating_from_tags, extract_authors,
 	extract_chapter_text, extract_chapters, extract_cover, extract_description, extract_tags,
-	extract_title, parse_novel_and_chapter, parse_search_results, request_html,
+	extract_title, parse_home_section, parse_home_section_any, parse_novel_and_chapter,
+	parse_search_results, request_html,
 };
 
 pub const BASE_URL: &str = "https://freewebnovel.com";
 pub const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 \
 	(KHTML, like Gecko) Version/17.0 Safari/605.1.15";
+const LISTING_LATEST_RELEASE: &str = "latest-release";
+const LISTING_LATEST_NOVEL: &str = "latest-novel";
 
 struct FreeWebNovel;
+
+fn build_sort_url(kind: &str, page: i32) -> String {
+	if page <= 1 {
+		format!("{BASE_URL}/sort/{kind}")
+	} else {
+		format!("{BASE_URL}/sort/{kind}/{page}")
+	}
+}
 
 impl Source for FreeWebNovel {
 	fn new() -> Self {
@@ -99,6 +111,112 @@ impl Source for FreeWebNovel {
 	}
 }
 
+impl Home for FreeWebNovel {
+	fn get_home(&self) -> Result<HomeLayout> {
+		let html = request_html(BASE_URL)?;
+
+		let latest_release = parse_home_section(&html, "LATEST RELEASE NOVELS");
+		let latest_novels = parse_home_section(&html, "LATEST NOVELS");
+		let mut hot_entries = parse_home_section_any(
+			&html,
+			&["HOT NOVELS", "POPULAR NOVELS", "HOT NOVEL", "POPULAR NOVEL", "HOT"],
+		);
+		if hot_entries.is_empty() {
+			let mut fallback = parse_search_results(&html);
+			if !fallback.is_empty() {
+				let mut seen = Vec::new();
+				for entry in latest_release.iter().chain(latest_novels.iter()) {
+					if !seen.iter().any(|s| s == &entry.key) {
+						seen.push(entry.key.clone());
+					}
+				}
+				fallback.retain(|m| !seen.iter().any(|s| s == &m.key));
+				fallback.truncate(12);
+				hot_entries = fallback;
+			}
+		}
+
+		let mut components = Vec::new();
+		if !hot_entries.is_empty() {
+			components.push(HomeComponent {
+				title: Some("Hot Novels".into()),
+				subtitle: None,
+				value: HomeComponentValue::Scroller {
+					entries: hot_entries.into_iter().map(Into::into).collect::<Vec<Link>>(),
+					listing: None,
+				},
+				..Default::default()
+			});
+		}
+		if !latest_release.is_empty() {
+			components.push(HomeComponent {
+				title: Some("Latest Release Novels".into()),
+				subtitle: None,
+				value: HomeComponentValue::Scroller {
+					entries: latest_release
+						.into_iter()
+						.map(Into::into)
+						.collect::<Vec<Link>>(),
+					listing: Some(Listing {
+						id: LISTING_LATEST_RELEASE.into(),
+						name: "Latest Release Novels".into(),
+						..Default::default()
+					}),
+				},
+				..Default::default()
+			});
+		}
+		if !latest_novels.is_empty() {
+			components.push(HomeComponent {
+				title: Some("Latest Novels".into()),
+				subtitle: None,
+				value: HomeComponentValue::Scroller {
+					entries: latest_novels
+						.into_iter()
+						.map(Into::into)
+						.collect::<Vec<Link>>(),
+					listing: Some(Listing {
+						id: LISTING_LATEST_NOVEL.into(),
+						name: "Latest Novels".into(),
+						..Default::default()
+					}),
+				},
+				..Default::default()
+			});
+		}
+
+		Ok(HomeLayout { components })
+	}
+}
+
+impl ListingProvider for FreeWebNovel {
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		let sort_key = match listing.id.as_str() {
+			LISTING_LATEST_RELEASE => "latest-release",
+			LISTING_LATEST_NOVEL => "latest-novel",
+			_ => {
+				return Ok(MangaPageResult {
+					entries: Vec::new(),
+					has_next_page: false,
+				});
+			}
+		};
+		let url = build_sort_url(sort_key, page);
+		let html = request_html(&url)?;
+		let entries = parse_search_results(&html);
+		let has_next_page = html
+			.select_first(
+				"a[rel='next'], a:contains(Next), li:contains(Next)",
+			)
+			.is_some()
+			|| entries.len() >= 20;
+		Ok(MangaPageResult {
+			entries,
+			has_next_page,
+		})
+	}
+}
+
 impl DeepLinkHandler for FreeWebNovel {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		let Some((slug, chapter_key)) = parse_novel_and_chapter(&url) else {
@@ -115,7 +233,7 @@ impl DeepLinkHandler for FreeWebNovel {
 	}
 }
 
-register_source!(FreeWebNovel, DeepLinkHandler);
+register_source!(FreeWebNovel, Home, ListingProvider, DeepLinkHandler);
 
 #[cfg(test)]
 mod tests {
