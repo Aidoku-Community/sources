@@ -303,15 +303,11 @@ fn extract_text_from_elements<I>(elements: I) -> String
 where
 	I: IntoIterator<Item = Element>,
 {
-	let mut parts = Vec::new();
-	for el in elements {
-		if let Some(text) = el.text()
-			&& !text.is_empty()
-		{
-			parts.push(text);
-		}
-	}
-	parts.join("\n")
+	elements
+		.into_iter()
+		.filter_map(|el| el.text())
+		.collect::<Vec<_>>()
+		.join("\n")
 }
 
 fn find_cover_image(el: &Element) -> Option<String> {

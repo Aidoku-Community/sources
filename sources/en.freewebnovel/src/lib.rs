@@ -32,10 +32,16 @@ fn build_sort_url(kind: &str, page: i32) -> String {
 }
 
 fn has_next_page(html: &Document, kind: &str, page: i32) -> bool {
-	let next_page = page + 1;
-	let next_fragment = format!("/sort/{kind}/{next_page}");
-	let query = format!("a[href*='{next_fragment}']");
-	html.select_first(&query).is_some()
+	let next_page = format!("/sort/{kind}/{}", page + 1);
+	html.select_first(format!("a[href*='{next_page}']"))
+		.is_some()
+}
+
+fn empty_page_result() -> MangaPageResult {
+	MangaPageResult {
+		entries: Vec::new(),
+		has_next_page: false,
+	}
 }
 
 impl Source for FreeWebNovel {
@@ -49,18 +55,12 @@ impl Source for FreeWebNovel {
 		page: i32,
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let Some(query) = query else {
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
-		};
 		if page > 1 {
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
+			return Ok(empty_page_result());
 		}
+		let Some(query) = query else {
+			return Ok(empty_page_result());
+		};
 		let mut qs = QueryParameters::new();
 		qs.push("searchkey", Some(&query));
 		let url = format!("{BASE_URL}/search?{qs}");
@@ -116,82 +116,46 @@ impl Home for FreeWebNovel {
 		let completed_novels = parse_home_section(&html, "COMPLETED NOVELS");
 		let mut hot_entries = parse_search_results(&html);
 		if !hot_entries.is_empty() {
-			let mut seen = BTreeSet::new();
-			for entry in latest_release
+			let seen = latest_release
 				.iter()
 				.chain(latest_novels.iter())
 				.chain(completed_novels.iter())
-			{
-				seen.insert(entry.key.clone());
-			}
+				.map(|entry| entry.key.clone())
+				.collect::<BTreeSet<_>>();
 			hot_entries.retain(|m| !seen.contains(&m.key));
 		}
 
 		let mut components = Vec::new();
-		if !hot_entries.is_empty() {
+		let mut push_scroller = |title: &str, entries: Vec<Manga>, listing_id: Option<&str>| {
+			if entries.is_empty() {
+				return;
+			}
+			let listing = listing_id.map(|id| Listing {
+				id: id.into(),
+				name: title.into(),
+				..Default::default()
+			});
 			components.push(HomeComponent {
-				title: Some("Hot Novels".into()),
+				title: Some(title.into()),
 				subtitle: None,
 				value: HomeComponentValue::Scroller {
-					entries: hot_entries
-						.into_iter()
-						.map(Into::into)
-						.collect::<Vec<Link>>(),
-					listing: None,
+					entries: entries.into_iter().map(Into::into).collect::<Vec<Link>>(),
+					listing,
 				},
 			});
-		}
-		if !latest_release.is_empty() {
-			components.push(HomeComponent {
-				title: Some("Latest Release Novels".into()),
-				subtitle: None,
-				value: HomeComponentValue::Scroller {
-					entries: latest_release
-						.into_iter()
-						.map(Into::into)
-						.collect::<Vec<Link>>(),
-					listing: Some(Listing {
-						id: LISTING_LATEST_RELEASE.into(),
-						name: "Latest Release Novels".into(),
-						..Default::default()
-					}),
-				},
-			});
-		}
-		if !latest_novels.is_empty() {
-			components.push(HomeComponent {
-				title: Some("Latest Novels".into()),
-				subtitle: None,
-				value: HomeComponentValue::Scroller {
-					entries: latest_novels
-						.into_iter()
-						.map(Into::into)
-						.collect::<Vec<Link>>(),
-					listing: Some(Listing {
-						id: LISTING_LATEST_NOVEL.into(),
-						name: "Latest Novels".into(),
-						..Default::default()
-					}),
-				},
-			});
-		}
-		if !completed_novels.is_empty() {
-			components.push(HomeComponent {
-				title: Some("Completed Novels".into()),
-				subtitle: None,
-				value: HomeComponentValue::Scroller {
-					entries: completed_novels
-						.into_iter()
-						.map(Into::into)
-						.collect::<Vec<Link>>(),
-					listing: Some(Listing {
-						id: LISTING_COMPLETED_NOVEL.into(),
-						name: "Completed Novels".into(),
-						..Default::default()
-					}),
-				},
-			});
-		}
+		};
+		push_scroller("Hot Novels", hot_entries, None);
+		push_scroller(
+			"Latest Release Novels",
+			latest_release,
+			Some(LISTING_LATEST_RELEASE),
+		);
+		push_scroller("Latest Novels", latest_novels, Some(LISTING_LATEST_NOVEL));
+		push_scroller(
+			"Completed Novels",
+			completed_novels,
+			Some(LISTING_COMPLETED_NOVEL),
+		);
 
 		Ok(HomeLayout { components })
 	}
@@ -204,10 +168,7 @@ impl ListingProvider for FreeWebNovel {
 			LISTING_LATEST_NOVEL => "latest-novel",
 			LISTING_COMPLETED_NOVEL => "completed-novel",
 			_ => {
-				return Ok(MangaPageResult {
-					entries: Vec::new(),
-					has_next_page: false,
-				});
+				return Ok(empty_page_result());
 			}
 		};
 		let url = build_sort_url(sort_key, page);
