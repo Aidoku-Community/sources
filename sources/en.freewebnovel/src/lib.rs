@@ -66,7 +66,7 @@ impl Source for FreeWebNovel {
 		let html = request_html(&url)?;
 
 		if needs_details {
-			manga.title = extract_title(&html).unwrap_or(manga.title);
+			manga.title = extract_title(&html)?;
 			manga.cover = extract_cover(&html);
 			manga.description = extract_description(&html);
 			manga.authors = extract_authors(&html);
@@ -91,12 +91,7 @@ impl Source for FreeWebNovel {
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = build_chapter_url(&manga.key, &chapter.key);
 		let html = request_html(&url)?;
-		let text = extract_chapter_text(&html);
-		let text = if text.is_empty() {
-			"(empty chapter)".into()
-		} else {
-			text
-		};
+		let text = extract_chapter_text(&html)?;
 		Ok(vec![Page {
 			content: PageContent::text(text),
 			..Default::default()

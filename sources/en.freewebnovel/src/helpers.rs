@@ -90,7 +90,7 @@ pub fn content_rating_from_tags(tags: &[String]) -> ContentRating {
 	}
 }
 
-pub fn extract_title(html: &Document) -> Option<String> {
+pub fn extract_title(html: &Document) -> Result<String> {
 	meta_content(html, "meta[property='og:title']")
 		.or_else(|| meta_content(html, "meta[name='title']"))
 		.or_else(|| {
@@ -99,6 +99,7 @@ pub fn extract_title(html: &Document) -> Option<String> {
 				.map(|t| t.trim().to_string())
 		})
 		.filter(|t| !t.is_empty())
+		.ok_or_else(|| error!("title not found"))
 }
 
 pub fn extract_cover(html: &Document) -> Option<String> {
@@ -225,7 +226,7 @@ fn append_chapters_from_doc(
 	}
 }
 
-pub fn extract_chapter_text(html: &Document) -> String {
+pub fn extract_chapter_text(html: &Document) -> Result<String> {
 	let selectors = [
 		"div.txt p",
 		"div#chapter-content p",
@@ -238,7 +239,7 @@ pub fn extract_chapter_text(html: &Document) -> String {
 		if let Some(els) = html.select(selector) {
 			let text = extract_text_from_elements(els);
 			if !text.is_empty() {
-				return text;
+				return Ok(text);
 			}
 		}
 	}
@@ -255,12 +256,12 @@ pub fn extract_chapter_text(html: &Document) -> String {
 			if let Some(text) = el.text() {
 				let cleaned = clean_block_text(&text);
 				if !cleaned.is_empty() {
-					return cleaned;
+					return Ok(cleaned);
 				}
 			}
 		}
 	}
-	String::new()
+	bail!("chapter text not found")
 }
 
 pub fn parse_search_results(html: &Document) -> Vec<Manga> {
