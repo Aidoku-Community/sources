@@ -123,7 +123,6 @@ pub fn extract_title(html: &Document) -> Result<String> {
 		.or_else(|| {
 			html.select_first("h1, h2, h3")
 				.and_then(|el| el.text())
-				.map(|t| t.trim().to_string())
 		})
 		.filter(|t| !t.is_empty())
 		.ok_or_else(|| error!("title not found"))
@@ -165,9 +164,8 @@ pub fn extract_authors(html: &Document) -> Option<Vec<String>> {
 	if let Some(els) = elements {
 		for el in els {
 			if let Some(text) = el.text() {
-				let name = text.trim();
-				if !name.is_empty() && !authors.iter().any(|a| a == name) {
-					authors.push(name.to_string());
+				if !text.is_empty() && !authors.iter().any(|a| a == &text) {
+					authors.push(text.to_string());
 				}
 			}
 		}
@@ -505,9 +503,8 @@ where
 	let mut parts = Vec::new();
 	for el in elements {
 		if let Some(text) = el.text() {
-			let trimmed = text.trim();
-			if !trimmed.is_empty() {
-				parts.push(trimmed.to_string());
+			if !text.is_empty() {
+				parts.push(text);
 			}
 		}
 	}
