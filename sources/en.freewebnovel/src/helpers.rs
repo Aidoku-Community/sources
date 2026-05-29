@@ -96,44 +96,34 @@ pub fn content_rating_from_tags(tags: &[String]) -> ContentRating {
 
 /// Extract Chapters from Novel page.
 pub fn extract_chapters(html: &Document) -> Vec<Chapter> {
-	let mut chapters = Vec::new();
-	append_chapters_from_doc(html, &mut chapters);
-	chapters.reverse();
-	chapters
-}
-
-fn append_chapters_from_doc(doc: &Document, chapters: &mut Vec<Chapter>) {
-	let Some(items) = doc.select("div.m-newest2 > ul.ul-list5 > li") else {
-		return;
+	let Some(items) = html.select("div.m-newest2 > ul.ul-list5 > li") else {
+		return Vec::new();
 	};
-
-	for item in items {
-		let Some(link) = item.select_first("a[href]") else {
-			continue;
-		};
-		let Some(url) = link.attr("abs:href") else {
-			continue;
-		};
-		let Some((_, Some(chapter_key))) = parse_novel_and_chapter(&url) else {
-			continue;
-		};
-		let mut title = link.text();
-		let chapter_number = title.as_deref().and_then(parse_chapter_number);
-		title = title.map(|s| {
-			if s.starts_with("Chapter ") && s.contains(":") {
-				s.split(":").nth(1).unwrap_or(&s).trim().to_string()
-			} else {
-				s
-			}
-		});
-		chapters.push(Chapter {
-			key: chapter_key,
-			title,
-			chapter_number,
-			url: Some(url),
-			..Default::default()
-		});
-	}
+	items
+		.rev()
+		.filter_map(|item| {
+			let link = item.select_first("a[href]")?;
+			let url = link.attr("abs:href")?;
+			let (_, chapter_key) = parse_novel_and_chapter(&url)?;
+			let chapter_key = chapter_key?;
+			let title = link.text();
+			let chapter_number = title.as_deref().and_then(parse_chapter_number);
+			let title = title.map(|s| {
+				if s.starts_with("Chapter ") && s.contains(":") {
+					s.split(":").nth(1).unwrap_or(&s).trim().to_string()
+				} else {
+					s
+				}
+			});
+			Some(Chapter {
+				key: chapter_key,
+				title,
+				chapter_number,
+				url: Some(url),
+				..Default::default()
+			})
+		})
+		.collect()
 }
 
 pub fn extract_chapter_text(html: &Document) -> Result<String> {
@@ -265,8 +255,7 @@ pub fn fill_manga_details(html: &Document, mut manga: Manga) -> Result<Manga> {
 	manga.title = title;
 	manga.cover = get_meta_data(html, MetaSelector::Cover);
 	manga.url = get_meta_data(html, MetaSelector::Url);
-	const DESCRIPTION_QUERY: &str = "h4.abstract + div.txt p";
-	if let Some(parts) = html.select(DESCRIPTION_QUERY) {
+	if let Some(parts) = html.select("h4.abstract + div.txt p") {
 		let description = extract_text_from_elements(parts);
 		if !description.is_empty() {
 			manga.description = Some(description);

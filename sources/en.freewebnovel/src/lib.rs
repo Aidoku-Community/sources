@@ -23,12 +23,6 @@ const LISTING_LATEST_NOVEL: &str = "latest-novel";
 const LISTING_COMPLETED_NOVEL: &str = "completed-novel";
 
 struct FreeWebNovel;
-fn empty_page_result() -> MangaPageResult {
-	MangaPageResult {
-		entries: Vec::new(),
-		has_next_page: false,
-	}
-}
 
 impl Source for FreeWebNovel {
 	fn new() -> Self {
@@ -42,7 +36,7 @@ impl Source for FreeWebNovel {
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let Some(query) = query.filter(|_| page <= 1) else {
-			return Ok(empty_page_result());
+			return Ok(MangaPageResult::default());
 		};
 		let mut qs = QueryParameters::new();
 		qs.push("searchkey", Some(&query));
@@ -145,7 +139,7 @@ impl ListingProvider for FreeWebNovel {
 			LISTING_LATEST_NOVEL => "latest-novel",
 			LISTING_COMPLETED_NOVEL => "completed-novel",
 			_ => {
-				return Ok(empty_page_result());
+				return Ok(MangaPageResult::default());
 			}
 		};
 		let url = build_sort_url(sort_key, page);
