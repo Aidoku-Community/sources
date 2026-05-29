@@ -170,10 +170,10 @@ pub fn parse_home_section(html: &Document, heading: &str) -> Vec<Manga> {
 	let Some(container) = find_section_container(html, heading) else {
 		return Vec::new();
 	};
-	parse_entries_from_element(&container)
+	parse_entries_from_container(&container)
 }
 
-fn parse_entries_from_element(root: &Element) -> Vec<Manga> {
+fn parse_entries_from_container(root: &Element) -> Vec<Manga> {
 	let mut entries = Vec::new();
 	let mut seen = BTreeSet::new();
 	if let Some(els) = root.select("a[href*='/novel/']") {
@@ -220,6 +220,11 @@ where
 }
 
 fn extract_anchor_title(el: &Element) -> Option<String> {
+	if let Some(tags) = el.select(".new, .hot") {
+		for tag in tags {
+			tag.remove();
+		}
+	}
 	let title = el
 		.text() // Used by Homepage sections
 		.or_else(|| el.select_first("img").and_then(|img| img.attr("alt"))); // Used by search results
