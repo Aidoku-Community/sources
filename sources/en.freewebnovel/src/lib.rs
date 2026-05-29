@@ -1,9 +1,9 @@
 #![no_std]
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
-	HomeLayout, Link, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result,
+	HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result,
 	Source,
-	alloc::{String, Vec, collections::BTreeSet, vec},
+	alloc::{String, Vec, vec},
 	helpers::uri::QueryParameters,
 	imports::{html::Document, std::send_partial_result},
 	prelude::*,
@@ -13,7 +13,8 @@ mod helpers;
 
 use helpers::{
 	build_chapter_url, build_novel_url, extract_chapter_text, extract_chapters, fill_manga_details,
-	parse_home_section, parse_novel_and_chapter, parse_search_results, request_html,
+	parse_home_section, parse_hot_entries, parse_novel_and_chapter, parse_search_results,
+	request_html,
 };
 
 pub const BASE_URL: &str = "https://freewebnovel.com";
@@ -109,19 +110,10 @@ impl Home for FreeWebNovel {
 		let latest_release = parse_home_section(&html, "LATEST RELEASE NOVELS");
 		let latest_novels = parse_home_section(&html, "LATEST NOVELS");
 		let completed_novels = parse_home_section(&html, "COMPLETED NOVELS");
-		let mut hot_entries = parse_search_results(&html);
-		if !hot_entries.is_empty() {
-			let seen = latest_release
-				.iter()
-				.chain(latest_novels.iter())
-				.chain(completed_novels.iter())
-				.map(|entry| entry.key.clone())
-				.collect::<BTreeSet<_>>();
-			hot_entries.retain(|m| !seen.contains(&m.key));
-		}
+		let hot_entries = parse_hot_entries(&html);
 
 		let mut components = Vec::new();
-		let mut push_scroller = |title: &str, entries: Vec<Manga>, listing_id: Option<&str>| {
+		let mut push_scroller = |title: &str, mut entries: Vec<Manga>, listing_id: Option<&str>| {
 			if entries.is_empty() {
 				return;
 			}
@@ -134,7 +126,7 @@ impl Home for FreeWebNovel {
 				title: Some(title.into()),
 				subtitle: None,
 				value: HomeComponentValue::Scroller {
-					entries: entries.into_iter().map(Into::into).collect::<Vec<Link>>(),
+					entries: entries.drain(..).map(Into::into).collect(),
 					listing,
 				},
 			});

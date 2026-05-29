@@ -2,7 +2,7 @@
 use crate::BASE_URL;
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaStatus, Result,
-	alloc::{String, Vec, collections::BTreeSet, string::ToString},
+	alloc::{String, Vec, string::ToString},
 	imports::{
 		html::{Document, Element},
 		net::Request,
@@ -156,14 +156,23 @@ pub fn extract_chapter_text(html: &Document) -> Result<String> {
 
 pub fn parse_search_results(html: &Document) -> Vec<Manga> {
 	let mut entries = Vec::new();
-	let mut seen = BTreeSet::new();
 	for heading in ["Hot Novels", "Hot Latest Novels", "Hot Completed Novels"] {
 		if let Some(hot) = find_section_container(html, heading) {
 			hot.remove();
 		}
 	}
-	if let Some(els) = html.select("a[href*='/novel/']") {
-		append_anchor_entries(els, &mut entries, &mut seen);
+	if let Some(els) = html.select("div.pic > a[href*='/novel/']") {
+		append_anchor_entries(els, &mut entries);
+	}
+	entries
+}
+
+pub fn parse_hot_entries(html: &Document) -> Vec<Manga> {
+	let mut entries = Vec::new();
+	if let Some(container) = html.select_first("div.m-book")
+		&& let Some(anchors) = container.select("div.pic > a[href*='/novel/']")
+	{
+		append_anchor_entries(anchors, &mut entries);
 	}
 	entries
 }
@@ -176,9 +185,10 @@ pub fn parse_home_section(html: &Document, heading: &str) -> Vec<Manga> {
 
 fn parse_entries_from_container(root: &Element) -> Vec<Manga> {
 	let mut entries = Vec::new();
-	let mut seen = BTreeSet::new();
-	if let Some(els) = root.select("a[href*='/novel/']") {
-		append_anchor_entries(els, &mut entries, &mut seen);
+	if let Some(els) =
+		root.select("div.pic ~ a[href*='/novel/'], div.rec div.pic > a[href*='/novel/']")
+	{
+		append_anchor_entries(els, &mut entries);
 	}
 	entries
 }
@@ -190,33 +200,29 @@ fn find_section_container(html: &Document, heading: &str) -> Option<Element> {
 		.and_then(|p| p.parent())
 }
 
-fn append_anchor_entries<I>(anchors: I, entries: &mut Vec<Manga>, seen: &mut BTreeSet<String>)
+fn append_anchor_entries<I>(anchors: I, entries: &mut Vec<Manga>)
 where
-	I: IntoIterator<Item = Element>,
+	I: Iterator<Item = Element>,
 {
 	for el in anchors {
 		let Some(url) = el.attr("abs:href") else {
 			continue;
 		};
-		let Some((slug, chapter_key)) = parse_novel_and_chapter(&url) else {
+		let Some((slug, _)) = parse_novel_and_chapter(&url) else {
 			continue;
 		};
-		if chapter_key.is_some() || seen.contains(&slug) {
-			continue;
-		}
 		let Some(title) = extract_anchor_title(&el) else {
 			continue;
 		};
 		let cover = el.parent().and_then(|p| find_cover_image(&p));
 		let manga = Manga {
-			key: slug.clone(),
+			key: slug,
 			title,
 			cover,
-			url: Some(build_novel_url(&slug)),
+			url: Some(url),
 			..Default::default()
 		};
 		entries.push(manga);
-		seen.insert(slug);
 	}
 }
 
@@ -295,10 +301,9 @@ fn get_meta_data(html: &Document, selector: MetaSelector) -> Option<String> {
 
 fn extract_text_from_elements<I>(elements: I) -> String
 where
-	I: IntoIterator<Item = Element>,
+	I: Iterator<Item = Element>,
 {
 	elements
-		.into_iter()
 		.filter_map(|el| el.text())
 		.collect::<Vec<_>>()
 		.join("\n")
