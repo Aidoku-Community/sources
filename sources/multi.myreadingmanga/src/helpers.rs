@@ -7,34 +7,6 @@ pub const UA: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) \
 	AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 \
 	Mobile/15E148 Safari/604.1";
 
-pub fn urlencode(s: &str) -> String {
-	let mut out = String::new();
-	for byte in s.bytes() {
-		match byte {
-			b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-				out.push(byte as char);
-			}
-			b' ' => out.push('+'),
-			_ => {
-				let hi = byte >> 4;
-				let lo = byte & 0xf;
-				out.push('%');
-				out.push(
-					char::from_digit(hi as u32, 16)
-						.unwrap_or('0')
-						.to_ascii_uppercase(),
-				);
-				out.push(
-					char::from_digit(lo as u32, 16)
-						.unwrap_or('0')
-						.to_ascii_uppercase(),
-				);
-			}
-		}
-	}
-	out
-}
-
 pub fn page_url(base: &str, page: i32) -> String {
 	if page <= 1 {
 		return base.to_string();
@@ -54,10 +26,7 @@ pub fn clean_title(raw: &str) -> String {
 pub fn get_user_languages() -> Vec<String> {
 	let mut slugs: Vec<String> = Vec::new();
 
-	let langs = defaults_get::<Vec<String>>("languages")
-		.or_else(|| defaults_get::<String>("languages").map(|s| alloc::vec![s]))
-		.or_else(|| defaults_get::<String>("language").map(|s| alloc::vec![s]))
-		.unwrap_or_default();
+	let langs = defaults_get::<Vec<String>>("languages").unwrap_or_default();
 
 	for lang in langs {
 		if let Some(slug) = map_lang_to_class(&lang) {

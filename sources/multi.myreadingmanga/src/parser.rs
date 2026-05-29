@@ -1,5 +1,5 @@
 use aidoku::imports::html::Document;
-use aidoku::{Chapter, ContentRating, Manga, MangaStatus, Page, PageContent, Viewer};
+use aidoku::{Chapter, ContentRating, Manga, MangaStatus, Page, PageContent, Viewer, prelude::*};
 use alloc::{
 	string::{String, ToString},
 	vec::Vec,
@@ -24,7 +24,7 @@ pub fn parse_listing(doc: &Document, lang_filters: &[String]) -> (Vec<Manga>, bo
 			if !lang_filters.is_empty() {
 				let has_lang = lang_filters
 					.iter()
-					.any(|lang| class_attr.contains(&alloc::format!("lang-{}", lang)));
+					.any(|lang| class_attr.contains(&format!("lang-{}", lang)));
 				if !has_lang {
 					continue;
 				}
@@ -84,7 +84,7 @@ fn strip_thumbnail_size(src: String) -> String {
 			&& dims.contains('x')
 			&& dims.chars().all(|c| c.is_ascii_digit() || c == 'x')
 		{
-			return alloc::format!("{}.{}", &src[..dash], ext);
+			return format!("{}.{}", &src[..dash], ext);
 		}
 	}
 	src
@@ -105,148 +105,157 @@ fn lang_display_to_code(name: &str) -> &str {
 	}
 }
 
-pub fn parse_manga(doc: &Document, key: &str) -> aidoku::imports::error::Result<Manga> {
-	let title_raw = doc
-		.select_first("h1.entry-title")
-		.and_then(|e| e.text())
-		.unwrap_or_default();
-	let title = clean_title(&title_raw);
+pub fn parse_manga(doc: &Document, manga: &mut Manga) {
+	manga.title = doc
+	.select_first("h1.entry-title")
+	.and_then(|e| e.text())
+	.map(|t| clean_title(&t))
+	.unwrap_or_default();
 
-	let cover = doc
-		.select_first("script[type='application/ld+json']")
-		.and_then(|s| s.text())
-		.and_then(|json| {
-			// Extract "thumbnailUrl":"..." without a JSON parser.
-			let key = "\"thumbnailUrl\":\"";
-			let start = json.find(key)? + key.len();
-			let end = json[start..].find('"')? + start;
-			Some(json[start..end].replace("\\/", "/"))
-		});
+	manga.cover = doc
+	.select_first("script[type='application/ld+json']")
+	.and_then(|s| s.text())
+	.and_then(|json| {
+		let key = "\"thumbnailUrl\":\"";
+		let start = json.find(key)? + key.len();
+		let end = json[start..].find('"')? + start;
+		Some(json[start..end].replace("\\/", "/"))
+	});
 
 	let mut tags: Vec<String> = Vec::new();
 	let mut authors: Vec<String> = Vec::new();
-	let mut chapter_language: Option<String> = None;
+	let mut seen_creator = false;
+	let mut seen_lang = false;
 
 	if let Some(meta_spans) = doc.select(
 		"p.entry-meta span.entry-terms, \
-		 p.entry-meta span.entry-tags, \
-		 p.entry-meta span.entry-categories",
+p.entry-meta span.entry-tags, \
+p.entry-meta span.entry-categories",
 	) {
-		// The meta block appears in both the head and footer according to the html
-		let mut seen_creator = false;
-		let mut seen_lang = false;
-
 		for span in meta_spans {
 			let label = span
-				.select_first(".meta-label")
-				.and_then(|l| l.text())
-				.unwrap_or_default();
+			.select_first(".meta-label")
+			.and_then(|l| l.text())
+			.unwrap_or_default();
 			let class_attr = span.attr("class").unwrap_or_default();
 
 			let links: Vec<String> = span
-				.select("a")
-				.into_iter()
-				.flatten()
-				.filter_map(|a| a.text())
-				.map(|t| t.trim().to_string())
-				.filter(|t| !t.is_empty())
-				.collect();
+			.select("a")
+			.into_iter()
+			.flatten()
+			.filter_map(|a| a.text())
+			.map(|t| t.trim().to_string())
+			.filter(|t| !t.is_empty())
+			.collect();
 
-			if label.contains("Creator") {
-				if !seen_creator {
-					authors.extend(links);
-					seen_creator = true;
-				}
-			} else if label.contains("Lang") {
-				if !seen_lang {
-					if let Some(lang_name) = links.first() {
-						chapter_language = Some(lang_display_to_code(lang_name).to_string());
-					}
-					seen_lang = true;
-				}
+			if label.contains("Creator") && !seen_creator {
+				authors.extend(links);
+				seen_creator = true;
+			} else if label.contains("Lang") && !seen_lang {
+				seen_lang = true;
+				// language is only needed for chapters, skip here
 			} else if label.contains("Genre")
 				|| class_attr.contains("entry-tags")
 				|| class_attr.contains("entry-categories")
-			{
-				for link in links {
-					if !tags.contains(&link) {
-						tags.push(link);
+				{
+					for link in links {
+						if !tags.contains(&link) {
+							tags.push(link);
+						}
 					}
 				}
-			}
 		}
 	}
 
+	manga.authors = if authors.is_empty() {
+		None
+	} else {
+		Some(authors.clone())
+	};
+	manga.artists = if authors.is_empty() { None } else { Some(authors) };
+	manga.tags = if tags.is_empty() { None } else { Some(tags) };
+	manga.status = MangaStatus::Completed; // i don't think MRM exposes this on the entry page outside of the search query page.
+	manga.content_rating = ContentRating::NSFW;
+	manga.viewer = Viewer::RightToLeft; // there's a western comic warning. once i get to know which element controls it i will tackle it.
+	manga.url = Some(alloc::format!("{}/{}/", BASE_URL, manga.key));
+}
+
+pub fn parse_chapters(doc: &Document, key: &str) -> Vec<Chapter> {
+	let chapter_language: Option<String> = doc
+	.select("p.entry-meta span.entry-terms")
+	.and_then(|mut spans| {
+		spans.find(|span| {
+			span.select_first(".meta-label")
+			.and_then(|l| l.text())
+			.is_some_and(|t| t.contains("Lang"))
+		})
+	})
+	.and_then(|span| span.select_first("a"))
+	.and_then(|a| a.text())
+	.map(|t| lang_display_to_code(t.trim()).to_string());
+
 	let mut chapters: Vec<Chapter> = Vec::new();
 
-	if let Some(links) = doc.select("div.entry-pagination a.page-numbers:not(.next):not(.prev)") {
-		let page_links: Vec<_> = links.collect();
-		if !page_links.is_empty() {
-			chapters.push(Chapter {
-				key: key.to_string(),
-				chapter_number: Some(1.0),
-				language: chapter_language.clone(),
-				url: Some(key.to_string()),
-				..Default::default()
-			});
-			for link in &page_links {
-				let href = link.attr("abs:href").unwrap_or_default();
-				let num: f32 = link
+	if let Some(links) =
+		doc.select("div.entry-pagination a.page-numbers:not(.next):not(.prev)")
+		{
+			let page_links: Vec<_> = links.collect();
+			if !page_links.is_empty() {
+				// Page 1 is the post itself (shown as a <span>, not a link)
+				chapters.push(Chapter {
+					key: key.to_string(),
+							  chapter_number: Some(1.0),
+							  language: chapter_language.clone(),
+							  url: Some(alloc::format!("{}/{}/", BASE_URL, key)),
+							  ..Default::default()
+				});
+
+				for link in page_links.iter().rev() {
+					let href = link.attr("href").unwrap_or_default();
+					let num: f32 = link
 					.text()
 					.as_deref()
 					.unwrap_or("")
 					.trim()
 					.parse()
 					.unwrap_or(0.0);
-				if num > 1.0 && !chapters.iter().any(|c| c.chapter_number == Some(num)) {
-					chapters.push(Chapter {
-						key: href.clone(),
-						chapter_number: Some(num),
-						language: chapter_language.clone(),
-						url: Some(href),
-						..Default::default()
-					});
+
+					let chapter_key = href.to_string();
+					if num > 1.0
+						&& !chapter_key.is_empty()
+						&& !chapters.iter().any(|c| c.chapter_number == Some(num))
+						{
+							chapters.push(Chapter {
+								key: chapter_key,
+								chapter_number: Some(num),
+										  language: chapter_language.clone(),
+										  url: Some(href),
+										  ..Default::default()
+							});
+						}
 				}
+
+				chapters.sort_by(|a, b| {
+					b.chapter_number
+					.partial_cmp(&a.chapter_number)
+					.unwrap_or(core::cmp::Ordering::Equal)
+				});
 			}
 		}
-	}
 
-	if chapters.is_empty() {
-		chapters.push(Chapter {
-			key: key.to_string(),
-			chapter_number: Some(1.0),
-			language: chapter_language,
-			url: Some(key.to_string()),
-			..Default::default()
-		});
-	} else {
-		// I'm not sure about this but this looks cleaner when I tested
-		chapters.reverse();
-	}
+		if chapters.is_empty() {
+			chapters.push(Chapter {
+				key: key.to_string(),
+						  chapter_number: Some(1.0),
+						  language: chapter_language,
+						  url: Some(alloc::format!("{}/{}/", BASE_URL, key)),
+						  ..Default::default()
+			});
+		}
 
-	Ok(Manga {
-		key: key.to_string(),
-		title,
-		cover,
-		authors: if authors.is_empty() {
-			None
-		} else {
-			Some(authors.clone())
-		},
-		artists: if authors.is_empty() {
-			None
-		} else {
-			Some(authors)
-		},
-		url: Some(key.to_string()),
-		tags: if tags.is_empty() { None } else { Some(tags) },
-		status: MangaStatus::Completed,
-		content_rating: ContentRating::NSFW,
-		viewer: Viewer::RightToLeft,
-		chapters: Some(chapters),
-		..Default::default()
-	})
+		chapters
 }
+
 
 pub fn parse_pages(doc: &Document) -> Vec<Page> {
 	let mut pages: Vec<Page> = Vec::new();

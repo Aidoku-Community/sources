@@ -9,10 +9,13 @@ use crate::helpers::{BASE_URL, UA, get, get_user_languages, page_url, urlencode}
 use crate::parser::{parse_listing, parse_manga, parse_pages};
 
 use aidoku::{
+	Result,
 	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
 	ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContext,
 	SelectFilter, Source, bail,
+	helpers::uri::encode_uri_component,
 	imports::net::{Request, TimeUnit},
+	prelude::*,
 	register_source,
 };
 use alloc::string::{String, ToString};
@@ -33,7 +36,7 @@ impl Source for MyReadingManga {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> aidoku::imports::error::Result<MangaPageResult> {
-		let mut query_str = alloc::format!("?s={}", urlencode(query.as_deref().unwrap_or("")));
+		let mut query_str = alloc::format!("?s={}", encode_uri_component(query.as_deref().unwrap_or("")));
 		let mut sort_param = "date";
 
 		for filter in &filters {
@@ -59,19 +62,19 @@ impl Source for MyReadingManga {
 						"pairing" => "ep_filter_pairing",
 						_ => continue,
 					};
-					query_str.push_str(&alloc::format!("&{}={}", param, value));
+					query_str.push_str(&format!("&{}={}", param, value));
 				}
 				FilterValue::Text { id, value } if id == "tag" && !value.is_empty() => {
-					let slug = urlencode(&value.trim().to_lowercase().replace(' ', "-"));
-					query_str.push_str(&alloc::format!("&ep_filter_post_tag={}", slug));
+					let slug = encode_uri_component(&value.trim().to_lowercase().replace(' ', "-"));
+					query_str.push_str(&format!("&ep_filter_post_tag={}", slug));
 				}
 				_ => {}
 			}
 		}
 
-		query_str.push_str(&alloc::format!("&ep_sort={}", sort_param));
+		query_str.push_str(&format!("&ep_sort={}", sort_param));
 
-		let url = page_url(&alloc::format!("{}{}", BASE_URL, query_str), page);
+		let url = page_url(&format!("{}{}", BASE_URL, query_str), page);
 		let doc = get(&url)?;
 		let (entries, has_next_page) = parse_listing(&doc, &get_user_languages());
 
@@ -86,29 +89,18 @@ impl Source for MyReadingManga {
 		manga: Manga,
 		needs_details: bool,
 		needs_chapters: bool,
-	) -> aidoku::imports::error::Result<Manga> {
-		if !needs_details && !needs_chapters {
-			return Ok(manga);
-		}
+	) -> Result<Manga> {
 
-		let url = manga.url.as_deref().unwrap_or(&manga.key).to_string();
+		let url = format!("{}/{}/", BASE_URL, manga.key);
 		let doc = get(&url)?;
 		let mut updated = parse_manga(&doc, &manga.key)?;
 
-		if !needs_details {
-			updated.title = manga.title;
-			updated.cover = manga.cover;
-			updated.tags = manga.tags;
-			updated.authors = manga.authors;
-			updated.status = manga.status;
-			updated.content_rating = manga.content_rating;
-			updated.viewer = manga.viewer;
-		} else if updated.cover.is_none() {
-			updated.cover = manga.cover;
+		if needs_details {
+			parse_manga(&doc, &mut manga);
 		}
 
-		if !needs_chapters {
-			updated.chapters = manga.chapters;
+		if needs_chapters {
+			manga.chapters = Some(parse_chapters(&doc, &manga.key));
 		}
 
 		Ok(updated)
@@ -118,8 +110,8 @@ impl Source for MyReadingManga {
 		&self,
 		_manga: Manga,
 		chapter: Chapter,
-	) -> aidoku::imports::error::Result<Vec<Page>> {
-		let url = chapter.url.as_deref().unwrap_or(&chapter.key).to_string();
+	) -> Result<Vec<Page>> {
+		let url = format!("{}/{}/", BASE_URL, chapter.key);
 		let doc = get(&url)?;
 		let pages = parse_pages(&doc);
 
@@ -136,12 +128,12 @@ impl ListingProvider for MyReadingManga {
 		&self,
 		listing: Listing,
 		page: i32,
-	) -> aidoku::imports::error::Result<MangaPageResult> {
+	) -> Result<MangaPageResult> {
 		let base = match listing.name.as_str() {
-			"Popular" => alloc::format!("{}/popular", BASE_URL),
-			"Manga" => alloc::format!("{}/yaoi-manga", BASE_URL),
-			"Bara" => alloc::format!("{}/genre/bara", BASE_URL),
-			"Random" => alloc::format!("{}/?ep_sort=rand&s=", BASE_URL),
+			"Popular" => format!("{}/popular", BASE_URL),
+			"Manga" => format!("{}/yaoi-manga", BASE_URL),
+			"Bara" => format!("{}/genre/bara", BASE_URL),
+			"Random" => format!("{}/?ep_sort=rand&s=", BASE_URL),
 			_ => BASE_URL.to_string(),
 		};
 
@@ -157,23 +149,19 @@ impl ListingProvider for MyReadingManga {
 }
 
 impl DeepLinkHandler for MyReadingManga {
-	fn handle_deep_link(
-		&self,
-		url: String,
-	) -> aidoku::imports::error::Result<Option<DeepLinkResult>> {
-		let key = url
-			.replace("aidoku://", "https://")
-			.replace("http://myreadingmanga.info", "https://myreadingmanga.info");
+	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
+		let key = url;
 		Ok(Some(DeepLinkResult::Manga { key }))
 	}
 }
+
 
 impl ImageRequestProvider for MyReadingManga {
 	fn get_image_request(
 		&self,
 		url: String,
 		_context: Option<PageContext>,
-	) -> aidoku::imports::error::Result<Request> {
+	) -> Result<Request> {
 		Ok(Request::get(url)?
 			.header("User-Agent", UA)
 			.header("Referer", BASE_URL))
@@ -181,10 +169,10 @@ impl ImageRequestProvider for MyReadingManga {
 }
 
 impl DynamicFilters for MyReadingManga {
-	fn get_dynamic_filters(&self) -> aidoku::imports::error::Result<Vec<Filter>> {
+	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
 		let mut dynamic_filters: Vec<Filter> = Vec::new();
 
-		let doc = get(&alloc::format!("{}/?ep_sort=rand&s=", BASE_URL))?;
+		let doc = get(&format!("{}/?ep_sort=rand&s=", BASE_URL))?;
 
 		let Some(sidebar) = doc.select_first("aside.ep-search-sidebar") else {
 			return Ok(dynamic_filters);
