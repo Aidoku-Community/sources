@@ -28,6 +28,19 @@ fn normalize_cover_url(url: &str) -> Option<String> {
 	(!url.is_empty()).then(|| url.replace("ss.jpg", "s.jpg"))
 }
 
+pub fn build_sort_url(kind: &str, page: i32) -> String {
+	if page <= 1 {
+		format!("{BASE_URL}/sort/{kind}")
+	} else {
+		format!("{BASE_URL}/sort/{kind}/{page}")
+	}
+}
+
+pub fn has_next_page(html: &Document, kind: &str, page: i32) -> bool {
+	html.select_first(format!("a[href*='/sort/{kind}/{}']", page + 1))
+		.is_some()
+}
+
 pub fn parse_novel_and_chapter(url: &str) -> Option<(String, Option<String>)> {
 	let path = url
 		.rsplit("freewebnovel.com")

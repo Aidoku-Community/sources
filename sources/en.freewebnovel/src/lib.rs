@@ -5,16 +5,16 @@ use aidoku::{
 	Source,
 	alloc::{String, Vec, vec},
 	helpers::uri::QueryParameters,
-	imports::{html::Document, std::send_partial_result},
+	imports::std::send_partial_result,
 	prelude::*,
 };
 
 mod helpers;
 
 use helpers::{
-	build_chapter_url, build_novel_url, extract_chapter_text, extract_chapters, fill_manga_details,
-	parse_home_section, parse_hot_entries, parse_novel_and_chapter, parse_search_results,
-	request_html,
+	build_chapter_url, build_novel_url, build_sort_url, extract_chapter_text, extract_chapters,
+	fill_manga_details, has_next_page, parse_home_section, parse_hot_entries,
+	parse_novel_and_chapter, parse_search_results, request_html,
 };
 
 pub const BASE_URL: &str = "https://freewebnovel.com";
@@ -23,20 +23,6 @@ const LISTING_LATEST_NOVEL: &str = "latest-novel";
 const LISTING_COMPLETED_NOVEL: &str = "completed-novel";
 
 struct FreeWebNovel;
-
-fn build_sort_url(kind: &str, page: i32) -> String {
-	if page <= 1 {
-		format!("{BASE_URL}/sort/{kind}")
-	} else {
-		format!("{BASE_URL}/sort/{kind}/{page}")
-	}
-}
-
-fn has_next_page(html: &Document, kind: &str, page: i32) -> bool {
-	html.select_first(format!("a[href*='/sort/{kind}/{}']", page + 1))
-		.is_some()
-}
-
 fn empty_page_result() -> MangaPageResult {
 	MangaPageResult {
 		entries: Vec::new(),
