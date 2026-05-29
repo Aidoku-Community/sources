@@ -42,13 +42,9 @@ pub fn parse_novel_and_chapter(url: &str) -> Option<(String, Option<String>)> {
 	if slug.is_empty() {
 		return None;
 	}
-	let chapter_key = parts.next().and_then(|seg| {
-		if seg.starts_with("chapter-") {
-			Some(seg.to_string())
-		} else {
-			None
-		}
-	});
+	let chapter_key = parts
+		.next()
+		.and_then(|seg| seg.starts_with("chapter-").then(|| seg.to_string()));
 	Some((slug, chapter_key))
 }
 

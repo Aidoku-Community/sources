@@ -113,33 +113,37 @@ impl Home for FreeWebNovel {
 		let hot_entries = parse_hot_entries(&html);
 
 		let mut components = Vec::new();
-		let mut push_scroller = |title: &str, mut entries: Vec<Manga>, listing_id: Option<&str>| {
-			if entries.is_empty() {
-				return;
-			}
-			let listing = listing_id.map(|id| Listing {
-				id: id.into(),
-				name: title.into(),
-				..Default::default()
-			});
-			components.push(HomeComponent {
-				title: Some(title.into()),
-				subtitle: None,
-				value: HomeComponentValue::Scroller {
-					entries: entries.drain(..).map(Into::into).collect(),
-					listing,
-				},
-			});
-		};
-		push_scroller("Hot Novels", hot_entries, None);
+		let mut push_scroller =
+			|title: Option<&str>, mut entries: Vec<Manga>, listing_id: Option<&str>| {
+				if entries.is_empty() {
+					return;
+				}
+				components.push(HomeComponent {
+					title: title.map(|s| s.into()),
+					subtitle: None,
+					value: HomeComponentValue::Scroller {
+						entries: entries.drain(..).map(Into::into).collect(),
+						listing: title.zip(listing_id).map(|(t, id)| Listing {
+							id: id.into(),
+							name: t.into(),
+							..Default::default()
+						}),
+					},
+				});
+			};
+		push_scroller(None, hot_entries, None);
 		push_scroller(
-			"Latest Release Novels",
+			Some("Latest Release Novels"),
 			latest_release,
 			Some(LISTING_LATEST_RELEASE),
 		);
-		push_scroller("Latest Novels", latest_novels, Some(LISTING_LATEST_NOVEL));
 		push_scroller(
-			"Completed Novels",
+			Some("Latest Novels"),
+			latest_novels,
+			Some(LISTING_LATEST_NOVEL),
+		);
+		push_scroller(
+			Some("Completed Novels"),
 			completed_novels,
 			Some(LISTING_COMPLETED_NOVEL),
 		);
