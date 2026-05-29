@@ -32,8 +32,7 @@ fn build_sort_url(kind: &str, page: i32) -> String {
 }
 
 fn has_next_page(html: &Document, kind: &str, page: i32) -> bool {
-	let next_page = format!("/sort/{kind}/{}", page + 1);
-	html.select_first(format!("a[href*='{next_page}']"))
+	html.select_first(format!("a[href*='/sort/{kind}/{}']", page + 1))
 		.is_some()
 }
 
@@ -55,19 +54,15 @@ impl Source for FreeWebNovel {
 		page: i32,
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		if page > 1 {
-			return Ok(empty_page_result());
-		}
-		let Some(query) = query else {
+		let Some(query) = query.filter(|_| page <= 1) else {
 			return Ok(empty_page_result());
 		};
 		let mut qs = QueryParameters::new();
 		qs.push("searchkey", Some(&query));
 		let url = format!("{BASE_URL}/search?{qs}");
 		let html = request_html(&url)?;
-		let entries = parse_search_results(&html);
 		Ok(MangaPageResult {
-			entries,
+			entries: parse_search_results(&html),
 			has_next_page: false,
 		})
 	}

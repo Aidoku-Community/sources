@@ -25,10 +25,7 @@ pub fn build_chapter_url(slug: &str, chapter_key: &str) -> String {
 /// Normalizes cover image URLs by replacing "ss.jpg" with "s.jpg" to get a higher resolution image.
 fn normalize_cover_url(url: &str) -> Option<String> {
 	let url = url.trim();
-	if url.is_empty() {
-		return None;
-	}
-	Some(url.replace("ss.jpg", "s.jpg"))
+	(!url.is_empty()).then(|| url.replace("ss.jpg", "s.jpg"))
 }
 
 pub fn parse_novel_and_chapter(url: &str) -> Option<(String, Option<String>)> {
@@ -172,10 +169,9 @@ pub fn parse_search_results(html: &Document) -> Vec<Manga> {
 }
 
 pub fn parse_home_section(html: &Document, heading: &str) -> Vec<Manga> {
-	let Some(container) = find_section_container(html, heading) else {
-		return Vec::new();
-	};
-	parse_entries_from_container(&container)
+	find_section_container(html, heading).map_or_else(Vec::new, |container| {
+		parse_entries_from_container(&container)
+	})
 }
 
 fn parse_entries_from_container(root: &Element) -> Vec<Manga> {
