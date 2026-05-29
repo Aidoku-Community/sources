@@ -5,14 +5,13 @@ extern crate alloc;
 mod helpers;
 mod parser;
 
-use crate::helpers::{BASE_URL, UA, get, get_user_languages, page_url, urlencode};
-use crate::parser::{parse_listing, parse_manga, parse_pages};
+use crate::helpers::{BASE_URL, HTTP_URL, UA, get, get_user_languages, page_url};
+use crate::parser::{parse_chapters, parse_listing, parse_manga, parse_pages};
 
 use aidoku::{
-	Result,
 	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
 	ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContext,
-	SelectFilter, Source, bail,
+	Result, SelectFilter, Source, bail,
 	helpers::uri::encode_uri_component,
 	imports::net::{Request, TimeUnit},
 	prelude::*,
@@ -36,7 +35,10 @@ impl Source for MyReadingManga {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> aidoku::imports::error::Result<MangaPageResult> {
-		let mut query_str = alloc::format!("?s={}", encode_uri_component(query.as_deref().unwrap_or("")));
+		let mut query_str = alloc::format!(
+			"?s={}",
+			encode_uri_component(query.as_deref().unwrap_or(""))
+		);
 		let mut sort_param = "date";
 
 		for filter in &filters {
@@ -65,7 +67,7 @@ impl Source for MyReadingManga {
 					query_str.push_str(&format!("&{}={}", param, value));
 				}
 				FilterValue::Text { id, value } if id == "tag" && !value.is_empty() => {
-					let slug = encode_uri_component(&value.trim().to_lowercase().replace(' ', "-"));
+					let slug = encode_uri_component(value.trim().to_lowercase().replace(' ', "-"));
 					query_str.push_str(&format!("&ep_filter_post_tag={}", slug));
 				}
 				_ => {}
@@ -90,10 +92,9 @@ impl Source for MyReadingManga {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-
+		let mut manga = manga;
 		let url = format!("{}/{}/", BASE_URL, manga.key);
 		let doc = get(&url)?;
-		let mut updated = parse_manga(&doc, &manga.key)?;
 
 		if needs_details {
 			parse_manga(&doc, &mut manga);
@@ -103,14 +104,10 @@ impl Source for MyReadingManga {
 			manga.chapters = Some(parse_chapters(&doc, &manga.key));
 		}
 
-		Ok(updated)
+		Ok(manga)
 	}
 
-	fn get_page_list(
-		&self,
-		_manga: Manga,
-		chapter: Chapter,
-	) -> Result<Vec<Page>> {
+	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = format!("{}/{}/", BASE_URL, chapter.key);
 		let doc = get(&url)?;
 		let pages = parse_pages(&doc);
@@ -124,11 +121,7 @@ impl Source for MyReadingManga {
 }
 
 impl ListingProvider for MyReadingManga {
-	fn get_manga_list(
-		&self,
-		listing: Listing,
-		page: i32,
-	) -> Result<MangaPageResult> {
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let base = match listing.name.as_str() {
 			"Popular" => format!("{}/popular", BASE_URL),
 			"Manga" => format!("{}/yaoi-manga", BASE_URL),
@@ -150,18 +143,17 @@ impl ListingProvider for MyReadingManga {
 
 impl DeepLinkHandler for MyReadingManga {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let key = url;
+		let key = url
+			.trim_start_matches(BASE_URL)
+			.trim_start_matches(HTTP_URL)
+			.trim_end_matches('/')
+			.to_string();
 		Ok(Some(DeepLinkResult::Manga { key }))
 	}
 }
 
-
 impl ImageRequestProvider for MyReadingManga {
-	fn get_image_request(
-		&self,
-		url: String,
-		_context: Option<PageContext>,
-	) -> Result<Request> {
+	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
 		Ok(Request::get(url)?
 			.header("User-Agent", UA)
 			.header("Referer", BASE_URL))

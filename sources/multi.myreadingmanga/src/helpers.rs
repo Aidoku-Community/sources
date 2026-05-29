@@ -3,6 +3,7 @@ use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
 pub const BASE_URL: &str = "https://myreadingmanga.info";
+pub const HTTP_URL: &str = "http://myreadingmanga.info";
 pub const UA: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) \
 	AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 \
 	Mobile/15E148 Safari/604.1";
