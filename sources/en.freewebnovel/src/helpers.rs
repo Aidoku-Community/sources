@@ -22,16 +22,6 @@ pub fn build_chapter_url(slug: &str, chapter_key: &str) -> String {
 	format!("{BASE_URL}/novel/{slug}/{chapter_key}")
 }
 
-fn absolute_url(path_or_url: &str) -> String {
-	if path_or_url.starts_with("http") {
-		path_or_url.into()
-	} else if path_or_url.starts_with('/') {
-		format!("{BASE_URL}{path_or_url}")
-	} else {
-		format!("{BASE_URL}/{path_or_url}")
-	}
-}
-
 /// Normalizes cover image URLs by replacing "ss.jpg" with "s.jpg" to get a higher resolution image.
 fn normalize_cover_url(url: &str) -> Option<String> {
 	let url = url.trim();
@@ -115,10 +105,9 @@ fn append_chapters_from_doc(doc: &Document, chapters: &mut Vec<Chapter>) {
 		let Some(link) = item.select_first("a[href]") else {
 			continue;
 		};
-		let Some(href) = link.attr("href") else {
+		let Some(url) = link.attr("abs:href") else {
 			continue;
 		};
-		let url = absolute_url(&href);
 		let Some((_, Some(chapter_key))) = parse_novel_and_chapter(&url) else {
 			continue;
 		};
@@ -205,7 +194,7 @@ where
 	I: IntoIterator<Item = Element>,
 {
 	for el in anchors {
-		let Some(url) = el.attr("href").map(|u| absolute_url(&u)) else {
+		let Some(url) = el.attr("abs:href") else {
 			continue;
 		};
 		let Some((slug, chapter_key)) = parse_novel_and_chapter(&url) else {
@@ -312,9 +301,7 @@ where
 fn find_cover_image(el: &Element) -> Option<String> {
 	let cover = el
 		.select_first("div.pic > a > img")
-		.and_then(|img| img.attr("src"))
-		.or_else(|| el.select_first("img").and_then(|img| img.attr("src")));
-	cover
-		.and_then(|url| normalize_cover_url(&url))
-		.map(|url| absolute_url(&url))
+		.and_then(|img| img.attr("abs:src"))
+		.or_else(|| el.select_first("img").and_then(|img| img.attr("abs:src")));
+	cover.and_then(|url| normalize_cover_url(&url))
 }
