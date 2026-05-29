@@ -160,6 +160,11 @@ pub fn extract_chapter_text(html: &Document) -> Result<String> {
 pub fn parse_search_results(html: &Document) -> Vec<Manga> {
 	let mut entries = Vec::new();
 	let mut seen = BTreeSet::new();
+	for heading in ["Hot Novels", "Hot Latest Novels", "Hot Completed Novels"] {
+		if let Some(hot) = find_section_container(html, heading) {
+			hot.remove();
+		}
+	}
 	if let Some(els) = html.select("a[href*='/novel/']") {
 		append_anchor_entries(els, &mut entries, &mut seen);
 	}
