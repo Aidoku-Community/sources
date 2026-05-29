@@ -106,19 +106,20 @@ pub fn extract_chapters(html: &Document) -> Vec<Chapter> {
 			let url = link.attr("abs:href")?;
 			let (_, chapter_key) = parse_novel_and_chapter(&url)?;
 			let chapter_key = chapter_key?;
-			let title = link.text();
-			let chapter_number = title.as_deref().and_then(parse_chapter_number);
-			let title = title.map(|s| {
-				if s.starts_with("Chapter ") && s.contains(":") {
-					s.split(":").nth(1).unwrap_or(&s).trim().to_string()
-				} else {
-					s
-				}
-			});
+			let title = link.text()?;
+			let chapter_number = parse_chapter_number(&title)?;
+			let title = match title.strip_prefix(&format!("Chapter {chapter_number}")) {
+				Some(rest) => rest
+					.trim()
+					.strip_prefix(':')
+					.or_else(|| rest.trim().strip_prefix('-'))
+					.map_or_else(|| rest.trim().to_string(), |t| t.trim().to_string()),
+				None => title,
+			};
 			Some(Chapter {
 				key: chapter_key,
-				title,
-				chapter_number,
+				title: { if !title.is_empty() { Some(title) } else { None } },
+				chapter_number: chapter_number.into(),
 				url: Some(url),
 				..Default::default()
 			})
