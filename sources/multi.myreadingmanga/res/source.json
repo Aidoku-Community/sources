@@ -2,7 +2,7 @@
 	"info": {
 		"id": "multi.myreadingmanga",
 		"name": "MyReadingManga",
-		"version": 1,
+		"version": 12,
 		"url": "https://myreadingmanga.info",
 		"contentRating": 2,
 		"languages": ["en", "ja", "zh", "ko", "es", "fr", "de", "it", "pt"]
