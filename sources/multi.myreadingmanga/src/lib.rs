@@ -34,8 +34,8 @@ impl Source for MyReadingManga {
 		query: Option<String>,
 		page: i32,
 		filters: Vec<FilterValue>,
-	) -> aidoku::imports::error::Result<MangaPageResult> {
-		let mut query_str = alloc::format!(
+	) -> Result<MangaPageResult> {
+		let mut query_str = format!(
 			"?s={}",
 			encode_uri_component(query.as_deref().unwrap_or(""))
 		);
