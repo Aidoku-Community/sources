@@ -31,9 +31,8 @@ pub fn get_user_languages() -> Vec<String> {
 
 	for lang in langs {
 		if let Some(slug) = map_lang_to_class(&lang) {
-			let slug = slug.to_string();
-			if !slugs.contains(&slug) {
-				slugs.push(slug);
+			if !slugs.contains(slug) {
+				slugs.push(slug.into());
 			}
 		}
 	}
