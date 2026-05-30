@@ -88,11 +88,10 @@ impl Source for MyReadingManga {
 
 	fn get_manga_update(
 		&self,
-		manga: Manga,
+		mut manga: Manga,
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let mut manga = manga;
 		let url = format!("{}/{}/", BASE_URL, manga.key);
 		let doc = get(&url)?;
 
