@@ -145,7 +145,6 @@ impl DeepLinkHandler for MyReadingManga {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		let key = url
 			.trim_start_matches(BASE_URL)
-			.trim_start_matches(HTTP_URL)
 			.trim_end_matches('/')
 			.to_string();
 		Ok(Some(DeepLinkResult::Manga { key }))
