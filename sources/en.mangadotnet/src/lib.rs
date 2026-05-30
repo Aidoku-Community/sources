@@ -83,8 +83,8 @@ impl Source for Mangadotnet {
 						true => "asc",
 						false => "desc",
 					};
-					query_parameters.push("sortBy", Some(&value));
-					query_parameters.push("sortOrder", Some(&order));
+					query_parameters.push("sortBy", Some(value));
+					query_parameters.push("sortOrder", Some(order));
 				}
 
 				FilterValue::Select { id, value } => {
