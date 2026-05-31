@@ -3,7 +3,7 @@ use aidoku::{
 	Chapter, ContentRating, Manga, MangaStatus, Result,
 	alloc::{String, Vec, string::ToString},
 	imports::{
-		html::{Document, Element},
+		html::{Document, Element, Kind},
 		net::Request,
 	},
 	prelude::*,
@@ -128,31 +128,114 @@ pub fn extract_chapters(html: &Document) -> Vec<Chapter> {
 		.collect()
 }
 
-pub fn extract_chapter_text(html: &Document) -> Result<String> {
-	let container_selector = "div.txt";
-	let mut parts = Vec::new();
+fn convert_element_to_markdown(element: &Element, output: &mut String) {
+	let nodes = element.child_nodes();
 
-	if let Some(container) = html.select_first(container_selector)
-		&& let Some(elms) = container.select("p, h4")
-	{
-		for part in elms {
-			// Remove ADs
-			if let Some(thing) = part.select("subtxt") {
-				for ad in thing {
-					ad.remove();
+	for node in nodes {
+		match node.kind() {
+			Kind::TextNode => {
+				if let Some(text) = node.text() {
+					if text.len() >= 3 && text.replace("-", "").trim().is_empty() {
+						output.push_str(&text);
+					} else {
+						output.push_str(&text.replace("*", r"\*").replace("-", r"\-"));
+					}
 				}
 			}
-			if let Some(text) = part.text()
-				&& !text.is_empty()
-			{
-				parts.push(text.to_string());
+			Kind::Element => {
+				let el = Element::try_from(node).unwrap();
+				convert_tag_to_markdown(&el, output);
 			}
+			_ => (),
 		}
 	}
-	if parts.is_empty() {
+}
+
+fn convert_tag_to_markdown(element: &Element, output: &mut String) {
+	let tag = element.tag_name().unwrap_or_default();
+
+	match tag.as_str() {
+		"p" => {
+			convert_element_to_markdown(element, output);
+			output.push_str("\n\n");
+		}
+		"br" => {
+			output.push_str("  \n");
+		}
+		"h1" => {
+			output.push_str("# ");
+			convert_element_to_markdown(element, output);
+			output.push_str("\n\n");
+		}
+		"h2" => {
+			output.push_str("## ");
+			convert_element_to_markdown(element, output);
+			output.push_str("\n\n");
+		}
+		"h3" => {
+			output.push_str("### ");
+			convert_element_to_markdown(element, output);
+			output.push_str("\n\n");
+		}
+		"h4" => {
+			output.push_str("#### ");
+			convert_element_to_markdown(element, output);
+			output.push_str("\n\n");
+		}
+		"h5" => {
+			output.push_str("##### ");
+			convert_element_to_markdown(element, output);
+			output.push_str("\n\n");
+		}
+		"h6" => {
+			output.push_str("###### ");
+			convert_element_to_markdown(element, output);
+			output.push_str("\n\n");
+		}
+		"strong" | "b" => {
+			output.push_str("**");
+			convert_element_to_markdown(element, output);
+			output.push_str("**");
+		}
+		"em" | "i" => {
+			output.push('*');
+			convert_element_to_markdown(element, output);
+			output.push('*');
+		}
+		"u" => {
+			output.push_str("__");
+			convert_element_to_markdown(element, output);
+			output.push_str("__");
+		}
+		"s" | "strike" | "del" => {
+			output.push_str("~~");
+			convert_element_to_markdown(element, output);
+			output.push_str("~~");
+		}
+		_ => {
+			convert_element_to_markdown(element, output);
+		}
+	}
+}
+
+pub fn extract_chapter_text(html: &Document) -> Result<String> {
+	let mut text = String::new();
+
+	if let Some(container) = html.select_first("#article") {
+		// Remove ADs
+		if let Some(ads) = container.select("subtxt") {
+			ads.for_each(Element::remove);
+		}
+		if let Some(things) = container.select("div") {
+			things.for_each(Element::remove);
+		}
+		convert_element_to_markdown(&container, &mut text);
+		text = text.replace("****", "");
+	}
+	if text.is_empty() {
 		bail!("chapter text not found");
 	}
-	Ok(parts.join("\n\n"))
+	Ok(text.to_string())
 }
 
 pub fn parse_search_results(html: &Document) -> Vec<Manga> {
