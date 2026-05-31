@@ -23,25 +23,5 @@
 			}
 		],
 		"footer": "Official chapters are preferred, followed by the most recent. Warning: It can be slow on large lists."
-	},
-	{
-		"type": "group",
-		"title": "Content Settings",
-		"items": [
-			{
-				"type": "editable-list",
-				"key": "preferredGroups",
-				"title": "Preferred Groups",
-				"inline": true,
-				"placeholder": "Group Id",
-				"default": [
-					"17423",
-					"16168",
-					"10712",
-					"16861"
-				]
-			}
-		],
-		"footer": "This will affect deduplicate chapters where we picked from your preferred group before falling back to most recent."
 	}
 ]
