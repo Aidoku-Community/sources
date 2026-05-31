@@ -1,23 +1,47 @@
 [
 	{
 		"type": "group",
-		"title": "SETTINGS",
+		"title": "Settings",
 		"items": [
 			{
 				"type": "switch",
 				"key": "hideNSFW",
 				"title": "Hide NSFW Content",
 				"default": true,
-				"refreshes": ["content"]
+				"refreshes": [
+					"content"
+				]
 			},
 			{
 				"type": "switch",
 				"key": "dedupedChapter",
 				"title": "Deduplicate Chapters",
 				"default": false,
-				"refreshes": ["content"]
+				"refreshes": [
+					"content"
+				]
 			}
 		],
 		"footer": "Official chapters are preferred, followed by the most recent. Warning: It can be slow on large lists."
+	},
+	{
+		"type": "group",
+		"title": "Content Settings",
+		"items": [
+			{
+				"type": "editable-list",
+				"key": "preferredGroups",
+				"title": "Preferred Groups",
+				"inline": true,
+				"placeholder": "Group Id",
+				"default": [
+					"17423",
+					"16168",
+					"10712",
+					"16861"
+				]
+			}
+		],
+		"footer": "This will affect deduplicate chapters where we picked from your preferred group before falling back to most recent."
 	}
 ]

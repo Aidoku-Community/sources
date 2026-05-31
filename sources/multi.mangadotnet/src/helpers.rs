@@ -1,11 +1,17 @@
-use crate::models::{MangaChapter, PageContainerResponse};
-use aidoku::{HashMap, Result, alloc::string::String, alloc::string::ToString, prelude::*};
+use crate::models::{MangaChapter, PageContainer};
+use aidoku::{
+	HashMap, Result, alloc::string::String, alloc::string::ToString, alloc::vec::Vec,
+	imports::net::Request, prelude::*,
+};
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
-pub fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
+fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
 	// This function will convert pointer-table encoded JSON format into normal JSON format.
-	let value = &table[index];
+	// Since the data format would most likely not have cycles, we didn't handle this inside here.
+	let Some(value) = table.get(index) else {
+		bail!("Invalid index")
+	};
 
 	match value {
 		// Object with a key and a value { _N: M } mappings.
@@ -14,20 +20,16 @@ pub fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
 
 			for (k, v) in obj {
 				// "_123" -> 123
-				let Some(key_index) = k.strip_prefix('_').and_then(|i| i.parse::<usize>().ok())
-				else {
-					bail!("Invalid json key index")
+				let Ok(key_index) = k.trim_start_matches('_').parse::<usize>() else {
+					bail!("Unable to convert key index to number")
 				};
 
-				let Some(key) = table[key_index].as_str() else {
-					bail!("Invalid json key value")
+				let Some(key) = table.get(key_index).and_then(|v| v.as_str()) else {
+					bail!("Unable to convert key value to string")
 				};
 
-				let Some(value_index) = (match v {
-					Value::Number(n) => n.as_i64(),
-					_ => Some(-1),
-				}) else {
-					bail!("Invalid json value index")
+				let Some(value_index) = v.as_i64() else {
+					bail!("Unable to convert value index to number")
 				};
 
 				let resolved_value = if value_index >= 0 {
@@ -45,22 +47,18 @@ pub fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
 		// If the value is an array, it would be an index array of any value.
 		Value::Array(arr) => Ok(Value::Array(
 			arr.iter()
-				.map(|i| {
-					if let Some(index) = i.as_i64() {
-						if index >= 0 {
-							if let Ok(result) = resolve_ptr_table_json(table, index as usize) {
-								result
-							} else {
-								Value::Null
-							}
-						} else {
-							Value::Null
-						}
+				.map(|v| {
+					let Some(index) = v.as_i64() else {
+						bail!("Unable to convert index to number")
+					};
+
+					if index < 0 {
+						Ok(Value::Null)
 					} else {
-						Value::Null
+						resolve_ptr_table_json(table, index as usize)
 					}
 				})
-				.collect(),
+				.collect::<Result<Vec<Value>>>()?,
 		)),
 
 		// Primitive value, just return as is.
@@ -68,20 +66,52 @@ pub fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
 	}
 }
 
-pub fn to_json_data<T>(value: Value) -> Result<T>
+pub fn get_json_data<T>(url: &str) -> Result<T>
 where
 	T: DeserializeOwned,
 {
-	// Example: {"pages/SearchPage":{"data":{...}}}
-	let output: HashMap<String, PageContainerResponse<T>> = serde_json::from_value(value)?;
-	let Some(data) = output.into_values().next() else {
-		bail!("Input JSON do not match the required format")
+	let Ok(ptr_table_json) = Request::get(url)?.json_owned::<Vec<Value>>() else {
+		bail!(
+			"Response returned CF challenge page instead of JSON data. If problem persist, please delete the source cache and restart the application to resolve this issue"
+		)
 	};
-	Ok(data.data)
+	// Example: [{"_1":2},"pages/SearchPage",{"_3":4},"data",...]
+	let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
+	// Example: {"pages/SearchPage":{"data":{...}}}
+	let Ok(page_container_json) = serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)
+	else {
+		bail!("Invalid JSON data. Expected an object with page container data.")
+	};
+	let Some(page_container) = page_container_json.into_values().next() else {
+		bail!("Page container data does not exists.")
+	};
+	Ok(page_container.data)
 }
 
 fn is_official_like(chapter: &MangaChapter) -> bool {
-	chapter.group_id.is_some_and(|id| id == 17423)
+	let official_group_ids = [
+		17423, // Official
+		10712, // Manga Plus
+		16861, // Viz Manga
+		10110, // LINE Webtoon
+		16168, // Tapas
+		3521,  // Comikey
+	];
+
+	let official_scanlator_names = ["Official", "Official?", "MangaPlus", "Comikey"];
+
+	let group_id = chapter
+		.group_id
+		.as_ref()
+		.is_some_and(|id| official_group_ids.contains(id));
+
+	let scanlator_name = chapter.scanlator_name.as_ref().is_some_and(|name| {
+		official_scanlator_names
+			.iter()
+			.any(|s| s.to_lowercase() == name.to_lowercase())
+	});
+
+	group_id || scanlator_name
 }
 
 fn is_better(new: &MangaChapter, current: &MangaChapter) -> bool {

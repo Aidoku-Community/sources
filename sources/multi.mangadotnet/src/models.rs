@@ -1,6 +1,6 @@
 use crate::BASE_URL;
 use aidoku::{
-	Chapter, ContentRating, Link, LinkValue, Manga, MangaStatus, Viewer,
+	Chapter, ContentRating, Link, Manga, MangaStatus, Viewer,
 	alloc::string::ToString,
 	alloc::vec,
 	alloc::{String, Vec},
@@ -10,7 +10,7 @@ use aidoku::{
 use serde::{Deserialize, Deserializer, de};
 
 #[derive(Deserialize)]
-pub struct PageContainerResponse<T> {
+pub struct PageContainer<T> {
 	pub data: T,
 }
 
@@ -150,16 +150,8 @@ impl From<MangaItem> for Manga {
 
 impl From<MangaItem> for Link {
 	fn from(value: MangaItem) -> Self {
-		Self {
-			title: value.title.clone(),
-			image_url: if let Some(photo) = value.photo.clone() {
-				photo.strip_prefix("/").map(|s| format!("{BASE_URL}/{s}"))
-			} else {
-				None
-			},
-			value: Some(LinkValue::Manga(value.into())),
-			..Default::default()
-		}
+		let manga: Manga = value.into();
+		manga.into()
 	}
 }
 

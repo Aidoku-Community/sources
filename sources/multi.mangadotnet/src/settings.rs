@@ -1,11 +1,10 @@
-use aidoku::{
-	Result, alloc::string::String, alloc::vec::Vec, error, imports::defaults::defaults_get,
-};
+use aidoku::imports::defaults::defaults_get;
 
-const LANGUAGES_KEY: &str = "languages";
+// const LANGUAGES_KEY: &str = "languages";
 const HIDE_NSFW_KEY: &str = "hideNSFW";
 const DEDUPED_CHAPTER_KEY: &str = "dedupedChapter";
 
+/* Not in use yet, but maybe we need to do some mapping once we get enough data on how the language field works.
 pub fn get_languages() -> Result<Vec<String>> {
 	defaults_get::<Vec<String>>(LANGUAGES_KEY)
 		.map(|languages| {
@@ -23,6 +22,7 @@ pub fn get_languages() -> Result<Vec<String>> {
 		})
 		.ok_or(error!("Unable to fetch languages"))
 }
+*/
 
 pub fn hide_nsfw() -> bool {
 	defaults_get::<bool>(HIDE_NSFW_KEY).unwrap_or(true)

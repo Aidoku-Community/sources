@@ -1,5 +1,5 @@
 #![no_std]
-use crate::helpers::{dedup_insert, resolve_ptr_table_json, to_json_data};
+use crate::helpers::{dedup_insert, get_json_data};
 use crate::models::{
 	HomePageResponse, MangaChapter, MangaDetailResponse, MangaPage, SearchResponse,
 };
@@ -17,7 +17,6 @@ use aidoku::{
 	prelude::*,
 };
 use core::cmp::Ordering::Equal;
-use serde_json::Value;
 
 mod helpers;
 mod models;
@@ -29,20 +28,6 @@ struct Mangadotnet;
 
 impl Source for Mangadotnet {
 	fn new() -> Self {
-		// This is just a script to generate static genres list and output into aidoku logcat.
-		// Please do not use this in production xD (No Python script as this site had an aggressive
-		// CF that makes it impossible to do so)
-		/*
-		if let Ok(response) = Request::get("https://mangadot.net/search.data?_routes=pages/SearchPage") {
-			if let Ok(json) = response.json_owned::<Vec<Value>>() {
-				if let Ok(search_response_ptr_table) = resolve_ptr_table_json(&json, 0) {
-					if let Ok(search_response) = to_json_data::<SearchResponse>(search_response_ptr_table) {
-						println!("{:?}", search_response.all_genres)
-					}
-				}
-			}
-		}
-		*/
 		Self
 	}
 
@@ -116,10 +101,8 @@ impl Source for Mangadotnet {
 
 		query_parameters.push("_routes", Some("pages/SearchPage"));
 
-		let json: Vec<Value> =
-			Request::get(format!("{BASE_URL}/search.data?{query_parameters}"))?.json_owned()?;
-		let search_response_ptr_table = resolve_ptr_table_json(&json, 0)?;
-		let search_response: SearchResponse = to_json_data(search_response_ptr_table)?;
+		let search_response: SearchResponse =
+			get_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
 
 		Ok(MangaPageResult {
 			entries: if let Some(results) = search_response.results {
@@ -142,14 +125,10 @@ impl Source for Mangadotnet {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		if needs_details {
-			let json: Vec<Value> = Request::get(format!(
+			let manga_detail_response: MangaDetailResponse = get_json_data(&format!(
 				"{BASE_URL}/manga/{}.data?_routes=pages/MangaDetailPage",
 				manga.key
-			))?
-			.json_owned()?;
-			let manga_detail_response_ptr_table = resolve_ptr_table_json(&json, 0)?;
-			let manga_detail_response: MangaDetailResponse =
-				to_json_data(manga_detail_response_ptr_table)?;
+			))?;
 
 			manga.copy_from(manga_detail_response.manga_data.manga.into());
 
@@ -244,10 +223,8 @@ impl Home for Mangadotnet {
 			],
 		}));
 
-		let json: Vec<Value> =
-			Request::get(format!("{BASE_URL}/_root.data?_routes=pages/HomePage"))?.json_owned()?;
-		let home_page_ptr_table_json = resolve_ptr_table_json(&json, 0)?;
-		let home_page_json: HomePageResponse = to_json_data(home_page_ptr_table_json)?;
+		let home_page_json: HomePageResponse =
+			get_json_data(&format!("{BASE_URL}/_root.data?_routes=pages/HomePage"))?;
 
 		send_partial_result(&HomePartialResult::Layout(HomeLayout {
 			components: vec![
