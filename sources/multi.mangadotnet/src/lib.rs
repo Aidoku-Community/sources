@@ -1,6 +1,4 @@
 #![no_std]
-extern crate alloc;
-
 use crate::helpers::{dedup_insert, resolve_ptr_table_json, to_json_data};
 use crate::models::{
 	HomePageResponse, MangaChapter, MangaDetailResponse, MangaPage, SearchResponse,
@@ -11,13 +9,13 @@ use aidoku::{
 	HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Listing, ListingProvider,
 	Manga, MangaPageResult, Page, PageContent, Result, Source,
 	alloc::string::ToString,
+	alloc::vec,
 	alloc::{String, Vec},
 	helpers::uri::QueryParameters,
 	imports::net::Request,
 	imports::std::send_partial_result,
 	prelude::*,
 };
-use alloc::vec;
 use core::cmp::Ordering::Equal;
 use serde_json::Value;
 
@@ -31,7 +29,9 @@ struct Mangadotnet;
 
 impl Source for Mangadotnet {
 	fn new() -> Self {
-		// This is just a script to generate genres list and output into aidoku logcat.
+		// This is just a script to generate static genres list and output into aidoku logcat.
+		// Please do not use this in production xD (No Python script as this site had an aggressive
+		// CF that makes it impossible to do so)
 		/*
 		if let Ok(response) = Request::get("https://mangadot.net/search.data?_routes=pages/SearchPage") {
 			if let Ok(json) = response.json_owned::<Vec<Value>>() {
