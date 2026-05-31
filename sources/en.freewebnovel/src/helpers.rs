@@ -1,4 +1,3 @@
-#![allow(clippy::needless_pass_by_value)]
 use crate::BASE_URL;
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaStatus, Result,
@@ -106,20 +105,22 @@ pub fn extract_chapters(html: &Document) -> Vec<Chapter> {
 			let url = link.attr("abs:href")?;
 			let (_, chapter_key) = parse_novel_and_chapter(&url)?;
 			let chapter_key = chapter_key?;
-			let title = link.text()?;
-			let chapter_number = parse_chapter_number(&title)?;
-			let title = match title.strip_prefix(&format!("Chapter {chapter_number}")) {
-				Some(rest) => rest
-					.trim()
-					.strip_prefix(':')
-					.or_else(|| rest.trim().strip_prefix('-'))
-					.map_or_else(|| rest.trim().to_string(), |t| t.trim().to_string()),
-				None => title,
+			let mut title = link.text()?;
+			let chapter_number = parse_chapter_number(&title);
+			if let Some(chapter_number) = chapter_number {
+				title = match title.strip_prefix(&format!("Chapter {chapter_number}")) {
+					Some(rest) => rest
+						.trim()
+						.strip_prefix(':')
+						.or_else(|| rest.trim().strip_prefix('-'))
+						.map_or_else(|| rest.trim().to_string(), |t| t.trim().to_string()),
+					None => title,
+				};
 			};
 			Some(Chapter {
 				key: chapter_key,
 				title: { if !title.is_empty() { Some(title) } else { None } },
-				chapter_number: chapter_number.into(),
+				chapter_number,
 				url: Some(url),
 				..Default::default()
 			})
