@@ -1,26 +1,24 @@
 #![no_std]
-use crate::helpers::{dedup_insert, get_json_data};
-use crate::models::{
-	HomePageResponse, MangaChapter, MangaDetailResponse, MangaPage, SearchResponse,
-};
-use crate::settings::deduped_chapter;
 use aidoku::{
-	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home,
-	HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Listing, ListingProvider,
-	Manga, MangaPageResult, Page, PageContent, Result, Source,
-	alloc::string::ToString,
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterKind, FilterValue,
+	HashMap, Home, HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Listing,
+	ListingProvider, Manga, MangaPageResult, Page, PageContent, Result, Source,
+	alloc::borrow::Cow,
 	alloc::vec,
 	alloc::{String, Vec},
 	helpers::uri::QueryParameters,
-	imports::net::Request,
 	imports::std::send_partial_result,
 	prelude::*,
 };
-use core::cmp::Ordering::Equal;
+use core::cmp::*;
 
 mod helpers;
 mod models;
 mod settings;
+
+use helpers::*;
+use models::*;
+use settings::*;
 
 const BASE_URL: &str = "https://mangadot.net";
 
@@ -43,7 +41,7 @@ impl Source for Mangadotnet {
 			query_parameters.push("search", Some(&query));
 		}
 
-		query_parameters.push("page", Some(&page.to_string()));
+		query_parameters.push("page", Some(&format!("{page}")));
 
 		for filter in filters {
 			match filter {
@@ -95,14 +93,14 @@ impl Source for Mangadotnet {
 			}
 		}
 
-		if !settings::hide_nsfw() {
-			query_parameters.push("adult", Some("1"));
+		if !hide_nsfw() {
+			query_parameters.push("adult", Some("both"));
 		}
 
 		query_parameters.push("_routes", Some("pages/SearchPage"));
 
-		let search_response: SearchResponse =
-			get_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
+		let search_response: SearchPage =
+			get_page_container_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
 
 		Ok(MangaPageResult {
 			entries: if let Some(results) = search_response.results {
@@ -125,12 +123,12 @@ impl Source for Mangadotnet {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		if needs_details {
-			let manga_detail_response: MangaDetailResponse = get_json_data(&format!(
+			let manga_detail_page: MangaDetailPage = get_page_container_json_data(&format!(
 				"{BASE_URL}/manga/{}.data?_routes=pages/MangaDetailPage",
 				manga.key
 			))?;
 
-			manga.copy_from(manga_detail_response.manga_data.manga.into());
+			manga.copy_from(manga_detail_page.manga_data.manga.into());
 
 			if needs_chapters {
 				send_partial_result(&manga)
@@ -139,8 +137,7 @@ impl Source for Mangadotnet {
 
 		if needs_chapters {
 			let json: Vec<MangaChapter> =
-				Request::get(format!("{BASE_URL}/api/manga/{}/chapters/list", manga.key))?
-					.json_owned()?;
+				get_json_data(&format!("{BASE_URL}/api/manga/{}/chapters/list", manga.key))?;
 
 			let mut chapter_map: HashMap<String, MangaChapter> = HashMap::new();
 			let mut chapter_list: Vec<MangaChapter> = Vec::new();
@@ -162,7 +159,7 @@ impl Source for Mangadotnet {
 			chapters.sort_by(|a, b| {
 				b.chapter_number
 					.partial_cmp(&a.chapter_number)
-					.unwrap_or(Equal)
+					.unwrap_or(Ordering::Equal)
 			});
 
 			manga.chapters = Some(chapters);
@@ -173,8 +170,7 @@ impl Source for Mangadotnet {
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let json: MangaPage =
-			Request::get(format!("{BASE_URL}/api/chapters/{}/images", chapter.key))?
-				.json_owned()?;
+			get_json_data(&format!("{BASE_URL}/api/chapters/{}/images", chapter.key))?;
 
 		Ok(json
 			.images
@@ -182,7 +178,7 @@ impl Source for Mangadotnet {
 			.map(|page_image| Page {
 				content: PageContent::url(format!(
 					"{BASE_URL}/{}",
-					page_image.url.strip_prefix("/").unwrap_or(&page_image.url)
+					page_image.url.trim_start_matches('/')
 				)),
 				..Default::default()
 			})
@@ -190,9 +186,64 @@ impl Source for Mangadotnet {
 	}
 }
 
+const LATEST_UPDATES_LISTING_ID: &str = "latest_updates";
+const RECENTLY_ADDED_LISTING_ID: &str = "recently_added";
+
 impl ListingProvider for Mangadotnet {
-	fn get_manga_list(&self, _listing: Listing, _page: i32) -> Result<MangaPageResult> {
-		Err(AidokuError::Unimplemented)
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		let mut query_parameters = QueryParameters::new();
+
+		if !hide_nsfw() {
+			query_parameters.push("adult", Some("both"));
+		}
+
+		if page > 1 {
+			query_parameters.push("page", Some(&format!("{}", page)));
+		}
+
+		match listing.id.as_str() {
+			LATEST_UPDATES_LISTING_ID => {
+				query_parameters.push("_routes", Some("pages/ViewAllPage"));
+
+				let view_all_page: ViewAllPage = get_page_container_json_data(&format!(
+					"{BASE_URL}/view-all/latest-updates.data?{}",
+					query_parameters
+				))?;
+
+				Ok(MangaPageResult {
+					entries: view_all_page
+						.data
+						.manga_list
+						.into_iter()
+						.map(Into::into)
+						.collect(),
+					has_next_page: view_all_page.data.pagination.current_page
+						< view_all_page.data.pagination.total_pages,
+				})
+			}
+
+			RECENTLY_ADDED_LISTING_ID => {
+				query_parameters.push("_routes", Some("pages/ViewAllPage"));
+
+				let view_all_page: ViewAllPage = get_page_container_json_data(&format!(
+					"{BASE_URL}/view-all/recently-added.data?{}",
+					query_parameters
+				))?;
+
+				Ok(MangaPageResult {
+					entries: view_all_page
+						.data
+						.manga_list
+						.into_iter()
+						.map(Into::into)
+						.collect(),
+					has_next_page: view_all_page.data.pagination.current_page
+						< view_all_page.data.pagination.total_pages,
+				})
+			}
+
+			_ => bail!("Invalid listing id: {}", listing.id),
+		}
 	}
 }
 
@@ -201,36 +252,36 @@ impl Home for Mangadotnet {
 		send_partial_result(&HomePartialResult::Layout(HomeLayout {
 			components: vec![
 				HomeComponent {
-					title: Some("Latest Updates".to_string()),
-					subtitle: Some("New Chapters".to_string()),
+					title: Some("Latest Updates".into()),
+					subtitle: Some("New Chapters".into()),
 					value: HomeComponentValue::empty_scroller(),
 				},
 				HomeComponent {
-					title: Some("Recently Added".to_string()),
-					subtitle: Some("New Titles".to_string()),
+					title: Some("Recently Added".into()),
+					subtitle: Some("New Titles".into()),
 					value: HomeComponentValue::empty_scroller(),
 				},
 				HomeComponent {
-					title: Some("Most Tracked".to_string()),
-					subtitle: Some("Reader Favorites".to_string()),
+					title: Some("Most Tracked".into()),
+					subtitle: Some("Reader Favorites".into()),
 					value: HomeComponentValue::empty_scroller(),
 				},
 				HomeComponent {
-					title: Some("Top Rated".to_string()),
-					subtitle: Some("Highest Scores".to_string()),
+					title: Some("Top Rated".into()),
+					subtitle: Some("Highest Scores".into()),
 					value: HomeComponentValue::empty_scroller(),
 				},
 			],
 		}));
 
-		let home_page_json: HomePageResponse =
-			get_json_data(&format!("{BASE_URL}/_root.data?_routes=pages/HomePage"))?;
+		let home_page_json: HomePage =
+			get_page_container_json_data(&format!("{BASE_URL}/_root.data?_routes=pages/HomePage"))?;
 
-		send_partial_result(&HomePartialResult::Layout(HomeLayout {
+		Ok(HomeLayout {
 			components: vec![
 				HomeComponent {
-					title: Some("Latest Updates".to_string()),
-					subtitle: Some("New Chapters".to_string()),
+					title: Some("Latest Updates".into()),
+					subtitle: Some("New Chapters".into()),
 					value: HomeComponentValue::Scroller {
 						entries: home_page_json
 							.sections_data
@@ -240,12 +291,16 @@ impl Home for Mangadotnet {
 							.into_iter()
 							.map(Into::into)
 							.collect(),
-						listing: None,
+						listing: Some(Listing {
+							id: LATEST_UPDATES_LISTING_ID.into(),
+							name: "Latest Updates".into(),
+							..Default::default()
+						}),
 					},
 				},
 				HomeComponent {
-					title: Some("Recently Added".to_string()),
-					subtitle: Some("New Titles".to_string()),
+					title: Some("Recently Added".into()),
+					subtitle: Some("New Titles".into()),
 					value: HomeComponentValue::Scroller {
 						entries: home_page_json
 							.sections_data
@@ -255,12 +310,16 @@ impl Home for Mangadotnet {
 							.into_iter()
 							.map(Into::into)
 							.collect(),
-						listing: None,
+						listing: Some(Listing {
+							id: "recently_added".into(),
+							name: "Recently Added".into(),
+							..Default::default()
+						}),
 					},
 				},
 				HomeComponent {
-					title: Some("Most Tracked".to_string()),
-					subtitle: Some("Reader Favorites".to_string()),
+					title: Some("Most Tracked".into()),
+					subtitle: Some("Reader Favorites".into()),
 					value: HomeComponentValue::Scroller {
 						entries: home_page_json
 							.sections_data
@@ -274,8 +333,8 @@ impl Home for Mangadotnet {
 					},
 				},
 				HomeComponent {
-					title: Some("Top Rated".to_string()),
-					subtitle: Some("Highest Scores".to_string()),
+					title: Some("Top Rated".into()),
+					subtitle: Some("Highest Scores".into()),
 					value: HomeComponentValue::Scroller {
 						entries: home_page_json
 							.sections_data
@@ -289,15 +348,13 @@ impl Home for Mangadotnet {
 					},
 				},
 			],
-		}));
-
-		Ok(HomeLayout::default())
+		})
 	}
 }
 
 impl DeepLinkHandler for Mangadotnet {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let Some(path) = url.strip_prefix(&format!("{BASE_URL}/")) else {
+		let Some(path) = url.strip_prefix(BASE_URL) else {
 			return Ok(None);
 		};
 
@@ -305,13 +362,11 @@ impl DeepLinkHandler for Mangadotnet {
 		// https://mangadot.net/chapter/533518#p=1
 		// https://mangadot.net/chapter/151856?source=user#p=1
 
-		let mut segments = path.split('/');
+		let mut segments = path.trim_start_matches('/').split('/');
 
 		if let (Some(kind), Some(id)) = (segments.next(), segments.next()) {
 			return Ok(match kind {
-				"manga" => Some(DeepLinkResult::Manga {
-					key: id.to_string(),
-				}),
+				"manga" => Some(DeepLinkResult::Manga { key: id.into() }),
 				_ => None,
 			});
 		}
@@ -320,4 +375,44 @@ impl DeepLinkHandler for Mangadotnet {
 	}
 }
 
-register_source!(Mangadotnet, ListingProvider, Home, DeepLinkHandler);
+impl DynamicFilters for Mangadotnet {
+	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
+		let mut query_parameters = QueryParameters::new();
+
+		if !hide_nsfw() {
+			query_parameters.push("adult", Some("both"));
+		}
+
+		query_parameters.push("_routes", Some("pages/SearchPage"));
+
+		let search_response: SearchPage =
+			get_page_container_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
+
+		Ok(vec![Filter {
+			id: Cow::from("genre"),
+			title: Some("Genres".into()),
+			hide_from_header: None,
+			kind: FilterKind::MultiSelect {
+				is_genre: true,
+				can_exclude: true,
+				uses_tag_style: true,
+				options: search_response
+					.all_genres
+					.into_iter()
+					.map(Into::into)
+					.collect(),
+				ids: None,
+				default_included: None,
+				default_excluded: None,
+			},
+		}])
+	}
+}
+
+register_source!(
+	Mangadotnet,
+	ListingProvider,
+	Home,
+	DeepLinkHandler,
+	DynamicFilters
+);

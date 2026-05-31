@@ -16,40 +16,68 @@ pub struct PageContainer<T> {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct HomePageResponse {
-	pub sections_data: HomeSection,
+pub struct HomePage {
+	pub sections_data: HomePageSectionData,
 }
 
 #[derive(Deserialize)]
-pub struct HomeSection {
-	pub sections: HomeSectionData,
+pub struct HomePageSectionData {
+	pub sections: HomePageSection,
 }
 
 #[derive(Deserialize)]
-pub struct HomeSectionData {
-	pub latest_updates: HomeSectionItem,
-	pub recently_added: HomeSectionItem,
-	pub most_tracked: HomeSectionItem,
-	pub top_rated: HomeSectionItem,
+pub struct HomePageSection {
+	pub latest_updates: HomePageSectionItem,
+	pub recently_added: HomePageSectionItem,
+	pub most_tracked: HomePageSectionItem,
+	pub top_rated: HomePageSectionItem,
 }
 
 #[derive(Deserialize)]
-pub struct HomeSectionItem {
+pub struct HomePageSectionItem {
 	pub items: Vec<MangaItem>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SearchResponse {
+pub struct ViewAllPage {
+	// pub adult: bool,
 	// pub all_genres: Vec<String>,
+	pub data: ViewAllPageData,
+	// pub page: i32,
+	// pub section: String,
+}
+
+#[derive(Deserialize)]
+pub struct ViewAllPageData {
+	pub manga_list: Vec<MangaItem>,
+	pub pagination: Pagination,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchPage {
+	pub all_genres: Vec<String>,
 	pub pagination: Option<Pagination>,
 	pub results: Option<Vec<MangaItem>>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MangaDetailPage {
+	pub manga_data: MangaDetailData,
+}
+
+#[derive(Deserialize)]
+pub struct MangaDetailData {
+	pub manga: MangaItem,
 }
 
 #[derive(Deserialize)]
 pub struct Pagination {
 	pub current_page: i32,
 	pub total_pages: i32,
+	// pub next_cursor: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -62,13 +90,7 @@ pub enum StringOrVec {
 impl StringOrVec {
 	fn into_vec(self) -> Vec<String> {
 		match self {
-			Self::Single(s) => {
-				if let Ok(v) = serde_json::from_str(s.as_str()) {
-					v
-				} else {
-					vec![s]
-				}
-			}
+			Self::Single(s) => serde_json::from_str(&s).unwrap_or_else(|_| vec![s]),
 			Self::Multiple(v) => v,
 		}
 	}
@@ -79,7 +101,7 @@ pub struct MangaItem {
 	pub alt_titles: Option<StringOrVec>,
 	pub artists: Option<StringOrVec>,
 	pub authors: Option<StringOrVec>,
-	// This is always null for Search endpoint.
+	pub avg_rating: Option<f32>,
 	pub content_rating: Option<String>,
 	pub country_of_origin: Option<String>,
 	pub description: Option<String>,
@@ -87,6 +109,8 @@ pub struct MangaItem {
 	#[serde(deserialize_with = "bool_from_any")]
 	pub hiatus: bool,
 	pub id: i32,
+	#[serde(deserialize_with = "bool_from_any", default = "default_bool")]
+	pub is_adult: bool,
 	#[serde(deserialize_with = "bool_from_any")]
 	pub is_blurworthy: bool,
 	pub photo: Option<String>,
@@ -120,13 +144,14 @@ impl From<MangaItem> for Manga {
 				"Completed" => MangaStatus::Completed,
 				_ => MangaStatus::Unknown,
 			},
-			content_rating: if value.is_blurworthy {
+			content_rating: if value.is_blurworthy || value.is_adult {
 				ContentRating::NSFW
 			} else {
 				if let Some(content_rating) = value.content_rating {
 					match content_rating.as_str() {
 						"safe" => ContentRating::Safe,
 						"suggestive" => ContentRating::Suggestive,
+						"erotica" => ContentRating::Suggestive,
 						_ => ContentRating::Unknown,
 					}
 				} else {
@@ -153,17 +178,6 @@ impl From<MangaItem> for Link {
 		let manga: Manga = value.into();
 		manga.into()
 	}
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MangaDetailResponse {
-	pub manga_data: MangaDetailData,
-}
-
-#[derive(Deserialize)]
-pub struct MangaDetailData {
-	pub manga: MangaItem,
 }
 
 #[derive(Deserialize)]
@@ -265,4 +279,8 @@ fn bool_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::
 	}
 
 	deserializer.deserialize_any(BoolVisitor)
+}
+
+fn default_bool() -> bool {
+	false
 }
