@@ -37,8 +37,8 @@ impl Source for Mangadotnet {
 	) -> Result<MangaPageResult> {
 		let mut query_parameters = QueryParameters::new();
 
-		if let Some(query) = query {
-			query_parameters.push("search", Some(&query));
+		if query.is_some() {
+			query_parameters.push("search", query.as_deref());
 		}
 
 		query_parameters.push("page", Some(&format!("{page}")));
