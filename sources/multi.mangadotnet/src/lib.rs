@@ -103,16 +103,12 @@ impl Source for Mangadotnet {
 			get_page_container_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
 
 		Ok(MangaPageResult {
-			entries: if let Some(results) = search_response.results {
-				results.into_iter().map(Into::into).collect()
-			} else {
-				Vec::new()
-			},
-			has_next_page: if let Some(pagination) = search_response.pagination {
-				pagination.current_page < pagination.total_pages
-			} else {
-				false
-			},
+			entries: search_response.results
+				.map(|results| results.into_iter().map(Into::into).collect())
+				.unwrap_or_default(),
+			has_next_page: search_response.pagination
+				.map(|p| p.current_page < p.total_pages)
+				.unwrap_or_default(),
 		})
 	}
 
