@@ -89,6 +89,8 @@ fn find_functions(web_view: &mut ComixWebView) -> Result<()> {
 				{GET_VMOBJ_JS}
 				let fnames = Object.keys(vmObj);
 				let inst = '', desc = '';
+				const isPromise = (v) => v && (typeof v === 'object' || typeof v === 'function') && typeof v.then === 'function';
+				const testCanvas = document.createElement('canvas');
 				for (let j = 0; j < fnames.length; j++) {{
 					let fn = vmObj[fnames[j]];
 					if (typeof fn !== 'function') continue;
@@ -111,9 +113,14 @@ fn find_functions(web_view: &mut ComixWebView) -> Result<()> {
 						}} catch (e) {{}}
 					}}
 					if (!desc) {{
-						if (fn.constructor.name === 'AsyncFunction') {{
-							desc = ref;
-						}}
+						try {{
+							if (fn.constructor && fn.constructor.name === 'AsyncFunction') {{
+								desc = ref;
+							}} else if (fn.length >= 2) {{
+								let res = fn('about:blank', testCanvas);
+								if (isPromise(res)) desc = ref;
+							}}
+						}} catch (e) {{}}
 					}}
 				}}
 				return inst + '||' + desc
