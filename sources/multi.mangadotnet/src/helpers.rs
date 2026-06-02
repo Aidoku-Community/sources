@@ -1,14 +1,10 @@
-use crate::models::{MangaChapter, PageContainer};
+use crate::models::MangaChapter;
 use aidoku::{
-	HashMap, Result, alloc::string::String, alloc::string::ToString, alloc::vec::Vec,
-	imports::net::Request, prelude::*,
+	HashMap, Result, alloc::string::String, alloc::string::ToString, alloc::vec::Vec, prelude::*,
 };
-use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
-const CF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned CF challenge page instead of JSON data. If problem persist, please delete the source cache and restart the application to resolve this issue";
-
-fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
+pub fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
 	// This function will convert pointer-table encoded JSON format into normal JSON format.
 	// Since the data format would most likely not have cycles, we didn't handle this inside here.
 	let Some(value) = table.get(index) else {
@@ -66,37 +62,6 @@ fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
 		// Primitive value, just return as is.
 		_ => Ok(value.clone()),
 	}
-}
-
-pub fn get_page_container_json_data<T>(url: &str) -> Result<T>
-where
-	T: DeserializeOwned,
-{
-	let Ok(ptr_table_json) = Request::get(url)?.json_owned::<Vec<Value>>() else {
-		bail!("{CF_CHALLENGE_ERROR_MESSAGE}")
-	};
-	// Example: [{"_1":2},"pages/SearchPage",{"_3":4},"data",...]
-	let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
-	// Example: {"pages/SearchPage":{"data":{...}}}
-	// println!("{}", serde_json::to_string(&json)?);
-	let Ok(page_container_json) = serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)
-	else {
-		bail!("Invalid JSON data. Expected an object with page container data.")
-	};
-	let Some(page_container) = page_container_json.into_values().next() else {
-		bail!("Page container data does not exists.")
-	};
-	Ok(page_container.data)
-}
-
-pub fn get_json_data<T>(url: &str) -> Result<T>
-where
-	T: DeserializeOwned,
-{
-	let Ok(json) = Request::get(url)?.json_owned::<T>() else {
-		bail!("{CF_CHALLENGE_ERROR_MESSAGE}")
-	};
-	Ok(json)
 }
 
 fn is_official_like(chapter: &MangaChapter) -> bool {

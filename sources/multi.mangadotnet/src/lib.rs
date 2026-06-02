@@ -1,32 +1,112 @@
 #![no_std]
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterKind, FilterValue,
-	HashMap, Home, HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Listing,
-	ListingProvider, Manga, MangaPageResult, Page, PageContent, Result, Source,
-	alloc::borrow::Cow,
-	alloc::vec,
-	alloc::{String, Vec},
+	HashMap, Home, HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, ImageResponse,
+	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext,
+	PageImageProcessor, Result, Source,
+	alloc::{String, Vec, borrow::Cow, vec},
 	helpers::uri::QueryParameters,
+	imports::canvas::ImageRef,
+	imports::net::Request,
 	imports::std::send_partial_result,
 	prelude::*,
 };
-use core::cmp::*;
+use base64::Engine;
+use core::{cell::RefCell, cmp::*};
+use serde::de::DeserializeOwned;
+use serde_json::Value;
 
 mod helpers;
 mod models;
 mod settings;
+mod web;
 
 use helpers::*;
 use models::*;
 use settings::*;
+use web::*;
 
 const BASE_URL: &str = "https://mangadot.net";
+const CF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned CF challenge page instead of JSON data. If problem persist, please clear the source cache and restart the application to resolve this issue.";
 
-struct Mangadotnet;
+struct Mangadotnet {
+	web_view: RefCell<MangaDotnetWebView>,
+}
+
+impl Mangadotnet {
+	fn get_page_container_json_data<T>(&self, url: &str) -> Result<T>
+	where
+		T: DeserializeOwned,
+	{
+		if use_view_web_worker() {
+			let json = self.web_view.borrow_mut().fetch(url, 0)?;
+			let ptr_table_json = serde_json::from_str::<Vec<Value>>(&json)?;
+			// Example: [{"_1":2},"pages/SearchPage",{"_3":4},"data",...]
+			let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
+			// Example: {"pages/SearchPage":{"data":{...}}}
+			let Ok(page_container_json) =
+				serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)
+			else {
+				bail!("Invalid JSON data. Expected an object with page container data.")
+			};
+			let Some(page_container) = page_container_json.into_values().next() else {
+				bail!("Page container data does not exists.")
+			};
+			Ok(page_container.data)
+		} else {
+			let response = Request::get(url)?.send()?;
+			if response.status_code() == 403
+				&& response
+					.get_header("cf-mitigated")
+					.is_some_and(|value| value == "challenge")
+			{
+				bail!("{CF_CHALLENGE_ERROR_MESSAGE}")
+			} else {
+				let ptr_table_json = response.get_json_owned::<Vec<Value>>()?;
+				// Example: [{"_1":2},"pages/SearchPage",{"_3":4},"data",...]
+				let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
+				// Example: {"pages/SearchPage":{"data":{...}}}
+				let Ok(page_container_json) =
+					serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)
+				else {
+					bail!("Invalid JSON data. Expected an object with page container data.")
+				};
+				let Some(page_container) = page_container_json.into_values().next() else {
+					bail!("Page container data does not exists.")
+				};
+				Ok(page_container.data)
+			}
+		}
+	}
+
+	fn get_json_data<T>(&self, url: &str) -> Result<T>
+	where
+		T: DeserializeOwned,
+	{
+		if use_view_web_worker() {
+			let json = self.web_view.borrow_mut().fetch(url, 0)?;
+			let result = serde_json::from_str::<T>(&json)?;
+			Ok(result)
+		} else {
+			let response = Request::get(url)?.send()?;
+			if response.status_code() == 403
+				&& response
+					.get_header("cf-mitigated")
+					.is_some_and(|value| value == "challenge")
+			{
+				bail!("{CF_CHALLENGE_ERROR_MESSAGE}")
+			} else {
+				response.get_json_owned::<T>()
+			}
+		}
+	}
+}
 
 impl Source for Mangadotnet {
 	fn new() -> Self {
-		Self
+		Self {
+			web_view: RefCell::new(MangaDotnetWebView::new()),
+		}
 	}
 
 	fn get_search_manga_list(
@@ -99,14 +179,16 @@ impl Source for Mangadotnet {
 
 		query_parameters.push("_routes", Some("pages/SearchPage"));
 
-		let search_response: SearchPage =
-			get_page_container_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
+		let search_response: SearchPage = self
+			.get_page_container_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
 
 		Ok(MangaPageResult {
-			entries: search_response.results
+			entries: search_response
+				.results
 				.map(|results| results.into_iter().map(Into::into).collect())
 				.unwrap_or_default(),
-			has_next_page: search_response.pagination
+			has_next_page: search_response
+				.pagination
 				.map(|p| p.current_page < p.total_pages)
 				.unwrap_or_default(),
 		})
@@ -119,10 +201,11 @@ impl Source for Mangadotnet {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		if needs_details {
-			let manga_detail_page: MangaDetailPage = get_page_container_json_data(&format!(
-				"{BASE_URL}/manga/{}.data?_routes=pages/MangaDetailPage",
-				manga.key
-			))?;
+			let manga_detail_page: MangaDetailPage =
+				self.get_page_container_json_data(&format!(
+					"{BASE_URL}/manga/{}.data?_routes=pages/MangaDetailPage",
+					manga.key
+				))?;
 
 			manga.copy_from(manga_detail_page.manga_data.manga.into());
 
@@ -133,7 +216,7 @@ impl Source for Mangadotnet {
 
 		if needs_chapters {
 			let json: Vec<MangaChapter> =
-				get_json_data(&format!("{BASE_URL}/api/manga/{}/chapters/list", manga.key))?;
+				self.get_json_data(&format!("{BASE_URL}/api/manga/{}/chapters/list", manga.key))?;
 
 			let mut chapter_map: HashMap<String, MangaChapter> = HashMap::new();
 			let mut chapter_list: Vec<MangaChapter> = Vec::new();
@@ -165,8 +248,11 @@ impl Source for Mangadotnet {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let json: MangaPage =
-			get_json_data(&format!("{BASE_URL}/api/chapters/{}/images", chapter.key))?;
+		let json: MangaPage = if chapter.url.is_some_and(|url| url.contains("?source=user")) {
+			self.get_json_data(&format!("{BASE_URL}/api/uploads/{}/images", chapter.key))?
+		} else {
+			self.get_json_data(&format!("{BASE_URL}/api/chapters/{}/images", chapter.key))?
+		};
 
 		Ok(json
 			.images
@@ -184,6 +270,8 @@ impl Source for Mangadotnet {
 
 const LATEST_UPDATES_LISTING_ID: &str = "latest_updates";
 const RECENTLY_ADDED_LISTING_ID: &str = "recently_added";
+const MOST_TRACKED_LISTING_ID: &str = "most_tracked";
+const TOP_RATED_LISTING_ID: &str = "top_rated";
 
 impl ListingProvider for Mangadotnet {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
@@ -201,7 +289,7 @@ impl ListingProvider for Mangadotnet {
 			LATEST_UPDATES_LISTING_ID => {
 				query_parameters.push("_routes", Some("pages/ViewAllPage"));
 
-				let view_all_page: ViewAllPage = get_page_container_json_data(&format!(
+				let view_all_page: ViewAllPage = self.get_page_container_json_data(&format!(
 					"{BASE_URL}/view-all/latest-updates.data?{}",
 					query_parameters
 				))?;
@@ -221,8 +309,48 @@ impl ListingProvider for Mangadotnet {
 			RECENTLY_ADDED_LISTING_ID => {
 				query_parameters.push("_routes", Some("pages/ViewAllPage"));
 
-				let view_all_page: ViewAllPage = get_page_container_json_data(&format!(
+				let view_all_page: ViewAllPage = self.get_page_container_json_data(&format!(
 					"{BASE_URL}/view-all/recently-added.data?{}",
+					query_parameters
+				))?;
+
+				Ok(MangaPageResult {
+					entries: view_all_page
+						.data
+						.manga_list
+						.into_iter()
+						.map(Into::into)
+						.collect(),
+					has_next_page: view_all_page.data.pagination.current_page
+						< view_all_page.data.pagination.total_pages,
+				})
+			}
+
+			MOST_TRACKED_LISTING_ID => {
+				query_parameters.push("_routes", Some("pages/ViewAllPage"));
+
+				let view_all_page: ViewAllPage = self.get_page_container_json_data(&format!(
+					"{BASE_URL}/view-all/most-tracked.data?{}",
+					query_parameters
+				))?;
+
+				Ok(MangaPageResult {
+					entries: view_all_page
+						.data
+						.manga_list
+						.into_iter()
+						.map(Into::into)
+						.collect(),
+					has_next_page: view_all_page.data.pagination.current_page
+						< view_all_page.data.pagination.total_pages,
+				})
+			}
+
+			TOP_RATED_LISTING_ID => {
+				query_parameters.push("_routes", Some("pages/ViewAllPage"));
+
+				let view_all_page: ViewAllPage = self.get_page_container_json_data(&format!(
+					"{BASE_URL}/view-all/top-rated.data?{}",
 					query_parameters
 				))?;
 
@@ -270,8 +398,9 @@ impl Home for Mangadotnet {
 			],
 		}));
 
-		let home_page_json: HomePage =
-			get_page_container_json_data(&format!("{BASE_URL}/_root.data?_routes=pages/HomePage"))?;
+		let home_page: HomePage = self.get_page_container_json_data(&format!(
+			"{BASE_URL}/_root.data?_routes=pages/HomePage"
+		))?;
 
 		Ok(HomeLayout {
 			components: vec![
@@ -279,7 +408,7 @@ impl Home for Mangadotnet {
 					title: Some("Latest Updates".into()),
 					subtitle: Some("New Chapters".into()),
 					value: HomeComponentValue::Scroller {
-						entries: home_page_json
+						entries: home_page
 							.sections_data
 							.sections
 							.latest_updates
@@ -298,7 +427,7 @@ impl Home for Mangadotnet {
 					title: Some("Recently Added".into()),
 					subtitle: Some("New Titles".into()),
 					value: HomeComponentValue::Scroller {
-						entries: home_page_json
+						entries: home_page
 							.sections_data
 							.sections
 							.recently_added
@@ -307,7 +436,7 @@ impl Home for Mangadotnet {
 							.map(Into::into)
 							.collect(),
 						listing: Some(Listing {
-							id: "recently_added".into(),
+							id: RECENTLY_ADDED_LISTING_ID.into(),
 							name: "Recently Added".into(),
 							..Default::default()
 						}),
@@ -317,7 +446,7 @@ impl Home for Mangadotnet {
 					title: Some("Most Tracked".into()),
 					subtitle: Some("Reader Favorites".into()),
 					value: HomeComponentValue::Scroller {
-						entries: home_page_json
+						entries: home_page
 							.sections_data
 							.sections
 							.most_tracked
@@ -325,14 +454,18 @@ impl Home for Mangadotnet {
 							.into_iter()
 							.map(Into::into)
 							.collect(),
-						listing: None,
+						listing: Some(Listing {
+							id: MOST_TRACKED_LISTING_ID.into(),
+							name: "Most Tracked".into(),
+							..Default::default()
+						}),
 					},
 				},
 				HomeComponent {
 					title: Some("Top Rated".into()),
 					subtitle: Some("Highest Scores".into()),
 					value: HomeComponentValue::Scroller {
-						entries: home_page_json
+						entries: home_page
 							.sections_data
 							.sections
 							.top_rated
@@ -340,7 +473,11 @@ impl Home for Mangadotnet {
 							.into_iter()
 							.map(Into::into)
 							.collect(),
-						listing: None,
+						listing: Some(Listing {
+							id: TOP_RATED_LISTING_ID.into(),
+							name: "Top Rated".into(),
+							..Default::default()
+						}),
 					},
 				},
 			],
@@ -381,8 +518,8 @@ impl DynamicFilters for Mangadotnet {
 
 		query_parameters.push("_routes", Some("pages/SearchPage"));
 
-		let search_response: SearchPage =
-			get_page_container_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
+		let search_page: SearchPage = self
+			.get_page_container_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
 
 		Ok(vec![Filter {
 			id: Cow::from("genre"),
@@ -392,11 +529,7 @@ impl DynamicFilters for Mangadotnet {
 				is_genre: true,
 				can_exclude: true,
 				uses_tag_style: true,
-				options: search_response
-					.all_genres
-					.into_iter()
-					.map(Into::into)
-					.collect(),
+				options: search_page.all_genres.into_iter().map(Into::into).collect(),
 				ids: None,
 				default_included: None,
 				default_excluded: None,
@@ -405,10 +538,37 @@ impl DynamicFilters for Mangadotnet {
 	}
 }
 
+impl PageImageProcessor for Mangadotnet {
+	fn process_page_image(
+		&self,
+		response: ImageResponse,
+		_context: Option<PageContext>,
+	) -> Result<ImageRef> {
+		if !use_view_web_worker() {
+			return Ok(response.image);
+		}
+
+		let Some(url) = response.request.url else {
+			return Ok(response.image);
+		};
+
+		let base64_image_data = self.web_view.borrow_mut().fetch(&url, 0)?;
+		let Some((_, base64_data)) = base64_image_data.split_once(',') else {
+			bail!("Unable to get the raw image data")
+		};
+		let image_data = base64::engine::general_purpose::STANDARD
+			.decode(base64_data)
+			.or_else(|_| bail!("failed to decode image"))?;
+
+		Ok(ImageRef::new(image_data.as_ref()))
+	}
+}
+
 register_source!(
 	Mangadotnet,
 	ListingProvider,
 	Home,
 	DeepLinkHandler,
-	DynamicFilters
+	DynamicFilters,
+	PageImageProcessor
 );

@@ -27,48 +27,19 @@
 	},
 	{
 		"type": "group",
+		"title": "Advanced Settings",
 		"items": [
 			{
-				"type": "page",
-				"title": "Content Filters",
-				"items": [
-					{
-						"type": "group",
-						"items": [
-							{
-								"type": "multi-select",
-								"key": "hiddenTypes",
-								"title": "Hidden Content Types",
-								"titles": [
-									"Manga",
-									"Manhwa",
-									"Manhua",
-									"Other"
-								],
-								"values": [
-									"manga",
-									"manhwa",
-									"manhua",
-									"other"
-								],
-								"refreshes": ["content"]
-							}
-						]
-					}
-				]
-			},
-			{
-				"type": "button",
-				"title": "Reset Filters",
-				"confirmTitle": "Reset Filters",
-				"confirmText": "Are you sure you want to remove all configured content filters?",
-				"destructive": true,
-				"notification": "resetFilters",
+				"type": "switch",
+				"key": "useWebViewFetch",
+				"title": "Use CF Workaround",
+				"default": false,
 				"refreshes": [
-					"content"
+					"content",
+					"filters"
 				]
 			}
 		],
-		"footer": "Content filters are applied only on home page and listings."
+		"footer": "CloudFlare workaround uses an invisible WebView to maintain a proper session. This will allow basic function to work except for cover images. If you want to have less interruption between reading, use this option."
 	}
 ]

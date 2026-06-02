@@ -198,7 +198,10 @@ pub struct MangaChapter {
 
 impl MangaChapter {
 	pub fn created_at(&self) -> Option<i64> {
+		// Old upload is using old format and new uploads are using new format.
+		// This should probably handle both.
 		parse_date(&self.date_added, "yyyy-MM-dd HH:mm:ssZZZ")
+			.or_else(|| parse_date(&self.date_added, "yyyy-MM-dd HH:mm:ss.SSSSSSZZZ"))
 	}
 }
 
