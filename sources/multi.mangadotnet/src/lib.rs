@@ -4,7 +4,7 @@ use aidoku::{
 	HashMap, Home, HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, ImageResponse,
 	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext,
 	PageImageProcessor, Result, Source,
-	alloc::{String, Vec, borrow::Cow, vec},
+	alloc::{String, Vec, borrow::Cow, string::ToString, vec},
 	helpers::uri::QueryParameters,
 	imports::canvas::ImageRef,
 	imports::net::Request,
@@ -502,6 +502,33 @@ impl DeepLinkHandler for Mangadotnet {
 		if let (Some(kind), Some(id)) = (segments.next(), segments.next()) {
 			return Ok(match kind {
 				"manga" => Some(DeepLinkResult::Manga { key: id.into() }),
+
+				"chapter" => {
+					if id.contains("source=user") {
+						// This is a user uploaded chapter
+						if let Some(chapter_id) = id.find('?').and_then(|idx| id.get(..idx)) {
+							let json: MangaPage = self.get_json_data(&format!(
+								"{BASE_URL}/api/uploads/{chapter_id}/images"
+							))?;
+							return Ok(Some(DeepLinkResult::Chapter {
+								manga_key: json.manga.id.to_string(),
+								key: json.chapter.id.to_string(),
+							}));
+						}
+					} else {
+						if let Some(chapter_id) = id.find('#').and_then(|idx| id.get(..idx)) {
+							let json: MangaPage = self.get_json_data(&format!(
+								"{BASE_URL}/api/chapters/{chapter_id}/images"
+							))?;
+							return Ok(Some(DeepLinkResult::Chapter {
+								manga_key: json.manga.id.to_string(),
+								key: json.chapter.id.to_string(),
+							}));
+						}
+					}
+					None
+				}
+
 				_ => None,
 			});
 		}

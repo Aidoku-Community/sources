@@ -118,6 +118,14 @@ pub struct MangaItem {
 	pub title: String,
 }
 
+#[derive(Deserialize)]
+pub struct MangaItemShort {
+	pub id: i32,
+	//pub title: String,
+	//pub photo: Option<String>,
+	//pub country_of_origin: Option<String>,
+}
+
 impl From<MangaItem> for Manga {
 	fn from(value: MangaItem) -> Self {
 		Self {
@@ -230,6 +238,8 @@ impl From<MangaChapter> for Chapter {
 
 #[derive(Deserialize)]
 pub struct MangaPage {
+	pub chapter: MangaChapter,
+	pub manga: MangaItemShort,
 	pub images: Vec<MangaPageImage>,
 }
 
