@@ -74,6 +74,9 @@ fn is_official_like(chapter: &MangaChapter) -> bool {
 		3521,  // Comikey
 	];
 
+	// There are probably others but tbh, they have not standardized this properly so this is
+	// only a small chunk that I know of. Wait for the site to mature better before optimizing
+	// this function. (And this only works for maybe 1% of the manga available)
 	let official_scanlator_names = ["Official", "Official?", "MangaPlus", "Comikey"];
 
 	let group_id = chapter

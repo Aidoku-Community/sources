@@ -2,13 +2,15 @@ use crate::BASE_URL;
 use crate::CF_CHALLENGE_ERROR_MESSAGE;
 use aidoku::{
 	Result, alloc::format, alloc::string::String, bail, error, imports::js::WebView,
-	imports::net::Request, println,
+	imports::net::Request,
 };
 use serde::Deserialize;
 
 const FETCH_RESPONSE_TOKEN: &str = "__AIDOKU_FETCH_RESPONSE_TOKEN__";
 const EMPTY_FETCH_RESPONSE_OBJECT: &str =
 	"{ data: null, error: null, isDone: false, isAbort: false }";
+const FETCH_TIMEOUT_RESPONSE: &str =
+	"Fetch timeout after 30s. If problem persist, please restart the application.";
 
 pub struct MangaDotnetWebView {
 	web_view: WebView,
@@ -41,8 +43,6 @@ impl MangaDotnetWebView {
 			self.load_webview()?;
 		}
 
-		println!("Fetching {}", url);
-
 		self.web_view.eval(&format!(
 			"(() => {{
 			window['{FETCH_RESPONSE_TOKEN}'] = {EMPTY_FETCH_RESPONSE_OBJECT};
@@ -50,10 +50,7 @@ impl MangaDotnetWebView {
 			const controller = new AbortController();
 			const signal = controller.signal;
 
-			let cancelled = false;
-
 			const timeout = setTimeout(() => {{
-				cancelled = true;
 				controller.abort();
 				window['{FETCH_RESPONSE_TOKEN}'].isAbort = true;
 			}}, 30000);
@@ -64,7 +61,7 @@ impl MangaDotnetWebView {
 						if (response.headers.get('cf-mitigated') === 'challenge') {{
 							throw new Error(`{CF_CHALLENGE_ERROR_MESSAGE}`);
 						}}
-						throw new Error(`Response status: ${{response.status}}`);
+						throw new Error(`Response Error: ${{response.status}} ${{response.statusText}}`);
 					}}
 					const contentType = response.headers.get('content-type');
 					if (contentType.startsWith('image')) {{
@@ -77,7 +74,6 @@ impl MangaDotnetWebView {
 					if (typeof data === 'string') {{
 						return Promise.resolve(data);
 					}} else {{
-						if (cancelled) throw new Error('Fetch aborted');
 						return createImageBitmap(data);
 					}}
 				}})
@@ -85,7 +81,6 @@ impl MangaDotnetWebView {
 					if (typeof data === 'string') {{
 						window['{FETCH_RESPONSE_TOKEN}'].data = data;
 					}} else {{
-						if (cancelled) throw new Error('Fetch aborted');
 						const canvas = document.createElement('canvas');
 						canvas.width = data.width;
 						canvas.height = data.height;
@@ -112,7 +107,7 @@ impl MangaDotnetWebView {
 			))? == "true"
 			{
 				self.load_webview()?;
-				bail!("Fetch aborted after 30 seconds.");
+				bail!("{FETCH_TIMEOUT_RESPONSE}");
 			}
 		}
 
@@ -135,6 +130,6 @@ impl MangaDotnetWebView {
 			bail!("{error}");
 		}
 
-		json.data.ok_or(error!("Fetch data is empty"))
+		json.data.ok_or(error!("Fetch data is null"))
 	}
 }

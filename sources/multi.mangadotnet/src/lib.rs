@@ -43,6 +43,7 @@ impl Mangadotnet {
 			let ptr_table_json = serde_json::from_str::<Vec<Value>>(&json)?;
 			// Example: [{"_1":2},"pages/SearchPage",{"_3":4},"data",...]
 			let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
+			// println!("{}", serde_json::to_string(&json)?);
 			// Example: {"pages/SearchPage":{"data":{...}}}
 			let Ok(page_container_json) =
 				serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)
@@ -65,6 +66,7 @@ impl Mangadotnet {
 				let ptr_table_json = response.get_json_owned::<Vec<Value>>()?;
 				// Example: [{"_1":2},"pages/SearchPage",{"_3":4},"data",...]
 				let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
+				// println!("{}", serde_json::to_string(&json)?);
 				// Example: {"pages/SearchPage":{"data":{...}}}
 				let Ok(page_container_json) =
 					serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)

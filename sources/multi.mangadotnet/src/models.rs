@@ -189,7 +189,7 @@ pub struct MangaChapter {
 	pub language: Option<String>,
 	pub group_id: Option<i32>,
 	pub group_name: Option<String>,
-	pub uploader_id: Option<i32>,
+	pub uploader_id: Option<String>,
 	pub uploader_username: Option<String>,
 	pub date_added: String,
 	pub source: String,
@@ -200,8 +200,10 @@ impl MangaChapter {
 	pub fn created_at(&self) -> Option<i64> {
 		// Old upload is using old format and new uploads are using new format.
 		// This should probably handle both.
-		parse_date(&self.date_added, "yyyy-MM-dd HH:mm:ssZZZ")
-			.or_else(|| parse_date(&self.date_added, "yyyy-MM-dd HH:mm:ss.SSSSSSZZZ"))
+		parse_date(&self.date_added, "yyyy-MM-dd HH:mm:ssZZZ").or(parse_date(
+			&self.date_added,
+			"yyyy-MM-dd HH:mm:ss.SSSSSSZZZ",
+		))
 	}
 }
 
