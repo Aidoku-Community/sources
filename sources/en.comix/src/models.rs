@@ -118,7 +118,7 @@ pub struct ComixManga {
 	pub title: String,
 	pub synopsis: Option<String>,
 	pub r#type: String,
-	pub poster: Poster,
+	pub poster: Option<Poster>,
 	pub status: String,
 	pub content_rating: ComixContentRating,
 	pub authors: Option<Vec<Term>>,
@@ -187,10 +187,13 @@ impl From<ComixManga> for Manga {
 		Self {
 			key: value.hid,
 			title: value.title,
-			cover: match settings::image_quality().as_str() {
-				"medium" => Some(value.poster.medium),
-				"large" => Some(value.poster.large),
-				_ => Some(value.poster.medium),
+			cover: match value.poster {
+				Some(poster) => match settings::image_quality().as_str() {
+					"medium" => Some(poster.medium),
+					"large" => Some(poster.large),
+					_ => Some(poster.medium),
+				},
+				None => None,
 			},
 			artists: value
 				.artists
