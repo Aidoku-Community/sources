@@ -17,7 +17,7 @@ use aidoku::{
 	prelude::*,
 };
 
-const BASE_URL: &str = "https://readcomiconline.li";
+const BASE_URL: &str = "https://rcostation.xyz";
 const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
 
 struct ReadComicOnline;
@@ -277,39 +277,32 @@ impl Source for ReadComicOnline {
 
 		// todo: if the site changes often, this may need to be put in a separate file to request so that it can be updated without users updating the source
 		// (this is what the mihon source does)
-		const IMG_DECRYPT_EVAL: &str = "const assignRegex = /(_[^\\s=]*xnz)\\s*=\\s*['\"]([^'\"]+)['\"]/g;const matches = [..._encryptedString.matchAll(assignRegex)];const pageLinks = matches.map(m => decryptLink(m[2]));function atob(t){const e=\"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\";let s=String(t).replace(/=+$/,\"\");if(s.length%4===1)throw new Error(\"'atob' failed: The string to be decoded is not correctly encoded.\");let n=\"\";for(let t=0,r,c,i=0;c=s.charAt(i++);~c&&(r=t%4?r*64+c:c,t++%4)?n+=String.fromCharCode(255&r>>(-2*t&6)):0)c=e.indexOf(c);return n}function decryptLink(t){let e=t.replace(/\\w{5}__\\w{3}__/g,\"g\").replace(/\\w{2}__\\w{6}_/g,\"g\").replace(/b/g,\"pw_.g28x\").replace(/h/g,\"d2pr.x_27\").replace(/pw_.g28x/g,\"b\").replace(/d2pr.x_27/g,\"h\");if(!e.startsWith(\"https\")){const t=e.indexOf(\"?\");const s=e.substring(t);const n=e.includes(\"=s0?\");const r=n?e.indexOf(\"=s0?\"):e.indexOf(\"=s1600?\");let c=e.substring(0,r);c=c.substring(15,33)+c.substring(50);const i=c.length;c=c.substring(0,i-11)+c[i-2]+c[i-1];const g=atob(c);let o=decodeURIComponent(g);o=o.substring(0,13)+o.substring(17);o=o.substring(0,o.length-2)+(n?\"=s0\":\"=s1600\");const a=!_useServer2?\"https://2.bp.blogspot.com\":\"https://img1.whatsnew247.net/pic\";e=`${a}/${o}${s}${_useServer2?\"&t=10\":\"\"}`}return e}JSON.stringify(pageLinks);";
+		const IMG_DECRYPT_EVAL: &str = r#"const urlPattern=/^https?:\/\/(?:www\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+\b(?:[\/a-z0-9-._~:?#@!$&'()*+,;=%]*)$/i,reverseOrder=!1,replacePatternRegex=/\.replace\(\s*\/(\w+__\w+_)\/g\s*,\s*['"](\w)['"]\s*\)/,replaceMatch=_encryptedString.match(replacePatternRegex),obfuscationPattern=replaceMatch?new RegExp(replaceMatch[1],"g"):/\w{2}__\w{6}_/g,replacementChar=replaceMatch?replaceMatch[2]:"e",baseUrlMatch=_encryptedString.match(/baeu\(\w+,\s*["'](https?:\/\/[^"']+)["']\)/),detectedBaseUrl=baseUrlMatch?baseUrlMatch[1]:null,assignRegex=/(_[^\s=]*xnz)\s*=\s*['"]([^'"]+)['"]/g,matches=[..._encryptedString.matchAll(assignRegex)],pageLinks=matches.map(t=>decryptLink(t[2]));function atob(t){let e=String(t).replace(/=+$/,"");if(e.length%4==1)throw new Error("'atob' failed: The string to be decoded is not correctly encoded.");let s="";for(let t,r,n=0,p=0;r=e.charAt(p++);~r&&(t=n%4?64*t+r:r,n++%4)?s+=String.fromCharCode(255&t>>(-2*n&6)):0)r="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=".indexOf(r);return s}function decryptLink(t,e=0){let s=t.replace(obfuscationPattern,replacementChar).replace(/pw_.g28x/g,"b").replace(/d2pr.x_27/g,"h");if(0!=e&&(s=s.substr(e,s.length-e)),(s.endsWith("=s0")||s.endsWith("=s1600"))&&(s=s.replace("https://2.bp.blogspot.com/","")+"?"),!s.startsWith("https")){const t=s.indexOf("?"),e=s.substring(t),r=s.includes("=s0?"),n=r?s.indexOf("=s0?"):s.indexOf("=s1600?");let p=s.substring(0,n);p=p.substring(15,33)+p.substring(50);const o=p.length;p=p.substring(0,o-11)+p[o-2]+p[o-1];const c=atob(p);let a=decodeURIComponent(c);a=a.substring(0,13)+a.substring(17),a=a.substring(0,a.length-2)+(r?"=s0":"=s1600");s=`${detectedBaseUrl??(_useServer2?"https://ano1.rconet.biz/pic":"https://2.bp.blogspot.com")}/${a}${e}${_useServer2?"&t=10":""}`}return s}const blocklist=["https://2.bp.blogspot.com/pw/AP1GczP6zCVVfdmN6OoVnm7CLvEfmHMUawyEwJWouX9C6SHwsiuYfLkUr9FsM6Zo34qNzPKeQeahBx9ckBZJQckiJmX1UwKD7uh900yz5rKyG4zT2rfIrqFviEJIev1Pg_pGRuSG57rIH6BDwGCTmiE4MjA","https://2.bp.blogspot.com/pw/AP1GczP48thKMga7cud0tjtHtYqsvZzhYY0HyAxVzM3O1D6tkLbi0fT9NDZFFFH69hNnoGsnqJSEIh4mmpEoU1BJSfNXIz1f5aLXl41RM9os7ePn7ipbrYbIuqiQxAV0hhJZrNLl7FmauwLQ01paCrP6KAE","https://2.bp.blogspot.com/pw/AP1GczNXprTMfAP2AHFFWvCbKq6qReXrqSohz87KeBjV0nh6XoLsE1NpzL7Rp9llxoY208IPARiIDON_TO6dZB0ZMNeB8J7xzUzbS9h6To7aGpOZshFofw-wFQ0KJ3y3wolSwzLrduZZ_0w8_6gGuTEB-98","https://2.bp.blogspot.com/pw/AP1GczMVY_zWeag2n981CRX7jaZ73Sr0NtidtJhnvJ3-Rmh2fIo-PoQRI0ZksQEbpTjDHgBeNYbQ2hQodsY-Dv0FXUhiU_mus5z5L5lMVAH82kXYqOd2IEw","https://2.bp.blogspot.com/pw/AP1GczOKY-6EDGVvlQGB2wj0xxB5JgcyiujFJC3CHgwqBOLIidwmoP6DLiMpX__Fw6MMPvLezN6soeV0A8pKSHUrC4rxZyO5vov40g1g4ipZdkFlzUouAFA","https://2.bp.blogspot.com/pw/AP1GczO8AETT3k19nhJwxHm0sHCSy0tXyhSOYxnq3EUrmlvgY5yPqDaxcd1XZ7reQKH-lKgpGK4o3sW_9Yu6feqii79riXN3Ghi8Xs1S5Z4wi-aeHrq5PzOX"];function getCleanedLinks(){const t=pageLinks.filter((t,e)=>{if(!t)return!1;const s=t.split("?")[0].split("=")[0],r=pageLinks.findIndex(t=>t.split("?")[0].split("=")[0]===s)===e,n=-1===blocklist.indexOf(s),p=urlPattern.test(s);return r&&n&&p});return t}JSON.stringify(getCleanedLinks());"#;
 
 		let scripts = html
 			.select("script")
 			.ok_or(error!("html select `script` failed"))?;
 
-		let mut links = Vec::new();
+		let combined_scripts = scripts
+			.filter_map(|script| {
+				script.data().and_then(|s| {
+					let s = s.trim();
+					if s.is_empty() {
+						return None;
+					}
+					Some(s.into())
+				})
+			})
+			.collect::<Vec<String>>()
+			.join("\n");
+		let data = serde_json::to_string(&combined_scripts)
+			.map_err(|_| error!("Failed to encode extracted JS"))?;
+		let js_string =
+			format!("let _encryptedString = {data};let _useServer2 = false;{IMG_DECRYPT_EVAL}");
+		let result = JsContext::new().eval(&js_string)?;
 
-		for script in scripts {
-			let Some(data) = script.data().and_then(|s| {
-				let s = s.trim();
-				if s.is_empty() {
-					return None;
-				}
-				serde_json::to_string(&s).ok()
-			}) else {
-				continue;
-			};
-
-			let js_string =
-				format!("let _encryptedString = {data};let _useServer2 = false;{IMG_DECRYPT_EVAL}");
-			let result = JsContext::new().eval(&js_string)?;
-
-			if result.starts_with('[') && result.ends_with(']') {
-				let new_links: Vec<String> = result[1..result.len() - 1]
-					.split(',')
-					.map(|s| s.trim_matches(|c| c == '"' || c == '\''))
-					.filter(|s| !s.is_empty())
-					.map(|s| s.to_string())
-					.collect();
-				links.extend(new_links);
-			}
-		}
+		let links = serde_json::from_str::<Vec<String>>(&result)
+			.map_err(|_| error!("Failed to decode JS result"))?;
 
 		Ok(links
 			.into_iter()

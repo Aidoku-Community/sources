@@ -2,10 +2,11 @@
 	"info": {
 		"id": "en.readcomiconline",
 		"name": "ReadComicOnline",
-		"version": 1,
-		"url": "https://readcomiconline.li",
+		"version": 2,
+		"url": "https://rcostation.xyz",
 		"contentRating": 0,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	},
 	"listings": [
 		{
