@@ -181,11 +181,15 @@ impl Source for FlameComics {
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let chapter_url = format!("{BASE_URL}{}{}", manga.key, chapter.key);
 		let html = Request::get(&chapter_url)?.html()?;
+		const BLOCKED_KEYWORD: &str = "read_on_flame";
 		let pages = html
 			.select(".mantine-Container-root .mantine-Stack-root img")
 			.map(|els| {
 				els.filter_map(|el| {
 					let page_url = el.attr("abs:src")?;
+					if page_url.contains(BLOCKED_KEYWORD) {
+						return None;
+					}
 					Some(Page {
 						content: PageContent::url(page_url),
 						..Default::default()
@@ -201,6 +205,7 @@ impl Source for FlameComics {
 impl Home for FlameComics {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let html = Request::get(BASE_URL)?.html()?;
+
 		fn parse_manga_with_chapter(el: &Element) -> Option<MangaWithChapter> {
 			let manga_url = el.select_first("a")?.attr("abs:href").unwrap_or_default();
 			let cover = el.select_first("img")?.attr("abs:src");
@@ -209,8 +214,7 @@ impl Home for FlameComics {
 				.select_first(".mantine-Stack-root:nth-of-type(2) a")
 				.and_then(|e| e.text())
 				.unwrap_or_default();
-			let chapter_details: ElementList =
-				el.select(".mantine-Text-root:nth-of-type(1)").unwrap();
+			let chapter_details: ElementList = el.select(".mantine-Text-root:nth-of-type(1)")?;
 			let binding = chapter_details
 				.select_first("p")
 				.and_then(|t| t.text())
@@ -234,21 +238,27 @@ impl Home for FlameComics {
 		}
 
 		fn parse_manga(el: &Element) -> Option<Manga> {
-			let manga_url = el.select_first("a")?.attr("abs:href").unwrap_or_default();
+			let a = el.select_first("a")?;
+			let url = a.attr("abs:href")?;
+			let key = url.strip_prefix(BASE_URL)?.into();
 			let cover = el.select_first("img")?.attr("abs:src");
-			let manga_key: String = manga_url.strip_prefix(BASE_URL)?.into();
-			let title = el.select_first("p").unwrap().text().unwrap_or_default();
+			let title = a.attr("title")?;
 			Some(Manga {
-				key: manga_key,
+				key,
 				title,
 				cover,
-				url: Some(manga_url),
+				url: Some(url),
 				..Default::default()
 			})
 		}
 
 		let popular = html
-			.select(".mantine-Container-root .mantine-Grid-root:nth-of-type(1) .mantine-Grid-inner .mantine-Grid-col") // 1st child // 
+			.select(
+				".mantine-Container-root \
+					> .mantine-Grid-root:nth-of-type(1) \
+					> .mantine-Grid-inner \
+					> .mantine-Grid-col",
+			)
 			.map(|els| {
 				els.filter_map(|el| parse_manga(&el).map(Into::into))
 					.collect::<Vec<Link>>()
@@ -256,7 +266,12 @@ impl Home for FlameComics {
 			.unwrap_or_default();
 
 		let staff_picks = html
-			.select(".mantine-Container-root .mantine-Grid-root:nth-of-type(2) .mantine-Grid-inner .mantine-Grid-col")
+			.select(
+				".mantine-Container-root \
+					> .mantine-Grid-root:nth-of-type(2) \
+					> .mantine-Grid-inner \
+					> .mantine-Grid-col",
+			)
 			.map(|els| {
 				els.filter_map(|el| parse_manga(&el).map(Into::into))
 					.collect::<Vec<Link>>()
@@ -264,12 +279,17 @@ impl Home for FlameComics {
 			.unwrap_or_default();
 
 		let latest = html
-		.select(".mantine-Container-root .mantine-Grid-root:nth-of-type(3) .mantine-Grid-inner .mantine-Grid-col")
-		.map(|els| {
-			els.filter_map(|el| parse_manga_with_chapter(&el))
-				.collect::<Vec<MangaWithChapter>>()
-		})
-		.unwrap_or_default();
+			.select(
+				".mantine-Container-root \
+					> .mantine-Grid-root:nth-of-type(3) \
+					> .mantine-Grid-inner \
+					> .mantine-Grid-col",
+			)
+			.map(|els| {
+				els.filter_map(|el| parse_manga_with_chapter(&el))
+					.collect::<Vec<MangaWithChapter>>()
+			})
+			.unwrap_or_default();
 
 		Ok(HomeLayout {
 			components: vec![
