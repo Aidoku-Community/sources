@@ -14,6 +14,7 @@ pub struct PageContainer<T> {
 	pub data: T,
 }
 
+/* Replaced by a different api but just in case we ever need it again
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HomePage {
@@ -37,6 +38,7 @@ pub struct HomePageSection {
 pub struct HomePageSectionItem {
 	pub items: Vec<MangaItem>,
 }
+*/
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -71,6 +73,11 @@ pub struct MangaDetailPage {
 #[derive(Deserialize)]
 pub struct MangaDetailData {
 	pub manga: MangaItem,
+}
+
+#[derive(Deserialize)]
+pub struct ListingSectionData {
+	pub items: Vec<MangaItem>,
 }
 
 #[derive(Deserialize)]

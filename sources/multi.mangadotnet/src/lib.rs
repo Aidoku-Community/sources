@@ -2,8 +2,8 @@
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterKind, FilterValue,
 	HashMap, Home, HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, ImageResponse,
-	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext,
-	PageImageProcessor, Result, Source,
+	Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler, Page, PageContent,
+	PageContext, PageImageProcessor, Result, Source,
 	alloc::{String, Vec, borrow::Cow, string::ToString, vec},
 	helpers::uri::QueryParameters,
 	imports::canvas::ImageRef,
@@ -12,6 +12,7 @@ use aidoku::{
 	prelude::*,
 };
 use base64::Engine;
+use core::ops::Deref;
 use core::{cell::RefCell, cmp::*};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -287,6 +288,12 @@ impl ListingProvider for Mangadotnet {
 			query_parameters.push("page", Some(&format!("{}", page)));
 		}
 
+		if let Some(content_types) = get_default_content_types() {
+			for content_type in content_types.split(",") {
+				query_parameters.push("origin", Some(content_type));
+			}
+		}
+
 		match listing.id.as_str() {
 			LATEST_UPDATES_LISTING_ID => {
 				query_parameters.push("_routes", Some("pages/ViewAllPage"));
@@ -400,90 +407,75 @@ impl Home for Mangadotnet {
 			],
 		}));
 
-		let home_page: HomePage = self.get_page_container_json_data(&format!(
-			"{BASE_URL}/_root.data?_routes=pages/HomePage"
-		))?;
+		for id in [
+			"latest_updates",
+			"recently_added",
+			"most_tracked",
+			"top_rated",
+		] {
+			let mut query_parameters = QueryParameters::new();
+			query_parameters.push("id", Some(id));
 
-		Ok(HomeLayout {
-			components: vec![
-				HomeComponent {
-					title: Some("Latest Updates".into()),
-					subtitle: Some("New Chapters".into()),
-					value: HomeComponentValue::Scroller {
-						entries: home_page
-							.sections_data
-							.sections
-							.latest_updates
-							.items
-							.into_iter()
-							.map(Into::into)
-							.collect(),
-						listing: Some(Listing {
+			if !hide_nsfw() {
+				query_parameters.push("adult", Some("both"));
+			} else {
+				query_parameters.push("adult", Some("0"));
+			}
+
+			if let Some(content_types) = get_default_content_types() {
+				query_parameters.push("origin", Some(content_types.deref()));
+			}
+
+			query_parameters.push("limit", Some("21"));
+
+			let listing_data: ListingSectionData =
+				self.get_json_data(&format!("{BASE_URL}/api/manga/section?{query_parameters}"))?;
+
+			send_partial_result(&HomePartialResult::Component(HomeComponent {
+				title: match id {
+					"latest_updates" => Some("Latest Updates".into()),
+					"recently_added" => Some("Recently Added".into()),
+					"most_tracked" => Some("Most Tracked".into()),
+					"top_rated" => Some("Top Rated".into()),
+					_ => None,
+				},
+				subtitle: match id {
+					"latest_updates" => Some("New Chapters".into()),
+					"recently_added" => Some("New Titles".into()),
+					"most_tracked" => Some("Reader Favorites".into()),
+					"top_rated" => Some("Highest Scores".into()),
+					_ => None,
+				},
+				value: HomeComponentValue::Scroller {
+					entries: listing_data.items.into_iter().map(Into::into).collect(),
+					listing: match id {
+						"latest_updates" => Some(Listing {
 							id: LATEST_UPDATES_LISTING_ID.into(),
 							name: "Latest Updates".into(),
 							..Default::default()
 						}),
-					},
-				},
-				HomeComponent {
-					title: Some("Recently Added".into()),
-					subtitle: Some("New Titles".into()),
-					value: HomeComponentValue::Scroller {
-						entries: home_page
-							.sections_data
-							.sections
-							.recently_added
-							.items
-							.into_iter()
-							.map(Into::into)
-							.collect(),
-						listing: Some(Listing {
+						"recently_added" => Some(Listing {
 							id: RECENTLY_ADDED_LISTING_ID.into(),
 							name: "Recently Added".into(),
 							..Default::default()
 						}),
-					},
-				},
-				HomeComponent {
-					title: Some("Most Tracked".into()),
-					subtitle: Some("Reader Favorites".into()),
-					value: HomeComponentValue::Scroller {
-						entries: home_page
-							.sections_data
-							.sections
-							.most_tracked
-							.items
-							.into_iter()
-							.map(Into::into)
-							.collect(),
-						listing: Some(Listing {
+						"most_tracked" => Some(Listing {
 							id: MOST_TRACKED_LISTING_ID.into(),
 							name: "Most Tracked".into(),
 							..Default::default()
 						}),
-					},
-				},
-				HomeComponent {
-					title: Some("Top Rated".into()),
-					subtitle: Some("Highest Scores".into()),
-					value: HomeComponentValue::Scroller {
-						entries: home_page
-							.sections_data
-							.sections
-							.top_rated
-							.items
-							.into_iter()
-							.map(Into::into)
-							.collect(),
-						listing: Some(Listing {
+						"top_rated" => Some(Listing {
 							id: TOP_RATED_LISTING_ID.into(),
 							name: "Top Rated".into(),
 							..Default::default()
 						}),
+						_ => None,
 					},
 				},
-			],
-		})
+			}));
+		}
+
+		Ok(HomeLayout::default())
 	}
 }
 
@@ -593,11 +585,20 @@ impl PageImageProcessor for Mangadotnet {
 	}
 }
 
+impl NotificationHandler for Mangadotnet {
+	fn handle_notification(&self, notification: String) {
+		if notification == NOTIFICATION_RESET_KEY {
+			reset_filters();
+		}
+	}
+}
+
 register_source!(
 	Mangadotnet,
 	ListingProvider,
 	Home,
 	DeepLinkHandler,
 	DynamicFilters,
-	PageImageProcessor
+	PageImageProcessor,
+	NotificationHandler
 );
