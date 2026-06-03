@@ -12,8 +12,7 @@ use aidoku::{
 	prelude::*,
 };
 use base64::Engine;
-use core::ops::Deref;
-use core::{cell::RefCell, cmp::*};
+use core::{cell::RefCell, cmp::*, ops::Deref};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 

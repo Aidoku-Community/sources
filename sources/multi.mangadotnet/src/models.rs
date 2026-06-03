@@ -7,7 +7,7 @@ use aidoku::{
 	imports::std::parse_date,
 	prelude::*,
 };
-use serde::{Deserialize, Deserializer, de};
+use serde::{Deserialize, Deserializer, de, de::Error};
 
 #[derive(Deserialize)]
 pub struct PageContainer<T> {
@@ -126,11 +126,8 @@ pub struct MangaItem {
 }
 
 #[derive(Deserialize)]
-pub struct MangaItemShort {
+pub struct MangaId {
 	pub id: i32,
-	//pub title: String,
-	//pub photo: Option<String>,
-	//pub country_of_origin: Option<String>,
 }
 
 impl From<MangaItem> for Manga {
@@ -198,6 +195,7 @@ impl From<MangaItem> for Link {
 #[derive(Deserialize)]
 pub struct MangaChapter {
 	pub id: i32,
+	#[serde(deserialize_with = "f32_from_any")]
 	pub chapter_number: f32,
 	pub volume_number: Option<f32>,
 	pub chapter_title: Option<String>,
@@ -207,7 +205,7 @@ pub struct MangaChapter {
 	pub uploader_id: Option<String>,
 	pub uploader_username: Option<String>,
 	pub date_added: String,
-	pub source: String,
+	pub source: Option<String>,
 	pub scanlator_name: Option<String>,
 }
 
@@ -232,7 +230,7 @@ impl From<MangaChapter> for Chapter {
 			volume_number: value.volume_number,
 			date_uploaded: date,
 			scanlators: value.scanlator_name.map(|name| vec![name]),
-			url: if value.source == "user" {
+			url: if value.source.is_some_and(|s| s == "user") || value.uploader_id.is_some() {
 				Some(format!("{BASE_URL}/chapter/{}?source=user", value.id))
 			} else {
 				Some(format!("{BASE_URL}/chapter/{}", value.id))
@@ -246,7 +244,7 @@ impl From<MangaChapter> for Chapter {
 #[derive(Deserialize)]
 pub struct MangaPage {
 	pub chapter: MangaChapter,
-	pub manga: MangaItemShort,
+	pub manga: MangaId,
 	pub images: Vec<MangaPageImage>,
 }
 
@@ -283,7 +281,7 @@ fn bool_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::
 			}
 		}
 
-		fn visit_str<E: de::Error>(self, v: &str) -> Result<bool, E> {
+		fn visit_str<E: Error>(self, v: &str) -> Result<bool, E> {
 			match v.to_ascii_lowercase().as_str() {
 				"true" => Ok(true),
 				"false" => Ok(false),
@@ -301,6 +299,69 @@ fn bool_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::
 	}
 
 	deserializer.deserialize_any(BoolVisitor)
+}
+
+fn f32_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
+	struct F32Visitor;
+
+	impl<'de> de::Visitor<'de> for F32Visitor {
+		type Value = f32;
+
+		fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+			formatter.write_str("a number that can be converted to f32")
+		}
+
+		fn visit_f32<E>(self, v: f32) -> Result<Self::Value, E>
+		where
+			E: Error,
+		{
+			Ok(v)
+		}
+
+		fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+		where
+			E: Error,
+		{
+			Ok(v as f32)
+		}
+
+		fn visit_i32<E>(self, v: i32) -> Result<Self::Value, E>
+		where
+			E: Error,
+		{
+			Ok(v as f32)
+		}
+
+		fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+		where
+			E: Error,
+		{
+			Ok(v as f32)
+		}
+
+		fn visit_u32<E>(self, v: u32) -> Result<Self::Value, E>
+		where
+			E: Error,
+		{
+			Ok(v as f32)
+		}
+
+		fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+		where
+			E: Error,
+		{
+			Ok(v as f32)
+		}
+
+		fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+		where
+			E: Error,
+		{
+			v.parse::<f32>().map_err(Error::custom)
+		}
+	}
+
+	deserializer.deserialize_any(F32Visitor)
 }
 
 fn default_bool() -> bool {
