@@ -227,7 +227,8 @@ impl From<MangaChapter> for Chapter {
 			key: value.id.to_string(),
 			title: value
 				.chapter_title
-				.filter(|title| !title.to_lowercase().starts_with("chapter")),
+				.filter(|title| !title.to_lowercase().starts_with("chapter"))
+				.filter(|title| !title.to_lowercase().starts_with("episode")),
 			chapter_number: Some(value.chapter_number),
 			volume_number: value.volume_number,
 			date_uploaded: date,

@@ -28,6 +28,7 @@ use web::*;
 
 const BASE_URL: &str = "https://mangadot.net";
 const CF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned CF challenge page instead of JSON data. If problem persist, please clear the source cache and restart the application to resolve this issue.";
+const DEFAULT_FETCH_TIMEOUT: f64 = 30.0;
 
 struct Mangadotnet {
 	web_view: RefCell<MangaDotnetWebView>,
@@ -55,13 +56,15 @@ impl Mangadotnet {
 			};
 			Ok(page_container.data)
 		} else {
-			let response = Request::get(url)?.send()?;
+			let response = Request::get(url)?.timeout(DEFAULT_FETCH_TIMEOUT).send()?;
 			if response.status_code() == 403
 				&& response
 					.get_header("cf-mitigated")
 					.is_some_and(|value| value == "challenge")
 			{
 				bail!("{CF_CHALLENGE_ERROR_MESSAGE}")
+			} else if response.status_code() >= 400 {
+				bail!("Response Error: {}", response.status_code())
 			} else {
 				let ptr_table_json = response.get_json_owned::<Vec<Value>>()?;
 				// Example: [{"_1":2},"pages/SearchPage",{"_3":4},"data",...]
@@ -90,13 +93,15 @@ impl Mangadotnet {
 			let result = serde_json::from_str::<T>(&json)?;
 			Ok(result)
 		} else {
-			let response = Request::get(url)?.send()?;
+			let response = Request::get(url)?.timeout(DEFAULT_FETCH_TIMEOUT).send()?;
 			if response.status_code() == 403
 				&& response
 					.get_header("cf-mitigated")
 					.is_some_and(|value| value == "challenge")
 			{
 				bail!("{CF_CHALLENGE_ERROR_MESSAGE}")
+			} else if response.status_code() >= 400 {
+				bail!("Response Error: {}", response.status_code())
 			} else {
 				response.get_json_owned::<T>()
 			}
@@ -284,7 +289,7 @@ impl ListingProvider for Mangadotnet {
 		}
 
 		if page > 1 {
-			query_parameters.push("page", Some(&format!("{}", page)));
+			query_parameters.push("page", Some(&format!("{page}")));
 		}
 
 		if let Some(content_types) = get_default_content_types() {
@@ -293,89 +298,30 @@ impl ListingProvider for Mangadotnet {
 			}
 		}
 
-		match listing.id.as_str() {
-			LATEST_UPDATES_LISTING_ID => {
-				query_parameters.push("_routes", Some("pages/ViewAllPage"));
+		query_parameters.push("_routes", Some("pages/ViewAllPage"));
 
-				let view_all_page: ViewAllPage = self.get_page_container_json_data(&format!(
-					"{BASE_URL}/view-all/latest-updates.data?{}",
-					query_parameters
-				))?;
+		let view_all_page: ViewAllPage = self.get_page_container_json_data(&format!(
+			"{BASE_URL}/view-all/{}.data?{}",
+			match listing.id.as_str() {
+				LATEST_UPDATES_LISTING_ID => "latest-updates",
+				RECENTLY_ADDED_LISTING_ID => "recently-added",
+				MOST_TRACKED_LISTING_ID => "most-tracked",
+				TOP_RATED_LISTING_ID => "top-rated",
+				_ => bail!("Invalid listing id: {}", listing.id),
+			},
+			query_parameters
+		))?;
 
-				Ok(MangaPageResult {
-					entries: view_all_page
-						.data
-						.manga_list
-						.into_iter()
-						.map(Into::into)
-						.collect(),
-					has_next_page: view_all_page.data.pagination.current_page
-						< view_all_page.data.pagination.total_pages,
-				})
-			}
-
-			RECENTLY_ADDED_LISTING_ID => {
-				query_parameters.push("_routes", Some("pages/ViewAllPage"));
-
-				let view_all_page: ViewAllPage = self.get_page_container_json_data(&format!(
-					"{BASE_URL}/view-all/recently-added.data?{}",
-					query_parameters
-				))?;
-
-				Ok(MangaPageResult {
-					entries: view_all_page
-						.data
-						.manga_list
-						.into_iter()
-						.map(Into::into)
-						.collect(),
-					has_next_page: view_all_page.data.pagination.current_page
-						< view_all_page.data.pagination.total_pages,
-				})
-			}
-
-			MOST_TRACKED_LISTING_ID => {
-				query_parameters.push("_routes", Some("pages/ViewAllPage"));
-
-				let view_all_page: ViewAllPage = self.get_page_container_json_data(&format!(
-					"{BASE_URL}/view-all/most-tracked.data?{}",
-					query_parameters
-				))?;
-
-				Ok(MangaPageResult {
-					entries: view_all_page
-						.data
-						.manga_list
-						.into_iter()
-						.map(Into::into)
-						.collect(),
-					has_next_page: view_all_page.data.pagination.current_page
-						< view_all_page.data.pagination.total_pages,
-				})
-			}
-
-			TOP_RATED_LISTING_ID => {
-				query_parameters.push("_routes", Some("pages/ViewAllPage"));
-
-				let view_all_page: ViewAllPage = self.get_page_container_json_data(&format!(
-					"{BASE_URL}/view-all/top-rated.data?{}",
-					query_parameters
-				))?;
-
-				Ok(MangaPageResult {
-					entries: view_all_page
-						.data
-						.manga_list
-						.into_iter()
-						.map(Into::into)
-						.collect(),
-					has_next_page: view_all_page.data.pagination.current_page
-						< view_all_page.data.pagination.total_pages,
-				})
-			}
-
-			_ => bail!("Invalid listing id: {}", listing.id),
-		}
+		Ok(MangaPageResult {
+			entries: view_all_page
+				.data
+				.manga_list
+				.into_iter()
+				.map(Into::into)
+				.collect(),
+			has_next_page: view_all_page.data.pagination.current_page
+				< view_all_page.data.pagination.total_pages,
+		})
 	}
 }
 

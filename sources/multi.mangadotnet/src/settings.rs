@@ -1,6 +1,5 @@
 use aidoku::{
 	alloc::string::String,
-	alloc::vec,
 	alloc::vec::Vec,
 	imports::defaults::{DefaultValue, defaults_get, defaults_set},
 };
@@ -53,8 +52,5 @@ pub fn get_default_content_types() -> Option<String> {
 }
 
 pub fn reset_filters() {
-	defaults_set(
-		DEFAULT_CONTENT_TYPES_KEY,
-		DefaultValue::StringArray(vec!["JP".into(), "KR".into(), "CN,TW".into()]),
-	)
+	defaults_set(DEFAULT_CONTENT_TYPES_KEY, DefaultValue::Null)
 }
