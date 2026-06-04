@@ -1,7 +1,4 @@
 #![no_std]
-extern crate alloc;
-
-use aidoku::imports::canvas::ImageRef;
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeComponent,
 	HomeLayout, HomePartialResult, ImageRequestProvider, ImageResponse, Link, LinkValue, Listing,
@@ -10,12 +7,14 @@ use aidoku::{
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
+		canvas::ImageRef,
 		net::{Request, RequestError, Response},
 		std::send_partial_result,
 	},
 	prelude::*,
 };
 use base64::{Engine, engine::general_purpose};
+use core::cell::RefCell;
 
 mod helpers;
 mod models;
@@ -23,6 +22,7 @@ mod settings;
 mod web;
 
 use models::*;
+use web::*;
 
 const BASE_URL: &str = "https://comix.to";
 const API_URL: &str = "https://comix.to/api/v1";
@@ -31,11 +31,15 @@ const CONTENT_TYPES: &[&str] = &["manga", "manhwa", "manhua", "other"];
 // adult, boys love, ecchi, girls love, hentai, smut
 const NSFW_GENRE_IDS: &[&str] = &["87264", "8", "87265", "13", "87266", "87268"];
 
-struct Comix;
+struct Comix {
+	web_view: RefCell<ComixWebView>,
+}
 
 impl Source for Comix {
 	fn new() -> Self {
-		Self
+		Self {
+			web_view: RefCell::new(ComixWebView::new()),
+		}
 	}
 
 	fn get_search_manga_list(
@@ -207,9 +211,8 @@ impl Source for Comix {
 			let mut chapter_map: HashMap<String, ComixChapter> = HashMap::new();
 			let mut chapter_list: Vec<ComixChapter> = Vec::new();
 
-			let web_view = web::create_web_view()?;
 			let path = format!("/manga/{}/chapters", manga.key);
-			let token = web::get_token(&web_view, &path)?;
+			let token = self.web_view.borrow_mut().get_token(&path)?;
 
 			loop {
 				let url = format!(
@@ -221,7 +224,10 @@ impl Source for Comix {
 				);
 
 				let encoded_res = Request::get(&url)?.string()?;
-				let result = web::decode_response(&web_view, &url, &encoded_res)?;
+				let result = self
+					.web_view
+					.borrow_mut()
+					.decode_response(&url, &encoded_res)?;
 				let res = serde_json::from_str::<ChapterDetailsResponse>(&result)?;
 
 				let items = res.result.items;
@@ -262,12 +268,14 @@ impl Source for Comix {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let web_view = web::create_web_view()?;
 		let path = format!("/chapters/{}", chapter.key);
-		let token = web::get_token(&web_view, &path)?;
+		let token = self.web_view.borrow_mut().get_token(&path)?;
 		let url = format!("{API_URL}{path}?_={token}");
 		let encoded_res = Request::get(&url)?.string()?;
-		let result = web::decode_response(&web_view, &url, &encoded_res)?;
+		let result = self
+			.web_view
+			.borrow_mut()
+			.decode_response(&url, &encoded_res)?;
 		let json: ChapterResponse = serde_json::from_str(&result)?;
 
 		let Some(result) = json.result else {
@@ -526,9 +534,10 @@ impl PageImageProcessor for Comix {
 					bail!("Unable to get the image height")
 				};
 
-				let web_view = web::create_web_view()?;
-
-				let data_url = web::descramble_image(&web_view, width, height, url.as_ref())?;
+				let data_url =
+					self.web_view
+						.borrow_mut()
+						.descramble_image(width, height, url.as_ref())?;
 				let Some((_, base64_data)) = data_url.split_once(',') else {
 					bail!("Unable to get the raw image data")
 				};

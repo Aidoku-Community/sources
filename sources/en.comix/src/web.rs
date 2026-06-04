@@ -15,76 +15,88 @@ if (!vmObj || typeof vmObj !== 'object' || vmObj === window) {\
 	return '';\
 }";
 
+const INSTALLER_FN_TOKEN: &str = "__AIDOKU_INSTALLER_FN_TOKEN__";
+const INSTALLER_REQUEST_TOKEN: &str = "__AIDOKU_INSTALLER_REQUEST_TOKEN__";
+const INSTALLER_RESPONSE_TOKEN: &str = "__AIDOKU_INSTALLER_RESPONSE_TOKEN__";
+const DESCRAMBLER_FN_TOKEN: &str = "__AIDOKU_DESCRAMBLER_FN_TOKEN__";
+
 const JS_PATCHER: &str = "<head><script>window['originalGetImageData'] = HTMLCanvasElement.prototype.toDataURL;</script>";
 
 pub struct ComixWebView {
 	web_view: WebView,
+	is_initialized: bool,
 	installer_fn: Option<String>,
 	descrambler_fn: Option<String>,
 }
 
-pub fn create_web_view() -> Result<ComixWebView> {
-	let web_view = WebView::new();
-	web_view.load_html_blocking(
-		Request::get(BASE_URL)?
-			.string()?
-			.replace("<head>", JS_PATCHER)
-			.as_str(),
-		Some(BASE_URL),
-	)?;
-	let mut comix_web_view = ComixWebView {
-		web_view,
-		installer_fn: None,
-		descrambler_fn: None,
-	};
-	if find_functions(&mut comix_web_view).is_err() {
-		find_secure_module_src(&mut comix_web_view)?;
-		find_functions(&mut comix_web_view)?;
-	}
-	Ok(comix_web_view)
-}
-
-fn find_secure_module_src(web_view: &mut ComixWebView) -> Result<()> {
-	let main_module_src = Request::get(BASE_URL)?
-		.html()?
-		.select("head > script[type=\"module\"][src*=\"main\"]")
-		.and_then(|e| e.first())
-		.and_then(|e| e.attr("src"))
-		.ok_or(error!("Main module not found"))?;
-	if let Some(js_asset_path_index) = main_module_src.rfind("/") {
-		let js_asset_path = &main_module_src[0..js_asset_path_index + 1];
-		let secure_script_regex = Regex::new("(secure-[A-Za-z0-9-_]+?\\.js)").unwrap();
-		let main_module_contents =
-			Request::get(format!("{BASE_URL}{main_module_src}"))?.string()?;
-		if let Some(secure_script_path) = secure_script_regex
-			.captures(main_module_contents.as_str())
-			.and_then(|captures| captures.get(1).map(|m| m.as_str()))
-		{
-			web_view.web_view.eval(&format!(
-				"(() => {{
-				import('{BASE_URL}{js_asset_path}{secure_script_path}')
-					.then((m) => window['vm'] = m)
-					.catch((e) => window['vm'] = {{}});
-				return '';
-			}})()"
-			))?;
-			while web_view
-				.web_view
-				.eval("(() => { return window['vm'] == null ? 'true' : 'false'; })()")?
-				== "true"
-			{}
-			Ok(())
-		} else {
-			bail!("Secure module not found");
+impl ComixWebView {
+	pub fn new() -> Self {
+		let web_view = WebView::new();
+		Self {
+			web_view,
+			is_initialized: false,
+			installer_fn: None,
+			descrambler_fn: None,
 		}
-	} else {
-		bail!("Invalid path")
 	}
-}
 
-fn find_functions(web_view: &mut ComixWebView) -> Result<()> {
-	let result = web_view.web_view.eval(&format!(
-		"(() => {{
+	fn load_webview(&mut self) -> Result<()> {
+		self.web_view.load_html_blocking(
+			Request::get(BASE_URL)?
+				.string()?
+				.replace("<head>", JS_PATCHER)
+				.as_str(),
+			Some(BASE_URL),
+		)?;
+		if self.find_functions().is_err() {
+			self.find_secure_module_src()?;
+			self.find_functions()?;
+		}
+		self.is_initialized = true;
+		Ok(())
+	}
+
+	fn find_secure_module_src(&mut self) -> Result<()> {
+		let main_module_src = Request::get(BASE_URL)?
+			.html()?
+			.select("head > script[type=\"module\"][src*=\"main\"]")
+			.and_then(|e| e.first())
+			.and_then(|e| e.attr("src"))
+			.ok_or(error!("Main module not found"))?;
+		if let Some(js_asset_path_index) = main_module_src.rfind("/") {
+			let js_asset_path = &main_module_src[0..js_asset_path_index + 1];
+			let secure_script_regex = Regex::new("(secure-[A-Za-z0-9-_]+?\\.js)").unwrap();
+			let main_module_contents =
+				Request::get(format!("{BASE_URL}{main_module_src}"))?.string()?;
+			if let Some(secure_script_path) = secure_script_regex
+				.captures(main_module_contents.as_str())
+				.and_then(|captures| captures.get(1).map(|m| m.as_str()))
+			{
+				self.web_view.eval(&format!(
+					"(() => {{
+						import('{BASE_URL}{js_asset_path}{secure_script_path}')
+						.then((m) => window['vm'] = m)
+						.catch((e) => window['vm'] = {{}});
+						return '';
+					}})()"
+				))?;
+				while self
+					.web_view
+					.eval("(() => { return window['vm'] == null ? 'true' : 'false'; })()")?
+					== "true"
+				{}
+				Ok(())
+			} else {
+				bail!("Secure module not found");
+			}
+		} else {
+			bail!("Invalid path")
+		}
+	}
+
+	fn find_functions(&mut self) -> Result<()> {
+		let result = self.web_view.eval(&format!(
+			"(() => {{
 			try {{
 				{GET_VMOBJ_JS}
 				let fnames = Object.keys(vmObj);
@@ -109,116 +121,109 @@ fn find_functions(web_view: &mut ComixWebView) -> Result<()> {
 									transformResponse: []
 								}}
 							}});
-							if (got) inst = ref;
+							if (got) {{
+								inst = ref;
+								window['{INSTALLER_FN_TOKEN}'] = fn;
+								window['{INSTALLER_FN_TOKEN}']({{
+									interceptors: {{
+										request: {{
+											use: function (fn) {{ window['{INSTALLER_REQUEST_TOKEN}'] = fn; }},
+										}},
+										response: {{
+											use: function (fn) {{ window['{INSTALLER_RESPONSE_TOKEN}'] = fn; }},
+										}},
+									}},
+									defaults: {{
+										headers: {{ common: {{}} }},
+										transformRequest: [],
+										transformResponse: []
+									}}
+								}});
+							}}
 						}} catch (e) {{}}
 					}}
 					if (!desc) {{
 						try {{
 							if (fn.constructor && fn.constructor.name === 'AsyncFunction') {{
 								desc = ref;
+								window['{DESCRAMBLER_FN_TOKEN}'] = fn;
 							}} else if (fn.length >= 2) {{
 								let res = fn('about:blank', testCanvas);
-								if (isPromise(res)) desc = ref;
+								if (isPromise(res)) {{
+									desc = ref;
+									window['{DESCRAMBLER_FN_TOKEN}'] = res;
+								}}
 							}}
 						}} catch (e) {{}}
 					}}
 				}}
-				return inst + '||' + desc
+				return inst + '||' + desc;
 			}} catch(e) {{}}
 			return '';
 		}})()",
-	))?;
-	let Some((installer_expr, descrambler_expr)) = result.split_once("||") else {
-		bail!("Failed to find installer and descrambler functions")
-	};
-	if installer_expr.is_empty() {
-		bail!("Failed to find installer function");
-	};
-	if descrambler_expr.is_empty() {
-		bail!("Failed to find descrambler function");
-	};
-	web_view.installer_fn = Some(installer_expr.into());
-	web_view.descrambler_fn = Some(descrambler_expr.into());
-	Ok(())
-}
-
-/// * `path`: API path, e.g. "/manga/some-hash/chapters"
-pub fn get_token(web_view: &ComixWebView, path: &str) -> Result<String> {
-	let Some(installer_fn) = web_view.installer_fn.as_ref() else {
-		bail!("Missing installer function")
-	};
-	let token = web_view.web_view.eval(&format!(
-		"(() => {{
-			try {{
-				{GET_VMOBJ_JS}
-				let captured = {{ req: null, res: null }};
-				{installer_fn}({{
-					interceptors: {{
-						request: {{
-							use: function (fn) {{ captured.req = fn; }},
-						}},
-						response: {{
-							use: function (fn) {{ captured.res = fn; }},
-						}},
-					}},
-					defaults: {{
-						headers: {{ common: {{}} }},
-						transformRequest: [],
-						transformResponse: []
-					}}
-				}});
-				return captured.req({{ url: '{path}', method: 'GET' }}).params['_'];
-			}} catch(e) {{
-				return '';
-			}}
-		}})()"
-	))?;
-	if token.is_empty() {
-		bail!("Failed to fetch token")
+		))?;
+		let Some((installer_expr, descrambler_expr)) = result.split_once("||") else {
+			bail!("Failed to find installer and descrambler functions")
+		};
+		if installer_expr.is_empty() {
+			bail!("Failed to find installer function");
+		};
+		if descrambler_expr.is_empty() {
+			bail!("Failed to find descrambler function");
+		};
+		self.installer_fn = Some(installer_expr.into());
+		self.descrambler_fn = Some(descrambler_expr.into());
+		Ok(())
 	}
-	Ok(token)
-}
 
-pub fn decode_response(web_view: &ComixWebView, url: &str, encoded_res: &str) -> Result<String> {
-	let Some(installer_fn) = web_view.installer_fn.as_ref() else {
-		bail!("Missing installer function")
-	};
+	/// * `path`: API path, e.g. "/manga/some-hash/chapters"
+	pub fn get_token(&mut self, path: &str) -> Result<String> {
+		if !self.is_initialized {
+			self.load_webview()?
+		}
 
-	let json = serde_json::from_str::<serde_json::Value>(encoded_res)
-		.map_err(|_| error!("Invalid api response"))?;
-	let is_encoded = match json {
-		serde_json::Value::Object(ref map) => map.contains_key("e"),
-		_ => false,
-	};
-	if !is_encoded {
-		return Ok(encoded_res.into());
-	};
+		if self.installer_fn.is_none() {
+			bail!("Missing installer function")
+		}
 
-	let encoded_res_escaped = encoded_res.replace("'", "\\'");
-	let result = web_view.web_view.eval(&format!(
-		"(() => {{
-			try {{
-				{GET_VMOBJ_JS}
-				let captured = {{ req: null, res: null }};
-				{installer_fn}({{
-					interceptors: {{
-						request: {{
-							use: function (fn) {{ captured.req = fn; }},
-						}},
-						response: {{
-							use: function (fn) {{ captured.res = fn; }},
-						}},
-					}},
-					defaults: {{
-						headers: {{ common: {{}} }},
-						transformRequest: [],
-						transformResponse: []
-					}}
-				}});
-				if (!captured.res) {{
-					return 'error: could not capture response handler';
+		let token = self.web_view.eval(&format!(
+			"(() => {{
+				try {{
+					return window['{INSTALLER_REQUEST_TOKEN}']({{ url: '{path}', method: 'GET' }}).params['_'];
+				}} catch(e) {{
+					return '';
 				}}
+			}})()"
+		))?;
+		if token.is_empty() {
+			bail!("Failed to fetch token")
+		}
+		Ok(token)
+	}
 
+	pub fn decode_response(&mut self, url: &str, encoded_res: &str) -> Result<String> {
+		if !self.is_initialized {
+			self.load_webview()?
+		}
+
+		if self.installer_fn.is_none() {
+			bail!("Missing installer function")
+		}
+
+		let json = serde_json::from_str::<serde_json::Value>(encoded_res)
+			.map_err(|_| error!("Invalid api response"))?;
+		let is_encoded = match json {
+			serde_json::Value::Object(ref map) => map.contains_key("e"),
+			_ => false,
+		};
+		if !is_encoded {
+			return Ok(encoded_res.into());
+		};
+
+		let encoded_res_escaped = encoded_res.replace("'", "\\'");
+		let result = self.web_view.eval(&format!(
+			"(() => {{
+			try {{
 				let raw = JSON.parse('{encoded_res_escaped}');
 				let fakeResp = {{
 					data: raw,
@@ -230,79 +235,79 @@ pub fn decode_response(web_view: &ComixWebView, url: &str, encoded_res: &str) ->
 					config: {{ url: '{url}', method: 'get', baseURL: '/api/v1' }},
 					request: {{}},
 				}};
-				let decoded = captured.res(fakeResp);
+				let decoded = window['{INSTALLER_RESPONSE_TOKEN}'](fakeResp);
 				return JSON.stringify({{ result: decoded && decoded.data }});
 			}} catch(e) {{
 				return 'error: ' + e;
 			}}
 		}})()",
-	))?;
-	if result.starts_with("error:") {
-		bail!("{result}");
-	} else if result.is_empty() {
-		bail!("Failed to fetch token")
-	}
-	Ok(result)
-}
-
-pub fn descramble_image(
-	web_view: &ComixWebView,
-	width: f32,
-	height: f32,
-	url: &str,
-) -> Result<String> {
-	let Some(descrambler_fn) = web_view.descrambler_fn.as_ref() else {
-		bail!("Missing descramble function")
-	};
-
-	web_view.web_view.eval(&format!(
-		"(() => {{
-		const canvas = document.createElement('canvas');
-		canvas.width = {width};
-		canvas.height = {height};
-
-		window['TEMP_CANVAS'] = canvas;
-		window['TEMP_STATE'] = {{ isDone: false, error: null }}
-
-		const controller = new AbortController();
-		const signal = controller.signal;
-
-		{GET_VMOBJ_JS}
-		{descrambler_fn}('{url}', signal)
-			.then((data) => {{
-				const url = URL.createObjectURL(data);
-				const image = new Image();
-				image.src = url;
-				image.onload = () => {{
-					URL.revokeObjectURL(url);
-					const ctx = canvas.getContext('2d');
-					ctx.drawImage(image, 0, 0);
-					window['TEMP_STATE'].isDone = true;
-				}}
-			}})
-			.catch((e) => {{ window['TEMP_STATE'].isDone = true; window['TEMP_STATE'].error = e }});
-
-		return '';
-	}})()"
-	))?;
-
-	while web_view
-		.web_view
-		.eval("(() => { return window['TEMP_STATE'].isDone ? 'true' : 'false'; })()")?
-		== "false"
-	{}
-
-	let result = web_view.web_view.eval(
-		"(() => {{
-		if (window['TEMP_STATE'].error) return '';
-		const data = window['originalGetImageData'].call(window['TEMP_CANVAS']);
-		return data;
-	}})()",
-	)?;
-
-	if result.is_empty() {
-		bail!("Failed to descramble image")
-	} else {
+		))?;
+		if result.starts_with("error:") {
+			bail!("{result}");
+		} else if result.is_empty() {
+			bail!("Failed to fetch token")
+		}
 		Ok(result)
+	}
+
+	pub fn descramble_image(&mut self, width: f32, height: f32, url: &str) -> Result<String> {
+		if !self.is_initialized {
+			self.load_webview()?
+		}
+
+		if self.descrambler_fn.is_none() {
+			bail!("Missing descramble function")
+		}
+
+		self.web_view.eval(&format!(
+			"(() => {{
+				const canvas = document.createElement('canvas');
+				canvas.width = {width};
+				canvas.height = {height};
+
+				window['TEMP_CANVAS'] = canvas;
+				window['TEMP_STATE'] = {{ isDone: false, error: null }}
+
+                const controller = new AbortController();
+                const signal = controller.signal;
+
+                {GET_VMOBJ_JS}
+                {descrambler_fn}('{url}', signal)
+                    .then((data) => {{
+                        const url = URL.createObjectURL(data);
+                        const image = new Image();
+                        image.src = url;
+                        image.onload = () => {{
+                            URL.revokeObjectURL(url);
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(image, 0, 0);
+                            window['TEMP_STATE'].isDone = true;
+                        }}
+                    }})
+                    .catch((e) => {{ window['TEMP_STATE'].isDone = true; window['TEMP_STATE'].error = e }});
+
+				return '';
+			}})()"
+		))?;
+
+		while self
+			.web_view
+			.eval("(() => { return window['TEMP_STATE'].isDone ? 'true' : 'false'; })()")?
+			== "false"
+		{}
+
+		let result = self.web_view.eval(
+			"(() => {{
+				if (window['TEMP_STATE'].error) return '';
+				const data = window['originalGetImageData'].call(window['TEMP_CANVAS']);
+				return data;
+			}})()",
+		)?;
+
+		if result.is_empty() {
+			bail!("Failed to descramble image")
+		} else {
+			Ok(result)
+		}
 	}
 }
