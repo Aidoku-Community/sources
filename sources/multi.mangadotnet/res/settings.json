@@ -85,6 +85,6 @@
 				"refreshes": ["content"]
 			}
 		],
-		"footer": "Content filters are applied to the home page, and listings only."
+		"footer": "Content filters are applied to the home page and listings only."
 	}
 ]
