@@ -8,7 +8,7 @@
 		"languages": [
 			"multi"
 		],
-		"minAppVersion": "0.8"
+		"minAppVersion": "0.8.3"
 	},
 	"config": {
 		"supportsTagSearch": true
