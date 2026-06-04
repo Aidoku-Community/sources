@@ -40,7 +40,7 @@
 				]
 			}
 		],
-		"footer": "CloudFlare workaround uses an invisible WebView to maintain a proper session. This will allow basic function to work except for cover images. If you want to have less interruption between reading, use this option."
+		"footer": "CloudFlare workaround uses an invisible WebView to maintain a proper session. This will allow basic function to work except for cover images. If the source stops working for you periodically, try this option."
 	},
 	{
 		"type": "group",
