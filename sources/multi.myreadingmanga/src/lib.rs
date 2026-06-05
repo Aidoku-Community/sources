@@ -5,7 +5,7 @@ extern crate alloc;
 mod helpers;
 mod parser;
 
-use crate::helpers::{BASE_URL, HTTP_URL, UA, get, get_user_languages, page_url};
+use crate::helpers::{BASE_URL, UA, get, get_user_languages, page_url};
 use crate::parser::{parse_chapters, parse_listing, parse_manga, parse_pages};
 
 use aidoku::{

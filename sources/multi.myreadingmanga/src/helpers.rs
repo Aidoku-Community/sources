@@ -30,10 +30,10 @@ pub fn get_user_languages() -> Vec<String> {
 	let langs = defaults_get::<Vec<String>>("languages").unwrap_or_default();
 
 	for lang in langs {
-		if let Some(slug) = map_lang_to_class(&lang) {
-			if !slugs.contains(slug) {
-				slugs.push(slug.into());
-			}
+		if let Some(slug) = map_lang_to_class(&lang)
+			&& !slugs.iter().any(|s| s == slug)
+		{
+			slugs.push(slug.into());
 		}
 	}
 
@@ -42,16 +42,15 @@ pub fn get_user_languages() -> Vec<String> {
 
 pub fn map_lang_to_class(lang: &str) -> Option<&'static str> {
 	match lang.to_lowercase().trim() {
-		"all" | "none" | "any" | "" => None,
-		"en" | "english" => Some("english"),
-		"ja" | "jp" | "japanese" => Some("jp"),
-		"zh" | "cn" | "chinese" => Some("chinese"),
-		"ko" | "kr" | "korean" => Some("korean"),
-		"es" | "spanish" => Some("spanish"),
-		"fr" | "french" => Some("french"),
-		"de" | "german" => Some("german"),
-		"it" | "italian" => Some("italian"),
-		"pt" | "portuguese" => Some("portuguese"),
+		"en" => Some("english"),
+		"ja" | "jp" => Some("jp"),
+		"zh" | "cn" => Some("chinese"),
+		"ko" | "kr" => Some("korean"),
+		"es" => Some("spanish"),
+		"fr" => Some("french"),
+		"de" => Some("german"),
+		"it" => Some("italian"),
+		"pt" => Some("portuguese"),
 		_ => None,
 	}
 }
