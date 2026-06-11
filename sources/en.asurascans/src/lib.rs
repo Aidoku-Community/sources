@@ -444,10 +444,15 @@ impl ListingProvider for AsuraScans {
 					.select(".comics-ranking-list > a")
 					.map(|els| {
 						els.filter_map(|el| {
+							// the ranking page doesn't have extra ids appended to the slug
+							let key = el.attr("abs:href").and_then(|url| {
+								url.split('/')
+									.skip_while(|segment| *segment != "comics")
+									.nth(1)
+									.map(Into::into)
+							})?;
 							Some(Manga {
-								key: el
-									.attr("abs:href")
-									.and_then(|url| helpers::get_manga_key(&url))?,
+								key,
 								title: el.select_first(".flex-1 > .text-sm")?.own_text()?,
 								cover: el.select_first("img").and_then(|el| el.attr("abs:src")),
 								..Default::default()
