@@ -264,9 +264,22 @@ pub fn descramble_image(
 		window['TEMP_CANVAS'] = canvas;
 		window['TEMP_STATE'] = {{ isDone: false, error: null }}
 
+		const controller = new AbortController();
+		const signal = controller.signal;
+
 		{GET_VMOBJ_JS}
-		{descrambler_fn}('{url}', canvas)
-			.then(() => window['TEMP_STATE'].isDone = true)
+		{descrambler_fn}('{url}', signal)
+			.then((data) => {{
+				const url = URL.createObjectURL(data);
+				const image = new Image();
+				image.src = url;
+				image.onload = () => {{
+					URL.revokeObjectURL(url);
+					const ctx = canvas.getContext('2d');
+					ctx.drawImage(image, 0, 0);
+					window['TEMP_STATE'].isDone = true;
+				}}
+			}})
 			.catch((e) => {{ window['TEMP_STATE'].isDone = true; window['TEMP_STATE'].error = e }});
 
 		return '';
