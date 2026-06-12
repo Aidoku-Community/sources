@@ -2,7 +2,7 @@
 	"info": {
 		"id": "multi.mangadotnet",
 		"name": "Mangadotnet",
-		"version": 1,
+		"version": 2,
 		"url": "https://mangadot.net",
 		"contentRating": 1,
 		"languages": [

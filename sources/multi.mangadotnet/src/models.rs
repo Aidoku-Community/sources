@@ -231,7 +231,10 @@ impl From<MangaChapter> for Chapter {
 			chapter_number: Some(value.chapter_number),
 			volume_number: value.volume_number,
 			date_uploaded: date,
-			scanlators: value.scanlator_name.map(|name| vec![name]),
+			scanlators: value
+				.group_name
+				.or(value.scanlator_name)
+				.map(|name| vec![name]),
 			url: if value.source.is_some_and(|s| s == "user") || value.uploader_id.is_some() {
 				Some(format!("{BASE_URL}/chapter/{}?source=user", value.id))
 			} else {
