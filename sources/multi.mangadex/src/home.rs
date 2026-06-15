@@ -30,7 +30,7 @@ impl Home for MangaDex {
 			CUSTOM_LISTS
 				.iter()
 				.map(|list| format!("{API_URL}/list/{list}"))
-				.map(|url| Request::get(url).expect("invalid url format")),
+				.map(|url| crate::dex_get(url).expect("invalid url format")),
 		);
 		let custom_lists = &mut custom_list_requests
 			.iter_mut()
@@ -74,7 +74,7 @@ impl Home for MangaDex {
 
 		let owner_user_id = "d2ae45e0-b5e2-4e7f-a688-17925c2d7d6b";
 		let mut seasonal_res =
-			Request::get(format!("{API_URL}/user/{owner_user_id}/list"))?.send()?;
+			crate::dex_get(format!("{API_URL}/user/{owner_user_id}/list"))?.send()?;
 		if let Ok(response) = seasonal_res.get_json::<DexResponse<Vec<DexCustomList>>>() {
 			let current_seasonal_lists = response
 				.data
@@ -143,7 +143,7 @@ impl Home for MangaDex {
 
 		let responses: [core::result::Result<Response, RequestError>; 3] = Request::send_all([
 			// popular
-			Request::get(format!(
+			crate::dex_get(format!(
 				"{API_URL}/manga\
 					?includes[]=cover_art\
 					&includes[]=artist\
@@ -158,7 +158,7 @@ impl Home for MangaDex {
 					.format("%Y-%m-%dT%H:%M:%S")
 			))?,
 			// recently added
-			Request::get(format!(
+			crate::dex_get(format!(
 				"{API_URL}/manga\
 					?limit=15\
 					&order[createdAt]=desc\
@@ -166,7 +166,7 @@ impl Home for MangaDex {
 					{content_ratings}"
 			))?,
 			// latest
-			Request::get(format!(
+			crate::dex_get(format!(
 				"{API_URL}/chapter\
 					?includes[]=scanlation_group\
 					&limit=15\
@@ -260,7 +260,7 @@ impl Home for MangaDex {
 					{content_ratings}\
 					{manga_ids}"
 			);
-			let latest_manga = Request::get(latest_manga_url)?
+			let latest_manga = crate::dex_get(latest_manga_url)?
 				.send()?
 				.get_json::<DexResponse<Vec<DexManga>>>()?
 				.data
@@ -298,7 +298,7 @@ impl Home for MangaDex {
 		// custom lists components
 		{
 			let custom_list_responses = Request::send_all(custom_lists.iter().map(|list| {
-				Request::get(format!(
+				crate::dex_get(format!(
 					"{API_URL}/manga\
 						?limit=100\
 						&includes[]=cover_art\
