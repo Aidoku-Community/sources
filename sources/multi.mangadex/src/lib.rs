@@ -40,6 +40,14 @@ const CUSTOM_LISTS: &[&str] = &[
 
 struct MangaDex;
 
+impl MangaDex {
+	fn get<T: AsRef<str>>(url: T) -> Result<Request> {
+		Ok(Request::get(url)?
+			.header("User-Agent", "Aidoku")
+			.header("Referer", REFERER))
+	}
+}
+
 impl Source for MangaDex {
 	fn new() -> Self {
 		// 5 requests per second (https://api.mangadex.org/docs/2-limitations/)
@@ -171,7 +179,7 @@ impl Source for MangaDex {
 				&{qs}",
 		);
 
-		let (entries, has_next_page) = Request::get(url)?
+		let (entries, has_next_page) = Self::get(url)?
 			.send()?
 			.get_json::<DexResponse<Vec<DexManga>>>()
 			.map(|response| {
@@ -199,7 +207,7 @@ impl Source for MangaDex {
 	) -> Result<Manga> {
 		if needs_details {
 			manga.copy_from(
-				Request::get(format!(
+				Self::get(format!(
 					"{API_URL}/manga/{}\
 						?includes[]=cover_art\
 						&includes[]=author\
@@ -239,7 +247,7 @@ impl Source for MangaDex {
 				if show_unavailable_chapters { "1" } else { "0" }
 			);
 
-			let (mut chapters, total) = Request::get(&url)?
+			let (mut chapters, total) = Self::get(&url)?
 				.send()?
 				.get_json::<DexResponse<Vec<DexChapter>>>()
 				.map(|response| {
@@ -259,7 +267,7 @@ impl Source for MangaDex {
 				let mut offset = 500;
 				while offset < total {
 					let url = format!("{url}&offset={offset}");
-					if let Ok(response) = Request::get(&url)?
+					if let Ok(response) = Self::get(&url)?
 						.send()?
 						.get_json::<DexResponse<Vec<DexChapter>>>()
 					{
@@ -289,7 +297,7 @@ impl Source for MangaDex {
 			if force_port { "?forcePort443=true" } else { "" }
 		);
 
-		Request::get(&url)?
+		Self::get(&url)?
 			.send()?
 			.get_json::<DexAtHomeResponse>()
 			.and_then(|response| {
@@ -356,7 +364,7 @@ impl MangaDex {
 	fn get_author_ids(&self, name: &str) -> Result<Vec<String>> {
 		let url = format!("{API_URL}/author?name={name}",);
 
-		let ids = Request::get(url)?
+		let ids = Self::get(url)?
 			.send()?
 			.get_json::<DexResponse<Vec<DexData>>>()?
 			.data
@@ -371,7 +379,7 @@ impl MangaDex {
 	fn get_mangadex_list(&self, id: &str) -> Result<MangaPageResult> {
 		let content_ratings = settings::get_content_ratings()?;
 
-		let mut list_res = Request::get(format!("{API_URL}/list/{id}"))?.send()?;
+		let mut list_res = Self::get(format!("{API_URL}/list/{id}"))?.send()?;
 
 		let manga_ids = list_res
 			.get_json::<DexResponse<DexCustomList>>()?
@@ -388,7 +396,7 @@ impl MangaDex {
 			.collect::<Vec<&str>>();
 
 		// assume the list is 32 items or less (mangadex site uses this value)
-		let entries = Request::get(format!(
+		let entries = Self::get(format!(
 			"{API_URL}/manga\
 					?limit=100\
 					&includes[]=cover_art\
@@ -419,7 +427,7 @@ impl MangaDex {
 
 		let offset = (page - 1) * PAGE_SIZE;
 
-		let mut chapters_res = Request::get(format!(
+		let mut chapters_res = Self::get(format!(
 			"{API_URL}/chapter\
 				?includes[]=scanlation_group\
 				&limit={PAGE_SIZE}\
@@ -453,7 +461,7 @@ impl MangaDex {
 				{content_ratings}\
 				{ids_params}"
 		);
-		let entries = Request::get(url)?
+		let entries = Self::get(url)?
 			.send()?
 			.get_json::<DexResponse<Vec<DexManga>>>()?
 			.data
@@ -469,7 +477,7 @@ impl MangaDex {
 
 	// get the logged in user's library
 	fn get_library(&self, page: i32) -> Result<MangaPageResult> {
-		let status_ids = Request::get(format!("{API_URL}/manga/status"))?
+		let status_ids = Self::get(format!("{API_URL}/manga/status"))?
 			.authed_send()?
 			.get_json::<DexStatusResponse>()?
 			.statuses
@@ -493,7 +501,7 @@ impl MangaDex {
 				{status_ids}",
 		);
 
-		let (entries, has_next_page) = Request::get(manga_url)?
+		let (entries, has_next_page) = Self::get(manga_url)?
 			.authed_send()?
 			.get_json::<DexResponse<Vec<DexManga>>>()
 			.map(|response| {
@@ -543,7 +551,7 @@ impl AlternateCoverProvider for MangaDex {
 				""
 			}
 		);
-		let (mut items, total) = Request::get(&url)?
+		let (mut items, total) = Self::get(&url)?
 			.send()?
 			.get_json::<DexResponse<Vec<DexCoverArt>>>()
 			.map(|response| (response.data, response.total))?;
@@ -552,7 +560,7 @@ impl AlternateCoverProvider for MangaDex {
 			let mut offset = 100;
 			while offset < total {
 				let url = format!("{url}&offset={offset}");
-				if let Ok(response) = Request::get(url)?
+				if let Ok(response) = Self::get(url)?
 					.send()?
 					.get_json::<DexResponse<Vec<DexCoverArt>>>()
 				{
@@ -621,7 +629,7 @@ impl DeepLinkHandler for MangaDex {
 			let chapter_key = &key[..end];
 
 			let url = format!("{API_URL}/chapter/{chapter_key}");
-			let mut res = Request::get(&url)?.send()?;
+			let mut res = Self::get(&url)?.send()?;
 
 			let manga_key = res
 				.get_json::<DexResponse<DexChapter>>()?
@@ -645,7 +653,7 @@ impl ImageRequestProvider for MangaDex {
 		url: String,
 		_context: Option<aidoku::PageContext>,
 	) -> Result<Request> {
-		Ok(Request::get(url)?
+		Ok(Self::get(url)?
 			.header("User-Agent", "Aidoku")
 			.header("Referer", REFERER))
 	}
