@@ -2,11 +2,12 @@
 	"info": {
 		"id": "vi.nettruyen",
 		"name": "NetTruyen",
-		"version": 18,
-		"url": "https://nettruyenviet3.com",
+		"version": 19,
+		"url": "https://nettruyenviet10.com",
 		"contentRating": 1,
 		"languages": [
 			"vi"
-		]
+		],
+		"minAppVersion": "0.7.1"
 	}
 }
