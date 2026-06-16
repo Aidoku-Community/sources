@@ -2,11 +2,12 @@
 	"info": {
 		"id": "vi.zettruyen",
 		"name": "ZetTruyen",
-		"version": 5,
-		"url": "https://www.zettruyen.africa",
+		"version": 6,
+		"url": "https://www.zettruyen.one",
 		"contentRating": 1,
 		"languages": [
 			"vi"
-		]
+		],
+		"minAppVersion": "0.7.1"
 	}
 }
