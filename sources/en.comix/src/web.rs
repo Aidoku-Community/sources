@@ -3,10 +3,15 @@ use crate::BASE_URL;
 use aidoku::{
 	Result,
 	alloc::string::String,
+	alloc::vec::Vec,
+	helpers::uri::QueryParameters,
+	imports::net::Response,
 	imports::{js::WebView, net::Request},
 	prelude::*,
 };
 use regex::Regex;
+use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 const GET_VMOBJ_JS: &str = "\
 const vmKey = Object.keys(window).find(key => key.startsWith('vm'));\
@@ -15,28 +20,39 @@ if (!vmObj || typeof vmObj !== 'object' || vmObj === window) {\
 	return '';\
 }";
 
-const INSTALLER_FN_TOKEN: &str = "__AIDOKU_INSTALLER_FN_TOKEN__";
+const CANVAS_TO_DATA_URL_TOKEN: &str = "__AIDOKU_CANVAS_TO_DATA_URL_TOKEN__";
+
 const INSTALLER_REQUEST_TOKEN: &str = "__AIDOKU_INSTALLER_REQUEST_TOKEN__";
 const INSTALLER_RESPONSE_TOKEN: &str = "__AIDOKU_INSTALLER_RESPONSE_TOKEN__";
+
+const DESCRAMBLER_BLOB_TOKEN: &str = "__AIDOKU_DESCRAMBLER_BLOB_TOKEN__";
+const DESCRAMBLER_CANVAS_TOKEN: &str = "__AIDOKU_DESCRAMBLER_CANVAS_TOKEN__";
 const DESCRAMBLER_FN_TOKEN: &str = "__AIDOKU_DESCRAMBLER_FN_TOKEN__";
 
-const JS_PATCHER: &str = "<head><script>window['originalGetImageData'] = HTMLCanvasElement.prototype.toDataURL;</script>";
+const JS_PATCHER: &str = "<head>\
+<script>window['__AIDOKU_CANVAS_TO_DATA_URL_TOKEN__'] = HTMLCanvasElement.prototype.toDataURL;</script>";
+
+#[derive(Deserialize)]
+struct AxiosRequest {
+	params: Option<AxiosRequestParams>,
+}
+
+#[derive(Deserialize)]
+struct AxiosRequestParams {
+	#[serde(rename = "_")]
+	token: Option<String>,
+}
 
 pub struct ComixWebView {
 	web_view: WebView,
 	is_initialized: bool,
-	installer_fn: Option<String>,
-	descrambler_fn: Option<String>,
 }
 
 impl ComixWebView {
 	pub fn new() -> Self {
-		let web_view = WebView::new();
 		Self {
-			web_view,
+			web_view: WebView::new(),
 			is_initialized: false,
-			installer_fn: None,
-			descrambler_fn: None,
 		}
 	}
 
@@ -98,11 +114,17 @@ impl ComixWebView {
 		let result = self.web_view.eval(&format!(
 			"(() => {{
 			try {{
-				{GET_VMOBJ_JS}
+				const vmKey = Object.keys(window).find(key => key.startsWith('vm'));
+				const vmObj = window[vmKey];
+				if (!vmObj || typeof vmObj !== 'object' || vmObj === window) {{
+					return '';
+				}}
 				let fnames = Object.keys(vmObj);
-				let inst = '', desc = '';
+				let inst = '', descBlob = '', descCanvas = '';
 				const isPromise = (v) => v && (typeof v === 'object' || typeof v === 'function') && typeof v.then === 'function';
-				const testCanvas = document.createElement('canvas');
+				const canvas = document.createElement('canvas');
+				const controller = new AbortController();
+                const signal = controller.signal;
 				for (let j = 0; j < fnames.length; j++) {{
 					let fn = vmObj[fnames[j]];
 					if (typeof fn !== 'function') continue;
@@ -112,19 +134,13 @@ impl ComixWebView {
 							let got = false;
 							fn({{
 								interceptors: {{
-									request: {{ use: function() {{}} }},
+									request: {{ use: function() {{ got = true; }} }},
 									response: {{ use: function() {{ got = true; }} }}
-								}},
-								defaults: {{
-									headers: {{ common: {{}} }},
-									transformRequest: [],
-									transformResponse: []
 								}}
 							}});
 							if (got) {{
 								inst = ref;
-								window['{INSTALLER_FN_TOKEN}'] = fn;
-								window['{INSTALLER_FN_TOKEN}']({{
+								fn({{
 									interceptors: {{
 										request: {{
 											use: function (fn) {{ window['{INSTALLER_REQUEST_TOKEN}'] = fn; }},
@@ -132,58 +148,178 @@ impl ComixWebView {
 										response: {{
 											use: function (fn) {{ window['{INSTALLER_RESPONSE_TOKEN}'] = fn; }},
 										}},
-									}},
-									defaults: {{
-										headers: {{ common: {{}} }},
-										transformRequest: [],
-										transformResponse: []
 									}}
 								}});
 							}}
 						}} catch (e) {{}}
 					}}
-					if (!desc) {{
+					if (!descCanvas) {{
 						try {{
-							if (fn.constructor && fn.constructor.name === 'AsyncFunction') {{
-								desc = ref;
-								window['{DESCRAMBLER_FN_TOKEN}'] = fn;
-							}} else if (fn.length >= 2) {{
-								let res = fn('about:blank', testCanvas);
+							if (fn.length == 3) {{
+								let res = fn('about:blank', canvas, signal);
 								if (isPromise(res)) {{
-									desc = ref;
-									window['{DESCRAMBLER_FN_TOKEN}'] = res;
+									descCanvas = ref;
+									window['{DESCRAMBLER_CANVAS_TOKEN}'] = fn;
+								}}
+							}}
+						}} catch (e) {{}}
+					}}
+					if (!descBlob) {{
+						try {{
+							if (fn.length == 2) {{
+								let res = fn('about:blank', signal);
+								if (isPromise(res)) {{
+									descBlob = ref;
+									window['{DESCRAMBLER_BLOB_TOKEN}'] = fn;
 								}}
 							}}
 						}} catch (e) {{}}
 					}}
 				}}
-				return inst + '||' + desc;
-			}} catch(e) {{}}
+				return inst + '||' + descCanvas + '||' + descBlob;
+			}} catch (e) {{}}
 			return '';
 		}})()",
 		))?;
-		let Some((installer_expr, descrambler_expr)) = result.split_once("||") else {
+		let expr: Vec<&str> = result.split("||").collect();
+		if expr.is_empty() {
 			bail!("Failed to find installer and descrambler functions")
-		};
-		if installer_expr.is_empty() {
+		}
+		if expr[0].is_empty() {
 			bail!("Failed to find installer function");
-		};
-		if descrambler_expr.is_empty() {
-			bail!("Failed to find descrambler function");
-		};
-		self.installer_fn = Some(installer_expr.into());
-		self.descrambler_fn = Some(descrambler_expr.into());
+		}
+		if expr.len() < 2 || expr[1].is_empty() {
+			bail!("Failed to find descrambler canvas function");
+		}
+		if expr.len() < 3 || expr[2].is_empty() {
+			bail!("Failed to find descrambler blob function");
+		}
 		Ok(())
+	}
+
+	pub fn create_request(&mut self, url: &str) -> Result<Request> {
+		if !self.is_initialized {
+			self.load_webview()?
+		}
+
+		let result = self.web_view.eval(&format!(
+			"(() => {{
+			const url = new URL('{url}');
+			const result = {{}};
+
+			for (const [key, rawValue] of url.searchParams) {{
+				const value = /^\\d+$/.test(rawValue)
+					? Number(rawValue)
+					: rawValue;
+
+				const parts = key.replace(/\\]/g, '').split('[');
+
+				let current = result;
+
+				for (let i = 0; i < parts.length; i++) {{
+					const part = parts[i];
+					const last = i === parts.length - 1;
+
+					if (last) {{
+						if (part === '') {{
+							current.push(value);
+						}} else if (current[part] === undefined) {{
+							current[part] = value;
+						}} else if (Array.isArray(current[part])) {{
+							current[part].push(value);
+						}} else {{
+							current[part] = [current[part], value];
+						}}
+					}} else {{
+						const nextPart = parts[i + 1];
+
+						current[part] ??= nextPart === '' ? [] : {{}};
+						current = current[part];
+					}}
+				}}
+			}}
+
+			const request = window['{INSTALLER_REQUEST_TOKEN}']({{
+				url: `${{url.origin}}${{url.pathname}}`,
+				method: 'GET',
+				params: result,
+			}});
+
+			return JSON.stringify(request);
+		}})()"
+		))?;
+
+		let axios_request: AxiosRequest = serde_json::from_str(result.as_str())?;
+
+		if let Some(axios_token) = axios_request.params.and_then(|p| p.token) {
+			let mut params = QueryParameters::new();
+			params.push("_", Some(axios_token.as_str()));
+
+			if url.contains("?") {
+				println!("{}&{}", &url, &params);
+				Request::get(format!("{url}&{params}")).map_err(Into::into)
+			} else {
+				println!("{}?{}", &url, &params);
+				Request::get(format!("{url}?{params}")).map_err(Into::into)
+			}
+		} else {
+			println!("{}", &url);
+			Request::get(url).map_err(Into::into)
+		}
+	}
+
+	pub fn decode_json_owned<T>(&mut self, response: &Response) -> Result<T>
+	where
+		T: DeserializeOwned,
+	{
+		if !self.is_initialized {
+			self.load_webview()?;
+		}
+
+		let encoded_response = response.get_string()?;
+		let json = serde_json::from_str::<serde_json::Value>(&encoded_response)
+			.map_err(|_| error!("Invalid api response"))?;
+		let is_encoded = match json {
+			serde_json::Value::Object(ref map) => map.contains_key("e"),
+			_ => false,
+		};
+		if !is_encoded {
+			return serde_json::from_str(&encoded_response)
+				.map_err(|e| error!("Invalid json: {}", e));
+		}
+
+		let encoded_res_escaped = encoded_response.replace("'", "\\'");
+		let result = self.web_view.eval(&format!(
+			"(() => {{
+			try {{
+				let raw = JSON.parse('{encoded_res_escaped}');
+				let fakeResp = {{
+					data: raw,
+					status: 200,
+					statusText: '',
+					headers: {{
+						'x-enc': '1',
+					}},
+				}};
+				let decoded = window['{INSTALLER_RESPONSE_TOKEN}'](fakeResp);
+				return JSON.stringify({{ result: decoded && decoded.data }});
+			}} catch(e) {{
+				return 'error: ' + e;
+			}}
+		}})()",
+		))?;
+		if result.starts_with("error:") {
+			bail!("{result}");
+		} else if result.is_empty() {
+			bail!("Failed to fetch token")
+		}
+		serde_json::from_str(&result).map_err(|e| error!("Invalid json: {}", e))
 	}
 
 	/// * `path`: API path, e.g. "/manga/some-hash/chapters"
 	pub fn get_token(&mut self, path: &str) -> Result<String> {
 		if !self.is_initialized {
 			self.load_webview()?
-		}
-
-		if self.installer_fn.is_none() {
-			bail!("Missing installer function")
 		}
 
 		let token = self.web_view.eval(&format!(
@@ -204,10 +340,6 @@ impl ComixWebView {
 	pub fn decode_response(&mut self, url: &str, encoded_res: &str) -> Result<String> {
 		if !self.is_initialized {
 			self.load_webview()?
-		}
-
-		if self.installer_fn.is_none() {
-			bail!("Missing installer function")
 		}
 
 		let json = serde_json::from_str::<serde_json::Value>(encoded_res)
@@ -255,10 +387,6 @@ impl ComixWebView {
 			self.load_webview()?
 		}
 
-		if self.descrambler_fn.is_none() {
-			bail!("Missing descramble function")
-		}
-
 		self.web_view.eval(&format!(
 			"(() => {{
 				const canvas = document.createElement('canvas');
@@ -271,8 +399,7 @@ impl ComixWebView {
                 const controller = new AbortController();
                 const signal = controller.signal;
 
-                {GET_VMOBJ_JS}
-                {descrambler_fn}('{url}', signal)
+                window['{DESCRAMBLER_FN_TOKEN}']('{url}', signal)
                     .then((data) => {{
                         const url = URL.createObjectURL(data);
                         const image = new Image();

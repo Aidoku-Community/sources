@@ -174,8 +174,10 @@ impl Source for Comix {
 		}
 
 		let url = format!("{API_URL}/manga?{qs}");
-		Request::get(url)?
-			.json_owned::<SearchResponse>()
+		let response = self.web_view.borrow_mut().create_request(&url)?.send()?;
+		self.web_view
+			.borrow_mut()
+			.decode_json_owned::<SearchResponse>(&response)
 			.map(Into::into)
 	}
 
@@ -350,21 +352,23 @@ impl Home for Comix {
 		let hidden_types = settings::hidden_types();
 		let hidden_terms = settings::hidden_terms();
 
+		let mut web_view = self.web_view.borrow_mut();
+
 		let responses: [core::result::Result<Response, RequestError>; 4] = Request::send_all([
 			// most recent popular
-			Request::get(format!(
+			web_view.create_request(&format!(
 				"{API_URL}/manga/top?type=trending&days=1&limit=20{extra_qs}"
 			))?,
 			// most follows new comics
-			Request::get(format!(
+			web_view.create_request(&format!(
 				"{API_URL}/manga/top?type=follows&days=1&limit=20{extra_qs}"
 			))?,
 			// latest updates (hot)
-			Request::get(format!(
+			web_view.create_request(&format!(
 				"{API_URL}/manga?scope=hot&limit=30&order[chapter_updated_at]=desc&page=1{extra_qs}"
 			))?,
 			// recently added
-			Request::get(format!(
+			web_view.create_request(&format!(
 				"{API_URL}/manga?order[created_at]=desc&limit=10&page=1{extra_qs}"
 			))?,
 		])
@@ -378,8 +382,8 @@ impl Home for Comix {
 			(follows_res, "Most Follows New Comics"),
 			(latest_res, "Latest Updates (Hot)"),
 		] {
-			let entries = response?
-				.get_json::<SearchResponse>()?
+			let entries = web_view
+				.decode_json_owned::<SearchResponse>(&response?)?
 				.result
 				.items
 				.into_iter()
@@ -468,7 +472,7 @@ impl ListingProvider for Comix {
 			)
 		};
 
-		fn get_listing_page(url: &str) -> Result<MangaPageResult> {
+		fn get_listing_page(comix: &Comix, url: &str) -> Result<MangaPageResult> {
 			let extra_qs = if settings::hide_nsfw() {
 				NSFW_GENRE_IDS
 					.iter()
@@ -480,8 +484,12 @@ impl ListingProvider for Comix {
 			let hidden_types = settings::hidden_types();
 			let hidden_terms = settings::hidden_terms();
 			let url = format!("{url}{extra_qs}");
-			Request::get(url)?
-				.json_owned::<SearchResponse>()
+
+			let response = comix.web_view.borrow_mut().create_request(&url)?.send()?;
+			comix
+				.web_view
+				.borrow_mut()
+				.decode_json_owned::<SearchResponse>(&response)
 				.map(|r| r.result.into_filtered(&hidden_types, &hidden_terms))
 		}
 
@@ -489,19 +497,25 @@ impl ListingProvider for Comix {
 			"Trending Webtoon" => trending(vec!["manhua".into(), "manhwa".into()]),
 			"Trending Manga" => trending(vec!["manga".into()]),
 
-			"Most Recent Popular" => get_listing_page(&format!(
-				"{API_URL}/manga/top?type=trending&days=1&limit=50"
-			)),
-			"Most Follows New Comics" => {
-				get_listing_page(&format!("{API_URL}/manga/top?type=follows&days=1&limit=50"))
-			}
+			"Most Recent Popular" => get_listing_page(
+				self,
+				&format!("{API_URL}/manga/top?type=trending&days=1&limit=50"),
+			),
+			"Most Follows New Comics" => get_listing_page(
+				self,
+				&format!("{API_URL}/manga/top?type=follows&days=1&limit=50"),
+			),
 
-			"Latest Updates (Hot)" => get_listing_page(&format!(
-				"{API_URL}/manga?scope=hot&limit=30&order[chapter_updated_at]=desc&page={page}"
-			)),
-			"Recently Added" => get_listing_page(&format!(
-				"{API_URL}/manga?order[created_at]=desc&limit=30&page={page}"
-			)),
+			"Latest Updates (Hot)" => get_listing_page(
+				self,
+				&format!(
+					"{API_URL}/manga?scope=hot&limit=30&order[chapter_updated_at]=desc&page={page}"
+				),
+			),
+			"Recently Added" => get_listing_page(
+				self,
+				&format!("{API_URL}/manga?order[created_at]=desc&limit=30&page={page}"),
+			),
 
 			_ => bail!("Unknown listing"),
 		}
