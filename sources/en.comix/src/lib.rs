@@ -48,6 +48,8 @@ impl Source for Comix {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
+		let mut web_view = self.web_view.borrow_mut();
+
 		let mut qs = QueryParameters::new();
 		qs.push("page", Some(&page.to_string()));
 		if query.is_some() {
@@ -69,8 +71,9 @@ impl Source for Comix {
 						"{API_URL}/terms?type={id}&keyword={}&limit=1",
 						encode_uri_component(value)
 					);
-					let id = Request::get(url)?
-						.json_owned::<TermResponse>()?
+					let response = web_view.build_request(&url)?.send()?;
+					web_view
+						.decode_json_owned::<TermResponse>(&response)?
 						.result
 						.items
 						.first()
@@ -174,9 +177,8 @@ impl Source for Comix {
 		}
 
 		let url = format!("{API_URL}/manga?{qs}");
-		let response = self.web_view.borrow_mut().create_request(&url)?.send()?;
-		self.web_view
-			.borrow_mut()
+		let response = web_view.build_request(&url)?.send()?;
+		web_view
 			.decode_json_owned::<SearchResponse>(&response)
 			.map(Into::into)
 	}
@@ -187,9 +189,11 @@ impl Source for Comix {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
+		let mut web_view = self.web_view.borrow_mut();
+
 		if needs_details {
 			let url = format!(
-				"{API_URL}/manga/{}/?includes[]=demographic\
+				"{API_URL}/manga/{}?includes[]=demographic\
 									&includes[]=genre\
 									&includes[]=theme\
 									&includes[]=author\
@@ -197,7 +201,8 @@ impl Source for Comix {
 									&includes[]=publisher",
 				manga.key
 			);
-			let json: SingleMangaResponse = Request::get(&url)?.json_owned()?;
+			let response = web_view.build_request(&url)?.send()?;
+			let json: SingleMangaResponse = web_view.decode_json_owned(&response)?;
 
 			manga.copy_from(json.result.into());
 
@@ -213,24 +218,15 @@ impl Source for Comix {
 			let mut chapter_map: HashMap<String, ComixChapter> = HashMap::new();
 			let mut chapter_list: Vec<ComixChapter> = Vec::new();
 
-			let path = format!("/manga/{}/chapters", manga.key);
-			let token = self.web_view.borrow_mut().get_token(&path)?;
-
 			loop {
-				let url = format!(
-					"{API_URL}{path}\
-						?limit={limit}\
-						&page={page}\
-						&order[number]=desc\
-						&_={token}"
-				);
+				let mut params = QueryParameters::new();
+				params.push("limit", Some(limit.to_string().as_str()));
+				params.push("page", Some(page.to_string().as_str()));
+				params.push("order[number]", Some("desc"));
 
-				let encoded_res = Request::get(&url)?.string()?;
-				let result = self
-					.web_view
-					.borrow_mut()
-					.decode_response(&url, &encoded_res)?;
-				let res = serde_json::from_str::<ChapterDetailsResponse>(&result)?;
+				let url = format!("{API_URL}/manga/{}/chapters?{params}", manga.key);
+				let response = web_view.build_request(&url)?.send()?;
+				let res = web_view.decode_json_owned::<ChapterDetailsResponse>(&response)?;
 
 				let items = res.result.items;
 
@@ -270,15 +266,10 @@ impl Source for Comix {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let path = format!("/chapters/{}", chapter.key);
-		let token = self.web_view.borrow_mut().get_token(&path)?;
-		let url = format!("{API_URL}{path}?_={token}");
-		let encoded_res = Request::get(&url)?.string()?;
-		let result = self
-			.web_view
-			.borrow_mut()
-			.decode_response(&url, &encoded_res)?;
-		let json: ChapterResponse = serde_json::from_str(&result)?;
+		let mut web_view = self.web_view.borrow_mut();
+		let url = format!("{API_URL}/chapters/{}", chapter.key);
+		let response = web_view.build_request(&url)?.send()?;
+		let json: ChapterResponse = web_view.decode_json_owned(&response)?;
 
 		let Some(result) = json.result else {
 			bail!("Missing chapter")
@@ -356,19 +347,19 @@ impl Home for Comix {
 
 		let responses: [core::result::Result<Response, RequestError>; 4] = Request::send_all([
 			// most recent popular
-			web_view.create_request(&format!(
+			web_view.build_request(&format!(
 				"{API_URL}/manga/top?type=trending&days=1&limit=20{extra_qs}"
 			))?,
 			// most follows new comics
-			web_view.create_request(&format!(
+			web_view.build_request(&format!(
 				"{API_URL}/manga/top?type=follows&days=1&limit=20{extra_qs}"
 			))?,
 			// latest updates (hot)
-			web_view.create_request(&format!(
+			web_view.build_request(&format!(
 				"{API_URL}/manga?scope=hot&limit=30&order[chapter_updated_at]=desc&page=1{extra_qs}"
 			))?,
 			// recently added
-			web_view.create_request(&format!(
+			web_view.build_request(&format!(
 				"{API_URL}/manga?order[created_at]=desc&limit=10&page=1{extra_qs}"
 			))?,
 		])
@@ -413,8 +404,8 @@ impl Home for Comix {
 		}
 
 		{
-			let entries = recent_res?
-				.get_json::<SearchResponse>()?
+			let entries = web_view
+				.decode_json_owned::<SearchResponse>(&recent_res?)?
 				.result
 				.items
 				.into_iter()
@@ -484,11 +475,10 @@ impl ListingProvider for Comix {
 			let hidden_types = settings::hidden_types();
 			let hidden_terms = settings::hidden_terms();
 			let url = format!("{url}{extra_qs}");
+			let mut web_view = comix.web_view.borrow_mut();
 
-			let response = comix.web_view.borrow_mut().create_request(&url)?.send()?;
-			comix
-				.web_view
-				.borrow_mut()
+			let response = web_view.build_request(&url)?.send()?;
+			web_view
 				.decode_json_owned::<SearchResponse>(&response)
 				.map(|r| r.result.into_filtered(&hidden_types, &hidden_terms))
 		}
@@ -548,10 +538,9 @@ impl PageImageProcessor for Comix {
 					bail!("Unable to get the image height")
 				};
 
-				let data_url =
-					self.web_view
-						.borrow_mut()
-						.descramble_image(width, height, url.as_ref())?;
+				let mut web_view = self.web_view.borrow_mut();
+
+				let data_url = web_view.descramble_image(width, height, url.as_ref())?;
 				let Some((_, base64_data)) = data_url.split_once(',') else {
 					bail!("Unable to get the raw image data")
 				};

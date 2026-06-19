@@ -1,8 +1,9 @@
 // reference: https://github.com/nobottomline/extensions-source/blob/c8fe930f315f3baee23587559edfceab5e969202/src/en/comix/src/eu/kanade/tachiyomi/extension/en/comix/Signer.kt
 use crate::BASE_URL;
 use aidoku::{
-	Result,
+	HashMap, Result,
 	alloc::string::String,
+	alloc::string::ToString,
 	alloc::vec::Vec,
 	helpers::uri::QueryParameters,
 	imports::net::Response,
@@ -12,6 +13,7 @@ use aidoku::{
 use regex::Regex;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
+use serde_json::Value;
 
 const GET_VMOBJ_JS: &str = "\
 const vmKey = Object.keys(window).find(key => key.startsWith('vm'));\
@@ -27,20 +29,28 @@ const INSTALLER_RESPONSE_TOKEN: &str = "__AIDOKU_INSTALLER_RESPONSE_TOKEN__";
 
 const DESCRAMBLER_BLOB_TOKEN: &str = "__AIDOKU_DESCRAMBLER_BLOB_TOKEN__";
 const DESCRAMBLER_CANVAS_TOKEN: &str = "__AIDOKU_DESCRAMBLER_CANVAS_TOKEN__";
-const DESCRAMBLER_FN_TOKEN: &str = "__AIDOKU_DESCRAMBLER_FN_TOKEN__";
+
+const DESCRAMBLER_RESPONSE_TOKEN: &str = "__AIDOKU_DESCRAMBLER_RESPONSE_TOKEN__";
+const EMPTY_DESCRAMBLER_RESPONSE_OBJECT: &str =
+	"{ data: null, error: null, isDone: false, isAbort: false }";
+const FETCH_TIMEOUT_RESPONSE: &str =
+	"Fetch timeout after 30s. If problem persist, please restart the application.";
 
 const JS_PATCHER: &str = "<head>\
 <script>window['__AIDOKU_CANVAS_TO_DATA_URL_TOKEN__'] = HTMLCanvasElement.prototype.toDataURL;</script>";
 
+const CF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned CF challenge page instead of JSON data. If problem persist, please clear the source cache and restart the application to resolve this issue.";
+
 #[derive(Deserialize)]
 struct AxiosRequest {
-	params: Option<AxiosRequestParams>,
+	url: String,
+	params: Option<HashMap<String, Value>>,
 }
 
 #[derive(Deserialize)]
-struct AxiosRequestParams {
-	#[serde(rename = "_")]
-	token: Option<String>,
+struct DescrambleResponseObject {
+	data: Option<String>,
+	error: Option<String>,
 }
 
 pub struct ComixWebView {
@@ -114,11 +124,7 @@ impl ComixWebView {
 		let result = self.web_view.eval(&format!(
 			"(() => {{
 			try {{
-				const vmKey = Object.keys(window).find(key => key.startsWith('vm'));
-				const vmObj = window[vmKey];
-				if (!vmObj || typeof vmObj !== 'object' || vmObj === window) {{
-					return '';
-				}}
+				{GET_VMOBJ_JS}
 				let fnames = Object.keys(vmObj);
 				let inst = '', descBlob = '', descCanvas = '';
 				const isPromise = (v) => v && (typeof v === 'object' || typeof v === 'function') && typeof v.then === 'function';
@@ -197,7 +203,7 @@ impl ComixWebView {
 		Ok(())
 	}
 
-	pub fn create_request(&mut self, url: &str) -> Result<Request> {
+	pub fn build_request(&mut self, url: &str) -> Result<Request> {
 		if !self.is_initialized {
 			self.load_webview()?
 		}
@@ -251,20 +257,64 @@ impl ComixWebView {
 
 		let axios_request: AxiosRequest = serde_json::from_str(result.as_str())?;
 
-		if let Some(axios_token) = axios_request.params.and_then(|p| p.token) {
+		fn build_query(params_map: &HashMap<String, Value>) -> QueryParameters {
 			let mut params = QueryParameters::new();
-			params.push("_", Some(axios_token.as_str()));
 
-			if url.contains("?") {
-				println!("{}&{}", &url, &params);
-				Request::get(format!("{url}&{params}")).map_err(Into::into)
-			} else {
-				println!("{}?{}", &url, &params);
-				Request::get(format!("{url}?{params}")).map_err(Into::into)
+			for (key, value) in params_map {
+				push_value(&mut params, key, value);
 			}
+
+			params
+		}
+
+		fn push_value(params: &mut QueryParameters, key: &str, value: &Value) {
+			match value {
+				Value::Null => {
+					params.push_key(key);
+				}
+
+				Value::Bool(_) | Value::Number(_) | Value::String(_) => {
+					let value_str = value.to_string();
+
+					// Remove JSON string quotes
+					let value_str = match value {
+						Value::String(s) => s.as_str(),
+						_ => value_str.as_str(),
+					};
+
+					params.push(key, Some(value_str));
+				}
+
+				Value::Array(arr) => {
+					let array_key = format!("{key}[]");
+
+					for item in arr {
+						match item {
+							Value::String(s) => {
+								params.push(&array_key, Some(s));
+							}
+							_ => {
+								let value_str = item.to_string();
+								params.push(&array_key, Some(&value_str));
+							}
+						}
+					}
+				}
+
+				Value::Object(obj) => {
+					for (child_key, child_value) in obj {
+						let nested_key = format!("{key}[{child_key}]");
+						push_value(params, &nested_key, child_value);
+					}
+				}
+			}
+		}
+
+		if let Some(params) = axios_request.params {
+			let query = build_query(&params);
+			Request::get(format!("{}?{query}", axios_request.url)).map_err(Into::into)
 		} else {
-			println!("{}", &url);
-			Request::get(url).map_err(Into::into)
+			Request::get(axios_request.url).map_err(Into::into)
 		}
 	}
 
@@ -276,110 +326,51 @@ impl ComixWebView {
 			self.load_webview()?;
 		}
 
-		let encoded_response = response.get_string()?;
-		let json = serde_json::from_str::<serde_json::Value>(&encoded_response)
-			.map_err(|_| error!("Invalid api response"))?;
-		let is_encoded = match json {
-			serde_json::Value::Object(ref map) => map.contains_key("e"),
-			_ => false,
-		};
-		if !is_encoded {
-			return serde_json::from_str(&encoded_response)
-				.map_err(|e| error!("Invalid json: {}", e));
-		}
+		if response.status_code() == 403
+			&& response
+				.get_header("cf-mitigated")
+				.is_some_and(|value| value == "challenge")
+		{
+			bail!("{CF_CHALLENGE_ERROR_MESSAGE}")
+		} else if response.status_code() >= 400 {
+			bail!("Response Error: {}", response.status_code())
+		} else if response
+			.get_header("x-enc")
+			.is_some_and(|value| value == "1")
+		{
+			let encoded_response = response
+				.get_string()?
+				.replace("\\", "\\\\")
+				.replace("'", "\\'");
 
-		let encoded_res_escaped = encoded_response.replace("'", "\\'");
-		let result = self.web_view.eval(&format!(
-			"(() => {{
-			try {{
-				let raw = JSON.parse('{encoded_res_escaped}');
-				let fakeResp = {{
-					data: raw,
-					status: 200,
-					statusText: '',
-					headers: {{
-						'x-enc': '1',
-					}},
-				}};
-				let decoded = window['{INSTALLER_RESPONSE_TOKEN}'](fakeResp);
-				return JSON.stringify({{ result: decoded && decoded.data }});
-			}} catch(e) {{
-				return 'error: ' + e;
-			}}
-		}})()",
-		))?;
-		if result.starts_with("error:") {
-			bail!("{result}");
-		} else if result.is_empty() {
-			bail!("Failed to fetch token")
-		}
-		serde_json::from_str(&result).map_err(|e| error!("Invalid json: {}", e))
-	}
+			let result = self.web_view.eval(&format!(
+				"(() => {{
+					try {{
+						let decoded = window['{INSTALLER_RESPONSE_TOKEN}']({{
+							data: JSON.parse('{encoded_response}'),
+							status: 200,
+							headers: {{
+								'x-enc': '1',
+							}},
+						}});
+						return JSON.stringify({{ result: decoded && decoded.data }});
+					}} catch(e) {{
+						return 'error: ' + e;
+					}}
+				}})()",
+			))?;
 
-	/// * `path`: API path, e.g. "/manga/some-hash/chapters"
-	pub fn get_token(&mut self, path: &str) -> Result<String> {
-		if !self.is_initialized {
-			self.load_webview()?
-		}
+			if result.starts_with("error:") {
+				bail!("{result}");
+			} else if result.is_empty() {
+				bail!("Failed to fetch result")
+			}
 
-		let token = self.web_view.eval(&format!(
-			"(() => {{
-				try {{
-					return window['{INSTALLER_REQUEST_TOKEN}']({{ url: '{path}', method: 'GET' }}).params['_'];
-				}} catch(e) {{
-					return '';
-				}}
-			}})()"
-		))?;
-		if token.is_empty() {
-			bail!("Failed to fetch token")
+			serde_json::from_str(&result).map_err(|e| error!("Invalid json: {}", e))
+		} else {
+			let json_str = response.get_string()?;
+			serde_json::from_str(&json_str).map_err(|e| error!("Invalid json: {}", e))
 		}
-		Ok(token)
-	}
-
-	pub fn decode_response(&mut self, url: &str, encoded_res: &str) -> Result<String> {
-		if !self.is_initialized {
-			self.load_webview()?
-		}
-
-		let json = serde_json::from_str::<serde_json::Value>(encoded_res)
-			.map_err(|_| error!("Invalid api response"))?;
-		let is_encoded = match json {
-			serde_json::Value::Object(ref map) => map.contains_key("e"),
-			_ => false,
-		};
-		if !is_encoded {
-			return Ok(encoded_res.into());
-		};
-
-		let encoded_res_escaped = encoded_res.replace("'", "\\'");
-		let result = self.web_view.eval(&format!(
-			"(() => {{
-			try {{
-				let raw = JSON.parse('{encoded_res_escaped}');
-				let fakeResp = {{
-					data: raw,
-					status: 200,
-					statusText: '',
-					headers: {{
-						'x-enc': '1',
-					}},
-					config: {{ url: '{url}', method: 'get', baseURL: '/api/v1' }},
-					request: {{}},
-				}};
-				let decoded = window['{INSTALLER_RESPONSE_TOKEN}'](fakeResp);
-				return JSON.stringify({{ result: decoded && decoded.data }});
-			}} catch(e) {{
-				return 'error: ' + e;
-			}}
-		}})()",
-		))?;
-		if result.starts_with("error:") {
-			bail!("{result}");
-		} else if result.is_empty() {
-			bail!("Failed to fetch token")
-		}
-		Ok(result)
 	}
 
 	pub fn descramble_image(&mut self, width: f32, height: f32, url: &str) -> Result<String> {
@@ -389,52 +380,80 @@ impl ComixWebView {
 
 		self.web_view.eval(&format!(
 			"(() => {{
+				window['{DESCRAMBLER_RESPONSE_TOKEN}'] = {EMPTY_DESCRAMBLER_RESPONSE_OBJECT};
+
+				const controller = new AbortController();
+                const signal = controller.signal;
+
 				const canvas = document.createElement('canvas');
 				canvas.width = {width};
 				canvas.height = {height};
 
-				window['TEMP_CANVAS'] = canvas;
-				window['TEMP_STATE'] = {{ isDone: false, error: null }}
+				const timeout = setTimeout(() => {{
+					controller.abort();
+					window['{DESCRAMBLER_RESPONSE_TOKEN}'].isAbort = true;
+				}}, 30000);
 
-                const controller = new AbortController();
-                const signal = controller.signal;
-
-                window['{DESCRAMBLER_FN_TOKEN}']('{url}', signal)
-                    .then((data) => {{
-                        const url = URL.createObjectURL(data);
-                        const image = new Image();
-                        image.src = url;
-                        image.onload = () => {{
-                            URL.revokeObjectURL(url);
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(image, 0, 0);
-                            window['TEMP_STATE'].isDone = true;
-                        }}
-                    }})
-                    .catch((e) => {{ window['TEMP_STATE'].isDone = true; window['TEMP_STATE'].error = e }});
+				window['{DESCRAMBLER_BLOB_TOKEN}']('{url}', signal)
+					.then((data) => {{
+						return new Promise((resolve, reject) => {{
+							const url = URL.createObjectURL(data);
+							image.src = url;
+							image.onload = () => resolve({{ url, image }});
+							image.onerror = reject;
+						}})
+					}})
+					.then(({{ url, image }}) => {{
+						URL.revokeObjectURL(url);
+						const ctx = canvas.getContext('2d');
+						ctx.drawImage(image, 0, 0);
+						const data = window['{CANVAS_TO_DATA_URL_TOKEN}'].call(canvas);
+						window['{DESCRAMBLER_RESPONSE_TOKEN}'].data = data;
+						window['{DESCRAMBLER_RESPONSE_TOKEN}'].isDone = true;
+						clearTimeout(timeout);
+					}})
+					.catch((error) => {{
+						window['{DESCRAMBLER_CANVAS_TOKEN}']('{url}', canvas, signal)
+							.then(() => {{
+								const data = window['{CANVAS_TO_DATA_URL_TOKEN}'].call(canvas);
+								window['{DESCRAMBLER_RESPONSE_TOKEN}'].data = data;
+							}})
+							.catch((error) => {{
+								window['{DESCRAMBLER_RESPONSE_TOKEN}'].error = error.message;
+							}})
+							.finally(() => {{
+								window['{DESCRAMBLER_RESPONSE_TOKEN}'].isDone = true;
+								clearTimeout(timeout);
+							}});
+					}});
 
 				return '';
 			}})()"
 		))?;
 
-		while self
-			.web_view
-			.eval("(() => { return window['TEMP_STATE'].isDone ? 'true' : 'false'; })()")?
-			== "false"
-		{}
-
-		let result = self.web_view.eval(
-			"(() => {{
-				if (window['TEMP_STATE'].error) return '';
-				const data = window['originalGetImageData'].call(window['TEMP_CANVAS']);
-				return data;
-			}})()",
-		)?;
-
-		if result.is_empty() {
-			bail!("Failed to descramble image")
-		} else {
-			Ok(result)
+		while self.web_view.eval(&format!(
+			"(() => {{ return window['{DESCRAMBLER_RESPONSE_TOKEN}'].isDone ? 'true' : 'false'; }})()"
+		))? == "false"
+		{
+			if self.web_view.eval(&format!(
+				"(() => {{ return window['{DESCRAMBLER_RESPONSE_TOKEN}'].isAbort ? 'true' : 'false'; }})()"
+			))? == "true"
+			{
+				self.load_webview()?;
+				bail!("{FETCH_TIMEOUT_RESPONSE}");
+			}
 		}
+
+		let result = self.web_view.eval(&format!(
+			"(() => {{ return JSON.stringify(window['{DESCRAMBLER_RESPONSE_TOKEN}']); }})()"
+		))?;
+
+		let json = serde_json::from_str::<DescrambleResponseObject>(&result)?;
+
+		if let Some(error) = json.error {
+			bail!("{error}");
+		}
+
+		json.data.ok_or(error!("Fetch data is null"))
 	}
 }
