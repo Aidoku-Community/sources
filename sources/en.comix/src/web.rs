@@ -194,7 +194,7 @@ impl ComixWebView {
 		if expr[0].is_empty() {
 			bail!("Failed to find installer function");
 		}
-		if expr[1].is_empty() && expr[2].is_empty() {
+		if expr.len() < 3 || expr[1].is_empty() && expr[2].is_empty() {
 			bail!("Failed to find descrambler canvas/blob function");
 		}
 		Ok(())
