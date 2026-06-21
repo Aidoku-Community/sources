@@ -1,0 +1,12 @@
+{
+	"info": {
+		"id": "en.ezmanga",
+		"name": "EzManga",
+		"version": 1,
+		"url": "https://ezmanga.org",
+		"contentRating": 1,
+		"languages": [
+			"en"
+		]
+	}
+}
