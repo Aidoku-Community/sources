@@ -26,8 +26,6 @@ pub struct ApiSeriesDetail {
     pub cover: String,
     pub status: Option<String>,
     pub genres: Option<Vec<ApiGenre>>,
-    #[serde(rename = "type")]
-    pub series_type: Option<String>,
 }
 
 #[derive(Deserialize)]
