@@ -12,7 +12,7 @@ use madara::{
 	helpers::{self, ElementImageAttr},
 };
 
-const BASE_URL: &str = "https://aquareader.net";
+const BASE_URL: &str = "https://aquareader.org";
 
 const BROWSE_GENRES: &[(&str, &str)] = &[
 	("Action", "action"),
@@ -170,7 +170,7 @@ impl Impl for AquaManga {
 		);
 
 		let mut popular_entries: Vec<Manga> = Vec::new();
-		for (manga, detail_resp) in top_popular.into_iter().zip(detail_responses.into_iter()) {
+		for (manga, detail_resp) in top_popular.into_iter().zip(detail_responses) {
 			if let Some(detail_html) = detail_resp.ok().and_then(|r| r.get_html().ok()) {
 				let description = detail_html
 					.select_first(&params.details_description_selector)
