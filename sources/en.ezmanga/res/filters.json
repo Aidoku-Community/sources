@@ -1,0 +1,23 @@
+[
+	{
+		"type": "select",
+		"id": "sort",
+		"title": "Sort By",
+		"options": ["Default", "Popular", "Latest"],
+		"ids": ["", "popular", "latest"]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": ["Any", "Ongoing", "Completed", "Dropped", "Hiatus"],
+		"ids": ["", "ONGOING", "COMPLETED", "DROPPED", "HIATUS"]
+	},
+	{
+		"type": "select",
+		"id": "type",
+		"title": "Type",
+		"options": ["Any", "Manhwa", "Manga", "Manhua", "Novel"],
+		"ids": ["", "MANHWA", "MANGA", "MANHUA", "NOVEL"]
+	}
+]
