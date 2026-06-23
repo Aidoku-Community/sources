@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "aidoku"
 version = "0.3.0"
-source = "git+https://github.com/Aidoku/aidoku-rs#a0624d4b899fbec54a6ad99400a18ec9202ea9d3"
+source = "git+https://github.com/Aidoku/aidoku-rs.git#a0624d4b899fbec54a6ad99400a18ec9202ea9d3"
 dependencies = [
  "euclid",
  "hashbrown",
@@ -22,7 +22,7 @@ dependencies = [
 [[package]]
 name = "aidoku-test"
 version = "1.0.0"
-source = "git+https://github.com/Aidoku/aidoku-rs#a0624d4b899fbec54a6ad99400a18ec9202ea9d3"
+source = "git+https://github.com/Aidoku/aidoku-rs.git#a0624d4b899fbec54a6ad99400a18ec9202ea9d3"
 dependencies = [
  "quote",
  "syn",
@@ -215,9 +215,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.45"
+version = "1.0.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
+checksum = "dfbc457d0c7a0759a614551b11a6409e5951f6c7537be1f1b7682b9ae9230368"
 dependencies = [
  "proc-macro2",
 ]
