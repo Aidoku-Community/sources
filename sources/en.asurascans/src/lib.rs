@@ -97,7 +97,7 @@ impl Source for AsuraScans {
 			.unwrap_or_default();
 
 		let has_next_page = html
-			.select_first("a:contains(Next page), div.flex > a.flex.bg-themecolor:contains(Next)")
+			.select_first("button[aria-label=\"Next page\"].cursor-pointer")
 			.is_some();
 
 		Ok(MangaPageResult {
