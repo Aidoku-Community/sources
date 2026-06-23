@@ -1,19 +1,18 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters,
-    DynamicListings, Filter, FilterValue, Home, HomeComponent, HomeComponentValue, HomeLayout,
+    Chapter, ContentRating, DeepLinkHandler, DeepLinkResult,
+    FilterValue, Home, HomeComponent, HomeComponentValue, HomeLayout,
     Listing, ListingKind, ListingProvider, Link, Manga, MangaPageResult,
-    Page, PageContent, Result, SelectFilter, Source, Viewer,
+    Page, PageContent, Result, Source, Viewer,
     alloc::{
-        borrow::Cow,
         format,
         string::{String, ToString},
         vec,
         vec::Vec,
     },
     helpers::uri::{QueryParameters, encode_uri_component},
-    imports::net::Request,
+    imports::{net::Request, std::parse_date},
     prelude::*,
 };
 
@@ -56,10 +55,10 @@ impl Source for EzManga {
                 let mut qs = QueryParameters::new();
                 qs.push("page", Some(&page.to_string()));
                 for filter in &filters {
-                    if let FilterValue::Select { id, value } = filter {
-                        if !value.is_empty() {
-                            qs.push(id, Some(value));
-                        }
+                    if let FilterValue::Select { id, value } = filter
+                        && !value.is_empty()
+                    {
+                        qs.push(id, Some(value));
                     }
                 }
                 format!("{}/series?{}", API_BASE, qs)
@@ -72,7 +71,7 @@ impl Source for EzManga {
             .data
             .into_iter()
             .filter(|s| s.series_type.as_deref() != Some("NOVEL"))
-            .map(item_to_manga)
+            .map(Manga::from)
             .collect();
 
         Ok(MangaPageResult { entries, has_next_page: has_next })
@@ -106,10 +105,10 @@ impl Source for EzManga {
             if let Some(a) = det.author.filter(|s| !s.is_empty()) {
                 authors.push(a);
             }
-            if let Some(a) = det.artist.filter(|s| !s.is_empty()) {
-                if !authors.contains(&a) {
-                    authors.push(a);
-                }
+            if let Some(a) = det.artist.filter(|s| !s.is_empty())
+                && !authors.contains(&a)
+            {
+                authors.push(a);
             }
             if !authors.is_empty() {
                 manga.authors = Some(authors);
@@ -144,7 +143,7 @@ impl Source for EzManga {
                         key: ch.slug,
                         chapter_number: Some(ch.number as f32),
                         title: ch.title.filter(|t| !t.is_empty()),
-                        date_uploaded: ch.created_at.as_deref().and_then(parse_date),
+                        date_uploaded: ch.created_at.as_deref().and_then(|s| parse_date(s, "yyyy-MM-dd")),
                         ..Default::default()
                     });
                 }
@@ -183,7 +182,7 @@ impl Source for EzManga {
 
 impl ListingProvider for EzManga {
     fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-        let sort = if listing.id == "latest" { "latest" } else { "popular" };
+        let sort = if listing.id == "Latest" { "latest" } else { "popular" };
         let resp: ApiList<ApiSeriesItem> = api_get(&format!(
             "{}/series?page={}&sort={}",
             API_BASE, page, sort
@@ -195,140 +194,71 @@ impl ListingProvider for EzManga {
             .data
             .into_iter()
             .filter(|s| s.series_type.as_deref() != Some("NOVEL"))
-            .map(item_to_manga)
+            .map(Manga::from)
             .collect();
 
         Ok(MangaPageResult { entries, has_next_page: has_next })
     }
 }
 
-impl DynamicListings for EzManga {
-    fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
-        Ok(vec![
-            Listing {
-                id: String::from("popular"),
-                name: String::from("Popular"),
-                kind: ListingKind::Default,
-            },
-            Listing {
-                id: String::from("latest"),
-                name: String::from("Latest"),
-                kind: ListingKind::Default,
-            },
-        ])
-    }
-}
-
-impl DynamicFilters for EzManga {
-    fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
-        Ok(vec![
-            SelectFilter {
-                id: Cow::Borrowed("sort"),
-                title: Some(Cow::Borrowed("Sort By")),
-                options: vec![
-                    Cow::Borrowed("Default"),
-                    Cow::Borrowed("Popular"),
-                    Cow::Borrowed("Latest"),
-                ],
-                ids: Some(vec![
-                    Cow::Borrowed(""),
-                    Cow::Borrowed("popular"),
-                    Cow::Borrowed("latest"),
-                ]),
-                ..Default::default()
-            }
-            .into(),
-            SelectFilter {
-                id: Cow::Borrowed("status"),
-                title: Some(Cow::Borrowed("Status")),
-                options: vec![
-                    Cow::Borrowed("Any"),
-                    Cow::Borrowed("Ongoing"),
-                    Cow::Borrowed("Completed"),
-                    Cow::Borrowed("Dropped"),
-                    Cow::Borrowed("Hiatus"),
-                ],
-                ids: Some(vec![
-                    Cow::Borrowed(""),
-                    Cow::Borrowed("ONGOING"),
-                    Cow::Borrowed("COMPLETED"),
-                    Cow::Borrowed("DROPPED"),
-                    Cow::Borrowed("HIATUS"),
-                ]),
-                ..Default::default()
-            }
-            .into(),
-            SelectFilter {
-                id: Cow::Borrowed("type"),
-                title: Some(Cow::Borrowed("Type")),
-                options: vec![
-                    Cow::Borrowed("Any"),
-                    Cow::Borrowed("Manhwa"),
-                    Cow::Borrowed("Manga"),
-                    Cow::Borrowed("Manhua"),
-                    Cow::Borrowed("Novel"),
-                ],
-                ids: Some(vec![
-                    Cow::Borrowed(""),
-                    Cow::Borrowed("MANHWA"),
-                    Cow::Borrowed("MANGA"),
-                    Cow::Borrowed("MANHUA"),
-                    Cow::Borrowed("NOVEL"),
-                ]),
-                ..Default::default()
-            }
-            .into(),
-        ])
-    }
-}
-
 impl Home for EzManga {
     fn get_home(&self) -> Result<HomeLayout> {
-        let popular_listing = Listing {
-            id: String::from("popular"),
-            name: String::from("Popular"),
-            kind: ListingKind::Default,
-        };
-        let latest_listing = Listing {
-            id: String::from("latest"),
-            name: String::from("Latest"),
-            kind: ListingKind::Default,
-        };
+        let resp: ApiHomeResponse =
+            api_get(&format!("{}/home", API_BASE))?.json_owned()?;
 
-        let popular_resp: ApiList<ApiSeriesItem> =
-            api_get(&format!("{}/series?page=1&sort=popular", API_BASE))?.json_owned()?;
-        let popular_links: Vec<Link> = popular_resp
-            .data
+        let filter_novels =
+            |s: &ApiSeriesItem| s.series_type.as_deref() != Some("NOVEL");
+
+        let popular_links: Vec<Link> = resp.popular
             .into_iter()
-            .filter(|s| s.series_type.as_deref() != Some("NOVEL"))
-            .map(item_to_link)
+            .filter(filter_novels)
+            .map(|s| Link::from(Manga::from(s)))
             .collect();
 
-        let latest_resp: ApiList<ApiSeriesItem> =
-            api_get(&format!("{}/series?page=1&sort=latest", API_BASE))?.json_owned()?;
-        let latest_links: Vec<Link> = latest_resp
-            .data
+        let pinned_links: Vec<Link> = resp.pinned
             .into_iter()
-            .filter(|s| s.series_type.as_deref() != Some("NOVEL"))
-            .map(item_to_link)
+            .filter(filter_novels)
+            .map(|s| Link::from(Manga::from(s)))
+            .collect();
+
+        let latest_links: Vec<Link> = resp.new_series
+            .into_iter()
+            .filter(filter_novels)
+            .map(|s| Link::from(Manga::from(s)))
             .collect();
 
         Ok(HomeLayout {
             components: vec![
                 HomeComponent {
-                    title: Some(String::from("Popular")),
+                    title: Some(String::from("Popular Today")),
                     subtitle: None,
                     value: HomeComponentValue::Scroller {
                         entries: popular_links,
-                        listing: Some(popular_listing),
+                        listing: Some(Listing {
+                            id: String::from("Popular"),
+                            name: String::from("Popular"),
+                            kind: ListingKind::Default,
+                        }),
                     },
                 },
                 HomeComponent {
-                    title: Some(String::from("Latest")),
+                    title: Some(String::from("Pinned Series")),
+                    subtitle: None,
+                    value: HomeComponentValue::Scroller {
+                        entries: pinned_links,
+                        listing: None,
+                    },
+                },
+                HomeComponent {
+                    title: Some(String::from("Latest Updates")),
                     subtitle: None,
                     value: HomeComponentValue::Scroller {
                         entries: latest_links,
-                        listing: Some(latest_listing),
+                        listing: Some(Listing {
+                            id: String::from("Latest"),
+                            name: String::from("Latest"),
+                            kind: ListingKind::Default,
+                        }),
                     },
                 },
             ],
@@ -351,4 +281,4 @@ impl DeepLinkHandler for EzManga {
     }
 }
 
-register_source!(EzManga, ListingProvider, DynamicListings, DynamicFilters, Home, DeepLinkHandler);
+register_source!(EzManga, ListingProvider, Home, DeepLinkHandler);
