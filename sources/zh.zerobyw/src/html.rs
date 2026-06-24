@@ -176,13 +176,9 @@ impl ChapterListPage for Document {
                 key: zjid,
                 title,
                 url,
-                // locked: true,
+                locked: true,
                 ..Default::default()
             });
-        }
-
-        if chapters.is_empty() {
-            return Err(error!("No chapters found"));
         }
 
         for (i, ch) in chapters.iter_mut().enumerate() {
@@ -218,10 +214,6 @@ impl ChapterPage for Document {
                 content: PageContent::Url(url, None),
                 ..Default::default()
             })
-        }
-
-        if pages.is_empty() {
-            return Err(error!("No chapters found"));
         }
 
         Ok(pages)

@@ -25,6 +25,10 @@ pub enum Url<'a> {
     Chapter { key: &'a str },
     #[strum(to_string = "/member.php?mod=logging&action=login")]
     Login,
+    #[strum(to_string = "/pc/pc/")]
+    Home,
+    #[strum(to_string = "/{key}")]
+    Logout { key: &'a str },
 }
 
 impl Url<'_> {
@@ -48,11 +52,6 @@ impl Url<'_> {
         page: i32,
         filters: &[FilterValue],
     ) -> Result<Self> {
-        if let Some(keyword) = query {
-            let url = Self::Search(SearchQuery::new(keyword, page));
-            return Ok(url);
-        }
-
         let mut category_id = String::new();
         let mut jindu = String::new();
         let mut shuxing = String::new();
@@ -91,6 +90,18 @@ impl Url<'_> {
                 _ => bail!("Invalid filter:`{filter:?}`"),
             }
         }
+        if let Some(keyword) = query {
+            let url = Self::Search(SearchQuery::new(
+                keyword,
+                page,
+                &category_id,
+                &jindu,
+                &shuxing,
+                &dir,
+                &order,
+            ));
+            return Ok(url);
+        }
 
         let filters_query = FiltersQuery::new(&category_id, &jindu, &shuxing, &dir, &order, page);
         Ok(Filters(filters_query))
@@ -106,6 +117,12 @@ impl<'a> Url<'a> {
     }
     pub const fn login() -> Self {
         Self::Login
+    }
+    pub const fn home() -> Self {
+        Self::Home
+    }
+    pub const fn logout(key: &'a str) -> Self {
+        Self::Logout { key }
     }
 }
 
@@ -153,11 +170,36 @@ impl Display for FiltersQuery {
 pub struct SearchQuery(QueryParameters);
 
 impl SearchQuery {
-    fn new(keyword: &str, page: i32) -> Self {
+    fn new(
+        keyword: &str,
+        page: i32,
+        category_id: &str,
+        jindu: &str,
+        shuxing: &str,
+        dir: &str,
+        order: &str,
+    ) -> Self {
         let mut query = QueryParameters::new();
 
         query.push_encoded("keyword", Some(keyword));
         query.push_encoded("page", Some(&*page.to_string()));
+
+        if !category_id.is_empty() {
+            query.push_encoded("category_id", Some(category_id));
+        }
+
+        if !jindu.is_empty() {
+            query.push_encoded("jindu", Some(jindu));
+        }
+
+        if !shuxing.is_empty() {
+            query.push_encoded("shuxing", Some(shuxing));
+        }
+
+        if !order.is_empty() {
+            query.push_encoded("order", Some(order));
+        }
+        query.push_encoded("dir", Some(dir));
 
         Self(query)
     }
@@ -169,8 +211,14 @@ impl Display for SearchQuery {
 }
 
 pub fn login(username: &str, password: &str) -> Result<bool> {
-    let login_url = Url::login();
-    let login_doc = login_url.request(HttpMethod::Get)?.html()?;
+    let home_doc = Url::home().request(HttpMethod::Get)?.html()?;
+    if let Some(logout_elem) = home_doc.select_first("a.user-logout-btn")
+        && let Some(logout_href) = logout_elem.attr("href")
+    {
+        Url::logout(&logout_href).request(HttpMethod::Get)?.send()?;
+    }
+
+    let login_doc = Url::login().request(HttpMethod::Get)?.html()?;
 
     let formhash = login_doc
         .select_first("input[name='formhash']")
@@ -189,21 +237,7 @@ pub fn login(username: &str, password: &str) -> Result<bool> {
         .ok_or_else(|| error!("Action not found"))?
         .to_string();
 
-    let loginhash = action
-        .split("loginhash=")
-        .nth(1)
-        .and_then(|s| s.split('&').next())
-        .ok_or_else(|| error!("loginhash not found"))?
-        .to_string();
-    if loginhash.is_empty() {
-        return Err(error!("loginhash is empty"));
-    }
-
-    let post_url = if action.starts_with("http") {
-        action
-    } else {
-        format!("{}/{}", API_URL, action)
-    };
+    let post_url = format!("{}/{}", API_URL, action);
 
     let params = [
         ("formhash", formhash),
@@ -225,17 +259,16 @@ pub fn login(username: &str, password: &str) -> Result<bool> {
 
     let mut request = Request::new(post_url, HttpMethod::Post)?;
     request.set_header("Content-Type", "application/x-www-form-urlencoded");
-    request.set_body(body.as_bytes()); // 假设 body 接受 &[u8]
+    request.set_body(body.as_bytes());
 
     let response = request.send()?;
 
     let text = response.get_string()?;
-    if text.contains("登录失败")
-        || text.contains("密码错误")
-        || text.contains("用户名不存在")
-        || text.contains("error")
-    {
+    if text.contains("欢迎您回来") {
+        return Ok(true);
+    }
+    if text.contains("登录失败") {
         return Ok(false);
     }
-    Ok(true)
+    Ok(false)
 }

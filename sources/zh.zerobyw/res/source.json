@@ -6,9 +6,5 @@
 		"url": "https://www.zerobyw33.com",
 		"contentRating": 1,
 		"languages": ["zh"]
-	},
-	"config": {
-		"allowsBaseUrlSelect": true,
-		"hidesFiltersWhileSearching": true
 	}
 }

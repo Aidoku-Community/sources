@@ -76,7 +76,7 @@ impl DeepLinkHandler for Zerobyw {
                 }));
             }
         } else if path.contains("/view/") {
-            // 章节链接缺少 manga_key
+            // Chapter link miss manga_key
             return Ok(None);
         }
         Ok(None)
