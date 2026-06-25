@@ -7,6 +7,7 @@
 		"contentRating": 1,
 		"languages": [
 			"en"
-		]
+		],
+    "minApiVersion": "0.7.1"
 	}
 }
