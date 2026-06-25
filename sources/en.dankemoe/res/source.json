@@ -1,0 +1,15 @@
+{
+    "info": {
+        "id": "en.dankemoe",
+        "name": "Danke fürs Lesen",
+        "version": 1,
+        "url": "https://danke.moe",
+        "minAppVersion": "0.7.1",
+        "contentRating": 1,
+        "languages": ["en"]
+    },
+    "listings": [
+        { "id": "Latest" },
+        { "id": "All" }
+    ]
+}
