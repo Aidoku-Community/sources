@@ -39,7 +39,8 @@ impl FiltersPage for Document {
             // title
             let title = card
                 .select_first("h3.manga-card-title")
-                .map(|title| title.text().unwrap().trim().to_string())
+                .and_then(|title| title.text())
+                .map(|text| text.trim().to_string())
                 .unwrap_or_default();
 
             mangas.push(Manga {

@@ -7,7 +7,7 @@ use aidoku::{
 };
 use alloc::vec::Vec;
 
-use crate::net::Url::Filters;
+use crate::net::Url::SearchOrFilter;
 use core::fmt::{Display, Formatter, Result as FmtResult};
 use strum::{Display, EnumIs};
 
@@ -16,9 +16,7 @@ const API_URL: &str = "https://www.zerobyw33.com";
 #[derive(Display, EnumIs)]
 pub enum Url<'a> {
     #[strum(to_string = "/pc/pc/?{0}")]
-    Filters(FiltersQuery),
-    #[strum(to_string = "/pc/pc/?{0}")]
-    Search(SearchQuery),
+    SearchOrFilter(SearchOrFilterQuery),
     #[strum(to_string = "/pc/details/?kuid={key}")]
     Manga { key: &'a str },
     #[strum(to_string = "/pc/view/index.php?zjid={key}")]
@@ -27,7 +25,7 @@ pub enum Url<'a> {
     Login,
     #[strum(to_string = "/pc/pc/")]
     Home,
-    #[strum(to_string = "/{key}")]
+    #[strum(to_string = "{key}")]
     Logout { key: &'a str },
 }
 
@@ -52,18 +50,18 @@ impl Url<'_> {
         page: i32,
         filters: &[FilterValue],
     ) -> Result<Self> {
-        let mut category_id = String::new();
-        let mut jindu = String::new();
-        let mut shuxing = String::new();
-        let mut order = String::from("addtime");
-        let mut dir = String::from("desc");
+        let mut category_id = "";
+        let mut jindu = "";
+        let mut shuxing = "";
+        let mut order = "addtime";
+        let mut dir = "desc";
 
         for filter in filters {
             match filter {
                 FilterValue::Select { id, value } => match id.as_str() {
-                    "分类" => category_id = value.clone(),
-                    "进度" => jindu = value.clone(),
-                    "语言" => shuxing = value.clone(),
+                    "分类" => category_id = value,
+                    "进度" => jindu = value,
+                    "语言" => shuxing = value,
                     _ => (),
                 },
                 FilterValue::Sort {
@@ -72,15 +70,11 @@ impl Url<'_> {
                     ascending,
                 } => match id.as_str() {
                     "排序" => {
-                        dir = if *ascending {
-                            "asc".to_string()
-                        } else {
-                            "desc".to_string()
-                        };
+                        dir = if *ascending { "asc" } else { "desc" };
                         match index {
-                            0 => order = "addtime".to_string(),
-                            1 => order = "views".to_string(),
-                            2 => order = "favores".to_string(),
+                            0 => order = "addtime",
+                            1 => order = "views",
+                            2 => order = "favores",
                             _ => bail!("Invalid index"),
                         }
                     }
@@ -90,21 +84,9 @@ impl Url<'_> {
                 _ => bail!("Invalid filter:`{filter:?}`"),
             }
         }
-        if let Some(keyword) = query {
-            let url = Self::Search(SearchQuery::new(
-                keyword,
-                page,
-                &category_id,
-                &jindu,
-                &shuxing,
-                &dir,
-                &order,
-            ));
-            return Ok(url);
-        }
 
-        let filters_query = FiltersQuery::new(&category_id, &jindu, &shuxing, &dir, &order, page);
-        Ok(Filters(filters_query))
+        let query = SearchOrFilterQuery::new(query, category_id, jindu, shuxing, order, dir, page);
+        Ok(SearchOrFilter(query))
     }
 }
 
@@ -126,85 +108,39 @@ impl<'a> Url<'a> {
     }
 }
 
-pub struct FiltersQuery(QueryParameters);
+pub struct SearchOrFilterQuery(QueryParameters);
 
-impl FiltersQuery {
+impl SearchOrFilterQuery {
     fn new(
+        keyword: Option<&str>,
         category_id: &str,
         jindu: &str,
         shuxing: &str,
-        dir: &str,
         order: &str,
+        dir: &str,
         page: i32,
     ) -> Self {
-        let mut query = QueryParameters::new();
-
+        let mut q = QueryParameters::new();
+        if let Some(keyword) = keyword {
+            q.push_encoded("keyword", Some(keyword));
+        }
         if !category_id.is_empty() {
-            query.push_encoded("category_id", Some(category_id));
+            q.push_encoded("category_id", Some(category_id));
         }
-
         if !jindu.is_empty() {
-            query.push_encoded("jindu", Some(jindu));
+            q.push_encoded("jindu", Some(jindu));
         }
-
         if !shuxing.is_empty() {
-            query.push_encoded("shuxing", Some(shuxing));
+            q.push_encoded("shuxing", Some(shuxing));
         }
-
-        if !order.is_empty() {
-            query.push_encoded("order", Some(order));
-        }
-        query.push_encoded("dir", Some(dir));
-        query.push_encoded("page", Some(&*page.to_string()));
-
-        Self(query)
+        q.push_encoded("order", Some(order));
+        q.push_encoded("dir", Some(dir));
+        q.push_encoded("page", Some(&page.to_string()));
+        Self(q)
     }
 }
 
-impl Display for FiltersQuery {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "{}", self.0)
-    }
-}
-
-pub struct SearchQuery(QueryParameters);
-
-impl SearchQuery {
-    fn new(
-        keyword: &str,
-        page: i32,
-        category_id: &str,
-        jindu: &str,
-        shuxing: &str,
-        dir: &str,
-        order: &str,
-    ) -> Self {
-        let mut query = QueryParameters::new();
-
-        query.push_encoded("keyword", Some(keyword));
-        query.push_encoded("page", Some(&*page.to_string()));
-
-        if !category_id.is_empty() {
-            query.push_encoded("category_id", Some(category_id));
-        }
-
-        if !jindu.is_empty() {
-            query.push_encoded("jindu", Some(jindu));
-        }
-
-        if !shuxing.is_empty() {
-            query.push_encoded("shuxing", Some(shuxing));
-        }
-
-        if !order.is_empty() {
-            query.push_encoded("order", Some(order));
-        }
-        query.push_encoded("dir", Some(dir));
-
-        Self(query)
-    }
-}
-impl Display for SearchQuery {
+impl Display for SearchOrFilterQuery {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "{}", self.0)
     }
