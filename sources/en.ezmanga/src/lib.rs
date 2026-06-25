@@ -3,7 +3,7 @@
 use aidoku::{
     Chapter, ContentRating, DeepLinkHandler, DeepLinkResult,
     FilterValue, Home, HomeComponent, HomeComponentValue, HomeLayout,
-    Listing, ListingKind, ListingProvider, Manga, MangaPageResult, MangaWithChapter,
+    Link, Listing, ListingKind, ListingProvider, Manga, MangaPageResult, MangaWithChapter,
     Page, PageContent, Result, Source, Viewer,
     alloc::{
         format,
@@ -66,7 +66,7 @@ impl Source for EzManga {
         };
 
         let resp: ApiList<ApiSeriesItem> = api_get(&url)?.json_owned()?;
-        let has_next = resp.next.is_some();
+        let has_next_page = resp.next.is_some();
         let entries = resp
             .data
             .into_iter()
@@ -74,7 +74,7 @@ impl Source for EzManga {
             .map(Manga::from)
             .collect();
 
-        Ok(MangaPageResult { entries, has_next_page: has_next })
+        Ok(MangaPageResult { entries, has_next_page })
     }
 
     fn get_manga_update(
@@ -130,14 +130,17 @@ impl Source for EzManga {
                 let has_next = resp.next.is_some();
 
                 for ch in resp.data {
-                    if ch.locked {
+                    if !ch.is_free {
                         continue;
                     }
                     chapters.push(Chapter {
                         key: ch.slug,
                         chapter_number: Some(ch.number as f32),
                         title: ch.title.filter(|t| !t.is_empty()),
-                        date_uploaded: ch.created_at.as_deref().and_then(|s| parse_date(s, "yyyy-MM-dd")),
+                        date_uploaded: ch.created_at.as_deref().and_then(|s| {
+                            let s = s.split_once('.').map_or(s, |(before, _)| before);
+                            parse_date(format!("{s}Z"), "yyyy-MM-dd'T'HH:mm:ss'Z'")
+                        }),
                         ..Default::default()
                     });
                 }
@@ -183,7 +186,7 @@ impl ListingProvider for EzManga {
         ))?
         .json_owned()?;
 
-        let has_next = resp.next.is_some();
+        let has_next_page = resp.next.is_some();
         let entries = resp
             .data
             .into_iter()
@@ -191,7 +194,7 @@ impl ListingProvider for EzManga {
             .map(Manga::from)
             .collect();
 
-        Ok(MangaPageResult { entries, has_next_page: has_next })
+        Ok(MangaPageResult { entries, has_next_page })
     }
 }
 
@@ -213,11 +216,11 @@ impl Home for EzManga {
             Some(MangaWithChapter { manga: Manga::from(s), chapter })
         };
 
-        let popular = resp.popular
+        let popular: Vec<Link> = resp.popular
             .into_iter()
             .filter(filter_novels)
-            .filter_map(to_entry)
-            .collect::<Vec<_>>();
+            .map(|s| Manga::from(s).into())
+            .collect();
 
         let pinned = resp.pinned
             .into_iter()
@@ -236,9 +239,8 @@ impl Home for EzManga {
                 HomeComponent {
                     title: Some(String::from("Popular Today")),
                     subtitle: None,
-                    value: HomeComponentValue::MangaChapterList {
+                    value: HomeComponentValue::Scroller {
                         entries: popular,
-                        page_size: None,
                         listing: Some(Listing {
                             id: String::from("Popular"),
                             name: String::from("Popular"),
@@ -278,6 +280,8 @@ impl DeepLinkHandler for EzManga {
         let prefix = format!("{}/series/", BASE_URL);
         if let Some(rest) = url.strip_prefix(&prefix) {
             let slug = rest.split('/').next().unwrap_or(rest);
+            let slug = slug.split('?').next().unwrap_or(slug);
+            let slug = slug.split('#').next().unwrap_or(slug);
             if !slug.is_empty() {
                 return Ok(Some(DeepLinkResult::Manga {
                     key: String::from(slug),

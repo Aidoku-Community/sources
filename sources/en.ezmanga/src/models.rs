@@ -56,6 +56,10 @@ pub struct ApiGenre {
     pub name: String,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Deserialize)]
 pub struct ApiChapter {
     pub slug: String,
@@ -63,8 +67,8 @@ pub struct ApiChapter {
     pub title: Option<String>,
     #[serde(rename = "createdAt")]
     pub created_at: Option<String>,
-    #[serde(default)]
-    pub locked: bool,
+    #[serde(rename = "isFree", default = "default_true")]
+    pub is_free: bool,
 }
 
 #[derive(Deserialize)]
