@@ -242,10 +242,38 @@ impl Source for Mangadotnet {
 				chapter_list.into_iter().map(Into::into).collect()
 			};
 
+			if show_standalone_volume() {
+				let volumes_json: Vec<MangaVolume> =
+					self.get_json_data(&format!("{BASE_URL}/api/manga/{}/volumes", manga.key))?;
+
+				let mut volumes: Vec<Chapter> = volumes_json.into_iter().map(Into::into).collect();
+				chapters.append(&mut volumes);
+			}
+
 			chapters.sort_by(|a, b| {
-				b.chapter_number
-					.partial_cmp(&a.chapter_number)
+				// 1) volume descending (None goes last)
+				match b
+					.volume_number
+					.partial_cmp(&a.volume_number)
 					.unwrap_or(Ordering::Equal)
+				{
+					Ordering::Equal => {
+						match (&a.chapter_number, &b.chapter_number) {
+							// 2) both have chapter numbers -> chapter descending
+							(Some(a_ch), Some(b_ch)) => {
+								b_ch.partial_cmp(a_ch).unwrap_or(Ordering::Equal)
+							}
+
+							// 3) chapter entries come before volume-only entries
+							(Some(_), None) => Ordering::Less,
+							(None, Some(_)) => Ordering::Greater,
+
+							// 4) both volume-only
+							(None, None) => Ordering::Equal,
+						}
+					}
+					ord => ord,
+				}
 			});
 
 			manga.chapters = Some(chapters);

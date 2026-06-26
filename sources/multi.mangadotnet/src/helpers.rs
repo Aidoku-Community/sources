@@ -72,17 +72,27 @@ fn is_official_like(chapter: &MangaChapter) -> bool {
 		10110, // LINE Webtoon
 		16168, // Tapas
 		3521,  // Comikey
+		18180, // One Peace Books
+		3891,  // J-Novel Club
+		18036, // Manga UP!
+		18234, // Square Enix Manga
+		18052, // Seven Seas Entertainment
 	];
 
 	// There are probably others but tbh, they have not standardized this properly so this is
 	// only a small chunk that I know of. Wait for the site to mature better before optimizing
 	// this function. (And this only works for maybe 1% of the manga available)
-	let official_scanlator_names = ["Official", "Official?", "MangaPlus", "Comikey"];
+	let official_scanlator_names = ["Official", "Official?", "MangaPlus", "Comikey", "K-Manga"];
 
 	let group_id = chapter
 		.group_id
 		.as_ref()
 		.is_some_and(|id| official_group_ids.contains(id));
+
+	let group_ids = chapter
+		.groups
+		.as_ref()
+		.is_some_and(|groups| groups.iter().any(|g| official_group_ids.contains(&g.id)));
 
 	let scanlator_name = chapter.scanlator_name.as_ref().is_some_and(|name| {
 		official_scanlator_names
@@ -90,7 +100,7 @@ fn is_official_like(chapter: &MangaChapter) -> bool {
 			.any(|s| s.to_lowercase() == name.to_lowercase())
 	});
 
-	group_id || scanlator_name
+	group_id || group_ids || scanlator_name
 }
 
 fn is_better(new: &MangaChapter, current: &MangaChapter) -> bool {
@@ -110,7 +120,10 @@ fn is_better(new: &MangaChapter, current: &MangaChapter) -> bool {
 }
 
 pub fn dedup_insert(map: &mut HashMap<String, MangaChapter>, chapter: MangaChapter) {
-	let key = chapter.chapter_number.to_string();
+	let key: String = chapter
+		.chapter_number
+		.map(|n| n.to_string())
+		.unwrap_or("0".into());
 	match map.get(&key) {
 		None => {
 			map.insert(key, chapter);

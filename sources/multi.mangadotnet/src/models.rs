@@ -196,7 +196,8 @@ impl From<MangaItem> for Link {
 pub struct MangaChapter {
 	pub id: i32,
 	#[serde(deserialize_with = "f32_from_any")]
-	pub chapter_number: f32,
+	pub chapter_number: Option<f32>,
+	#[serde(deserialize_with = "f32_from_any", default = "default_option_f32")]
 	pub volume_number: Option<f32>,
 	pub chapter_title: Option<String>,
 	pub language: Option<String>,
@@ -207,9 +208,39 @@ pub struct MangaChapter {
 	pub date_added: String,
 	pub source: Option<String>,
 	pub scanlator_name: Option<String>,
+	pub groups: Option<Vec<MangaGroup>>,
+}
+
+#[derive(Deserialize)]
+pub struct MangaGroup {
+	pub id: i32,
+	pub name: String,
+}
+
+#[derive(Deserialize)]
+pub struct MangaVolume {
+	pub id: i32,
+	pub volume_number: f32,
+	pub cover_url: Option<String>,
+	pub group_name: Option<String>,
+	pub uploader_username: Option<String>,
+	pub date_added: String,
+	pub scanlator_name: Option<String>,
+	pub groups: Vec<MangaGroup>,
 }
 
 impl MangaChapter {
+	pub fn created_at(&self) -> Option<i64> {
+		// Old upload is using old format and new uploads are using new format.
+		// This should probably handle both.
+		parse_date(&self.date_added, "yyyy-MM-dd HH:mm:ssZZZ").or(parse_date(
+			&self.date_added,
+			"yyyy-MM-dd HH:mm:ss.SSSSSSZZZ",
+		))
+	}
+}
+
+impl MangaVolume {
 	pub fn created_at(&self) -> Option<i64> {
 		// Old upload is using old format and new uploads are using new format.
 		// This should probably handle both.
@@ -228,19 +259,50 @@ impl From<MangaChapter> for Chapter {
 			title: value
 				.chapter_title
 				.filter(|title| !title.to_lowercase().starts_with("chapter")),
-			chapter_number: Some(value.chapter_number),
+			chapter_number: value.chapter_number,
 			volume_number: value.volume_number,
 			date_uploaded: date,
 			scanlators: value
-				.group_name
-				.or(value.scanlator_name)
-				.map(|name| vec![name]),
+				.groups
+				.map(|g| g.into_iter().map(|group| group.name).collect())
+				.or(value.scanlator_name.map(|name| vec![name])),
 			url: if value.source.is_some_and(|s| s == "user") || value.uploader_id.is_some() {
 				Some(format!("{BASE_URL}/chapter/{}?source=user", value.id))
 			} else {
 				Some(format!("{BASE_URL}/chapter/{}", value.id))
 			},
 			language: value.language,
+			..Default::default()
+		}
+	}
+}
+
+impl From<MangaVolume> for Chapter {
+	fn from(value: MangaVolume) -> Self {
+		let date = value.created_at();
+		Self {
+			key: value.id.to_string(),
+			title: None,
+			chapter_number: None,
+			volume_number: Some(value.volume_number),
+			date_uploaded: date,
+			scanlators: if !value.groups.is_empty() {
+				Some(value.groups.into_iter().map(|group| group.name).collect())
+			} else {
+				value.scanlator_name.map(|name| vec![name])
+			},
+			url: if value.uploader_username.is_some() {
+				Some(format!(
+					"{BASE_URL}/chapter/{}?source=user&mode=volume",
+					value.id
+				))
+			} else {
+				Some(format!("{BASE_URL}/chapter/{}?mode=volume", value.id))
+			},
+			language: Some("en".into()),
+			thumbnail: value
+				.cover_url
+				.map(|cover_url| format!("{BASE_URL}/{cover_url}")),
 			..Default::default()
 		}
 	}
@@ -306,11 +368,11 @@ fn bool_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::
 	deserializer.deserialize_any(BoolVisitor)
 }
 
-fn f32_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Error> {
+fn f32_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<f32>, D::Error> {
 	struct F32Visitor;
 
 	impl<'de> de::Visitor<'de> for F32Visitor {
-		type Value = f32;
+		type Value = Option<f32>;
 
 		fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
 			formatter.write_str("a number that can be converted to f32")
@@ -320,49 +382,56 @@ fn f32_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Er
 		where
 			E: Error,
 		{
-			Ok(v as f32)
+			Ok(Some(v as f32))
 		}
 
 		fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
 		where
 			E: Error,
 		{
-			Ok(v as f32)
+			Ok(Some(v as f32))
 		}
 
 		fn visit_u32<E>(self, v: u32) -> Result<Self::Value, E>
 		where
 			E: Error,
 		{
-			Ok(v as f32)
+			Ok(Some(v as f32))
 		}
 
 		fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
 		where
 			E: Error,
 		{
-			Ok(v as f32)
+			Ok(Some(v as f32))
 		}
 
 		fn visit_f32<E>(self, v: f32) -> Result<Self::Value, E>
 		where
 			E: Error,
 		{
-			Ok(v)
+			Ok(Some(v))
 		}
 
 		fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
 		where
 			E: Error,
 		{
-			Ok(v as f32)
+			Ok(Some(v as f32))
 		}
 
 		fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
 		where
 			E: Error,
 		{
-			v.parse::<f32>().map_err(Error::custom)
+			v.parse::<f32>().map(Some).map_err(Error::custom)
+		}
+
+		fn visit_unit<E>(self) -> Result<Self::Value, E>
+		where
+			E: Error,
+		{
+			Ok(None)
 		}
 	}
 
@@ -371,4 +440,8 @@ fn f32_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<f32, D::Er
 
 fn default_bool() -> bool {
 	false
+}
+
+fn default_option_f32() -> Option<f32> {
+	None
 }
