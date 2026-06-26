@@ -122,7 +122,7 @@ impl SearchOrFilterQuery {
     ) -> Self {
         let mut q = QueryParameters::new();
         if let Some(keyword) = keyword {
-            q.push_encoded("keyword", Some(keyword));
+            q.push("keyword", Some(keyword));
         }
         if !category_id.is_empty() {
             q.push_encoded("category_id", Some(category_id));
@@ -131,7 +131,7 @@ impl SearchOrFilterQuery {
             q.push_encoded("jindu", Some(jindu));
         }
         if !shuxing.is_empty() {
-            q.push_encoded("shuxing", Some(shuxing));
+            q.push("shuxing", Some(shuxing));
         }
         q.push_encoded("order", Some(order));
         q.push_encoded("dir", Some(dir));

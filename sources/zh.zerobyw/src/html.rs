@@ -22,12 +22,8 @@ impl FiltersPage for Document {
 
         for card in cards {
             // id
-            let href = match card.attr("href") {
-                Some(href) => href,
-                None => {
-                    error!("No manga href found");
-                    continue;
-                }
+            let Some(href) = card.attr("href") else {
+                continue;
             };
             let id = href
                 .split("kuid=")
@@ -78,42 +74,44 @@ impl MangaPage for Document {
         let mut tags = Vec::new();
         let mut status = MangaStatus::Unknown;
         for span in self.try_select("span.px-3.py-1.bg-gray-100")? {
-            if let Some(text) = span.text() {
-                let text = text.trim();
-                if text.is_empty() {
-                    continue;
-                }
+            let Some(text) = span.text() else {
+                continue;
+            };
 
-                if text.starts_with("作者:") {
-                    let raw = text.replace("作者:", "").trim().to_string();
-                    let parts: Vec<String> = raw
-                        .split('×')
-                        .flat_map(|s| s.split('x'))
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect();
-                    authors.extend(parts);
-                    continue;
-                }
-
-                match text {
-                    "连载中" => {
-                        status = MangaStatus::Ongoing;
-                        continue;
-                    }
-                    "已完结" => {
-                        status = MangaStatus::Completed;
-                        continue;
-                    }
-                    _ => {}
-                }
-
-                if text.starts_with("收藏:") || text.starts_with("人气:") {
-                    continue;
-                }
-
-                tags.push(text.to_string());
+            let text = text.trim();
+            if text.is_empty() {
+                continue;
             }
+
+            if text.starts_with("作者:") {
+                let raw = text.replace("作者:", "").trim().to_string();
+                let parts: Vec<String> = raw
+                    .split('×')
+                    .flat_map(|s| s.split('x'))
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                authors.extend(parts);
+                continue;
+            }
+
+            match text {
+                "连载中" => {
+                    status = MangaStatus::Ongoing;
+                    continue;
+                }
+                "已完结" => {
+                    status = MangaStatus::Completed;
+                    continue;
+                }
+                _ => {}
+            }
+
+            if text.starts_with("收藏:") || text.starts_with("人气:") {
+                continue;
+            }
+
+            tags.push(text.to_string());
         }
 
         if !authors.is_empty() {
@@ -166,20 +164,19 @@ impl ChapterListPage for Document {
                     locked: false,
                     ..Default::default()
                 });
-                continue;
+            } else {
+                let new_zjid = last_zjid + 1;
+                last_zjid = new_zjid;
+                let zjid = new_zjid.to_string();
+                let url = Url::chapter(&zjid).to_string().ok();
+                chapters.push(Chapter {
+                    key: zjid,
+                    title,
+                    url,
+                    locked: true,
+                    ..Default::default()
+                });
             }
-
-            let new_zjid = last_zjid + 1;
-            last_zjid = new_zjid;
-            let zjid = new_zjid.to_string();
-            let url = Url::chapter(&zjid).to_string().ok();
-            chapters.push(Chapter {
-                key: zjid,
-                title,
-                url,
-                locked: true,
-                ..Default::default()
-            });
         }
 
         for (i, ch) in chapters.iter_mut().enumerate() {
@@ -212,7 +209,7 @@ impl ChapterPage for Document {
                 src.to_string()
             };
             pages.push(Page {
-                content: PageContent::Url(url, None),
+                content: PageContent::url(url),
                 ..Default::default()
             })
         }
