@@ -8,8 +8,9 @@ use aidoku::{
 
 const HIDE_NSFW_KEY: &str = "hideNSFW";
 const DEDUPED_CHAPTER_KEY: &str = "dedupedChapter";
+const SHOW_STANALONE_VOLUME_KEY: &str = "showVolumes";
 
-const USE_VIEW_WEB_WORKAROUND_KEY: &str = "useWebViewFetch";
+const USE_WEB_VIEW_WORKAROUND_KEY: &str = "useWebViewFetch";
 
 const DEFAULT_CONTENT_TYPES_KEY: &str = "contentTypes";
 
@@ -43,8 +44,12 @@ pub fn deduped_chapter() -> bool {
 	defaults_get::<bool>(DEDUPED_CHAPTER_KEY).unwrap_or(false)
 }
 
+pub fn show_standalone_volume() -> bool {
+	defaults_get::<bool>(SHOW_STANALONE_VOLUME_KEY).unwrap_or(false)
+}
+
 pub fn use_view_web_worker() -> bool {
-	defaults_get::<bool>(USE_VIEW_WEB_WORKAROUND_KEY).unwrap_or(false)
+	defaults_get::<bool>(USE_WEB_VIEW_WORKAROUND_KEY).unwrap_or(false)
 }
 
 pub fn get_default_content_types() -> Option<String> {

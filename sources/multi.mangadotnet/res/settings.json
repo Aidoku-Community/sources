@@ -21,6 +21,15 @@
 				"refreshes": [
 					"content"
 				]
+			},
+			{
+				"type": "switch",
+				"key": "showVolumes",
+				"title": "Show Standalone Volumes",
+				"default": false,
+				"refreshes": [
+					"content"
+				]
 			}
 		],
 		"footer": "Official chapters are preferred, followed by the most recent. Warning: It can be slow on large lists."
