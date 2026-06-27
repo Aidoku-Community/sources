@@ -1,0 +1,9 @@
+[
+    {
+        "type": "select",
+        "id": "sort",
+        "title": "Sort",
+        "options": ["Alphabetical", "Latest Chapter"],
+        "ids":     ["",            "latest"]
+    }
+]
