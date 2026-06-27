@@ -12,7 +12,7 @@ use aidoku::{
 mod helpers;
 
 use helpers::{
-	build_chapter_url, build_novel_url, build_sort_url, extract_chapter_text, extract_chapters,
+	build_chapter_url, build_novel_url, build_sort_url, extract_chapter_text, fetch_all_chapters,
 	fill_manga_details, has_next_page, parse_home_section, parse_hot_entries,
 	parse_novel_and_chapter, parse_search_results, request_html,
 };
@@ -65,8 +65,7 @@ impl Source for FreeWebNovel {
 		}
 
 		if needs_chapters {
-			let chapters = extract_chapters(&html);
-			manga.chapters = Some(chapters);
+			manga.chapters = Some(fetch_all_chapters(&html, &manga.key)?);
 		}
 
 		Ok(manga)
@@ -204,10 +203,32 @@ mod tests {
 			.expect("get_manga_update failed");
 		assert!(manga.title.to_ascii_lowercase().contains("swordmaster"));
 		let chapters = manga.chapters.expect("no chapters returned");
+		// The series spans 800+ chapters across 20+ paginated requests, which
+		// trips the site's rate limit mid-fetch. Asserting a high count proves
+		// the 429 retry pulls every page rather than silently truncating.
 		assert!(
-			chapters.len() > 50,
-			"expected lots of chapters, got {}",
+			chapters.len() > 800,
+			"expected full chapter list (rate-limit retry), got {}",
 			chapters.len()
+		);
+		// Chapters should be a contiguous run with no gaps from dropped pages.
+		let mut nums: Vec<i32> = chapters
+			.iter()
+			.filter_map(|c| c.key.strip_prefix("chapter-").and_then(|n| n.parse().ok()))
+			.collect();
+		nums.sort_unstable();
+		if let (Some(&lo), Some(&hi)) = (nums.first(), nums.last()) {
+			let missing = (lo..=hi).filter(|n| !nums.contains(n)).count();
+			assert_eq!(missing, 0, "expected no gaps in chapter numbers");
+		}
+		// Newest-first ordering: first entry should be the highest chapter.
+		assert_eq!(
+			chapters.first().and_then(|c| c.chapter_number),
+			chapters
+				.iter()
+				.filter_map(|c| c.chapter_number)
+				.fold(None, |max, n| Some(max.map_or(n, |m: f32| m.max(n)))),
+			"expected newest chapter first"
 		);
 	}
 
