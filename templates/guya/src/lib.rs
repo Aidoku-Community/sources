@@ -27,13 +27,15 @@ const USER_AGENT: &str = "aidoku/1.0 CFNetwork/1490.0.4 Darwin/23.4.0";
 
 pub struct Params {
     pub base_url: &'static str,
-    pub content_rating: ContentRating,
     pub viewer: Viewer,
 }
 
 pub trait Impl {
     fn new() -> Self;
     fn params(&self) -> Params;
+    fn content_rating_for(&self, _det: &SeriesDetail) -> ContentRating {
+        ContentRating::Safe
+    }
 }
 
 pub struct Guya<T: Impl> {
@@ -200,69 +202,64 @@ impl<T: Impl> Source for Guya<T> {
         needs_details: bool,
         needs_chapters: bool,
     ) -> Result<Manga> {
-        if needs_details || needs_chapters {
-            let base = self.params.base_url;
-            let det: SeriesDetail =
-                api_get(&format!("{base}/api/series/{}/", manga.key))?.json_owned()?;
+        let base = self.params.base_url;
+        let mut det: SeriesDetail =
+            api_get(&format!("{base}/api/series/{}/", manga.key))?.json_owned()?;
 
-            if needs_details {
-                manga.title = String::from(det.title.trim());
-                manga.cover = if det.cover.is_empty() {
-                    None
-                } else {
-                    Some(format!("{base}{}", det.cover))
-                };
-                manga.url = Some(format!("{base}/read/manga/{}/", det.slug));
-                manga.content_rating = self.params.content_rating;
-                manga.viewer = self.params.viewer;
+        if needs_details {
+            manga.title = String::from(det.title.trim());
+            manga.cover = if det.cover.is_empty() {
+                None
+            } else {
+                Some(format!("{base}{}", det.cover))
+            };
+            manga.url = Some(format!("{base}/read/manga/{}/", det.slug));
+            manga.content_rating = self._inner.content_rating_for(&det);
+            manga.viewer = self.params.viewer;
 
-                let desc = strip_html(&det.description);
-                if !desc.is_empty() {
-                    manga.description = Some(desc);
-                }
-                if !det.author.is_empty() {
-                    manga.authors = Some(vec![det.author.clone()]);
-                }
-                if !det.artist.is_empty() && det.artist != det.author {
-                    manga.artists = Some(vec![det.artist.clone()]);
-                }
+            let desc = strip_html(&det.description);
+            if !desc.is_empty() {
+                manga.description = Some(desc);
             }
-
-            if needs_chapters {
-                let mut chapters: Vec<Chapter> = det
-                    .chapters
-                    .0
-                    .iter()
-                    .filter(|(_, ch)| ch.is_public)
-                    .map(|(num_str, ch)| {
-                        let scanlators: Vec<String> = ch
-                            .groups
-                            .group_ids()
-                            .filter_map(|gid| det.groups.get(gid))
-                            .map(String::from)
-                            .collect();
-                        Chapter {
-                            key: num_str.clone(),
-                            chapter_number: num_str.parse().ok(),
-                            title: ch.title.clone().filter(|t| !t.is_empty()),
-                            date_uploaded: ch.release_date.0,
-                            scanlators: if scanlators.is_empty() { None } else { Some(scanlators) },
-                            url: Some(format!(
-                                "{base}/read/manga/{}/{}/1/",
-                                det.slug, num_str
-                            )),
-                            ..Default::default()
-                        }
-                    })
-                    .collect();
-                chapters.sort_by(|a, b| {
-                    b.chapter_number
-                        .unwrap_or(0.0)
-                        .partial_cmp(&a.chapter_number.unwrap_or(0.0))
-                        .unwrap_or(core::cmp::Ordering::Equal)
-                });
-                manga.chapters = Some(chapters);
+            if !det.author.is_empty() {
+                manga.authors = Some(vec![det.author.clone()]);
             }
+            if !det.artist.is_empty() && det.artist != det.author {
+                manga.artists = Some(vec![det.artist.clone()]);
+            }
+        }
+
+        if needs_chapters {
+            let mut chapters: Vec<Chapter> = core::mem::take(&mut det.chapters.0)
+                .into_iter()
+                .filter(|(_, ch)| ch.is_public)
+                .map(|(num_str, ch)| {
+                    let chapter_number = num_str.parse().ok();
+                    let url = format!("{base}/read/manga/{}/{}/1/", det.slug, num_str);
+                    let scanlators: Vec<String> = ch
+                        .groups
+                        .group_ids()
+                        .filter_map(|gid| det.groups.get(gid))
+                        .map(String::from)
+                        .collect();
+                    Chapter {
+                        key: num_str,
+                        chapter_number,
+                        title: ch.title.filter(|t| !t.is_empty()),
+                        date_uploaded: ch.release_date.0,
+                        scanlators: if scanlators.is_empty() { None } else { Some(scanlators) },
+                        url: Some(url),
+                        ..Default::default()
+                    }
+                })
+                .collect();
+            chapters.sort_by(|a, b| {
+                b.chapter_number
+                    .unwrap_or(0.0)
+                    .partial_cmp(&a.chapter_number.unwrap_or(0.0))
+                    .unwrap_or(core::cmp::Ordering::Equal)
+            });
+            manga.chapters = Some(chapters);
         }
 
         Ok(manga)

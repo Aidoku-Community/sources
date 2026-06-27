@@ -1,15 +1,14 @@
 {
     "info": {
-        "id": "en.dankemoe",
+        "id": "en.dankefurslesen",
         "name": "Danke fürs Lesen",
-        "version": 1,
+        "version": 2,
         "url": "https://danke.moe",
         "minAppVersion": "0.7.1",
-        "contentRating": 1,
+        "contentRating": 2,
         "languages": ["en"]
     },
     "listings": [
-        { "id": "Latest" },
         { "id": "All" },
         { "id": "Series" },
         { "id": "Oneshot" },
