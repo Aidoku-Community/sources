@@ -60,11 +60,8 @@ pub struct SeriesDetail {
 }
 
 // group_id → group_name
+#[derive(Default)]
 pub struct GroupsMap(pub Vec<(String, String)>);
-
-impl Default for GroupsMap {
-    fn default() -> Self { GroupsMap(Vec::new()) }
-}
 
 impl<'de> Deserialize<'de> for GroupsMap {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
@@ -93,11 +90,8 @@ impl GroupsMap {
 }
 
 // chapter_num_str → ChapterData
+#[derive(Default)]
 pub struct ChaptersMap(pub Vec<(String, ChapterData)>);
-
-impl Default for ChaptersMap {
-    fn default() -> Self { ChaptersMap(Vec::new()) }
-}
 
 impl<'de> Deserialize<'de> for ChaptersMap {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
@@ -137,11 +131,8 @@ pub struct ChapterData {
 }
 
 // group_id → Vec<filename>
+#[derive(Default)]
 pub struct ChapterGroupsMap(pub Vec<(String, Vec<String>)>);
-
-impl Default for ChapterGroupsMap {
-    fn default() -> Self { ChapterGroupsMap(Vec::new()) }
-}
 
 impl<'de> Deserialize<'de> for ChapterGroupsMap {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
@@ -170,11 +161,8 @@ impl ChapterGroupsMap {
 }
 
 // release_date: group_id → Unix timestamp; only the first value is used.
+#[derive(Default)]
 pub struct ReleaseDate(pub Option<i64>);
-
-impl Default for ReleaseDate {
-    fn default() -> Self { ReleaseDate(None) }
-}
 
 impl<'de> Deserialize<'de> for ReleaseDate {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {

@@ -177,7 +177,7 @@ impl<T: Impl> Source for Guya<T> {
         }
 
         if sort_latest {
-            all.sort_by(|a, b| b.1.last_updated.cmp(&a.1.last_updated));
+            all.sort_by_key(|(_, item)| core::cmp::Reverse(item.last_updated));
         } else {
             all.sort_by(|a, b| a.0.cmp(&b.0));
         }
@@ -309,7 +309,7 @@ impl<T: Impl> ListingProvider for Guya<T> {
 
         let mut all = fetch_all_series(base)?;
         match listing.id.as_str() {
-            "Latest" => all.sort_by(|a, b| b.1.last_updated.cmp(&a.1.last_updated)),
+            "Latest" => all.sort_by_key(|(_, item)| core::cmp::Reverse(item.last_updated)),
             _        => all.sort_by(|a, b| a.0.cmp(&b.0)),
         }
 
@@ -328,7 +328,7 @@ impl<T: Impl> ListingProvider for Guya<T> {
 impl<T: Impl> Home for Guya<T> {
     fn get_home(&self) -> Result<HomeLayout> {
         let mut all = fetch_all_series(self.params.base_url)?;
-        all.sort_by(|a, b| b.1.last_updated.cmp(&a.1.last_updated));
+        all.sort_by_key(|(_, item)| core::cmp::Reverse(item.last_updated));
 
         let entries: Vec<Link> = all
             .into_iter()
