@@ -396,8 +396,7 @@ impl ComixWebView {
 				if (window['{DESCRAMBLER_BLOB_TOKEN}'] != null) {{
 					window['{DESCRAMBLER_BLOB_TOKEN}']('{url}', signal)
 						.then((data) => {{
-							if (typeof data === 'object' && data.mode) {{
-								// So they are using new format:
+							if (typeof data === 'object' && data.mode && typeof data.mode === 'string') {{
 								if (data.mode === 'blob') {{
 									return new Promise((resolve, reject) => {{
 										const url = URL.createObjectURL(data.blob);
@@ -412,10 +411,26 @@ impl ComixWebView {
 									window['{DESCRAMBLER_RESPONSE_TOKEN}'].data = output;
 									window['{DESCRAMBLER_RESPONSE_TOKEN}'].isDone = true;
 									clearTimeout(timeout);
+								}} else {{
+									throw new Exception('Unknown data mode. Maybe comix tried something new again?');
 								}}
 								return null;
+							}} else if (typeof data === 'object' && data.apply && typeof data.apply === 'function') {{
+								data.apply(canvas)
+								const output = window['{CANVAS_TO_DATA_URL_TOKEN}'].call(canvas);
+								window['{DESCRAMBLER_RESPONSE_TOKEN}'].data = output;
+								window['{DESCRAMBLER_RESPONSE_TOKEN}'].isDone = true;
+								clearTimeout(timeout);
+								return null;
+							}} else if (typeof data === 'object' && data.blob) {{
+								return new Promise((resolve, reject) => {{
+									const url = URL.createObjectURL(data.blob);
+									const image = new Image();
+									image.src = url;
+									image.onload = () => resolve(image);
+									image.onerror = reject;
+								}})
 							}} else {{
-								// Let's assume they undo this so let keep this as old behaviour
 								return new Promise((resolve, reject) => {{
 									const url = URL.createObjectURL(data);
 									const image = new Image();
