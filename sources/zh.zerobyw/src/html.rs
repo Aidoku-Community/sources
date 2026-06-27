@@ -202,11 +202,13 @@ impl ChapterPage for Document {
         let imgs = self.try_select("img.manga-image")?;
 
         for img in imgs {
-            let src = img.attr("src").unwrap_or_default();
+            let Some(src) = img.attr("src") else {
+                continue;
+            };
             let url = if src.starts_with("//") {
                 format!("https:{}", src)
             } else {
-                src.to_string()
+                src
             };
             pages.push(Page {
                 content: PageContent::url(url),
