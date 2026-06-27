@@ -1,0 +1,23 @@
+[package]
+name = "zerobyw"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
+strum = { version = "0.28.0", default-features = false, features = ["derive"] }
+
+[dev-dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+opt-level = "s"
+strip = true
+lto = true
