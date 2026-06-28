@@ -54,10 +54,8 @@ impl Source for FreeWebNovel {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let url = build_novel_url(&manga.key);
-		let html = request_html(&url)?;
-
 		if needs_details {
+			let html = request_html(&build_novel_url(&manga.key))?;
 			manga = fill_manga_details(&html, manga)?;
 			if needs_chapters {
 				send_partial_result(&manga);
@@ -65,8 +63,7 @@ impl Source for FreeWebNovel {
 		}
 
 		if needs_chapters {
-			let chapters = extract_chapters(&html);
-			manga.chapters = Some(chapters);
+			manga.chapters = Some(extract_chapters(&manga.key)?);
 		}
 
 		Ok(manga)

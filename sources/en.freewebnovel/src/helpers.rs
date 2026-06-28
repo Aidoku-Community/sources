@@ -3,11 +3,16 @@ use aidoku::{
 	Chapter, ContentRating, Manga, MangaStatus, Result,
 	alloc::{String, Vec, string::ToString},
 	imports::{
-		html::{Document, Element, Kind},
+		html::{Document, Element, Html, Kind},
 		net::Request,
 	},
 	prelude::*,
 };
+use serde::Deserialize;
+
+/// Maximum chapters the AJAX chapter-list endpoint returns per request.
+/// Larger values are clamped to this server-side.
+const CHAPTER_PAGE_SIZE: i32 = 200;
 
 pub fn request_html(url: &str) -> Result<Document> {
 	Ok(Request::get(url)?.html()?)
@@ -93,39 +98,86 @@ pub fn content_rating_from_tags(tags: &[String]) -> ContentRating {
 	}
 }
 
-/// Extract Chapters from Novel page.
-pub fn extract_chapters(html: &Document) -> Vec<Chapter> {
-	let Some(items) = html.select("div.m-newest2 > ul.ul-list5 > li") else {
-		return Vec::new();
+/// Response shape of the AJAX chapter-list endpoint
+/// (`/novel/{slug}?ajax=chapters&page=N&pageSize=N`).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChapterListResponse {
+	/// `<li>` chapter items for the requested page, as an HTML fragment.
+	html: String,
+	/// Total number of chapter pages for the current `pageSize`.
+	total_page: i32,
+}
+
+/// Fetch a single page of the chapter list through the AJAX endpoint.
+fn fetch_chapter_page(slug: &str, page: i32) -> Result<ChapterListResponse> {
+	let url =
+		format!("{BASE_URL}/novel/{slug}?ajax=chapters&page={page}&pageSize={CHAPTER_PAGE_SIZE}");
+	Request::get(&url)?
+		.header("X-Requested-With", "XMLHttpRequest")
+		.json_owned()
+}
+
+/// Extract every chapter for a novel.
+///
+/// The novel page only renders the first page (40 chapters) of the chapter
+/// list; the remaining chapters are loaded on demand through an AJAX endpoint
+/// that reports the total number of pages. Walk every page so the full list is
+/// returned, newest chapter first.
+pub fn extract_chapters(slug: &str) -> Result<Vec<Chapter>> {
+	let mut chapters = Vec::new();
+	let first = fetch_chapter_page(slug, 1)?;
+	collect_chapter_items(&first.html, &mut chapters);
+	for page in 2..=first.total_page.max(1) {
+		let response = fetch_chapter_page(slug, page)?;
+		collect_chapter_items(&response.html, &mut chapters);
+	}
+	// The endpoint lists chapters oldest-first across pages; reverse so the
+	// newest chapter comes first.
+	chapters.reverse();
+	Ok(chapters)
+}
+
+/// Parse an HTML fragment of `<li>` chapter items and append them to `chapters`.
+fn collect_chapter_items(html: &str, chapters: &mut Vec<Chapter>) {
+	let Ok(document) = Html::parse_fragment_with_url(html, BASE_URL) else {
+		return;
 	};
-	items
-		.rev()
-		.filter_map(|item| {
-			let link = item.select_first("a[href]")?;
-			let url = link.attr("abs:href")?;
-			let (_, chapter_key) = parse_novel_and_chapter(&url)?;
-			let chapter_key = chapter_key?;
-			let mut title = link.text()?;
-			let chapter_number = parse_chapter_number(&title);
-			if let Some(chapter_number) = chapter_number {
-				title = match title.strip_prefix(&format!("Chapter {chapter_number}")) {
-					Some(rest) => rest
-						.trim()
-						.strip_prefix(':')
-						.or_else(|| rest.trim().strip_prefix('-'))
-						.map_or_else(|| rest.trim().to_string(), |t| t.trim().to_string()),
-					None => title,
-				};
-			};
-			Some(Chapter {
-				key: chapter_key,
-				title: { if !title.is_empty() { Some(title) } else { None } },
-				chapter_number,
-				url: Some(url),
-				..Default::default()
-			})
-		})
-		.collect()
+	let Some(items) = document.select("li") else {
+		return;
+	};
+	for item in items {
+		if let Some(chapter) = parse_chapter_item(&item) {
+			chapters.push(chapter);
+		}
+	}
+}
+
+/// Build a [`Chapter`] from a single `<li>` chapter item.
+fn parse_chapter_item(item: &Element) -> Option<Chapter> {
+	let link = item.select_first("a[href]")?;
+	let url = link.attr("abs:href")?;
+	let (_, chapter_key) = parse_novel_and_chapter(&url)?;
+	let chapter_key = chapter_key?;
+	let mut title = link.text()?;
+	let chapter_number = parse_chapter_number(&title);
+	if let Some(chapter_number) = chapter_number {
+		title = match title.strip_prefix(&format!("Chapter {chapter_number}")) {
+			Some(rest) => rest
+				.trim()
+				.strip_prefix(':')
+				.or_else(|| rest.trim().strip_prefix('-'))
+				.map_or_else(|| rest.trim().to_string(), |t| t.trim().to_string()),
+			None => title,
+		};
+	};
+	Some(Chapter {
+		key: chapter_key,
+		title: { if !title.is_empty() { Some(title) } else { None } },
+		chapter_number,
+		url: Some(url),
+		..Default::default()
+	})
 }
 
 fn convert_element_to_markdown(element: &Element, output: &mut String) {
