@@ -20,9 +20,11 @@ pub use models::*;
 pub(crate) const PAGE_SIZE: usize = 20;
 pub(crate) const SERIES_TTL: i64 = 300; // 5 minutes
 
-static SERIES_CACHE: Once<RwLock<Option<(Vec<(String, AllSeriesItem)>, i64)>>> = Once::new();
+type SeriesCacheLock = RwLock<Option<(Vec<(String, AllSeriesItem)>, i64)>>;
 
-pub(crate) fn series_cache() -> &'static RwLock<Option<(Vec<(String, AllSeriesItem)>, i64)>> {
+static SERIES_CACHE: Once<SeriesCacheLock> = Once::new();
+
+pub(crate) fn series_cache() -> &'static SeriesCacheLock {
     SERIES_CACHE.call_once(|| RwLock::new(None))
 }
 

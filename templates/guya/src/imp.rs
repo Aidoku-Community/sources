@@ -38,10 +38,10 @@ pub trait Impl {
         let now = current_date();
         {
             let guard = series_cache().read();
-            if let Some((ref data, ts)) = *guard {
-                if now - ts < SERIES_TTL {
-                    return Ok(data.clone());
-                }
+            if let Some((ref data, ts)) = *guard
+                && now - ts < SERIES_TTL
+            {
+                return Ok(data.clone());
             }
         }
         let map: BTreeMap<String, AllSeriesItem> =
