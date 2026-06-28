@@ -1,9 +1,10 @@
 [
     {
-        "type": "select",
+        "type": "sort",
         "id": "sort",
         "title": "Sort",
+        "canAscend": false,
         "options": ["Alphabetical", "Latest Chapter"],
-        "ids":     ["",            "latest"]
+        "default": { "index": 0, "ascending": false }
     }
 ]

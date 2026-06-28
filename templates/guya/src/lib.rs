@@ -23,7 +23,7 @@ pub use models::*;
 
 const PAGE_SIZE: usize = 20;
 
-const USER_AGENT: &str = "aidoku/1.0 CFNetwork/1490.0.4 Darwin/23.4.0";
+const USER_AGENT: &str = "Aidoku";
 
 pub struct Params {
     pub base_url: &'static str,
@@ -65,7 +65,7 @@ fn fetch_all_series(base_url: &str) -> Result<Vec<(String, AllSeriesItem)>> {
 fn fetch_html_series_list(base_url: &str, path: &str, page: i32) -> Result<MangaPageResult> {
     let text = html_get(&format!("{base_url}{path}"))?.string()?;
 
-    let series_map: BTreeMap<String, (String, Option<String>)> = fetch_all_series(base_url)?
+    let mut series_map: BTreeMap<String, (String, Option<String>)> = fetch_all_series(base_url)?
         .into_iter()
         .map(|(title, item)| {
             let cover = if item.cover.is_empty() {
@@ -89,10 +89,11 @@ fn fetch_html_series_list(base_url: &str, path: &str, page: i32) -> Result<Manga
         .into_iter()
         .map(|slug| {
             let url = format!("{base_url}/read/manga/{slug}/");
-            let (title, cover) = series_map
-                .get(&slug)
-                .map(|(t, c)| (t.clone(), c.clone()))
-                .unwrap_or_else(|| (slug.clone(), None));
+            let (title, cover) = if let Some(entry) = series_map.remove(&slug) {
+                entry
+            } else {
+                (slug.clone(), None)
+            };
             Manga { key: slug, title, url: Some(url), cover, ..Default::default() }
         })
         .collect();
@@ -106,7 +107,7 @@ fn fetch_html_series_list(base_url: &str, path: &str, page: i32) -> Result<Manga
 fn fetch_latest_chapters_list(base_url: &str, page: i32) -> Result<MangaPageResult> {
     let html = html_get(&format!("{base_url}/latest_chapters/"))?.html()?;
 
-    let series_map: BTreeMap<String, (String, Option<String>)> = fetch_all_series(base_url)?
+    let mut series_map: BTreeMap<String, (String, Option<String>)> = fetch_all_series(base_url)?
         .into_iter()
         .map(|(title, item)| {
             let cover = if item.cover.is_empty() {
@@ -127,16 +128,15 @@ fn fetch_latest_chapters_list(base_url: &str, page: i32) -> Result<MangaPageResu
                     continue;
                 }
                 let url = format!("{base_url}/read/manga/{slug}/");
-                let (title, cover) = series_map
-                    .get(&slug)
-                    .map(|(t, c)| (t.clone(), c.clone()))
-                    .unwrap_or_else(|| {
-                        let t = row
-                            .select_first("td.chapter-title a")
-                            .and_then(|a| a.text())
-                            .unwrap_or_else(|| slug.clone());
-                        (t, None)
-                    });
+                let (title, cover) = if let Some(entry) = series_map.remove(&slug) {
+                    entry
+                } else {
+                    let t = row
+                        .select_first("td.chapter-title a")
+                        .and_then(|a| a.text())
+                        .unwrap_or_else(|| slug.clone());
+                    (t, None)
+                };
                 all_entries.push(Manga {
                     key: slug,
                     title,
@@ -170,7 +170,7 @@ impl<T: Impl> Source for Guya<T> {
         let mut all = fetch_all_series(self.params.base_url)?;
 
         let sort_latest = filters.iter().any(|f| {
-            matches!(f, FilterValue::Select { id, value } if id == "sort" && value == "latest")
+            matches!(f, FilterValue::Sort { index, .. } if *index == 1)
         });
 
         if let Some(q) = &query {
