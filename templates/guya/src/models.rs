@@ -14,7 +14,7 @@ fn null_as_empty<'de, D: Deserializer<'de>>(d: D) -> core::result::Result<String
 }
 
 // GET /api/get_all_series/ → { "Series Title": AllSeriesItem, ... }
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct AllSeriesItem {
     #[serde(default)]
     pub slug: String,

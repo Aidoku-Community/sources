@@ -12,8 +12,9 @@ use aidoku::{
         vec,
         vec::Vec,
     },
-    imports::net::Request,
+    imports::{net::Request, std::current_date},
 };
+use spin::{Once, RwLock};
 
 mod helpers;
 mod models;
@@ -54,10 +55,30 @@ fn html_get(url: &str) -> Result<Request> {
         .header("User-Agent", USER_AGENT))
 }
 
+const SERIES_TTL: i64 = 300; // 5 minutes
+
+static SERIES_CACHE: Once<RwLock<Option<(Vec<(String, AllSeriesItem)>, i64)>>> = Once::new();
+
+fn series_cache() -> &'static RwLock<Option<(Vec<(String, AllSeriesItem)>, i64)>> {
+    SERIES_CACHE.call_once(|| RwLock::new(None))
+}
+
 fn fetch_all_series(base_url: &str) -> Result<Vec<(String, AllSeriesItem)>> {
+    let now = current_date();
+    {
+        let guard = series_cache().read();
+        if let Some((ref data, ts)) = *guard {
+            if now - ts < SERIES_TTL {
+                return Ok(data.clone());
+            }
+        }
+    }
     let map: BTreeMap<String, AllSeriesItem> =
         api_get(&format!("{base_url}/api/get_all_series/"))?.json_owned()?;
-    Ok(map.into_iter().filter(|(_, v)| !v.slug.is_empty()).collect())
+    let data: Vec<(String, AllSeriesItem)> =
+        map.into_iter().filter(|(_, v)| !v.slug.is_empty()).collect();
+    *series_cache().write() = Some((data.clone(), now));
+    Ok(data)
 }
 
 // The series/oneshots/nsfw listing pages inject cards via a JS `series_data` array into
