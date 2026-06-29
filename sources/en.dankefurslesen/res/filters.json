@@ -1,10 +1,10 @@
 [
-    {
-        "type": "sort",
-        "id": "sort",
-        "title": "Sort",
-        "canAscend": false,
-        "options": ["Alphabetical", "Latest Chapter"],
-        "default": { "index": 0, "ascending": false }
-    }
+	{
+		"type": "sort",
+		"id": "sort",
+		"title": "Sort",
+		"canAscend": false,
+		"options": ["Alphabetical", "Latest Chapter"],
+		"default": { "index": 0, "ascending": false }
+	}
 ]

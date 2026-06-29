@@ -26,15 +26,16 @@ pub struct AllSeriesItem {
 
 impl AllSeriesItem {
     pub fn into_manga(self, title: String, base_url: &str) -> Manga {
+        let url = format!("{base_url}/read/manga/{}/", self.slug);
         Manga {
-            key: self.slug.clone(),
+            key: self.slug,
             title: String::from(title.trim()),
             cover: if self.cover.is_empty() {
                 None
             } else {
                 Some(format!("{base_url}{}", self.cover))
             },
-            url: Some(format!("{base_url}/read/manga/{}/", self.slug)),
+            url: Some(url),
             ..Default::default()
         }
     }

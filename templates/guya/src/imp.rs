@@ -13,7 +13,7 @@ use aidoku::{
 };
 use core::cmp::Reverse;
 
-use crate::{AllSeriesItem, SeriesDetail, series_cache, strip_html};
+use crate::{AllSeriesItem, SeriesCache, SeriesDetail, strip_html};
 use super::{PAGE_SIZE, Params, SERIES_TTL};
 
 pub trait Impl {
@@ -34,32 +34,29 @@ pub trait Impl {
         Ok(Request::get(url)?.header("User-Agent", "Aidoku"))
     }
 
-    fn fetch_all_series(&self, params: &Params) -> Result<Vec<(String, AllSeriesItem)>> {
+    fn fetch_all_series(&self, params: &Params, cache: &mut SeriesCache) -> Result<Vec<(String, AllSeriesItem)>> {
         let now = current_date();
+        if let Some((ref data, ts)) = *cache
+            && now - ts < SERIES_TTL
         {
-            let guard = series_cache().read();
-            if let Some((ref data, ts)) = *guard
-                && now - ts < SERIES_TTL
-            {
-                return Ok(data.clone());
-            }
+            return Ok(data.clone());
         }
         let map: BTreeMap<String, AllSeriesItem> =
             self.api_get(&format!("{}/api/get_all_series/", params.base_url))?.json_owned()?;
         let data: Vec<(String, AllSeriesItem)> =
             map.into_iter().filter(|(_, v)| !v.slug.is_empty()).collect();
-        *series_cache().write() = Some((data.clone(), now));
+        *cache = Some((data.clone(), now));
         Ok(data)
     }
 
     // The series/oneshots/nsfw listing pages inject cards via a JS `series_data` array into
     // an empty <div>. Static HTML parsing finds nothing; raw text splitting extracts the slugs.
-    fn fetch_html_series_list(&self, params: &Params, path: &str, page: i32) -> Result<MangaPageResult> {
+    fn fetch_html_series_list(&self, params: &Params, path: &str, page: i32, cache: &mut SeriesCache) -> Result<MangaPageResult> {
         let base = params.base_url;
         let text = self.html_get(&format!("{base}{path}"))?.string()?;
 
         let mut series_map: BTreeMap<String, (String, Option<String>)> = self
-            .fetch_all_series(params)?
+            .fetch_all_series(params, cache)?
             .into_iter()
             .map(|(title, item)| {
                 let cover = if item.cover.is_empty() {
@@ -98,12 +95,12 @@ pub trait Impl {
         Ok(MangaPageResult { entries, has_next_page })
     }
 
-    fn fetch_latest_chapters_list(&self, params: &Params, page: i32) -> Result<MangaPageResult> {
+    fn fetch_latest_chapters_list(&self, params: &Params, page: i32, cache: &mut SeriesCache) -> Result<MangaPageResult> {
         let base = params.base_url;
         let html = self.html_get(&format!("{base}/latest_chapters/"))?.html()?;
 
         let mut series_map: BTreeMap<String, (String, Option<String>)> = self
-            .fetch_all_series(params)?
+            .fetch_all_series(params, cache)?
             .into_iter()
             .map(|(title, item)| {
                 let cover = if item.cover.is_empty() {
@@ -156,8 +153,9 @@ pub trait Impl {
         query: Option<String>,
         page: i32,
         filters: Vec<FilterValue>,
+        cache: &mut SeriesCache,
     ) -> Result<MangaPageResult> {
-        let mut all = self.fetch_all_series(params)?;
+        let mut all = self.fetch_all_series(params, cache)?;
 
         let sort_latest = filters.iter().any(|f| {
             matches!(f, FilterValue::Sort { index, .. } if *index == 1)
@@ -212,12 +210,11 @@ pub trait Impl {
             if !desc.is_empty() {
                 manga.description = Some(desc);
             }
-            if !det.author.is_empty() {
-                manga.authors = Some(vec![det.author.clone()]);
-            }
-            if !det.artist.is_empty() && det.artist != det.author {
-                manga.artists = Some(vec![det.artist.clone()]);
-            }
+            let author = core::mem::take(&mut det.author);
+            let artist = core::mem::take(&mut det.artist);
+            let has_artist = !artist.is_empty() && artist != author;
+            if !author.is_empty() { manga.authors = Some(vec![author]); }
+            if has_artist { manga.artists = Some(vec![artist]); }
         }
 
         if needs_chapters {
@@ -271,7 +268,7 @@ pub trait Impl {
                 .iter()
                 .map(|filename| Page {
                     content: PageContent::url(format!(
-                        "{base}/media/manga/{}/{}/{}/{}",
+                        "{base}/media/manga/{}/chapters/{}/{}/{}",
                         manga.key, ch.folder, group_id, filename
                     )),
                     ..Default::default()
@@ -283,17 +280,17 @@ pub trait Impl {
         Ok(pages)
     }
 
-    fn get_manga_list(&self, params: &Params, listing: Listing, page: i32) -> Result<MangaPageResult> {
+    fn get_manga_list(&self, params: &Params, listing: Listing, page: i32, cache: &mut SeriesCache) -> Result<MangaPageResult> {
         let base = params.base_url;
         match listing.id.as_str() {
-            "Series"         => return self.fetch_html_series_list(params, "/series/", page),
-            "Oneshot"        => return self.fetch_html_series_list(params, "/oneshots/", page),
-            "NSFW"           => return self.fetch_html_series_list(params, "/nsfw/", page),
-            "Latest Chapter" => return self.fetch_latest_chapters_list(params, page),
+            "Series"         => return self.fetch_html_series_list(params, "/series/", page, cache),
+            "Oneshot"        => return self.fetch_html_series_list(params, "/oneshots/", page, cache),
+            "NSFW"           => return self.fetch_html_series_list(params, "/nsfw/", page, cache),
+            "Latest Chapter" => return self.fetch_latest_chapters_list(params, page, cache),
             _ => {}
         }
 
-        let mut all = self.fetch_all_series(params)?;
+        let mut all = self.fetch_all_series(params, cache)?;
         match listing.id.as_str() {
             "Latest" => all.sort_by_key(|(_, item)| Reverse(item.last_updated)),
             _        => all.sort_by(|a, b| a.0.cmp(&b.0)),
@@ -310,8 +307,8 @@ pub trait Impl {
         Ok(MangaPageResult { entries, has_next_page })
     }
 
-    fn get_home(&self, params: &Params) -> Result<HomeLayout> {
-        let mut all = self.fetch_all_series(params)?;
+    fn get_home(&self, params: &Params, cache: &mut SeriesCache) -> Result<HomeLayout> {
+        let mut all = self.fetch_all_series(params, cache)?;
         all.sort_by_key(|(_, item)| Reverse(item.last_updated));
 
         let entries: Vec<Link> = all

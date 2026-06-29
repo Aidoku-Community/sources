@@ -7,7 +7,7 @@ use aidoku::{
     alloc::{string::String, vec::Vec},
     imports::net::Request,
 };
-use spin::{Once, RwLock};
+use core::cell::RefCell;
 
 mod helpers;
 mod imp;
@@ -18,15 +18,9 @@ pub use imp::Impl;
 pub use models::*;
 
 pub(crate) const PAGE_SIZE: usize = 20;
-pub(crate) const SERIES_TTL: i64 = 300; // 5 minutes
+pub(crate) const SERIES_TTL: i64 = 300;
 
-type SeriesCacheLock = RwLock<Option<(Vec<(String, AllSeriesItem)>, i64)>>;
-
-static SERIES_CACHE: Once<SeriesCacheLock> = Once::new();
-
-pub(crate) fn series_cache() -> &'static SeriesCacheLock {
-    SERIES_CACHE.call_once(|| RwLock::new(None))
-}
+pub type SeriesCache = Option<(Vec<(String, AllSeriesItem)>, i64)>;
 
 pub struct Params {
     pub base_url: &'static str,
@@ -36,13 +30,14 @@ pub struct Params {
 pub struct Guya<T: Impl> {
     inner: T,
     params: Params,
+    cache: RefCell<SeriesCache>,
 }
 
 impl<T: Impl> Source for Guya<T> {
     fn new() -> Self {
         let inner = T::new();
         let params = inner.params();
-        Self { inner, params }
+        Self { inner, params, cache: RefCell::new(None) }
     }
 
     fn get_search_manga_list(
@@ -51,7 +46,8 @@ impl<T: Impl> Source for Guya<T> {
         page: i32,
         filters: Vec<FilterValue>,
     ) -> Result<MangaPageResult> {
-        self.inner.get_search_manga_list(&self.params, query, page, filters)
+        let mut cache = self.cache.borrow_mut();
+        self.inner.get_search_manga_list(&self.params, query, page, filters, &mut cache)
     }
 
     fn get_manga_update(
@@ -70,13 +66,15 @@ impl<T: Impl> Source for Guya<T> {
 
 impl<T: Impl> ListingProvider for Guya<T> {
     fn get_manga_list(&self, listing: aidoku::Listing, page: i32) -> Result<MangaPageResult> {
-        self.inner.get_manga_list(&self.params, listing, page)
+        let mut cache = self.cache.borrow_mut();
+        self.inner.get_manga_list(&self.params, listing, page, &mut cache)
     }
 }
 
 impl<T: Impl> Home for Guya<T> {
     fn get_home(&self) -> Result<HomeLayout> {
-        self.inner.get_home(&self.params)
+        let mut cache = self.cache.borrow_mut();
+        self.inner.get_home(&self.params, &mut cache)
     }
 }
 
