@@ -5,35 +5,12 @@ use aidoku::{
 	imports::{
 		html::{Document, Element, Kind},
 		net::Request,
-		std::sleep,
 	},
 	prelude::*,
 };
 
-/// Fetches a URL as an HTML document, transparently retrying on HTTP 429.
-///
-/// The site rate-limits bursts (~15 requests) with a `429 Too Many Requests`
-/// and a `Retry-After` header (typically 10s). Fetching a long novel's chapter
-/// list needs many sequential page requests, so we honor `Retry-After` and
-/// retry rather than silently dropping chapters.
 pub fn request_html(url: &str) -> Result<Document> {
-	const MAX_RETRIES: u32 = 3;
-	const DEFAULT_RETRY_AFTER: i32 = 10;
-	let mut attempt = 0;
-	loop {
-		let response = Request::get(url)?.send()?;
-		if response.status_code() == 429 && attempt < MAX_RETRIES {
-			let wait = response
-				.get_header("retry-after")
-				.and_then(|v| v.parse::<i32>().ok())
-				.unwrap_or(DEFAULT_RETRY_AFTER)
-				.clamp(1, 30);
-			sleep(wait);
-			attempt += 1;
-			continue;
-		}
-		return Ok(response.get_html()?);
-	}
+	Ok(Request::get(url)?.html()?)
 }
 
 /// Maximum chapters the site returns per page; larger `pageSize` values clamp
@@ -155,38 +132,39 @@ fn chapter_from_item(item: &Element) -> Option<Chapter> {
 	};
 	Some(Chapter {
 		key: chapter_key,
-		title: { if !title.is_empty() { Some(title) } else { None } },
+		title: if !title.is_empty() { Some(title) } else { None },
 		chapter_number,
 		url: Some(url),
 		..Default::default()
 	})
 }
 
-/// Extract Chapters from a single novel chapter-list page, in ascending order.
-pub fn extract_chapters(html: &Document) -> Vec<Chapter> {
-	let Some(items) = html.select("div.m-newest2 > ul.ul-list5 > li") else {
-		return Vec::new();
-	};
-	items.filter_map(|item| chapter_from_item(&item)).collect()
+/// Iterate the chapters on a single novel chapter-list page, in ascending order.
+fn extract_chapters(html: &Document) -> impl DoubleEndedIterator<Item = Chapter> {
+	html.select("div.m-newest2 > ul.ul-list5 > li")
+		.into_iter()
+		.flatten()
+		.filter_map(|item| chapter_from_item(&item))
 }
 
 /// Fetch a novel's full chapter list, newest-first (as Aidoku expects).
 ///
 /// `first_page` is the already-loaded novel page, which `build_novel_url` loads
 /// at `pageSize=200`, so it is reused for the first page; only the remaining
-/// pages are fetched. `request_html` transparently retries on the site's 429
-/// rate limit.
+/// pages are fetched. The pages are kept alive in `rest` while their chapters
+/// are read, since the parsed elements reference them.
 pub fn fetch_all_chapters(first_page: &Document, slug: &str) -> Result<Vec<Chapter>> {
-	let mut chapters = extract_chapters(first_page);
 	let page_count =
 		total_chapter_count(first_page).map_or(1, |total| total.div_ceil(CHAPTERS_PER_PAGE));
-	for page in 2..=page_count {
-		let page_url = format!("{}&page={page}", build_novel_url(slug));
-		chapters.extend(extract_chapters(&request_html(&page_url)?));
-	}
-	// Pages list chapters oldest-first; Aidoku expects newest-first.
-	chapters.reverse();
-	Ok(chapters)
+	let rest = (2..=page_count)
+		.map(|page| request_html(&format!("{}&page={page}", build_novel_url(slug))))
+		.collect::<Result<Vec<Document>>>()?;
+	// Pages list chapters oldest-first; reverse the whole sequence for newest-first.
+	Ok(core::iter::once(first_page)
+		.chain(rest.iter())
+		.flat_map(extract_chapters)
+		.rev()
+		.collect())
 }
 
 fn convert_element_to_markdown(element: &Element, output: &mut String) {

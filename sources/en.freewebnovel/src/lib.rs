@@ -5,7 +5,10 @@ use aidoku::{
 	Source,
 	alloc::{String, Vec, vec},
 	helpers::uri::QueryParameters,
-	imports::std::send_partial_result,
+	imports::{
+		net::{TimeUnit, set_rate_limit},
+		std::send_partial_result,
+	},
 	prelude::*,
 };
 
@@ -26,6 +29,8 @@ struct FreeWebNovel;
 
 impl Source for FreeWebNovel {
 	fn new() -> Self {
+		// The site rate-limits bursts (~15 requests) with a 429
+		set_rate_limit(12, 10, TimeUnit::Seconds);
 		Self
 	}
 
@@ -203,12 +208,11 @@ mod tests {
 			.expect("get_manga_update failed");
 		assert!(manga.title.to_ascii_lowercase().contains("swordmaster"));
 		let chapters = manga.chapters.expect("no chapters returned");
-		// The series spans 800+ chapters across 20+ paginated requests, which
-		// trips the site's rate limit mid-fetch. Asserting a high count proves
-		// the 429 retry pulls every page rather than silently truncating.
+		// The series spans 800+ chapters across multiple pages; asserting a high
+		// count proves every page is fetched and concatenated, not just the first.
 		assert!(
 			chapters.len() > 800,
-			"expected full chapter list (rate-limit retry), got {}",
+			"expected full chapter list, got {}",
 			chapters.len()
 		);
 		// Chapters should be a contiguous run with no gaps from dropped pages.
