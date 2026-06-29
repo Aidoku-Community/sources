@@ -65,25 +65,14 @@ pub fn parse_novel_and_chapter(url: &str) -> Option<(String, Option<String>)> {
 	Some((slug, chapter_key))
 }
 
+/// Parse the leading chapter number from a title like "Chapter 12.5: ...".
+/// Returns `None` when the title isn't a "Chapter <number>" label.
 pub fn parse_chapter_number(name: &str) -> Option<f32> {
-	let mut chapter = None;
-	let mut name = name.trim();
-	if name.starts_with("Chapter") {
-		name = name[7..].trim_start();
-		let bytes = name.as_bytes();
-		let mut ch_end = 0;
-		while ch_end < bytes.len()
-			&& ((bytes[ch_end] as char).is_ascii_digit() || (bytes[ch_end] as char) == '.')
-		{
-			ch_end += 1;
-		}
-		if ch_end > 0
-			&& let Ok(c) = name[..ch_end].parse::<f32>()
-		{
-			chapter = Some(c);
-		}
-	}
-	chapter
+	let digits = name.trim().strip_prefix("Chapter")?.trim_start();
+	let end = digits
+		.find(|c: char| !c.is_ascii_digit() && c != '.')
+		.unwrap_or(digits.len());
+	digits[..end].parse().ok()
 }
 
 pub fn content_rating_from_tags(tags: &[String]) -> ContentRating {
@@ -107,6 +96,8 @@ struct ChapterListResponse {
 	html: String,
 	/// Total number of chapter pages for the current `pageSize`.
 	total_page: i32,
+	/// Total number of chapters across every page.
+	total_chapters: i32,
 }
 
 /// Fetch a single page of the chapter list through the AJAX endpoint.
@@ -125,8 +116,8 @@ fn fetch_chapter_page(slug: &str, page: i32) -> Result<ChapterListResponse> {
 /// that reports the total number of pages. Walk every page so the full list is
 /// returned, newest chapter first.
 pub fn extract_chapters(slug: &str) -> Result<Vec<Chapter>> {
-	let mut chapters = Vec::new();
 	let first = fetch_chapter_page(slug, 1)?;
+	let mut chapters = Vec::with_capacity(first.total_chapters.max(0) as usize);
 	collect_chapter_items(&first.html, &mut chapters);
 	for page in 2..=first.total_page.max(1) {
 		let response = fetch_chapter_page(slug, page)?;
@@ -153,27 +144,31 @@ fn collect_chapter_items(html: &str, chapters: &mut Vec<Chapter>) {
 	}
 }
 
+/// Strip a leading "Chapter N" label and its `:`/`-` separator from a title,
+/// leaving just the subtitle. Returns `None` when the title doesn't start with
+/// that exact label, so the caller can keep the original title.
+fn strip_chapter_label(title: &str, number: f32) -> Option<String> {
+	let rest = title.strip_prefix(&format!("Chapter {number}"))?.trim();
+	let rest = rest.strip_prefix([':', '-']).unwrap_or(rest).trim();
+	Some(rest.to_string())
+}
+
 /// Build a [`Chapter`] from a single `<li>` chapter item.
 fn parse_chapter_item(item: &Element) -> Option<Chapter> {
 	let link = item.select_first("a[href]")?;
 	let url = link.attr("abs:href")?;
 	let (_, chapter_key) = parse_novel_and_chapter(&url)?;
 	let chapter_key = chapter_key?;
-	let mut title = link.text()?;
-	let chapter_number = parse_chapter_number(&title);
-	if let Some(chapter_number) = chapter_number {
-		title = match title.strip_prefix(&format!("Chapter {chapter_number}")) {
-			Some(rest) => rest
-				.trim()
-				.strip_prefix(':')
-				.or_else(|| rest.trim().strip_prefix('-'))
-				.map_or_else(|| rest.trim().to_string(), |t| t.trim().to_string()),
-			None => title,
-		};
-	};
+
+	let raw_title = link.text()?;
+	let chapter_number = parse_chapter_number(&raw_title);
+	let title = chapter_number
+		.and_then(|number| strip_chapter_label(&raw_title, number))
+		.unwrap_or(raw_title);
+
 	Some(Chapter {
 		key: chapter_key,
-		title: { if !title.is_empty() { Some(title) } else { None } },
+		title: (!title.is_empty()).then_some(title),
 		chapter_number,
 		url: Some(url),
 		..Default::default()
@@ -445,4 +440,34 @@ fn find_cover_image(el: &Element) -> Option<String> {
 		.and_then(|img| img.attr("abs:src"))
 		.or_else(|| el.select_first("img").and_then(|img| img.attr("abs:src")));
 	cover.and_then(|url| normalize_cover_url(&url))
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use aidoku_test::aidoku_test;
+
+	#[aidoku_test]
+	fn parses_chapter_number() {
+		assert_eq!(parse_chapter_number("Chapter 40: Foo"), Some(40.0));
+		assert_eq!(parse_chapter_number("Chapter 12.5"), Some(12.5));
+		assert_eq!(parse_chapter_number("Prologue"), None);
+		assert_eq!(parse_chapter_number("Chapter"), None);
+	}
+
+	#[aidoku_test]
+	fn strips_chapter_label() {
+		assert_eq!(
+			strip_chapter_label("Chapter 40: Foo", 40.0).as_deref(),
+			Some("Foo")
+		);
+		assert_eq!(
+			strip_chapter_label("Chapter 7 - Bar", 7.0).as_deref(),
+			Some("Bar")
+		);
+		// A label with no subtitle collapses to an empty string.
+		assert_eq!(strip_chapter_label("Chapter 40", 40.0).as_deref(), Some(""));
+		// A formatting mismatch keeps the caller's original title.
+		assert_eq!(strip_chapter_label("Chapter 07", 7.0), None);
+	}
 }
