@@ -13,8 +13,13 @@ pub fn request_html(url: &str) -> Result<Document> {
 	Ok(Request::get(url)?.html()?)
 }
 
+/// Maximum chapters the site returns per page; larger `pageSize` values clamp
+/// to this. Requesting the max minimizes the number of chapter-list requests
+/// (keeping even long novels under the rate-limit threshold).
+const CHAPTERS_PER_PAGE: usize = 200;
+
 pub fn build_novel_url(slug: &str) -> String {
-	format!("{BASE_URL}/novel/{slug}")
+	format!("{BASE_URL}/novel/{slug}?pageSize={CHAPTERS_PER_PAGE}")
 }
 
 pub fn build_chapter_url(slug: &str, chapter_key: &str) -> String {
@@ -93,39 +98,73 @@ pub fn content_rating_from_tags(tags: &[String]) -> ContentRating {
 	}
 }
 
-/// Extract Chapters from Novel page.
-pub fn extract_chapters(html: &Document) -> Vec<Chapter> {
-	let Some(items) = html.select("div.m-newest2 > ul.ul-list5 > li") else {
-		return Vec::new();
+/// Total number of chapters, parsed from the index `<select>`.
+///
+/// The `<select id="indexselect">` lists chapter ranges in 40-chapter chunks
+/// (e.g. last option `"C.801 - C.809"`), regardless of the requested
+/// `pageSize`. The last option's trailing number is the total chapter count.
+/// Returns `None` for short novels that have no select (single page).
+pub fn total_chapter_count(html: &Document) -> Option<usize> {
+	let last = html.select("select#indexselect option")?.next_back()?;
+	let text = last.text()?;
+	text.split(|c: char| !c.is_ascii_digit())
+		.rfind(|s| !s.is_empty())
+		.and_then(|n| n.parse().ok())
+}
+
+/// Parse a single chapter `<li>` element into a [Chapter].
+fn chapter_from_item(item: &Element) -> Option<Chapter> {
+	let link = item.select_first("a[href]")?;
+	let url = link.attr("abs:href")?;
+	let (_, chapter_key) = parse_novel_and_chapter(&url)?;
+	let chapter_key = chapter_key?;
+	let mut title = link.text()?;
+	let chapter_number = parse_chapter_number(&title);
+	if let Some(chapter_number) = chapter_number {
+		title = match title.strip_prefix(&format!("Chapter {chapter_number}")) {
+			Some(rest) => rest
+				.trim()
+				.strip_prefix(':')
+				.or_else(|| rest.trim().strip_prefix('-'))
+				.map_or_else(|| rest.trim().to_string(), |t| t.trim().to_string()),
+			None => title,
+		};
 	};
-	items
+	Some(Chapter {
+		key: chapter_key,
+		title: if !title.is_empty() { Some(title) } else { None },
+		chapter_number,
+		url: Some(url),
+		..Default::default()
+	})
+}
+
+/// Iterate the chapters on a single novel chapter-list page, in ascending order.
+fn extract_chapters(html: &Document) -> impl DoubleEndedIterator<Item = Chapter> {
+	html.select("div.m-newest2 > ul.ul-list5 > li")
+		.into_iter()
+		.flatten()
+		.filter_map(|item| chapter_from_item(&item))
+}
+
+/// Fetch a novel's full chapter list, newest-first (as Aidoku expects).
+///
+/// `first_page` is the already-loaded novel page, which `build_novel_url` loads
+/// at `pageSize=200`, so it is reused for the first page; only the remaining
+/// pages are fetched. The pages are kept alive in `rest` while their chapters
+/// are read, since the parsed elements reference them.
+pub fn fetch_all_chapters(first_page: &Document, slug: &str) -> Result<Vec<Chapter>> {
+	let page_count =
+		total_chapter_count(first_page).map_or(1, |total| total.div_ceil(CHAPTERS_PER_PAGE));
+	let rest = (2..=page_count)
+		.map(|page| request_html(&format!("{}&page={page}", build_novel_url(slug))))
+		.collect::<Result<Vec<Document>>>()?;
+	// Pages list chapters oldest-first; reverse the whole sequence for newest-first.
+	Ok(core::iter::once(first_page)
+		.chain(rest.iter())
+		.flat_map(extract_chapters)
 		.rev()
-		.filter_map(|item| {
-			let link = item.select_first("a[href]")?;
-			let url = link.attr("abs:href")?;
-			let (_, chapter_key) = parse_novel_and_chapter(&url)?;
-			let chapter_key = chapter_key?;
-			let mut title = link.text()?;
-			let chapter_number = parse_chapter_number(&title);
-			if let Some(chapter_number) = chapter_number {
-				title = match title.strip_prefix(&format!("Chapter {chapter_number}")) {
-					Some(rest) => rest
-						.trim()
-						.strip_prefix(':')
-						.or_else(|| rest.trim().strip_prefix('-'))
-						.map_or_else(|| rest.trim().to_string(), |t| t.trim().to_string()),
-					None => title,
-				};
-			};
-			Some(Chapter {
-				key: chapter_key,
-				title: { if !title.is_empty() { Some(title) } else { None } },
-				chapter_number,
-				url: Some(url),
-				..Default::default()
-			})
-		})
-		.collect()
+		.collect())
 }
 
 fn convert_element_to_markdown(element: &Element, output: &mut String) {
