@@ -5,6 +5,7 @@ use aidoku::{
         collections::BTreeMap,
         format,
         string::String,
+        vec,
         vec::Vec,
     },
     imports::{net::Request, std::current_date},
