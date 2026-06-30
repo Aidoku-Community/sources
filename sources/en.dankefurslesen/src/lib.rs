@@ -20,7 +20,7 @@ impl Impl for DankeMoe {
 
     fn content_rating_for(&self, det: &SeriesDetail) -> ContentRating {
         if det.adult {
-            ContentRating::Erotica
+            ContentRating::NSFW
         } else {
             ContentRating::Safe
         }
