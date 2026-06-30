@@ -1,18 +1,18 @@
 {
-    "info": {
-        "id": "en.dankefurslesen",
-        "name": "Danke fürs Lesen",
-        "version": 2,
-        "url": "https://danke.moe",
-        "minAppVersion": "0.7.1",
-        "contentRating": 2,
-        "languages": ["en"]
-    },
-    "listings": [
-        { "id": "All" },
-        { "id": "Series" },
-        { "id": "Oneshots" },
-        { "id": "Latest Chapters" },
-        { "id": "NSFW" }
-    ]
+	"info": {
+		"id": "en.dankefurslesen",
+		"name": "Danke fürs Lesen",
+		"version": 3,
+		"url": "https://danke.moe",
+		"minAppVersion": "0.7.1",
+		"contentRating": 2,
+		"languages": ["en"]
+	},
+	"listings": [
+		{ "id": "All" },
+		{ "id": "Series" },
+		{ "id": "Oneshots" },
+		{ "id": "Latest Chapters" },
+		{ "id": "NSFW" }
+	]
 }

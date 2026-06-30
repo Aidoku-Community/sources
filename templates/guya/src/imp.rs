@@ -1,12 +1,10 @@
 use aidoku::{
-    Chapter, ContentRating, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue,
-    HomeLayout, Link, Listing, ListingKind, Manga, MangaPageResult, Page, PageContent,
-    PageContext, Result,
+    Chapter, ContentRating, DeepLinkResult, FilterValue, Listing, Manga, MangaPageResult,
+    Page, PageContent, PageContext, Result,
     alloc::{
         collections::BTreeMap,
         format,
         string::String,
-        vec,
         vec::Vec,
     },
     imports::{net::Request, std::current_date},
@@ -283,19 +281,14 @@ pub trait Impl {
     fn get_manga_list(&self, params: &Params, listing: Listing, page: i32, cache: &mut SeriesCache) -> Result<MangaPageResult> {
         let base = params.base_url;
         match listing.id.as_str() {
-            "Series"         => return self.fetch_html_series_list(params, "/series/", page, cache),
-            "Oneshot"        => return self.fetch_html_series_list(params, "/oneshots/", page, cache),
-            "NSFW"           => return self.fetch_html_series_list(params, "/nsfw/", page, cache),
-            "Latest Chapter" => return self.fetch_latest_chapters_list(params, page, cache),
+            "Series" => return self.fetch_html_series_list(params, "/series/", page, cache),
+            "Oneshots" => return self.fetch_html_series_list(params, "/oneshots/", page, cache),
+            "NSFW" => return self.fetch_html_series_list(params, "/nsfw/", page, cache),
+            "Latest Chapters" => return self.fetch_latest_chapters_list(params, page, cache),
             _ => {}
         }
 
-        let mut all = self.fetch_all_series(params, cache)?;
-        match listing.id.as_str() {
-            "Latest" => all.sort_by_key(|(_, item)| Reverse(item.last_updated)),
-            _        => all.sort_by(|a, b| a.0.cmp(&b.0)),
-        }
-
+        let all = self.fetch_all_series(params, cache)?;
         let start = ((page - 1) as usize) * PAGE_SIZE;
         let has_next_page = start + PAGE_SIZE < all.len();
         let entries = all
@@ -305,32 +298,6 @@ pub trait Impl {
             .map(|(title, item)| item.into_manga(title, base))
             .collect();
         Ok(MangaPageResult { entries, has_next_page })
-    }
-
-    fn get_home(&self, params: &Params, cache: &mut SeriesCache) -> Result<HomeLayout> {
-        let mut all = self.fetch_all_series(params, cache)?;
-        all.sort_by_key(|(_, item)| Reverse(item.last_updated));
-
-        let entries: Vec<Link> = all
-            .into_iter()
-            .take(20)
-            .map(|(title, item)| item.into_manga(title, params.base_url).into())
-            .collect();
-
-        Ok(HomeLayout {
-            components: vec![HomeComponent {
-                title: Some(String::from("Latest Updates")),
-                subtitle: None,
-                value: HomeComponentValue::Scroller {
-                    entries,
-                    listing: Some(Listing {
-                        id: String::from("Latest"),
-                        name: String::from("Latest"),
-                        kind: ListingKind::Default,
-                    }),
-                },
-            }],
-        })
     }
 
     fn handle_deep_link(&self, params: &Params, url: String) -> Result<Option<DeepLinkResult>> {

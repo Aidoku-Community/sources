@@ -1,7 +1,7 @@
 #![no_std]
 
-use aidoku::{Source, Viewer, imports::net::{TimeUnit, set_rate_limit}, prelude::*};
-use guya::{Guya, Impl, Params};
+use aidoku::{ContentRating, Source, Viewer, imports::net::{TimeUnit, set_rate_limit}, prelude::*};
+use guya::{Guya, Impl, Params, SeriesDetail};
 
 struct DankeMoe;
 
@@ -17,6 +17,14 @@ impl Impl for DankeMoe {
             viewer: Viewer::RightToLeft,
         }
     }
+
+    fn content_rating_for(&self, det: &SeriesDetail) -> ContentRating {
+        if det.adult {
+            ContentRating::Erotica
+        } else {
+            ContentRating::Safe
+        }
+    }
 }
 
-register_source!(Guya<DankeMoe>, ListingProvider, Home, DeepLinkHandler, ImageRequestProvider);
+register_source!(Guya<DankeMoe>, ListingProvider, DeepLinkHandler, ImageRequestProvider);

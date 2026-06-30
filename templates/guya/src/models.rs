@@ -55,6 +55,8 @@ pub struct SeriesDetail {
     #[serde(default)]
     pub cover: String,
     #[serde(default)]
+    pub adult: bool,
+    #[serde(default)]
     pub groups: GroupsMap,
     #[serde(default)]
     pub chapters: ChaptersMap,

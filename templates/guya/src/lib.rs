@@ -1,7 +1,7 @@
 #![no_std]
 
 use aidoku::{
-    Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeLayout,
+    Chapter, DeepLinkHandler, DeepLinkResult, FilterValue,
     ImageRequestProvider, ListingProvider, Manga, MangaPageResult,
     Page, PageContext, Result, Source, Viewer,
     alloc::{string::String, vec::Vec},
@@ -68,13 +68,6 @@ impl<T: Impl> ListingProvider for Guya<T> {
     fn get_manga_list(&self, listing: aidoku::Listing, page: i32) -> Result<MangaPageResult> {
         let mut cache = self.cache.borrow_mut();
         self.inner.get_manga_list(&self.params, listing, page, &mut cache)
-    }
-}
-
-impl<T: Impl> Home for Guya<T> {
-    fn get_home(&self) -> Result<HomeLayout> {
-        let mut cache = self.cache.borrow_mut();
-        self.inner.get_home(&self.params, &mut cache)
     }
 }
 
