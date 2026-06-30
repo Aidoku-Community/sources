@@ -11,8 +11,8 @@
     "listings": [
         { "id": "All" },
         { "id": "Series" },
-        { "id": "Oneshot" },
-        { "id": "Latest Chapter" },
+        { "id": "Oneshots" },
+        { "id": "Latest Chapters" },
         { "id": "NSFW" }
     ]
 }
