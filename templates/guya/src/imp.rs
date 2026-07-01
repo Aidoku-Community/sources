@@ -94,58 +94,6 @@ pub trait Impl {
         Ok(MangaPageResult { entries, has_next_page })
     }
 
-    fn fetch_latest_chapters_list(&self, params: &Params, page: i32, cache: &mut SeriesCache) -> Result<MangaPageResult> {
-        let base = params.base_url;
-        let html = self.html_get(&format!("{base}/latest_chapters/"))?.html()?;
-
-        let mut series_map: BTreeMap<String, (String, Option<String>)> = self
-            .fetch_all_series(params, cache)?
-            .into_iter()
-            .map(|(title, item)| {
-                let cover = if item.cover.is_empty() {
-                    None
-                } else {
-                    Some(format!("{base}{}", item.cover))
-                };
-                (item.slug, (title, cover))
-            })
-            .collect();
-
-        let mut all_entries: Vec<Manga> = Vec::new();
-
-        if let Some(rows) = html.select("tr[data-serie]") {
-            for row in rows {
-                if let Some(slug) = row.attr("data-serie") {
-                    if all_entries.iter().any(|m| m.key == slug) {
-                        continue;
-                    }
-                    let url = format!("{base}/read/manga/{slug}/");
-                    let (title, cover) = if let Some(entry) = series_map.remove(&slug) {
-                        entry
-                    } else {
-                        let t = row
-                            .select_first("td.chapter-title a")
-                            .and_then(|a| a.text())
-                            .unwrap_or_else(|| slug.clone());
-                        (t, None)
-                    };
-                    all_entries.push(Manga {
-                        key: slug,
-                        title,
-                        url: Some(url),
-                        cover,
-                        ..Default::default()
-                    });
-                }
-            }
-        }
-
-        let start = ((page - 1) as usize) * PAGE_SIZE;
-        let has_next_page = start + PAGE_SIZE < all_entries.len();
-        let entries = all_entries.into_iter().skip(start).take(PAGE_SIZE).collect();
-        Ok(MangaPageResult { entries, has_next_page })
-    }
-
     fn get_search_manga_list(
         &self,
         params: &Params,
@@ -285,7 +233,6 @@ pub trait Impl {
             "Series" => return self.fetch_html_series_list(params, "/series/", page, cache),
             "Oneshots" => return self.fetch_html_series_list(params, "/oneshots/", page, cache),
             "NSFW" => return self.fetch_html_series_list(params, "/nsfw/", page, cache),
-            "Latest Chapters" => return self.fetch_latest_chapters_list(params, page, cache),
             _ => {}
         }
 
