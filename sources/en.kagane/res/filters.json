@@ -1,0 +1,24 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"title": "Sort By",
+		"canAscend": false,
+		"options": ["Popular (Total Views)", "Latest Updated", "By Name", "Newest"],
+		"default": { "index": 0, "ascending": false }
+	},
+	{
+		"type": "multi-select",
+		"id": "status",
+		"title": "Status",
+		"options": ["Ongoing", "Completed", "Hiatus", "Cancelled"],
+		"ids": ["Ongoing", "Completed", "Hiatus", "Abandoned"]
+	},
+	{
+		"type": "multi-select",
+		"id": "format",
+		"title": "Format",
+		"options": ["Manga", "Manhwa", "Manhua", "Comic", "Other"],
+		"ids": ["Manga", "Manhwa", "Manhua", "Comic", "Other"]
+	}
+]
