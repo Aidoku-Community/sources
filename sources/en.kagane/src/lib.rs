@@ -119,33 +119,33 @@ impl Source for Kagane {
 				}
 			}
 
-			let authors: Vec<String> = det
-				.series_staff
-				.iter()
-				.filter(|s| {
-					let role = s.role.to_lowercase();
-					role.contains("author") || role.contains("story")
-				})
-				.map(|s| s.name.clone())
-				.collect();
+			// Consume series_staff once, partitioning into authors/artists so the
+			// names don't need to be cloned. A staff member credited for both
+			// story and art lands in both lists.
+			let mut authors: Vec<String> = Vec::new();
+			let mut artists: Vec<String> = Vec::new();
+			for staff in det.series_staff {
+				let role = staff.role.to_lowercase();
+				let is_author = role.contains("author") || role.contains("story");
+				let is_artist = role.contains("artist") || role.contains("art");
+				match (is_author, is_artist) {
+					(true, true) => {
+						authors.push(staff.name.clone());
+						artists.push(staff.name);
+					}
+					(true, false) => authors.push(staff.name),
+					(false, true) => artists.push(staff.name),
+					(false, false) => {}
+				}
+			}
 			if !authors.is_empty() {
 				manga.authors = Some(authors);
 			}
-
-			let artists: Vec<String> = det
-				.series_staff
-				.iter()
-				.filter(|s| {
-					let role = s.role.to_lowercase();
-					role.contains("artist") || role.contains("art")
-				})
-				.map(|s| s.name.clone())
-				.collect();
 			if !artists.is_empty() {
 				manga.artists = Some(artists);
 			}
 
-			let tags: Vec<String> = det.genres.iter().map(|g| g.genre_name.clone()).collect();
+			let tags: Vec<String> = det.genres.into_iter().map(|g| g.genre_name).collect();
 			if !tags.is_empty() {
 				manga.tags = Some(tags);
 			}
