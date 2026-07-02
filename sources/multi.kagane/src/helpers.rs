@@ -1,8 +1,14 @@
 use aidoku::{
 	ContentRating, MangaStatus, Viewer,
-	alloc::{format, string::String, vec, vec::Vec},
+	alloc::{string::String, vec, vec::Vec},
 	imports::defaults::defaults_get,
 };
+
+/// The content languages to request from the API, from the "Languages"
+/// setting. Falls back to English when the setting is unset.
+fn languages() -> Vec<String> {
+	defaults_get::<Vec<String>>("languages").unwrap_or_else(|| vec![String::from("en")])
+}
 
 /// The content ratings to request from the API, from the "Content Rating"
 /// setting. Falls back to Safe + Suggestive when the setting is unset.
@@ -52,62 +58,26 @@ pub fn parse_content_rating(s: Option<&str>) -> ContentRating {
 }
 
 pub fn build_search_body(query: Option<&str>, statuses: &[String], formats: &[String]) -> String {
-	let mut parts: Vec<String> = Vec::new();
+	let mut body = serde_json::Map::new();
 
-	if let Some(q) = query
-		&& !q.is_empty()
-	{
-		parts.push(format!("\"title\":\"{}\"", escape_json(q)));
+	if let Some(q) = query.filter(|q| !q.is_empty()) {
+		body.insert(String::from("title"), serde_json::json!(q));
 	}
 
-	parts.push(String::from("\"content_lang\":[\"en\"]"));
-
-	let sources = source_types()
-		.iter()
-		.map(|s| format!("\"{}\"", escape_json(s)))
-		.collect::<Vec<_>>()
-		.join(",");
-	parts.push(format!("\"source_type\":[{sources}]"));
-
-	let ratings = content_ratings()
-		.iter()
-		.map(|r| format!("\"{}\"", escape_json(r)))
-		.collect::<Vec<_>>()
-		.join(",");
-	parts.push(format!("\"content_rating\":[{ratings}]"));
+	body.insert(String::from("content_lang"), serde_json::json!(languages()));
+	body.insert(String::from("source_type"), serde_json::json!(source_types()));
+	body.insert(
+		String::from("content_rating"),
+		serde_json::json!(content_ratings()),
+	);
 
 	if !statuses.is_empty() {
-		let joined = statuses
-			.iter()
-			.map(|s| format!("\"{}\"", escape_json(s)))
-			.collect::<Vec<_>>()
-			.join(",");
-		parts.push(format!("\"upload_status\":[{joined}]"));
+		body.insert(String::from("upload_status"), serde_json::json!(statuses));
 	}
 
 	if !formats.is_empty() {
-		let joined = formats
-			.iter()
-			.map(|s| format!("\"{}\"", escape_json(s)))
-			.collect::<Vec<_>>()
-			.join(",");
-		parts.push(format!("\"format\":[{joined}]"));
+		body.insert(String::from("format"), serde_json::json!(formats));
 	}
 
-	format!("{{{}}}", parts.join(","))
-}
-
-fn escape_json(s: &str) -> String {
-	let mut out = String::new();
-	for ch in s.chars() {
-		match ch {
-			'"' => out.push_str("\\\""),
-			'\\' => out.push_str("\\\\"),
-			'\n' => out.push_str("\\n"),
-			'\r' => out.push_str("\\r"),
-			'\t' => out.push_str("\\t"),
-			c => out.push(c),
-		}
-	}
-	out
+	serde_json::to_string(&serde_json::Value::Object(body)).unwrap_or_default()
 }

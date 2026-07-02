@@ -18,7 +18,6 @@
 		"type": "multi-select",
 		"id": "format",
 		"title": "Format",
-		"options": ["Manga", "Manhwa", "Manhua", "Comic", "Other"],
-		"ids": ["Manga", "Manhwa", "Manhua", "Comic", "Other"]
+		"options": ["Manga", "Manhwa", "Manhua", "Comic", "Other"]
 	}
 ]

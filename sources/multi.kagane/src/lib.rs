@@ -3,7 +3,7 @@
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
 	HomeLayout, ImageRequestProvider, Link, Listing, ListingKind, ListingProvider, Manga,
-	MangaPageResult, Page, PageContent, PageContext, Result, Source,
+	MangaPageResult, MangaWithChapter, Page, PageContent, PageContext, Result, Source,
 	alloc::{format, string::String, vec, vec::Vec},
 	imports::{
 		net::{Request, TimeUnit, set_rate_limit},
@@ -40,6 +40,38 @@ fn api_post(url: &str, body: String) -> Result<Request> {
 		.header("Origin", BASE_URL)
 		.header("Referer", &format!("{BASE_URL}/"))
 		.body(body))
+}
+
+/// Build a home-feed entry pairing a series with its most recent chapter,
+/// as returned in the search endpoint's `latest_chapters` field. Skips
+/// series that have no chapters.
+fn to_manga_with_chapter(mut item: SearchItem) -> Option<MangaWithChapter> {
+	let book = item.latest_chapters.drain(..).next()?;
+	let series_key = item.series_id.clone();
+	let manga = Manga::from(item);
+	let url = format!("{BASE_URL}/series/{series_key}/reader/{}", book.book_id);
+	Some(MangaWithChapter {
+		chapter: Chapter {
+			key: book.book_id,
+			chapter_number: book.chapter_no.as_deref().and_then(|s| s.parse().ok()),
+			volume_number: book.volume_no.as_deref().and_then(|s| s.parse().ok()),
+			title: book.title.and_then(|t| {
+				let t = t.trim();
+				if t.is_empty() {
+					None
+				} else {
+					Some(String::from(t))
+				}
+			}),
+			date_uploaded: book.created_at.as_deref().and_then(|s| {
+				let s = s.split_once('.').map_or(s, |(b, _)| b);
+				parse_date(format!("{s}Z"), "yyyy-MM-dd'T'HH:mm:ss'Z'")
+			}),
+			url: Some(url),
+			..Default::default()
+		},
+		manga,
+	})
 }
 
 struct Kagane;
@@ -247,13 +279,9 @@ impl Source for Kagane {
 impl ListingProvider for Kagane {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let sort = match listing.id.as_str() {
-			"Popular Today" => "avg_views_day",
-			"Popular This Week" => "avg_views_week",
-			"Popular This Month" => "avg_views_month",
-			"Popular All Time" => "total_views",
-			"Latest" => "updated_at",
 			"Recently Added" => "created_at",
-			_ => "total_views",
+			"Recently Updated" => "updated_at",
+			_ => "avg_views_day", // Popular Today
 		};
 		let url = format!(
 			"{API_BASE}/search/series?page={}&size=35&sort={},desc",
@@ -275,7 +303,8 @@ impl ListingProvider for Kagane {
 impl Home for Kagane {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let pop_url = format!("{API_BASE}/search/series?page=0&size=20&sort=avg_views_day,desc");
-		let lat_url = format!("{API_BASE}/search/series?page=0&size=20&sort=updated_at,desc");
+		let added_url = format!("{API_BASE}/search/series?page=0&size=20&sort=created_at,desc");
+		let updated_url = format!("{API_BASE}/search/series?page=0&size=20&sort=updated_at,desc");
 		let body = build_search_body(None, &[], &[]);
 
 		let popular: Vec<Link> = api_post(&pop_url, body.clone())?
@@ -285,11 +314,18 @@ impl Home for Kagane {
 			.map(|s| Manga::from(s).into())
 			.collect();
 
-		let latest: Vec<Link> = api_post(&lat_url, body)?
+		let recently_added: Vec<Link> = api_post(&added_url, body.clone())?
 			.json_owned::<SearchResponse>()?
 			.content
 			.into_iter()
 			.map(|s| Manga::from(s).into())
+			.collect();
+
+		let recently_updated: Vec<MangaWithChapter> = api_post(&updated_url, body)?
+			.json_owned::<SearchResponse>()?
+			.content
+			.into_iter()
+			.filter_map(to_manga_with_chapter)
 			.collect();
 
 		Ok(HomeLayout {
@@ -307,13 +343,26 @@ impl Home for Kagane {
 					},
 				},
 				HomeComponent {
-					title: Some(String::from("Latest Updates")),
+					title: Some(String::from("Recently Added")),
 					subtitle: None,
 					value: HomeComponentValue::Scroller {
-						entries: latest,
+						entries: recently_added,
 						listing: Some(Listing {
-							id: String::from("Latest"),
-							name: String::from("Latest"),
+							id: String::from("Recently Added"),
+							name: String::from("Recently Added"),
+							kind: ListingKind::Default,
+						}),
+					},
+				},
+				HomeComponent {
+					title: Some(String::from("Recently Updated")),
+					subtitle: None,
+					value: HomeComponentValue::MangaChapterList {
+						entries: recently_updated,
+						page_size: None,
+						listing: Some(Listing {
+							id: String::from("Recently Updated"),
+							name: String::from("Recently Updated"),
 							kind: ListingKind::Default,
 						}),
 					},

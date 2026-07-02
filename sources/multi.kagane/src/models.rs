@@ -25,6 +25,17 @@ pub struct SearchItem {
 	pub series_id: String,
 	pub title: String,
 	pub cover_image_id: Option<String>,
+	#[serde(default)]
+	pub latest_chapters: Vec<LatestChapter>,
+}
+
+#[derive(Deserialize)]
+pub struct LatestChapter {
+	pub book_id: String,
+	pub title: Option<String>,
+	pub chapter_no: Option<String>,
+	pub volume_no: Option<String>,
+	pub created_at: Option<String>,
 }
 
 impl From<SearchItem> for Manga {

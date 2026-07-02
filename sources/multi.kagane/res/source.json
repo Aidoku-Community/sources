@@ -1,0 +1,11 @@
+{
+	"info": {
+		"id": "en.kagane",
+		"name": "Kagane",
+		"version": 1,
+		"url": "https://kagane.to",
+		"minAppVersion": "0.7.1",
+		"contentRating": 1,
+		"languages": ["en"]
+	}
+}

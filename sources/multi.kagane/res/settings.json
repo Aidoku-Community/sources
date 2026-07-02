@@ -5,10 +5,18 @@
 		"items": [
 			{
 				"type": "multi-select",
+				"key": "languages",
+				"title": "Languages",
+				"values": ["en", "es", "it", "fr", "tr", "pt", "pt-br", "pl", "ru", "de", "id", "vi", "th", "ar", "he"],
+				"titles": ["English", "Spanish", "Italian", "French", "Turkish", "Portuguese", "Portuguese (Brazil)", "Polish", "Russian", "German", "Indonesian", "Vietnamese", "Thai", "Arabic", "Hebrew"],
+				"default": ["en"],
+				"refreshes": ["content"]
+			},
+			{
+				"type": "multi-select",
 				"key": "contentRating",
 				"title": "Content Rating",
 				"values": ["Safe", "Suggestive", "Erotica", "Pornographic"],
-				"titles": ["Safe", "Suggestive", "Erotica", "Pornographic"],
 				"default": ["Safe", "Suggestive"],
 				"refreshes": ["content"]
 			},
@@ -17,7 +25,6 @@
 				"key": "sourceType",
 				"title": "Source Type",
 				"values": ["Official", "Unofficial", "Mixed"],
-				"titles": ["Official", "Unofficial", "Mixed"],
 				"default": ["Official", "Unofficial", "Mixed"],
 				"refreshes": ["content"]
 			}
