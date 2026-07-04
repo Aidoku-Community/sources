@@ -23,9 +23,8 @@ const API_BASE: &str = "https://yuzuki.kagane.to/api/v2";
 // Sort param by filter index (from filters.json options order).
 const SORT_PARAMS: &[&str] = &[
 	"total_views", // 0: Popular (Total Views)
-	"updated_at",  // 1: Latest Updated
-	"series_name", // 2: By Name
-	"created_at",  // 3: Newest
+	"updated_at",  // 1: Recently Updated
+	"created_at",  // 2: Recently Added
 ];
 
 fn api_get(url: &str) -> Result<Request> {
@@ -40,38 +39,6 @@ fn api_post(url: &str, body: String) -> Result<Request> {
 		.header("Origin", BASE_URL)
 		.header("Referer", &format!("{BASE_URL}/"))
 		.body(body))
-}
-
-/// Build a home-feed entry pairing a series with its most recent chapter,
-/// as returned in the search endpoint's `latest_chapters` field. Skips
-/// series that have no chapters.
-fn to_manga_with_chapter(mut item: SearchItem) -> Option<MangaWithChapter> {
-	let book = item.latest_chapters.drain(..).next()?;
-	let series_key = item.series_id.clone();
-	let manga = Manga::from(item);
-	let url = format!("{BASE_URL}/series/{series_key}/reader/{}", book.book_id);
-	Some(MangaWithChapter {
-		chapter: Chapter {
-			key: book.book_id,
-			chapter_number: book.chapter_no.as_deref().and_then(|s| s.parse().ok()),
-			volume_number: book.volume_no.as_deref().and_then(|s| s.parse().ok()),
-			title: book.title.and_then(|t| {
-				let t = t.trim();
-				if t.is_empty() {
-					None
-				} else {
-					Some(String::from(t))
-				}
-			}),
-			date_uploaded: book.created_at.as_deref().and_then(|s| {
-				let s = s.split_once('.').map_or(s, |(b, _)| b);
-				parse_date(format!("{s}Z"), "yyyy-MM-dd'T'HH:mm:ss'Z'")
-			}),
-			url: Some(url),
-			..Default::default()
-		},
-		manga,
-	})
 }
 
 struct Kagane;
@@ -91,17 +58,27 @@ impl Source for Kagane {
 		let mut sort_idx = 0usize;
 		let mut statuses: Vec<String> = Vec::new();
 		let mut formats: Vec<String> = Vec::new();
+		let mut genres_inc: Vec<String> = Vec::new();
+		let mut genres_exc: Vec<String> = Vec::new();
 
-		for filter in &filters {
+		for filter in filters {
 			match filter {
 				FilterValue::Sort { index, .. } => {
-					sort_idx = *index as usize;
+					sort_idx = index as usize;
 				}
 				FilterValue::MultiSelect { id, included, .. } if id == "status" => {
-					statuses = included.clone();
+					statuses = included;
 				}
 				FilterValue::MultiSelect { id, included, .. } if id == "format" => {
-					formats = included.clone();
+					formats = included;
+				}
+				FilterValue::MultiSelect {
+					id,
+					included,
+					excluded,
+				} if id == "genre" => {
+					genres_inc = included;
+					genres_exc = excluded;
 				}
 				_ => {}
 			}
@@ -113,7 +90,7 @@ impl Source for Kagane {
 			page - 1,
 			sort
 		);
-		let body = build_search_body(query.as_deref(), &statuses, &formats);
+		let body = build_search_body(query.as_deref(), &statuses, &formats, &genres_inc, &genres_exc);
 		let resp: SearchResponse = api_post(&url, body)?.json_owned()?;
 
 		let has_next_page = !resp.last;
@@ -177,16 +154,32 @@ impl Source for Kagane {
 				manga.artists = Some(artists);
 			}
 
-			let tags: Vec<String> = det.genres.into_iter().map(|g| g.genre_name).collect();
+			// The site lists genres and (separate) tags; surface both together,
+			// skipping any flagged as spoilers.
+			let tags: Vec<String> = det
+				.genres
+				.into_iter()
+				.filter(|g| !g.is_spoiler)
+				.map(|g| g.genre_name)
+				.chain(
+					det.tags
+						.into_iter()
+						.filter(|t| !t.is_spoiler)
+						.map(|t| t.tag_name),
+				)
+				.collect();
 			if !tags.is_empty() {
 				manga.tags = Some(tags);
 			}
 		}
 
 		if needs_chapters {
-			let mut chapters: Vec<Chapter> = det
+			// API returns chapters oldest-first; reverse the iterator for
+			// newest-first display.
+			let chapters: Vec<Chapter> = det
 				.series_books
 				.into_iter()
+				.rev()
 				.map(|book| {
 					let url = format!("{BASE_URL}/series/{}/reader/{}", manga.key, book.book_id);
 					let scanlators: Vec<String> =
@@ -217,8 +210,6 @@ impl Source for Kagane {
 					}
 				})
 				.collect();
-			// API returns chapters oldest-first; reverse for newest-first display.
-			chapters.reverse();
 			manga.chapters = Some(chapters);
 		}
 
@@ -281,14 +272,14 @@ impl ListingProvider for Kagane {
 		let sort = match listing.id.as_str() {
 			"Recently Added" => "created_at",
 			"Recently Updated" => "updated_at",
-			_ => "avg_views_day", // Popular Today
+			_ => "avg_views_week", // Popular Today (daily views isn't a valid API sort)
 		};
 		let url = format!(
 			"{API_BASE}/search/series?page={}&size=35&sort={},desc",
 			page - 1,
 			sort
 		);
-		let body = build_search_body(None, &[], &[]);
+		let body = build_search_body(None, &[], &[], &[], &[]);
 		let resp: SearchResponse = api_post(&url, body)?.json_owned()?;
 
 		let has_next_page = !resp.last;
@@ -302,10 +293,10 @@ impl ListingProvider for Kagane {
 
 impl Home for Kagane {
 	fn get_home(&self) -> Result<HomeLayout> {
-		let pop_url = format!("{API_BASE}/search/series?page=0&size=20&sort=avg_views_day,desc");
+		let pop_url = format!("{API_BASE}/search/series?page=0&size=20&sort=avg_views_week,desc");
 		let added_url = format!("{API_BASE}/search/series?page=0&size=20&sort=created_at,desc");
 		let updated_url = format!("{API_BASE}/search/series?page=0&size=20&sort=updated_at,desc");
-		let body = build_search_body(None, &[], &[]);
+		let body = build_search_body(None, &[], &[], &[], &[]);
 
 		let popular: Vec<Link> = api_post(&pop_url, body.clone())?
 			.json_owned::<SearchResponse>()?
@@ -325,7 +316,7 @@ impl Home for Kagane {
 			.json_owned::<SearchResponse>()?
 			.content
 			.into_iter()
-			.filter_map(to_manga_with_chapter)
+			.filter_map(|s| MangaWithChapter::try_from(s).ok())
 			.collect();
 
 		Ok(HomeLayout {

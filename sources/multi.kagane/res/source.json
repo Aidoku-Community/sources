@@ -1,11 +1,30 @@
 {
 	"info": {
-		"id": "en.kagane",
+		"id": "multi.kagane",
 		"name": "Kagane",
 		"version": 1,
 		"url": "https://kagane.to",
 		"minAppVersion": "0.7.1",
 		"contentRating": 1,
-		"languages": ["en"]
+		"languages": [
+			"en",
+			"es",
+			"it",
+			"fr",
+			"tr",
+			"pt",
+			"pt-BR",
+			"pl",
+			"ru",
+			"de",
+			"id",
+			"vi",
+			"th",
+			"ar",
+			"he"
+		]
+	},
+	"config": {
+		"supportsTagSearch": true
 	}
 }

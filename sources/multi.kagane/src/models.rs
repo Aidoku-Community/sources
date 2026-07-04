@@ -1,6 +1,7 @@
 use aidoku::{
-	Manga,
+	Chapter, Manga, MangaWithChapter,
 	alloc::{format, string::String, vec::Vec},
+	imports::std::parse_date,
 };
 use serde::Deserialize;
 
@@ -51,6 +52,39 @@ impl From<SearchItem> for Manga {
 	}
 }
 
+/// Pair a series with its most recent chapter, as returned in the search
+/// endpoint's `latest_chapters` field. Fails when the series has no chapters,
+/// so it can be dropped from home-feed listings via `filter_map(.. .ok())`.
+impl TryFrom<SearchItem> for MangaWithChapter {
+	type Error = ();
+
+	fn try_from(mut item: SearchItem) -> Result<Self, Self::Error> {
+		let book = item.latest_chapters.drain(..).next().ok_or(())?;
+		let manga = Manga::from(item);
+		Ok(MangaWithChapter {
+			chapter: Chapter {
+				key: book.book_id,
+				chapter_number: book.chapter_no.as_deref().and_then(|s| s.parse().ok()),
+				volume_number: book.volume_no.as_deref().and_then(|s| s.parse().ok()),
+				title: book.title.and_then(|t| {
+					let t = t.trim();
+					if t.is_empty() {
+						None
+					} else {
+						Some(String::from(t))
+					}
+				}),
+				date_uploaded: book.created_at.as_deref().and_then(|s| {
+					let s = s.split_once('.').map_or(s, |(b, _)| b);
+					parse_date(format!("{s}Z"), "yyyy-MM-dd'T'HH:mm:ss'Z'")
+				}),
+				..Default::default()
+			},
+			manga,
+		})
+	}
+}
+
 // ── Series detail ───────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -64,6 +98,8 @@ pub struct SeriesDetail {
 	pub series_staff: Vec<StaffMember>,
 	#[serde(default)]
 	pub genres: Vec<GenreItem>,
+	#[serde(default)]
+	pub tags: Vec<TagItem>,
 	#[serde(default)]
 	pub series_books: Vec<BookItem>,
 	#[serde(default)]
@@ -79,6 +115,15 @@ pub struct StaffMember {
 #[derive(Deserialize)]
 pub struct GenreItem {
 	pub genre_name: String,
+	#[serde(default)]
+	pub is_spoiler: bool,
+}
+
+#[derive(Deserialize)]
+pub struct TagItem {
+	pub tag_name: String,
+	#[serde(default)]
+	pub is_spoiler: bool,
 }
 
 #[derive(Deserialize)]
