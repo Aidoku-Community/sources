@@ -13,14 +13,15 @@ use crate::models::{
 };
 use aidoku::imports::std::send_partial_result;
 use aidoku::{
-	AidokuError, BaseUrlProvider, Chapter, DynamicListings, FilterValue, Listing, ListingProvider,
-	Manga, MangaPageResult, Page, PageContent, Result, Source,
+	AidokuError, BaseUrlProvider, BasicLoginHandler, Chapter, DynamicListings, FilterValue,
+	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result, Source,
 	alloc::{String, Vec},
 	imports::net::Request,
 	prelude::*,
 };
 use alloc::string::ToString;
 use alloc::vec;
+use base64::{Engine, engine::general_purpose::STANDARD};
 
 struct Suwayomi;
 
@@ -30,10 +31,53 @@ impl Suwayomi {
 		T: serde::de::DeserializeOwned,
 	{
 		let base_url = settings::get_base_url()?;
-		Request::post(format!("{base_url}/api/graphql"))?
-			.header("Content-Type", "application/json")
-			.body(body.to_string())
-			.json_owned::<GraphQLResponse<T>>()
+		let auth_mode = settings::get_auth_mode();
+		let body_str = body.to_string();
+
+		let send_req = |with_basic: bool| -> Result<GraphQLResponse<T>> {
+			let mut request = Request::post(format!("{base_url}/api/graphql"))?
+				.header("Content-Type", "application/json")
+				.body(body_str.clone());
+
+			if with_basic && let Some((user, pass)) = settings::get_credentials() {
+				let auth = STANDARD.encode(format!("{user}:{pass}"));
+				request = request.header("Authorization", &format!("Basic {auth}"));
+			}
+			request.json_owned::<GraphQLResponse<T>>()
+		};
+
+		let do_login_html = || -> Result<()> {
+			if let Some((user, pass)) = settings::get_credentials() {
+				let form = format!(
+					"user={}&pass={}",
+					aidoku::helpers::uri::encode_uri_component(user),
+					aidoku::helpers::uri::encode_uri_component(pass)
+				);
+				let _ = Request::post(format!("{base_url}/login.html"))?
+					.header("Content-Type", "application/x-www-form-urlencoded")
+					.body(form)
+					.send()
+					.ok();
+			}
+			Ok(())
+		};
+
+		match auth_mode.as_str() {
+			"none" => send_req(false),
+			"basic_auth" => send_req(true),
+			"simple_login" => {
+				do_login_html()?;
+				send_req(false)
+			}
+			_ => {
+				let resp = send_req(true);
+				if resp.is_err() {
+					do_login_html()?;
+					return send_req(true);
+				}
+				resp
+			}
+		}
 	}
 
 	fn execute_query<T>(
@@ -271,4 +315,69 @@ impl BaseUrlProvider for Suwayomi {
 	}
 }
 
-register_source!(Suwayomi, ListingProvider, BaseUrlProvider, DynamicListings);
+impl BasicLoginHandler for Suwayomi {
+	fn handle_basic_login(&self, _key: String, username: String, password: String) -> Result<bool> {
+		let base_url = settings::get_base_url()?;
+		let auth_mode = settings::get_auth_mode();
+
+		let send_basic_req = || {
+			let auth = STANDARD.encode(format!("{username}:{password}"));
+			let body = serde_json::json!({
+				"operationName": graphql::GraphQLQuery::CATEGORIES.operation_name,
+				"query": graphql::GraphQLQuery::CATEGORIES.query,
+			});
+			Request::post(format!("{base_url}/api/graphql"))?
+				.header("Content-Type", "application/json")
+				.header("Authorization", &format!("Basic {auth}"))
+				.body(body.to_string())
+				.send()
+		};
+
+		let send_form_req = || {
+			let form = format!(
+				"user={}&pass={}",
+				aidoku::helpers::uri::encode_uri_component(username.clone()),
+				aidoku::helpers::uri::encode_uri_component(password.clone())
+			);
+			Request::post(format!("{base_url}/login.html"))?
+				.header("Content-Type", "application/x-www-form-urlencoded")
+				.body(form)
+				.send()
+		};
+
+		match auth_mode.as_str() {
+			"none" => Ok(true),
+			"basic_auth" => {
+				let resp = send_basic_req()?;
+				Ok(resp.status_code() == 200)
+			}
+			"simple_login" => {
+				let resp = send_form_req()?;
+				Ok(resp.status_code() == 200)
+			}
+			_ => {
+				// auto: try basic auth first
+				if let Ok(resp) = send_basic_req()
+					&& resp.status_code() == 200
+				{
+					return Ok(true);
+				}
+				// try form login next
+				if let Ok(resp) = send_form_req()
+					&& resp.status_code() == 200
+				{
+					return Ok(true);
+				}
+				Ok(false)
+			}
+		}
+	}
+}
+
+register_source!(
+	Suwayomi,
+	ListingProvider,
+	BaseUrlProvider,
+	DynamicListings,
+	BasicLoginHandler
+);
