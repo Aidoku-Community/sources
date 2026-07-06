@@ -1,7 +1,8 @@
 use aidoku::{
 	Result,
 	alloc::{string::String, vec::Vec},
-	imports::{defaults::defaults_get, error::AidokuError},
+	imports::defaults::defaults_get,
+	prelude::*,
 };
 
 // settings keys
@@ -19,5 +20,5 @@ pub fn get_languages() -> Result<Vec<String>> {
 				})
 				.collect()
 		})
-		.ok_or(AidokuError::message("Unable to fetch languages"))
+		.ok_or(error!("Unable to fetch languages"))
 }
