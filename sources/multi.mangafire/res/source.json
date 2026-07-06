@@ -2,21 +2,13 @@
 	"info": {
 		"id": "multi.mangafire",
 		"name": "MangaFire",
-		"version": 5,
+		"version": 6,
 		"url": "https://mangafire.to",
 		"contentRating": 1,
 		"languages": ["en", "es", "es-419", "fr", "ja", "pt", "pt-BR"],
 		"minAppVersion": "0.7.1"
 	},
-	"listings": [
-		{
-			"id": "Newest"
-		},
-		{
-			"id": "Updated"
-		},
-		{
-			"id": "Added"
-		}
-	]
+	"config": {
+		"breakingChangeVersion": 6
+	}
 }
