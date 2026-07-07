@@ -1,8 +1,25 @@
 use aidoku::{
-	ContentRating, MangaStatus, Viewer,
-	alloc::{string::String, vec, vec::Vec},
-	imports::defaults::defaults_get,
+	ContentRating, MangaStatus, Result, Viewer,
+	alloc::{format, string::String, vec, vec::Vec},
+	imports::{defaults::defaults_get, net::Request},
 };
+
+pub const BASE_URL: &str = "https://kagane.to";
+pub const API_BASE: &str = "https://yuzuki.kagane.to/api/v2";
+
+pub fn api_get(url: &str) -> Result<Request> {
+	Ok(Request::get(url)?
+		.header("Origin", BASE_URL)
+		.header("Referer", &format!("{BASE_URL}/")))
+}
+
+pub fn api_post(url: &str, body: String) -> Result<Request> {
+	Ok(Request::post(url)?
+		.header("Content-Type", "application/json")
+		.header("Origin", BASE_URL)
+		.header("Referer", &format!("{BASE_URL}/"))
+		.body(body))
+}
 
 /// The content languages to request from the API. Reads the app's built-in
 /// language selection (populated from the `languages` array in source.json)

@@ -17,29 +17,12 @@ mod models;
 use helpers::*;
 use models::*;
 
-const BASE_URL: &str = "https://kagane.to";
-const API_BASE: &str = "https://yuzuki.kagane.to/api/v2";
-
 // Sort param by filter index (from filters.json options order).
 const SORT_PARAMS: &[&str] = &[
 	"total_views", // 0: Popular (Total Views)
 	"updated_at",  // 1: Recently Updated
 	"created_at",  // 2: Recently Added
 ];
-
-fn api_get(url: &str) -> Result<Request> {
-	Ok(Request::get(url)?
-		.header("Origin", BASE_URL)
-		.header("Referer", &format!("{BASE_URL}/")))
-}
-
-fn api_post(url: &str, body: String) -> Result<Request> {
-	Ok(Request::post(url)?
-		.header("Content-Type", "application/json")
-		.header("Origin", BASE_URL)
-		.header("Referer", &format!("{BASE_URL}/"))
-		.body(body))
-}
 
 struct Kagane;
 
@@ -272,7 +255,7 @@ impl ListingProvider for Kagane {
 		let sort = match listing.id.as_str() {
 			"Recently Added" => "created_at",
 			"Recently Updated" => "updated_at",
-			_ => "avg_views_week", // Popular Today (daily views isn't a valid API sort)
+			_ => "avg_views_week", // Popular This Week
 		};
 		let url = format!(
 			"{API_BASE}/search/series?page={}&size=35&sort={},desc",
@@ -322,13 +305,13 @@ impl Home for Kagane {
 		Ok(HomeLayout {
 			components: vec![
 				HomeComponent {
-					title: Some(String::from("Popular Today")),
+					title: Some(String::from("Popular This Week")),
 					subtitle: None,
 					value: HomeComponentValue::Scroller {
 						entries: popular,
 						listing: Some(Listing {
-							id: String::from("Popular Today"),
-							name: String::from("Popular Today"),
+							id: String::from("Popular This Week"),
+							name: String::from("Popular This Week"),
 							kind: ListingKind::Default,
 						}),
 					},
