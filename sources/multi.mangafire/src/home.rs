@@ -1,11 +1,12 @@
+use crate::models::{ApiManga, ApiResponse};
 use crate::{BASE_URL, MangaFire};
-use aidoku::helpers::string::StripPrefixOrSelf;
-use aidoku::imports::html::Document;
-use aidoku::{Chapter, Link};
 use aidoku::{
-	Home, HomeComponent, HomeLayout, HomePartialResult, Manga, MangaWithChapter, Result,
-	alloc::{Vec, vec},
-	imports::{net::Request, std::send_partial_result},
+	Chapter, Home, HomeComponent, HomeLayout, HomePartialResult, Manga, MangaWithChapter, Result,
+	alloc::vec,
+	imports::{
+		net::{Request, RequestError, Response},
+		std::send_partial_result,
+	},
 	prelude::*,
 };
 
@@ -15,155 +16,69 @@ impl Home for MangaFire {
 		send_partial_result(&HomePartialResult::Layout(HomeLayout {
 			components: vec![
 				HomeComponent {
-					title: None,
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_big_scroller(),
-				},
-				HomeComponent {
-					title: Some("Most Viewed".into()),
-					subtitle: None,
+					title: Some("Trending".into()),
+					subtitle: Some("Trending Now".into()),
 					value: aidoku::HomeComponentValue::empty_scroller(),
 				},
 				HomeComponent {
-					title: Some("Recently Updated".into()),
-					subtitle: None,
+					title: Some("Latest Updates".into()),
+					subtitle: Some("Fresh Chapters".into()),
 					value: aidoku::HomeComponentValue::empty_manga_chapter_list(),
-				},
-				HomeComponent {
-					title: Some("New Release".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_scroller(),
 				},
 			],
 		}));
 
-		let html = Request::get(format!("{BASE_URL}/home"))?.html()?;
-
-		fn parse_scroller_entries(html: &Document, section_selector: &str) -> Vec<Link> {
-			html.select_first(section_selector)
-				.and_then(|section| {
-					section
-						.select(".swiper-wrapper > .swiper-slide")
-						.map(|els| {
-							els.filter_map(|el| {
-								Some(
-									Manga {
-										key: el
-											.select_first("a")?
-											.attr("href")?
-											.strip_prefix_or_self(BASE_URL)
-											.into(),
-										title: el
-											.select_first("a > span")?
-											.text()
-											.unwrap_or_default(),
-										cover: el
-											.select_first(".poster img")
-											.and_then(|img| img.attr("src")),
-										..Default::default()
-									}
-									.into(),
-								)
-							})
-							.collect()
-						})
-				})
-				.unwrap_or_default()
-		}
+		let responses: [core::result::Result<Response, RequestError>; 2] = Request::send_all([
+			Request::get(format!(
+				"{BASE_URL}/api/top-titles?type=trending&days=1&limit=30"
+			))?,
+			Request::get(format!(
+				"{BASE_URL}/api/titles?order%5Bchapter_updated_at%5D=desc&hot=1&page=1&limit=30"
+			))?,
+		])
+		.try_into()
+		.expect("requests vec length should be 2");
+		let [trending_res, latest_res] = responses;
 
 		let components = vec![
 			HomeComponent {
-				title: None,
-				subtitle: None,
-				value: aidoku::HomeComponentValue::BigScroller {
-					entries: html
-						.select(".trending > .swiper-wrapper > .swiper-slide")
-						.map(|els| {
-							els.filter_map(|el| {
-								let link = el.select_first(".info > .above > a")?;
-								let key = link.attr("href")?.strip_prefix_or_self(BASE_URL).into();
-								Some(Manga {
-									key,
-									title: link.text().unwrap_or_default(),
-									cover: el.select_first("img").and_then(|img| img.attr("src")),
-									description: el
-										.select_first(".info > .below > span")
-										.and_then(|el| el.text()),
-									tags: el
-										.select(".info > .below a")
-										.map(|els| els.filter_map(|el| el.text()).collect()),
-									..Default::default()
-								})
-							})
-							.collect()
-						})
-						.unwrap_or_default(),
-					auto_scroll_interval: Some(10.0),
-				},
-			},
-			HomeComponent {
-				title: Some("Most Viewed".into()),
-				subtitle: None,
+				title: Some("Trending".into()),
+				subtitle: Some("Trending Now".into()),
 				value: aidoku::HomeComponentValue::Scroller {
-					entries: parse_scroller_entries(&html, "#most-viewed"),
+					entries: trending_res?
+						.get_json::<ApiResponse<ApiManga>>()
+						.map(|json| {
+							json.items
+								.into_iter()
+								.map(Manga::from)
+								.map(Into::into)
+								.collect()
+						})?,
 					listing: None,
 				},
 			},
 			HomeComponent {
-				title: Some("Recently Updated".into()),
-				subtitle: None,
+				title: Some("Latest Updates".into()),
+				subtitle: Some("Fresh Chapters".into()),
 				value: aidoku::HomeComponentValue::MangaChapterList {
-					page_size: Some(12),
-					entries: html
-						.select("section > .tab-content > .original > .unit")
-						.map(|els| {
-							els.filter_map(|el| {
-								let chapter = el.select_first("ul.content > li")?;
-								Some(MangaWithChapter {
-									manga: Manga {
-										key: el
-											.select_first("a")?
-											.attr("href")?
-											.strip_prefix_or_self(BASE_URL)
-											.into(),
-										title: el
-											.select_first(".info a")
-											.and_then(|el| el.text())
-											.unwrap_or_default(),
-										cover: el
-											.select_first(".poster img")
-											.and_then(|img| img.attr("src")),
-										..Default::default()
-									},
-									chapter: Chapter {
-										key: el
-											.select_first("a")?
-											.attr("href")?
-											.strip_prefix_or_self(BASE_URL)
-											.into(),
-										chapter_number: chapter
-											.select_first("a > span")
-											.and_then(|el| el.own_text())
-											.and_then(|el| {
-												el.strip_prefix("Chap ")
-													.and_then(|s| s.parse().ok())
-											}),
-										// date_uploaded: (), // todo: parse relative dates
-										..Default::default()
-									},
+					page_size: Some(5),
+					entries: latest_res?
+						.get_json::<ApiResponse<ApiManga>>()
+						.map(|json| {
+							json.items
+								.into_iter()
+								.map(|item| {
+									let chapter_number = item.latest_chapter;
+									MangaWithChapter {
+										manga: item.into(),
+										chapter: Chapter {
+											chapter_number,
+											..Default::default()
+										},
+									}
 								})
-							})
-							.collect()
-						})
-						.unwrap_or_default(),
-					listing: None,
-				},
-			},
-			HomeComponent {
-				title: Some("New Release".into()),
-				subtitle: None,
-				value: aidoku::HomeComponentValue::Scroller {
-					entries: parse_scroller_entries(&html, ".swiper.completed"),
+								.collect()
+						})?,
 					listing: None,
 				},
 			},
