@@ -1,0 +1,11 @@
+{
+	"info": {
+		"id": "en.guya",
+		"name": "Guya",
+		"version": 2,
+		"url": "https://guya.cubari.moe",
+		"minAppVersion": "0.7.1",
+		"contentRating": 0,
+		"languages": ["en"]
+	}
+}
