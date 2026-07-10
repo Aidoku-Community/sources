@@ -32,7 +32,7 @@
 				"key": "credentials",
 				"title": "Login",
 				"requires": "baseUrl",
-				"refreshes": ["content"]
+				"refreshes": ["content", "listings"]
 			}
 		],
 		"footer": "Enter your Suwayomi server URL and optionally login with your credentials."
