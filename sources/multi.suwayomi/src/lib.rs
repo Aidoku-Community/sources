@@ -13,27 +13,104 @@ use crate::models::{
 };
 use aidoku::imports::std::send_partial_result;
 use aidoku::{
-	AidokuError, BaseUrlProvider, Chapter, DynamicListings, FilterValue, Listing, ListingProvider,
-	Manga, MangaPageResult, Page, PageContent, Result, Source,
+	AidokuError, BaseUrlProvider, BasicLoginHandler, Chapter, DynamicListings, FilterValue,
+	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result, Source,
 	alloc::{String, Vec},
 	imports::net::Request,
 	prelude::*,
 };
 use alloc::string::ToString;
 use alloc::vec;
+use base64::{Engine, engine::general_purpose::STANDARD};
 
 struct Suwayomi;
 
 impl Suwayomi {
+	fn send_graphql_post_request(
+		&self,
+		base_url: &str,
+		body: String,
+	) -> core::result::Result<Request, aidoku::imports::net::RequestError> {
+		let req = Request::post(format!("{base_url}/api/graphql"))?
+			.header("Content-Type", "application/json")
+			.body(body);
+		Ok(req)
+	}
+
+	fn send_basic_auth_request(
+		&self,
+		base_url: &str,
+		user: &str,
+		pass: &str,
+		body: String,
+	) -> core::result::Result<Request, aidoku::imports::net::RequestError> {
+		let auth = STANDARD.encode(format!("{user}:{pass}"));
+		let req = self
+			.send_graphql_post_request(base_url, body)?
+			.header("Authorization", &format!("Basic {auth}"));
+		Ok(req)
+	}
+
+	fn send_form_login_request(
+		&self,
+		base_url: &str,
+		user: &str,
+		pass: &str,
+	) -> core::result::Result<Request, aidoku::imports::net::RequestError> {
+		let form = format!(
+			"user={}&pass={}",
+			aidoku::helpers::uri::encode_uri_component(user),
+			aidoku::helpers::uri::encode_uri_component(pass)
+		);
+		let req = Request::post(format!("{base_url}/login.html"))?
+			.header("Content-Type", "application/x-www-form-urlencoded")
+			.body(form);
+		Ok(req)
+	}
+
 	fn graphql_request<T>(&self, body: serde_json::Value) -> Result<GraphQLResponse<T>>
 	where
 		T: serde::de::DeserializeOwned,
 	{
 		let base_url = settings::get_base_url()?;
-		Request::post(format!("{base_url}/api/graphql"))?
-			.header("Content-Type", "application/json")
-			.body(body.to_string())
-			.json_owned::<GraphQLResponse<T>>()
+		let auth_mode = settings::get_auth_mode();
+		let body_str = body.to_string();
+
+		let send_req = |with_basic: bool| -> Result<GraphQLResponse<T>> {
+			let request = if with_basic && let Some((user, pass)) = settings::get_credentials() {
+				self.send_basic_auth_request(&base_url, &user, &pass, body_str.clone())?
+			} else {
+				self.send_graphql_post_request(&base_url, body_str.clone())?
+			};
+			request.json_owned::<GraphQLResponse<T>>()
+		};
+
+		let do_login_html = || -> Result<()> {
+			if let Some((user, pass)) = settings::get_credentials() {
+				let _ = self
+					.send_form_login_request(&base_url, &user, &pass)?
+					.send()
+					.ok();
+			}
+			Ok(())
+		};
+
+		match auth_mode.as_str() {
+			"none" => send_req(false),
+			"basic_auth" => send_req(true),
+			"simple_login" => {
+				do_login_html()?;
+				send_req(false)
+			}
+			_ => {
+				let resp = send_req(true);
+				if resp.is_err() {
+					do_login_html()?;
+					return send_req(true);
+				}
+				resp
+			}
+		}
 	}
 
 	fn execute_query<T>(
@@ -271,4 +348,58 @@ impl BaseUrlProvider for Suwayomi {
 	}
 }
 
-register_source!(Suwayomi, ListingProvider, BaseUrlProvider, DynamicListings);
+impl BasicLoginHandler for Suwayomi {
+	fn handle_basic_login(&self, _key: String, username: String, password: String) -> Result<bool> {
+		let base_url = settings::get_base_url()?;
+		let auth_mode = settings::get_auth_mode();
+
+		let send_basic_req = || {
+			let body = serde_json::json!({
+				"operationName": graphql::GraphQLQuery::CATEGORIES.operation_name,
+				"query": graphql::GraphQLQuery::CATEGORIES.query,
+			});
+			self.send_basic_auth_request(&base_url, &username, &password, body.to_string())?
+				.send()
+		};
+
+		let send_form_req = || {
+			self.send_form_login_request(&base_url, &username, &password)?
+				.send()
+		};
+
+		match auth_mode.as_str() {
+			"none" => Ok(true),
+			"basic_auth" => {
+				let resp = send_basic_req()?;
+				Ok(resp.status_code() == 200)
+			}
+			"simple_login" => {
+				let resp = send_form_req()?;
+				Ok(resp.status_code() == 200)
+			}
+			_ => {
+				// auto: try basic auth first
+				if let Ok(resp) = send_basic_req()
+					&& resp.status_code() == 200
+				{
+					return Ok(true);
+				}
+				// try form login next
+				if let Ok(resp) = send_form_req()
+					&& resp.status_code() == 200
+				{
+					return Ok(true);
+				}
+				Ok(false)
+			}
+		}
+	}
+}
+
+register_source!(
+	Suwayomi,
+	ListingProvider,
+	BaseUrlProvider,
+	DynamicListings,
+	BasicLoginHandler
+);
