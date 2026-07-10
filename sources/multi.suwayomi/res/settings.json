@@ -30,7 +30,7 @@
 				"type": "login",
 				"method": "basic",
 				"key": "credentials",
-				"title": "Login",
+				"title": "LOGIN",
 				"requires": "baseUrl",
 				"refreshes": ["content", "listings"]
 			}
