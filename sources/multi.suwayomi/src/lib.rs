@@ -26,6 +26,48 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 struct Suwayomi;
 
 impl Suwayomi {
+	fn send_graphql_post_request(
+		&self,
+		base_url: &str,
+		body: String,
+	) -> core::result::Result<Request, aidoku::imports::net::RequestError> {
+		let req = Request::post(format!("{base_url}/api/graphql"))?
+			.header("Content-Type", "application/json")
+			.body(body);
+		Ok(req)
+	}
+
+	fn send_basic_auth_request(
+		&self,
+		base_url: &str,
+		user: &str,
+		pass: &str,
+		body: String,
+	) -> core::result::Result<Request, aidoku::imports::net::RequestError> {
+		let auth = STANDARD.encode(format!("{user}:{pass}"));
+		let req = self
+			.send_graphql_post_request(base_url, body)?
+			.header("Authorization", &format!("Basic {auth}"));
+		Ok(req)
+	}
+
+	fn send_form_login_request(
+		&self,
+		base_url: &str,
+		user: &str,
+		pass: &str,
+	) -> core::result::Result<Request, aidoku::imports::net::RequestError> {
+		let form = format!(
+			"user={}&pass={}",
+			aidoku::helpers::uri::encode_uri_component(user),
+			aidoku::helpers::uri::encode_uri_component(pass)
+		);
+		let req = Request::post(format!("{base_url}/login.html"))?
+			.header("Content-Type", "application/x-www-form-urlencoded")
+			.body(form);
+		Ok(req)
+	}
+
 	fn graphql_request<T>(&self, body: serde_json::Value) -> Result<GraphQLResponse<T>>
 	where
 		T: serde::de::DeserializeOwned,
@@ -35,27 +77,18 @@ impl Suwayomi {
 		let body_str = body.to_string();
 
 		let send_req = |with_basic: bool| -> Result<GraphQLResponse<T>> {
-			let mut request = Request::post(format!("{base_url}/api/graphql"))?
-				.header("Content-Type", "application/json")
-				.body(body_str.clone());
-
-			if with_basic && let Some((user, pass)) = settings::get_credentials() {
-				let auth = STANDARD.encode(format!("{user}:{pass}"));
-				request = request.header("Authorization", &format!("Basic {auth}"));
-			}
+			let request = if with_basic && let Some((user, pass)) = settings::get_credentials() {
+				self.send_basic_auth_request(&base_url, &user, &pass, body_str.clone())?
+			} else {
+				self.send_graphql_post_request(&base_url, body_str.clone())?
+			};
 			request.json_owned::<GraphQLResponse<T>>()
 		};
 
 		let do_login_html = || -> Result<()> {
 			if let Some((user, pass)) = settings::get_credentials() {
-				let form = format!(
-					"user={}&pass={}",
-					aidoku::helpers::uri::encode_uri_component(user),
-					aidoku::helpers::uri::encode_uri_component(pass)
-				);
-				let _ = Request::post(format!("{base_url}/login.html"))?
-					.header("Content-Type", "application/x-www-form-urlencoded")
-					.body(form)
+				let _ = self
+					.send_form_login_request(&base_url, &user, &pass)?
 					.send()
 					.ok();
 			}
@@ -321,27 +354,16 @@ impl BasicLoginHandler for Suwayomi {
 		let auth_mode = settings::get_auth_mode();
 
 		let send_basic_req = || {
-			let auth = STANDARD.encode(format!("{username}:{password}"));
 			let body = serde_json::json!({
 				"operationName": graphql::GraphQLQuery::CATEGORIES.operation_name,
 				"query": graphql::GraphQLQuery::CATEGORIES.query,
 			});
-			Request::post(format!("{base_url}/api/graphql"))?
-				.header("Content-Type", "application/json")
-				.header("Authorization", &format!("Basic {auth}"))
-				.body(body.to_string())
+			self.send_basic_auth_request(&base_url, &username, &password, body.to_string())?
 				.send()
 		};
 
 		let send_form_req = || {
-			let form = format!(
-				"user={}&pass={}",
-				aidoku::helpers::uri::encode_uri_component(username.clone()),
-				aidoku::helpers::uri::encode_uri_component(password.clone())
-			);
-			Request::post(format!("{base_url}/login.html"))?
-				.header("Content-Type", "application/x-www-form-urlencoded")
-				.body(form)
+			self.send_form_login_request(&base_url, &username, &password)?
 				.send()
 		};
 
