@@ -14,8 +14,8 @@ mod models;
 use helpers::{fetch_chapter_list, request, resolve_slug};
 use models::{ChapterDetailData, ListData, TitleDetailData, TrendingData};
 
-pub const BASE_URL: &str = "https://novelbuddy.com";
-pub const API_URL: &str = "https://api.novelbuddy.com";
+pub const BASE_URL: &str = "https://novelbuddy.me";
+pub const API_URL: &str = "https://api.novelbuddy.me";
 pub const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 \
 	 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1";
 
@@ -163,7 +163,7 @@ impl DeepLinkHandler for NovelBuddy {
 			.split(['?', '#'])
 			.next()
 			.unwrap_or(&url)
-			.rsplit("novelbuddy.com")
+			.rsplit("novelbuddy.me")
 			.next()
 			.unwrap_or("")
 			.trim_start_matches('/');
@@ -274,7 +274,7 @@ mod tests {
 	fn deep_link_resolves_series() {
 		let source = NovelBuddy;
 		let result = source
-			.handle_deep_link("https://novelbuddy.com/shadow-slave".into())
+			.handle_deep_link("https://novelbuddy.me/shadow-slave".into())
 			.expect("deep link failed")
 			.expect("expected Some(DeepLinkResult)");
 		match result {
