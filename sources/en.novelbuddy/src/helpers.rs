@@ -15,7 +15,7 @@ pub fn request<T: DeserializeOwned>(url: &str) -> Result<T> {
 	let response = Request::get(url)?
 		.header("User-Agent", USER_AGENT)
 		.header("Accept", "application/json, text/plain, */*")
-		.header("Referer", "https://novelbuddy.com/")
+		.header("Referer", "https://novelbuddy.me/")
 		.header("Origin", BASE_URL)
 		.json_owned::<ApiResponse<T>>()?;
 	if !response.success {
