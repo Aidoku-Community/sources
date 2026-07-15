@@ -148,7 +148,7 @@ impl Source for MangaFire {
 					.ok()
 					.and_then(|doc| doc.select_first("body").and_then(|body| body.text()))
 			});
-			manga.url = Some(format!("{BASE_URL}{}", manga.key));
+			manga.url = Some(format!("{BASE_URL}/title/{}", manga.key));
 			manga.tags = Some(api_tags(details.genres, details.themes));
 			manga.status = match details.status.as_deref() {
 				Some("releasing") => MangaStatus::Ongoing,
