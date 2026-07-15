@@ -220,7 +220,15 @@ impl DeepLinkHandler for NovelBuddy {
 	}
 }
 
-register_source!(NovelBuddy, ListingProvider, DeepLinkHandler);
+impl NotificationHandler for NovelBuddy {
+	fn handle_notification(&self, notification: String) {
+		if notification == "resetGenreFilter" {
+			settings::reset_hidden_genres();
+		}
+	}
+}
+
+register_source!(NovelBuddy, ListingProvider, DeepLinkHandler, NotificationHandler);
 
 #[cfg(test)]
 mod tests {
