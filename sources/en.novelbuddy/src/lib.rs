@@ -1,7 +1,7 @@
 #![no_std]
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider, Manga,
-	MangaPageResult, Page, PageContent, Result, Source,
+	MangaPageResult, NotificationHandler, Page, PageContent, Result, Source,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::QueryParameters,
 	imports::std::send_partial_result,
@@ -10,6 +10,7 @@ use aidoku::{
 
 mod helpers;
 mod models;
+mod settings;
 
 use helpers::{fetch_chapter_list, request, resolve_slug};
 use models::{ChapterDetailData, ListData, TitleDetailData, TrendingData};
