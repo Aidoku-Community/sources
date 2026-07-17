@@ -217,6 +217,9 @@ pub fn get_page_list(chapter_key: &str) -> Result<Vec<Page>> {
 		)
 		.header("Referer", BASE_URL)
 		.header("DNT", "1")
+		// Restricted series gate their reader pages behind the same consent
+		// cookie the chapter list needs (see net::Url::request).
+		.header("Cookie", "isAdult=1")
 		.html()?;
 
 	let mut pages: Vec<Page> = Vec::new();
