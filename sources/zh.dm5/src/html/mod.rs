@@ -7,12 +7,27 @@ use aidoku::{
 };
 use regex::Regex;
 
-fn extract_chapter_number(title: &str) -> Option<f32> {
-	let re =
-		Regex::new(r"(?:第\s*)(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:话|話|章|回|卷|册|冊)").ok()?;
-	re.captures(title)
-		.and_then(|caps| caps.get(1).or_else(|| caps.get(2)))
-		.and_then(|m| m.as_str().parse::<f32>().ok())
+/// Extracts the leading number from a chapter/volume title and reports whether
+/// the unit attached to that number marks it as a volume (卷/册/冊) rather than a
+/// chapter (话/話/章/回). The unit is anchored to the matched number so that a 卷
+/// appearing inside a word does not misclassify a chapter.
+fn extract_chapter_number(title: &str) -> Option<(f32, bool)> {
+	let re = Regex::new(
+		r"第\s*(\d+(?:\.\d+)?)\s*([话話章回卷册冊])?|(\d+(?:\.\d+)?)\s*([话話章回卷册冊])",
+	)
+	.ok()?;
+	let caps = re.captures(title)?;
+	let (num, unit) = if let Some(n) = caps.get(1) {
+		(n, caps.get(2))
+	} else {
+		(caps.get(3)?, caps.get(4))
+	};
+	let number = num.as_str().parse::<f32>().ok()?;
+	let is_volume = matches!(
+		unit.map(|m| m.as_str()),
+		Some("卷") | Some("册") | Some("冊")
+	);
+	Some((number, is_volume))
 }
 
 pub trait MangaPage {
@@ -178,8 +193,14 @@ impl ChapterPage for Document {
 							.select_first("span.detail-lock, span.view-lock")
 							.is_some();
 
-						let num = extract_chapter_number(&title).unwrap_or((index + 1) as f32);
-						let is_volume = scanlator.as_deref() == Some("卷");
+						let (num, title_is_volume) =
+							extract_chapter_number(&title).unwrap_or(((index + 1) as f32, false));
+						// A volume can be flagged by its category tab (卷), or by the
+						// title itself, since some series file 单行本 entries under the
+						// 连载 tab alongside regular chapters.
+						let is_volume = scanlator.as_deref() == Some("卷")
+							|| title_is_volume || title.contains("单行本")
+							|| title.contains("單行本");
 						let (chapter_number, volume_number) = if is_volume {
 							(None, Some(num))
 						} else {
