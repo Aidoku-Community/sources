@@ -1,4 +1,9 @@
-use aidoku::{Result, alloc::String, imports::defaults::{defaults_get, defaults_set, DefaultValue}, prelude::*};
+use aidoku::{
+	Result,
+	alloc::String,
+	imports::defaults::{DefaultValue, defaults_get, defaults_set},
+	prelude::*,
+};
 
 const BASE_URL_KEY: &str = "baseUrl";
 const AUTH_MODE_KEY: &str = "authMode";

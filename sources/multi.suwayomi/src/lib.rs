@@ -14,15 +14,18 @@ use crate::models::{
 use aidoku::imports::std::{current_date, send_partial_result};
 use aidoku::{
 	AidokuError, BaseUrlProvider, BasicLoginHandler, Chapter, DynamicListings, FilterValue,
-	ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext,
-	Result, Source,
+	ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent,
+	PageContext, Result, Source,
 	alloc::{String, Vec},
 	imports::net::Request,
 	prelude::*,
 };
 use alloc::string::ToString;
 use alloc::vec;
-use base64::{Engine, engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD}};
+use base64::{
+	Engine,
+	engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
+};
 
 struct Suwayomi;
 
@@ -97,9 +100,18 @@ impl Suwayomi {
 			.body(mutation.to_string())
 			.json_owned::<GraphQLResponse<serde_json::Value>>()?;
 
-		let login_payload = resp.data.get("login").ok_or_else(|| aidoku::error!("Missing login payload"))?;
-		let access_token = login_payload.get("accessToken").and_then(|v| v.as_str()).ok_or_else(|| aidoku::error!("Missing accessToken"))?;
-		let refresh_token = login_payload.get("refreshToken").and_then(|v| v.as_str()).ok_or_else(|| aidoku::error!("Missing refreshToken"))?;
+		let login_payload = resp
+			.data
+			.get("login")
+			.ok_or_else(|| aidoku::error!("Missing login payload"))?;
+		let access_token = login_payload
+			.get("accessToken")
+			.and_then(|v| v.as_str())
+			.ok_or_else(|| aidoku::error!("Missing accessToken"))?;
+		let refresh_token = login_payload
+			.get("refreshToken")
+			.and_then(|v| v.as_str())
+			.ok_or_else(|| aidoku::error!("Missing refreshToken"))?;
 
 		settings::set_tokens(access_token, refresh_token);
 		Ok(())
@@ -120,8 +132,14 @@ impl Suwayomi {
 			.body(mutation.to_string())
 			.json_owned::<GraphQLResponse<serde_json::Value>>()?;
 
-		let payload = resp.data.get("refreshToken").ok_or_else(|| aidoku::error!("Missing refreshToken payload"))?;
-		let access_token = payload.get("accessToken").and_then(|v| v.as_str()).ok_or_else(|| aidoku::error!("Missing accessToken"))?;
+		let payload = resp
+			.data
+			.get("refreshToken")
+			.ok_or_else(|| aidoku::error!("Missing refreshToken payload"))?;
+		let access_token = payload
+			.get("accessToken")
+			.and_then(|v| v.as_str())
+			.ok_or_else(|| aidoku::error!("Missing accessToken"))?;
 
 		settings::set_access_token(access_token);
 		Ok(access_token.into())
@@ -133,16 +151,16 @@ impl Suwayomi {
 			return Err(aidoku::error!("Not authenticated"));
 		}
 
-		if let Some(token) = settings::get_access_token() {
-			if !is_token_expired(&token) {
-				return Ok(token);
-			}
+		if let Some(token) = settings::get_access_token()
+			&& !is_token_expired(&token)
+		{
+			return Ok(token);
 		}
 
-		if let Some(refresh_token) = settings::get_refresh_token() {
-			if let Ok(new_token) = self.perform_token_refresh(base_url, &refresh_token) {
-				return Ok(new_token);
-			}
+		if let Some(refresh_token) = settings::get_refresh_token()
+			&& let Ok(new_token) = self.perform_token_refresh(base_url, &refresh_token)
+		{
+			return Ok(new_token);
 		}
 
 		if let Some((user, pass)) = settings::get_credentials() {
@@ -505,9 +523,7 @@ impl BasicLoginHandler for Suwayomi {
 				.send()
 		};
 
-		let send_ui_login = || {
-			self.perform_ui_login(&base_url, &username, &password)
-		};
+		let send_ui_login = || self.perform_ui_login(&base_url, &username, &password);
 
 		match auth_mode.as_str() {
 			"none" => Ok(true),
@@ -519,9 +535,7 @@ impl BasicLoginHandler for Suwayomi {
 				let resp = send_form_req()?;
 				Ok(resp.status_code() == 200)
 			}
-			"ui_login" => {
-				Ok(send_ui_login().is_ok())
-			}
+			"ui_login" => Ok(send_ui_login().is_ok()),
 			_ => {
 				// auto: try basic auth first
 				if let Ok(resp) = send_basic_req()
@@ -536,7 +550,7 @@ impl BasicLoginHandler for Suwayomi {
 					return Ok(true);
 				}
 				// try ui login next
-				if let Ok(_) = send_ui_login() {
+				if send_ui_login().is_ok() {
 					return Ok(true);
 				}
 				Ok(false)
