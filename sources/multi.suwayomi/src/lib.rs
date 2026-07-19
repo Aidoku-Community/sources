@@ -148,7 +148,7 @@ impl Suwayomi {
 	fn get_valid_access_token(&self, base_url: &str) -> Result<String> {
 		if settings::get_credentials().is_none() {
 			settings::clear_tokens();
-			return Err(aidoku::error!("Not authenticated"));
+			bail!("Not authenticated");
 		}
 
 		if let Some(token) = settings::get_access_token()
