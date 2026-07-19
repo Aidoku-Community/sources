@@ -1,7 +1,7 @@
 #![no_std]
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider, Manga,
-	MangaPageResult, Page, PageContent, Result, Source,
+	MangaPageResult, NotificationHandler, Page, PageContent, Result, Source,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::QueryParameters,
 	imports::std::send_partial_result,
@@ -10,6 +10,7 @@ use aidoku::{
 
 mod helpers;
 mod models;
+mod settings;
 
 use helpers::{fetch_chapter_list, request, resolve_slug};
 use models::{ChapterDetailData, ListData, TitleDetailData, TrendingData};
@@ -43,6 +44,7 @@ impl Source for NovelBuddy {
 	) -> Result<MangaPageResult> {
 		let mut qs = QueryParameters::new();
 		let mut has_sort = false;
+		let mut excluded_genres = settings::hidden_genres();
 
 		for filter in filters {
 			match filter {
@@ -60,11 +62,26 @@ impl Source for NovelBuddy {
 					included,
 					excluded,
 				} if id == "genres" => {
+					let included: Vec<String> = included
+						.into_iter()
+						.filter(|genre| {
+							// if a hidden genre is manually included in filters, skip hiding it
+							if let Some(pos) = excluded_genres.iter().position(|g| g == genre) {
+								excluded_genres.swap_remove(pos);
+								false
+							} else {
+								true
+							}
+						})
+						.collect();
 					if !included.is_empty() {
 						qs.push("genres", Some(&included.join(",")));
 					}
-					if !excluded.is_empty() {
-						qs.push("exclude", Some(&excluded.join(",")));
+					for genre in excluded {
+						// make sure hidden genres aren't added to query params twice
+						if !excluded_genres.contains(&genre) {
+							excluded_genres.push(genre);
+						}
 					}
 				}
 				_ => {}
@@ -74,7 +91,11 @@ impl Source for NovelBuddy {
 		if !has_sort {
 			qs.push("sort", Some("popular"));
 		}
+		if !excluded_genres.is_empty() {
+			qs.push("exclude", Some(&excluded_genres.join(",")));
+		}
 		qs.push("page", Some(&page.to_string()));
+
 		if let Some(q) = query.as_deref() {
 			qs.push("q", Some(q));
 		}
@@ -199,7 +220,15 @@ impl DeepLinkHandler for NovelBuddy {
 	}
 }
 
-register_source!(NovelBuddy, ListingProvider, DeepLinkHandler);
+impl NotificationHandler for NovelBuddy {
+	fn handle_notification(&self, notification: String) {
+		if notification == "resetGenreFilter" {
+			settings::reset_hidden_genres();
+		}
+	}
+}
+
+register_source!(NovelBuddy, ListingProvider, DeepLinkHandler, NotificationHandler);
 
 #[cfg(test)]
 mod tests {

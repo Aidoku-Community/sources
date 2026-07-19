@@ -1,6 +1,7 @@
+use crate::BASE_URL;
 use aidoku::{
 	Chapter, Manga, Page, PageContent,
-	alloc::{String, Vec, format, string::ToString},
+	alloc::{String, Vec, format, string::ToString, vec},
 };
 use serde::Deserialize;
 
@@ -78,6 +79,7 @@ pub struct ApiChapter {
 	pub id: i32,
 	pub number: f32,
 	pub name: Option<String>,
+	pub r#type: Option<String>,
 	#[serde(rename = "createdAt")]
 	pub created_at: Option<i64>,
 }
@@ -89,7 +91,12 @@ impl ApiChapter {
 			title: self.name.filter(|name| !name.is_empty()),
 			chapter_number: Some(self.number),
 			date_uploaded: self.created_at,
-			url: Some(format!("{manga_key}/{}", self.id)),
+			scanlators: if self.r#type.as_deref() == Some("official") {
+				Some(vec!["Official".into()])
+			} else {
+				None
+			},
+			url: Some(format!("{BASE_URL}/title/{manga_key}/chapter/{}", self.id)),
 			language: Some(lang.to_string()),
 			..Default::default()
 		}

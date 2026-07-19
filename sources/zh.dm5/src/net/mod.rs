@@ -91,7 +91,10 @@ impl Url {
 				"Accept",
 				"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 			)
-			.header("Referer", BASE_URL))
+			.header("Referer", BASE_URL)
+			// Restricted (限制漫画) series replace their chapter list with an
+			// age-gate warning page unless this consent cookie is present.
+			.header("Cookie", "isAdult=1"))
 	}
 }
 
