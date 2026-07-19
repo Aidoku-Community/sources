@@ -5,7 +5,7 @@ use aidoku::{
 };
 
 pub const BASE_URL: &str = "https://kagane.to";
-pub const API_BASE: &str = "https://yuzuki.kagane.to/api/v2";
+pub const API_BASE: &str = "https://kagane.to/api/v2";
 
 pub fn api_get(url: &str) -> Result<Request> {
 	Ok(Request::get(url)?
@@ -101,7 +101,10 @@ pub fn build_search_body(
 	}
 
 	body.insert(String::from("content_lang"), serde_json::json!(languages()));
-	body.insert(String::from("source_type"), serde_json::json!(source_types()));
+	body.insert(
+		String::from("source_type"),
+		serde_json::json!(source_types()),
+	);
 	body.insert(
 		String::from("content_rating"),
 		serde_json::json!(content_ratings()),
