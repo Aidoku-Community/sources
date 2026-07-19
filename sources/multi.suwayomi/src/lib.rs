@@ -103,7 +103,7 @@ impl Suwayomi {
 		let login_payload = resp
 			.data
 			.get("login")
-			.ok_or_else(|| aidoku::error!("Missing login payload"))?;
+			.ok_or_else(|| error!("Missing login payload"))?;
 		let access_token = login_payload
 			.get("accessToken")
 			.and_then(|v| v.as_str())
