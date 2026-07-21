@@ -41,7 +41,7 @@
 			{
 				"type": "switch",
 				"key": "useWebViewFetch",
-				"title": "Use CF Workaround (deprecated)",
+				"title": "Use CF Workaround (obsolete)",
 				"default": false,
 				"refreshes": [
 					"content",
@@ -57,7 +57,8 @@
 				"logoutTitle": "Logout",
 				"notification": "login",
 				"refreshes": [
-					"content"
+					"content",
+					"listings"
 				]
 			}
 		],
