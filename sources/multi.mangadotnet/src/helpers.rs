@@ -1,8 +1,36 @@
-use crate::models::MangaChapter;
+use crate::{
+	CF_CHALLENGE_ERROR_MESSAGE, LOGIN_COOKIE_KEY, models::MangaChapter, settings::get_login_cookie,
+};
 use aidoku::{
-	HashMap, Result, alloc::string::String, alloc::string::ToString, alloc::vec::Vec, prelude::*,
+	HashMap, Result,
+	alloc::{
+		string::{String, ToString},
+		vec::Vec,
+	},
+	imports::net::{Request, Response},
+	prelude::*,
 };
 use serde_json::{Map, Value};
+
+pub fn create_request_get(url: &str) -> Result<Request> {
+	let mut request = Request::get(url)?;
+	if let Some(token) = get_login_cookie() {
+		request = request.header("Cookie", &format!("{LOGIN_COOKIE_KEY}={token}"));
+	}
+	Ok(request)
+}
+
+pub fn response_is_ok(response: Response) -> Result<Response> {
+	if response
+		.get_header("cf-mitigated")
+		.is_some_and(|value| value == "challenge")
+	{
+		bail!("{CF_CHALLENGE_ERROR_MESSAGE}")
+	} else if response.status_code() >= 400 {
+		bail!("Response Error: {}", response.status_code())
+	}
+	Ok(response)
+}
 
 pub fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
 	// This function will convert pointer-table encoded JSON format into normal JSON format.

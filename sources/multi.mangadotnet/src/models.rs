@@ -1,9 +1,7 @@
 use crate::BASE_URL;
 use aidoku::{
 	Chapter, ContentRating, Link, Manga, MangaStatus, Viewer,
-	alloc::string::ToString,
-	alloc::vec,
-	alloc::{String, Vec},
+	alloc::{String, Vec, string::ToString, vec},
 	imports::std::parse_date,
 	prelude::*,
 };
@@ -12,6 +10,34 @@ use serde::{Deserialize, Deserializer, de, de::Error};
 #[derive(Deserialize)]
 pub struct PageContainer<T> {
 	pub data: T,
+}
+
+#[derive(Deserialize)]
+pub struct UserProfile {
+	pub profile: Option<UserProfileData>,
+}
+
+#[derive(Deserialize)]
+pub struct UserProfileData {
+	pub id: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct BookmarkPage {
+	pub data: BookmarkPageData,
+}
+
+#[derive(Deserialize)]
+pub struct BookmarkPageData {
+	pub total: i32,
+	pub page: i32,
+	pub per_page: i32,
+	pub entries: Vec<BookmarkPageDataEntry>,
+}
+
+#[derive(Deserialize)]
+pub struct BookmarkPageDataEntry {
+	pub manga_id: i32,
 }
 
 /* Replaced by a different api but just in case we ever need it again
@@ -123,6 +149,8 @@ pub struct MangaItem {
 	pub photo: Option<String>,
 	pub status: String,
 	pub title: String,
+	#[serde(deserialize_with = "bool_from_any", default = "default_bool")]
+	pub is_longstrip: bool,
 }
 
 #[derive(Deserialize)]
@@ -172,7 +200,13 @@ impl From<MangaItem> for Manga {
 			},
 			viewer: if let Some(coo) = value.country_of_origin {
 				match coo.as_str() {
-					"JP" => Viewer::RightToLeft,
+					"JP" => {
+						if value.is_longstrip {
+							Viewer::Webtoon
+						} else {
+							Viewer::RightToLeft
+						}
+					}
 					"KR" => Viewer::Webtoon,
 					"CN" => Viewer::Webtoon,
 					_ => Viewer::Unknown,

@@ -1,14 +1,17 @@
 use aidoku::{
 	alloc::string::String,
 	alloc::vec::Vec,
-	imports::defaults::{DefaultValue, defaults_get, defaults_set},
+	imports::defaults::{DefaultValue, defaults_get, defaults_get_map, defaults_set},
 };
 
 // const LANGUAGES_KEY: &str = "languages";
 
 const HIDE_NSFW_KEY: &str = "hideNSFW";
 const DEDUPED_CHAPTER_KEY: &str = "dedupedChapter";
-const SHOW_STANALONE_VOLUME_KEY: &str = "showVolumes";
+const SHOW_STANDALONE_VOLUME_KEY: &str = "showVolumes";
+
+const LOGIN_KEY: &str = "login";
+pub const LOGIN_COOKIE_KEY: &str = "ory_kratos_session";
 
 const USE_WEB_VIEW_WORKAROUND_KEY: &str = "useWebViewFetch";
 
@@ -45,10 +48,17 @@ pub fn deduped_chapter() -> bool {
 }
 
 pub fn show_standalone_volume() -> bool {
-	defaults_get::<bool>(SHOW_STANALONE_VOLUME_KEY).unwrap_or(false)
+	defaults_get::<bool>(SHOW_STANDALONE_VOLUME_KEY).unwrap_or(false)
 }
 
-pub fn use_view_web_worker() -> bool {
+pub fn get_login_cookie() -> Option<String> {
+	if let Some(cookie) = defaults_get_map(LOGIN_KEY)?.get(LOGIN_COOKIE_KEY) {
+		return Some(cookie.into());
+	}
+	None
+}
+
+pub fn use_web_view_worker() -> bool {
 	defaults_get::<bool>(USE_WEB_VIEW_WORKAROUND_KEY).unwrap_or(false)
 }
 

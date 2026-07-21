@@ -41,11 +41,23 @@
 			{
 				"type": "switch",
 				"key": "useWebViewFetch",
-				"title": "Use CF Workaround",
+				"title": "Use CF Workaround (deprecated)",
 				"default": false,
 				"refreshes": [
 					"content",
 					"filters"
+				]
+			},
+			{
+				"type": "login",
+				"method": "web",
+				"url": "https://mangadot.net/login?redirect=/",
+				"key": "login",
+				"title": "Login",
+				"logoutTitle": "Logout",
+				"notification": "login",
+				"refreshes": [
+					"content"
 				]
 			}
 		],
@@ -76,8 +88,14 @@
 									"KR",
 									"CN,TW"
 								],
-								"default": ["JP", "KR", "CN,TW"],
-								"refreshes": ["content"]
+								"default": [
+									"JP",
+									"KR",
+									"CN,TW"
+								],
+								"refreshes": [
+									"content"
+								]
 							}
 						]
 					}
@@ -91,7 +109,9 @@
 				"confirmText": "Are you sure you want to remove all configured content filters?",
 				"destructive": true,
 				"notification": "resetFilters",
-				"refreshes": ["content"]
+				"refreshes": [
+					"content"
+				]
 			}
 		],
 		"footer": "Content filters are applied to the home page and listings only."
