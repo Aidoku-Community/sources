@@ -149,8 +149,6 @@ pub struct MangaItem {
 	pub photo: Option<String>,
 	pub status: String,
 	pub title: String,
-	#[serde(deserialize_with = "bool_from_any", default = "default_bool")]
-	pub is_longstrip: bool,
 }
 
 #[derive(Deserialize)]
@@ -200,13 +198,7 @@ impl From<MangaItem> for Manga {
 			},
 			viewer: if let Some(coo) = value.country_of_origin {
 				match coo.as_str() {
-					"JP" => {
-						if value.is_longstrip {
-							Viewer::Webtoon
-						} else {
-							Viewer::RightToLeft
-						}
-					}
+					"JP" => Viewer::RightToLeft,
 					"KR" => Viewer::Webtoon,
 					"CN" => Viewer::Webtoon,
 					_ => Viewer::Unknown,
