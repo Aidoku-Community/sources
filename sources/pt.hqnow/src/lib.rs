@@ -132,13 +132,11 @@ impl HQnow {
 		mangas
 			.into_iter()
 			.map(|mut manga| {
-				if manga.cover.is_none() {
-					if let Ok(id) = manga.key.parse::<i32>() {
-						if let Some(url) = cache.get(&id) {
+				if manga.cover.is_none()
+					&& let Ok(id) = manga.key.parse::<i32>()
+						&& let Some(url) = cache.get(&id) {
 							manga.cover = Some(url.clone());
 						}
-					}
-				}
 				manga
 			})
 			.collect()
