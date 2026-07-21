@@ -1,10 +1,10 @@
 {
-  "info": {
-    "id": "pt.hqnow",
-    "name": "HQ-now",
-    "version": 1,
-    "url": "https://www.hq-now.com",
-    "contentRating": 1,
-    "languages": ["pt-BR"]
-  }
+	"info": {
+		"id": "pt.hqnow",
+		"name": "HQ Now",
+		"version": 1,
+		"url": "https://www.hq-now.com",
+		"contentRating": 1,
+		"languages": ["pt-BR"]
+	}
 }

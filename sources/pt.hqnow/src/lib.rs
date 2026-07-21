@@ -86,13 +86,13 @@ fn execute_query<T: DeserializeOwned>(
 	}
 	let body_str = body.to_string();
 	let resp = Request::post(GRAPHQL_URL)
-		.map_err(|_| AidokuError::message("network error"))?
+		.map_err(|_| error!("network error"))?
 		.header("Content-Type", "application/json")
 		.body(body_str.as_bytes())
 		.string()?;
 	let wrapper: models::GqlResponse<T> =
-		serde_json::from_str(&resp).map_err(|_| AidokuError::message("parse error"))?;
-	wrapper.data.ok_or_else(|| AidokuError::message("no data"))
+		serde_json::from_str(&resp).map_err(|_| error!("parse error"))?;
+	wrapper.data.ok_or_else(|| error!("no data"))
 }
 
 // ── Pagination helper ─────────────────────────────────────────────────────────
@@ -134,9 +134,10 @@ impl HQnow {
 			.map(|mut manga| {
 				if manga.cover.is_none()
 					&& let Ok(id) = manga.key.parse::<i32>()
-						&& let Some(url) = cache.get(&id) {
-							manga.cover = Some(url.clone());
-						}
+					&& let Some(url) = cache.get(&id)
+				{
+					manga.cover = Some(url.clone());
+				}
 				manga
 			})
 			.collect()
@@ -211,14 +212,7 @@ impl Source for HQnow {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		if !needs_details && !needs_chapters {
-			return Ok(manga);
-		}
-
-		let id: i32 = manga
-			.key
-			.parse()
-			.map_err(|_| AidokuError::message("invalid manga key"))?;
+		let id: i32 = manga.key.parse().map_err(|_| error!("invalid manga key"))?;
 
 		let detail = execute_query::<models::ByIdResponse>(
 			&graphql::GraphQLQuery::HQS_BY_ID,
@@ -227,7 +221,7 @@ impl Source for HQnow {
 		.get_hqs_by_id
 		.into_iter()
 		.next()
-		.ok_or_else(|| AidokuError::message("manga not found"))?;
+		.ok_or_else(|| error!("manga not found"))?;
 
 		if needs_details {
 			// format! borrows detail.name, so the move below is still valid
@@ -265,7 +259,7 @@ impl Source for HQnow {
 		let chapter_id: i32 = chapter
 			.key
 			.parse()
-			.map_err(|_| AidokuError::message("invalid chapter key"))?;
+			.map_err(|_| error!("invalid chapter key"))?;
 
 		let pictures = execute_query::<models::ChapterByIdResponse>(
 			&graphql::GraphQLQuery::CHAPTER_BY_ID,
@@ -281,9 +275,7 @@ impl Source for HQnow {
 				content: PageContent::url(
 					models::to_https(Some(p.picture_url)).unwrap_or_default(),
 				),
-				thumbnail: None,
-				has_description: false,
-				description: None,
+				..Default::default()
 			})
 			.collect())
 	}
