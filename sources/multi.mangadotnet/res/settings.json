@@ -36,18 +36,8 @@
 	},
 	{
 		"type": "group",
-		"title": "Advanced Settings",
+		"title": "Account",
 		"items": [
-			{
-				"type": "switch",
-				"key": "useWebViewFetch",
-				"title": "Use CF Workaround (obsolete)",
-				"default": false,
-				"refreshes": [
-					"content",
-					"filters"
-				]
-			},
 			{
 				"type": "login",
 				"method": "web",
@@ -62,7 +52,7 @@
 				]
 			}
 		],
-		"footer": "CloudFlare workaround uses an invisible WebView to maintain a proper session. This will allow basic function to work except for cover images. If the source stops working for you periodically, try this option."
+		"footer": "Log in to your MangaDot account to view your saved content in the Bookmark listing"
 	},
 	{
 		"type": "group",

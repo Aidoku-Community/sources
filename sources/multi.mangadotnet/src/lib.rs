@@ -1,129 +1,60 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, DynamicListings, Filter, FilterKind,
-	FilterValue, HashMap, Home, HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult,
-	ImageResponse, Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler, Page,
-	PageContent, PageContext, PageImageProcessor, Result, Source, WebLoginHandler,
-	alloc::{String, Vec, borrow::Cow, string::ToString, vec},
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicListings, FilterValue, HashMap, Home,
+	HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Listing, ListingProvider,
+	Manga, MangaPageResult, NotificationHandler, Page, PageContent, Result, Source,
+	WebLoginHandler,
+	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::QueryParameters,
-	imports::{canvas::ImageRef, net::Request, std::send_partial_result},
+	imports::{net::Request, std::send_partial_result},
 	prelude::*,
 };
-use base64::Engine;
-use core::{cell::RefCell, cmp::*, ops::Deref};
+use core::{cmp::*, ops::Deref};
 use serde::de::DeserializeOwned;
-use serde_json::Value;
 
 mod helpers;
 mod models;
 mod settings;
-mod web;
 
 use helpers::*;
 use models::*;
 use settings::*;
-use web::*;
 
 const BASE_URL: &str = "https://mangadot.net";
 const CF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned CF challenge page instead of JSON data. If problem persist, please clear the source cache and restart the application to resolve this issue.";
 
-struct Mangadotnet {
-	web_view: RefCell<MangaDotnetWebView>,
-}
+struct Mangadotnet;
 
 impl Mangadotnet {
 	fn get_page_container_json_data<T>(&self, url: &str) -> Result<T>
 	where
 		T: DeserializeOwned,
 	{
-		if use_web_view_worker() {
-			let json = self.web_view.borrow_mut().fetch(url, 0)?;
-			let ptr_table_json = serde_json::from_str::<Vec<Value>>(&json)?;
-			// Example: [{"_1":2},"pages/SearchPage",{"_3":4},"data",...]
-			let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
-			// println!("{}", serde_json::to_string(&json)?);
-			// Example: {"pages/SearchPage":{"data":{...}}}
-			let Ok(page_container_json) =
-				serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)
-			else {
-				bail!("Invalid JSON data. Expected an object with page container data.")
-			};
-			let Some(page_container) = page_container_json.into_values().next() else {
-				bail!("Page container data does not exists.")
-			};
-			Ok(page_container.data)
-		} else {
-			let request = create_request_get(url)?;
-			let response = request.send()?;
-			let ptr_table_json = response_is_ok(response)?.get_json_owned::<Vec<Value>>()?;
-			// Example: [{"_1":2},"pages/SearchPage",{"_3":4},"data",...]
-			let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
-			// println!("{}", serde_json::to_string(&json)?);
-			// Example: {"pages/SearchPage":{"data":{...}}}
-			let Ok(page_container_json) =
-				serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)
-			else {
-				bail!("Invalid JSON data. Expected an object with page container data.")
-			};
-			let Some(page_container) = page_container_json.into_values().next() else {
-				bail!("Page container data does not exists.")
-			};
-			Ok(page_container.data)
-		}
+		let request = create_request_get(url)?;
+		let response = request.send()?;
+		response_is_ok(&response)?;
+		handle_page_container_json_data_response(response)
 	}
 
-	fn get_bulk_page_container_json_data<T>(&self, urls: Vec<String>) -> Result<Vec<T>>
+	fn get_bulk_page_container_json_data<T>(&self, urls: &[String]) -> Result<Vec<T>>
 	where
 		T: DeserializeOwned,
 	{
 		let mut result = Vec::<T>::with_capacity(urls.len());
+		let mut requests = Vec::<Request>::with_capacity(urls.len());
 
-		if use_web_view_worker() {
-			// PARALLEL SUPPORT ISN'T AVAILABLE with current design hence this is using slow path.
-			// This api is obsolete and will be removed so there is no point in optimizing.
-			for url in urls {
-				let json = self.web_view.borrow_mut().fetch(&url, 0)?;
-				let ptr_table_json = serde_json::from_str::<Vec<Value>>(&json)?;
-				// Example: [{"_1":2},"pages/SearchPage",{"_3":4},"data",...]
-				let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
-				// println!("{}", serde_json::to_string(&json)?);
-				// Example: {"pages/SearchPage":{"data":{...}}}
-				let Ok(page_container_json) =
-					serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)
-				else {
-					bail!("Invalid JSON data. Expected an object with page container data.")
-				};
-				let Some(page_container) = page_container_json.into_values().next() else {
-					bail!("Page container data does not exists.")
-				};
-				result.push(page_container.data);
-			}
-		} else {
-			let mut requests = Vec::<Request>::with_capacity(urls.len());
+		for url in urls.iter() {
+			let request = create_request_get(url)?;
+			requests.push(request)
+		}
 
-			for url in urls {
-				let request = create_request_get(&url)?;
-				requests.push(request)
-			}
+		let responses = Request::send_all(requests);
 
-			let responses = Request::send_all(requests);
-
-			for response in responses {
-				let ptr_table_json = response_is_ok(response?)?.get_json_owned::<Vec<Value>>()?;
-				// Example: [{"_1":2},"pages/SearchPage",{"_3":4},"data",...]
-				let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
-				// println!("{}", serde_json::to_string(&json)?);
-				// Example: {"pages/SearchPage":{"data":{...}}}
-				let Ok(page_container_json) =
-					serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)
-				else {
-					bail!("Invalid JSON data. Expected an object with page container data.")
-				};
-				let Some(page_container) = page_container_json.into_values().next() else {
-					bail!("Page container data does not exists.")
-				};
-				result.push(page_container.data);
-			}
+		for response_result in responses.into_iter() {
+			let response = response_result?;
+			response_is_ok(&response)?;
+			let data = handle_page_container_json_data_response(response)?;
+			result.push(data);
 		}
 
 		Ok(result)
@@ -133,15 +64,10 @@ impl Mangadotnet {
 	where
 		T: DeserializeOwned,
 	{
-		if use_web_view_worker() {
-			let json = self.web_view.borrow_mut().fetch(url, 0)?;
-			let result = serde_json::from_str::<T>(&json)?;
-			Ok(result)
-		} else {
-			let request = create_request_get(url)?;
-			let response = request.send()?;
-			response_is_ok(response)?.get_json_owned::<T>()
-		}
+		let request = create_request_get(url)?;
+		let response = request.send()?;
+		response_is_ok(&response)?;
+		response.get_json_owned::<T>()
 	}
 
 	fn is_logged_in(&self) -> bool {
@@ -156,9 +82,7 @@ impl Mangadotnet {
 
 impl Source for Mangadotnet {
 	fn new() -> Self {
-		Self {
-			web_view: RefCell::new(MangaDotnetWebView::new()),
-		}
+		Self
 	}
 
 	fn get_search_manga_list(
@@ -381,7 +305,7 @@ impl ListingProvider for Mangadotnet {
 				});
 
 				let manga_detail_pages: Vec<MangaDetailPage> =
-					self.get_bulk_page_container_json_data(manga_query_urls)?;
+					self.get_bulk_page_container_json_data(manga_query_urls.as_ref())?;
 
 				Ok(MangaPageResult {
 					entries: manga_detail_pages
@@ -646,73 +570,19 @@ impl DeepLinkHandler for Mangadotnet {
 	}
 }
 
-impl DynamicFilters for Mangadotnet {
-	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
-		let mut query_parameters = QueryParameters::new();
-
-		if !hide_nsfw() {
-			query_parameters.push("adult", Some("both"));
-		}
-
-		query_parameters.push("_routes", Some("pages/SearchPage"));
-
-		let search_page: SearchPage = self
-			.get_page_container_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
-
-		Ok(vec![Filter {
-			id: Cow::from("genre"),
-			title: Some("Genres".into()),
-			hide_from_header: None,
-			kind: FilterKind::MultiSelect {
-				is_genre: true,
-				can_exclude: true,
-				uses_tag_style: true,
-				options: search_page.all_genres.into_iter().map(Into::into).collect(),
-				ids: None,
-				default_included: None,
-				default_excluded: None,
-			},
-		}])
-	}
-}
-
 impl DynamicListings for Mangadotnet {
 	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
+		let mut listings: Vec<Listing> = Vec::new();
+
 		if self.is_logged_in() {
-			Ok(vec![Listing {
+			listings.push(Listing {
 				id: BOOKMARKS_LISTING_ID.into(),
 				name: "Your Bookmarks".into(),
 				..Default::default()
-			}])
-		} else {
-			Ok(vec![])
-		}
-	}
-}
-
-impl PageImageProcessor for Mangadotnet {
-	fn process_page_image(
-		&self,
-		response: ImageResponse,
-		_context: Option<PageContext>,
-	) -> Result<ImageRef> {
-		if !use_web_view_worker() {
-			return Ok(response.image);
+			});
 		}
 
-		let Some(url) = response.request.url else {
-			return Ok(response.image);
-		};
-
-		let base64_image_data = self.web_view.borrow_mut().fetch(&url, 0)?;
-		let Some((_, base64_data)) = base64_image_data.split_once(',') else {
-			bail!("Unable to get the raw image data")
-		};
-		let image_data = base64::engine::general_purpose::STANDARD
-			.decode(base64_data)
-			.or_else(|_| bail!("failed to decode image"))?;
-
-		Ok(ImageRef::new(image_data.as_ref()))
+		Ok(listings)
 	}
 }
 
@@ -735,9 +605,7 @@ register_source!(
 	ListingProvider,
 	Home,
 	DeepLinkHandler,
-	DynamicFilters,
 	DynamicListings,
-	PageImageProcessor,
 	NotificationHandler,
 	WebLoginHandler
 );

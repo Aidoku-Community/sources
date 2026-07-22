@@ -1,3 +1,4 @@
+use crate::models::PageContainer;
 use crate::{
 	CF_CHALLENGE_ERROR_MESSAGE, LOGIN_COOKIE_KEY, models::MangaChapter, settings::get_login_cookie,
 };
@@ -10,6 +11,7 @@ use aidoku::{
 	imports::net::{Request, Response},
 	prelude::*,
 };
+use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
 pub fn create_request_get(url: &str) -> Result<Request> {
@@ -20,7 +22,7 @@ pub fn create_request_get(url: &str) -> Result<Request> {
 	Ok(request)
 }
 
-pub fn response_is_ok(response: Response) -> Result<Response> {
+pub fn response_is_ok(response: &Response) -> Result<()> {
 	if response
 		.get_header("cf-mitigated")
 		.is_some_and(|value| value == "challenge")
@@ -29,7 +31,23 @@ pub fn response_is_ok(response: Response) -> Result<Response> {
 	} else if response.status_code() >= 400 {
 		bail!("Response Error: {}", response.status_code())
 	}
-	Ok(response)
+	Ok(())
+}
+
+pub fn handle_page_container_json_data_response<T>(response: Response) -> Result<T>
+where
+	T: DeserializeOwned,
+{
+	let ptr_table_json = response.get_json_owned::<Vec<Value>>()?;
+	let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
+	let Ok(page_container_json) = serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)
+	else {
+		bail!("Invalid JSON data. Expected an object with page container data.")
+	};
+	let Some(page_container) = page_container_json.into_values().next() else {
+		bail!("Page container data does not exists.")
+	};
+	Ok(page_container.data)
 }
 
 pub fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {

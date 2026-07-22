@@ -85,7 +85,6 @@ pub struct ViewAllPageData {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchPage {
-	pub all_genres: Vec<String>,
 	pub pagination: Option<Pagination>,
 	pub results: Option<Vec<MangaItem>>,
 }

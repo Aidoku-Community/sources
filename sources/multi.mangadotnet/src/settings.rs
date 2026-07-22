@@ -13,8 +13,6 @@ const SHOW_STANDALONE_VOLUME_KEY: &str = "showVolumes";
 const LOGIN_KEY: &str = "login";
 pub const LOGIN_COOKIE_KEY: &str = "ory_kratos_session";
 
-const USE_WEB_VIEW_WORKAROUND_KEY: &str = "useWebViewFetch";
-
 const DEFAULT_CONTENT_TYPES_KEY: &str = "contentTypes";
 
 pub const NOTIFICATION_RESET_KEY: &str = "resetFilters";
@@ -56,10 +54,6 @@ pub fn get_login_cookie() -> Option<String> {
 		return Some(cookie.into());
 	}
 	None
-}
-
-pub fn use_web_view_worker() -> bool {
-	defaults_get::<bool>(USE_WEB_VIEW_WORKAROUND_KEY).unwrap_or(false)
 }
 
 pub fn get_default_content_types() -> Option<String> {
