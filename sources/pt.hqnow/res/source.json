@@ -6,5 +6,8 @@
 		"url": "https://www.hq-now.com",
 		"contentRating": 1,
 		"languages": ["pt-BR"]
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true
 	}
 }

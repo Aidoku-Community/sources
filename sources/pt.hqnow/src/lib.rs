@@ -2,109 +2,18 @@
 extern crate alloc;
 
 mod graphql;
+mod helpers;
 mod models;
 
 use aidoku::{
-	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home,
-	HomeComponent, HomeComponentValue, HomeLayout, Link, Listing, ListingKind, ListingProvider,
-	Manga, MangaPageResult, Page, PageContent, Result, Source, Viewer,
+	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
+	HomeComponentValue, HomeLayout, Link, Listing, ListingKind, ListingProvider, Manga,
+	MangaPageResult, Page, PageContent, Result, Source, Viewer,
 	alloc::{String, Vec, format, vec},
-	imports::net::Request,
 	prelude::*,
 };
 use alloc::collections::BTreeMap;
-use alloc::string::ToString;
 use core::cell::RefCell;
-use serde::de::DeserializeOwned;
-
-const GRAPHQL_URL: &str = "https://admin.hq-now.com/graphql";
-
-// Maps publisher display name (as it appears in filters.json) to editoraId.
-const PUBLISHERS: &[(&str, i32)] = &[
-	("AfterShock Comics", 45),
-	("Alterna Comics", 52),
-	("Amigo Comics", 50),
-	("Archie Comics", 7),
-	("Avatar Press", 19),
-	("Beckett Comics", 43),
-	("Black Mask Studios", 51),
-	("Boom Studios", 12),
-	("Capcom", 41),
-	("Chaos Comics", 26),
-	("Dargaud", 4),
-	("Dark Horse Comics", 6),
-	("DC Comics", 1),
-	("Delcourt", 30),
-	("Dell Comics", 24),
-	("Desconhecida", 16),
-	("Devir Livraria", 29),
-	("Di\u{e1}bolo Ediciones", 27),
-	("Difus\u{e3}o Verbo", 42),
-	("Dupuis", 39),
-	("Dynamite Entertainment", 20),
-	("Editora 12 bis", 34),
-	("Europe comics", 56),
-	("Gl\u{e9}nat", 21),
-	("Graphix", 55),
-	("Harris Publications", 17),
-	("Humanoids", 57),
-	("Icon", 14),
-	("IDW Publishing", 8),
-	("Image Comics", 5),
-	("Kingdom Comics", 53),
-	("L&PM Editores", 40),
-	("Le Lombard", 37),
-	("Marvel Comics", 3),
-	("Merib\u{e9}rica", 18),
-	("Monkeybrain comics", 49),
-	("Norma Editorial", 15),
-	("Oni Press", 22),
-	("Radical Comics", 10),
-	("Rue de S\u{e8}vres", 38),
-	("Soleil", 36),
-	("Titan Comics", 46),
-	("Udon Comics", 25),
-	("Valiant Comics", 48),
-	("Vents d'Ouest", 32),
-	("Vertigo", 13),
-	("Virgin Comics", 47),
-	("WildStorm", 2),
-];
-
-// ── GraphQL helper ────────────────────────────────────────────────────────────
-
-fn execute_query<T: DeserializeOwned>(
-	gql: &graphql::GraphQLQuery,
-	variables: Option<serde_json::Value>,
-) -> Result<T> {
-	let mut body = serde_json::json!({
-		"operationName": gql.operation_name,
-		"query": gql.query,
-	});
-	if let Some(vars) = variables {
-		body["variables"] = vars;
-	}
-	let body_str = body.to_string();
-	let resp = Request::post(GRAPHQL_URL)
-		.map_err(|_| error!("network error"))?
-		.header("Content-Type", "application/json")
-		.body(body_str.as_bytes())
-		.string()?;
-	let wrapper: models::GqlResponse<T> =
-		serde_json::from_str(&resp).map_err(|_| error!("parse error"))?;
-	wrapper.data.ok_or_else(|| error!("no data"))
-}
-
-// ── Pagination helper ─────────────────────────────────────────────────────────
-
-/// Slices a locally-held Vec into one page of results. Used because most
-/// HQ-Now endpoints return all results in a single response.
-fn paginate<T>(items: Vec<T>, page: i32, per_page: usize) -> (Vec<T>, bool) {
-	let start = ((page - 1) as usize) * per_page;
-	let has_next = start + per_page < items.len();
-	let slice = items.into_iter().skip(start).take(per_page).collect();
-	(slice, has_next)
-}
 
 // ── Source ────────────────────────────────────────────────────────────────────
 
@@ -161,22 +70,20 @@ impl Source for HQnow {
 
 		let mut order_by_views = false;
 		let mut publisher_id: Option<i32> = None;
-		for filter in &filters {
-			match filter {
-				FilterValue::Sort { index: 1, .. } => order_by_views = true,
-				FilterValue::Select { id, value } if id == "publisher" && value != "Todas" => {
-					if let Some(&(_, pid)) =
-						PUBLISHERS.iter().find(|&&(name, _)| name == value.as_str())
-					{
-						publisher_id = Some(pid);
+		if query.is_none() {
+			for filter in &filters {
+				match filter {
+					FilterValue::Sort { index: 1, .. } => order_by_views = true,
+					FilterValue::Select { id, value } if id == "publisher" && !value.is_empty() => {
+						publisher_id = value.parse::<i32>().ok();
 					}
+					_ => {}
 				}
-				_ => {}
 			}
 		}
 
 		let hqs = if let Some(q) = query {
-			execute_query::<models::ByNameResponse>(
+			helpers::execute_query::<models::ByNameResponse>(
 				&graphql::GraphQLQuery::HQS_BY_NAME,
 				Some(serde_json::json!({ "name": q })),
 			)?
@@ -189,17 +96,20 @@ impl Source for HQnow {
 			if let Some(pid) = publisher_id {
 				vars["publisherId"] = serde_json::json!(pid);
 			}
-			execute_query::<models::ByFiltersResponse>(
+			helpers::execute_query::<models::ByFiltersResponse>(
 				&graphql::GraphQLQuery::HQS_BY_FILTERS,
 				Some(vars),
 			)?
 			.get_hqs_by_filters
 		} else {
-			execute_query::<models::RecentResponse>(&graphql::GraphQLQuery::RECENTLY_UPDATED, None)?
-				.get_recently_updated_hqs
+			helpers::execute_query::<models::RecentResponse>(
+				&graphql::GraphQLQuery::RECENTLY_UPDATED,
+				None,
+			)?
+			.get_recently_updated_hqs
 		};
 
-		let (entries, has_next_page) = paginate(hqs, page, PER_PAGE);
+		let (entries, has_next_page) = helpers::paginate(hqs, page, PER_PAGE);
 		Ok(MangaPageResult {
 			entries: self.hqs_to_mangas(entries),
 			has_next_page,
@@ -214,7 +124,7 @@ impl Source for HQnow {
 	) -> Result<Manga> {
 		let id: i32 = manga.key.parse().map_err(|_| error!("invalid manga key"))?;
 
-		let detail = execute_query::<models::ByIdResponse>(
+		let detail = helpers::execute_query::<models::ByIdResponse>(
 			&graphql::GraphQLQuery::HQS_BY_ID,
 			Some(serde_json::json!({ "id": id })),
 		)?
@@ -230,9 +140,9 @@ impl Source for HQnow {
 				detail.id, detail.name
 			));
 			manga.title = detail.name;
-			manga.cover = models::to_https(detail.hq_cover);
+			manga.cover = helpers::to_https(detail.hq_cover);
 			manga.description = detail.synopsis;
-			manga.status = models::parse_status(detail.status.as_deref());
+			manga.status = helpers::parse_status(detail.status.as_deref());
 			manga.authors = detail.publisher_name.map(|p| vec![p]);
 			manga.content_rating = ContentRating::Safe;
 			manga.viewer = Viewer::LeftToRight;
@@ -243,13 +153,7 @@ impl Source for HQnow {
 		}
 
 		if needs_chapters {
-			manga.chapters = Some(
-				detail
-					.capitulos
-					.into_iter()
-					.map(models::HqChapter::into_chapter)
-					.collect(),
-			);
+			manga.chapters = Some(detail.capitulos.into_iter().map(Into::into).collect());
 		}
 
 		Ok(manga)
@@ -261,7 +165,7 @@ impl Source for HQnow {
 			.parse()
 			.map_err(|_| error!("invalid chapter key"))?;
 
-		let pictures = execute_query::<models::ChapterByIdResponse>(
+		let pictures = helpers::execute_query::<models::ChapterByIdResponse>(
 			&graphql::GraphQLQuery::CHAPTER_BY_ID,
 			Some(serde_json::json!({ "chapterId": chapter_id })),
 		)?
@@ -273,7 +177,7 @@ impl Source for HQnow {
 			.into_iter()
 			.map(|p| Page {
 				content: PageContent::url(
-					models::to_https(Some(p.picture_url)).unwrap_or_default(),
+					helpers::to_https(Some(p.picture_url)).unwrap_or_default(),
 				),
 				..Default::default()
 			})
@@ -289,7 +193,7 @@ impl ListingProvider for HQnow {
 
 		let hqs: Vec<models::HqBasic> = match listing.id.as_str() {
 			"popular" => {
-				execute_query::<models::ByFiltersResponse>(
+				helpers::execute_query::<models::ByFiltersResponse>(
 					&graphql::GraphQLQuery::HQS_BY_FILTERS,
 					Some(serde_json::json!({
 						"orderByViews": true,
@@ -300,7 +204,7 @@ impl ListingProvider for HQnow {
 				.get_hqs_by_filters
 			}
 			_ => {
-				execute_query::<models::RecentResponse>(
+				helpers::execute_query::<models::RecentResponse>(
 					&graphql::GraphQLQuery::RECENTLY_UPDATED,
 					None,
 				)?
@@ -308,7 +212,7 @@ impl ListingProvider for HQnow {
 			}
 		};
 
-		let (entries, has_next_page) = paginate(hqs, page, PER_PAGE);
+		let (entries, has_next_page) = helpers::paginate(hqs, page, PER_PAGE);
 		Ok(MangaPageResult {
 			entries: self.hqs_to_mangas(entries),
 			has_next_page,
@@ -320,15 +224,17 @@ impl ListingProvider for HQnow {
 
 impl Home for HQnow {
 	fn get_home(&self) -> Result<HomeLayout> {
-		let carousel =
-			execute_query::<models::CarouselResponse>(&graphql::GraphQLQuery::CAROUSEL, None)?
-				.get_carousel_of_hqs
-				.into_iter()
-				.map(models::CarouselItem::into_manga)
-				.collect::<Vec<_>>();
+		let carousel = helpers::execute_query::<models::CarouselResponse>(
+			&graphql::GraphQLQuery::CAROUSEL,
+			None,
+		)?
+		.get_carousel_of_hqs
+		.into_iter()
+		.map(models::CarouselItem::into_manga)
+		.collect::<Vec<_>>();
 
 		let recent = self.hqs_to_mangas(
-			execute_query::<models::RecentResponse>(
+			helpers::execute_query::<models::RecentResponse>(
 				&graphql::GraphQLQuery::RECENTLY_UPDATED,
 				None,
 			)?
@@ -339,7 +245,7 @@ impl Home for HQnow {
 		);
 
 		let popular = self.hqs_to_mangas(
-			execute_query::<models::ByFiltersResponse>(
+			helpers::execute_query::<models::ByFiltersResponse>(
 				&graphql::GraphQLQuery::HQS_BY_FILTERS,
 				Some(serde_json::json!({
 					"orderByViews": true,

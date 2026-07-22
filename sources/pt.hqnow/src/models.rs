@@ -1,16 +1,11 @@
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaStatus, Viewer,
+	Chapter, ContentRating, Manga, Viewer,
 	alloc::{String, Vec},
 };
 use alloc::string::ToString;
 use serde::Deserialize;
 
-// ── Response wrapper ──────────────────────────────────────────────────────────
-
-#[derive(Deserialize)]
-pub struct GqlResponse<T> {
-	pub data: Option<T>,
-}
+use crate::helpers::to_https;
 
 // ── Response data shapes ──────────────────────────────────────────────────────
 
@@ -100,12 +95,12 @@ pub struct HqChapter {
 	pub number: String,
 }
 
-impl HqChapter {
-	pub fn into_chapter(self) -> Chapter {
+impl From<HqChapter> for Chapter {
+	fn from(ch: HqChapter) -> Self {
 		Chapter {
-			key: self.id.to_string(),
-			title: self.name.filter(|n| !n.is_empty()),
-			chapter_number: self.number.parse().ok(),
+			key: ch.id.to_string(),
+			title: ch.name.filter(|n| !n.is_empty()),
+			chapter_number: ch.number.parse().ok(),
 			..Default::default()
 		}
 	}
@@ -142,27 +137,4 @@ impl CarouselItem {
 			..Default::default()
 		}
 	}
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-pub fn parse_status(s: Option<&str>) -> MangaStatus {
-	match s {
-		Some("Concluído") => MangaStatus::Completed,
-		Some("Em Andamento") => MangaStatus::Ongoing,
-		Some("Cancelado") => MangaStatus::Cancelled,
-		Some("Hiatus") => MangaStatus::Hiatus,
-		_ => MangaStatus::Unknown,
-	}
-}
-
-/// Rewrites `http://` image URLs to `https://` to prevent mixed-content blocks.
-pub fn to_https(url: Option<String>) -> Option<String> {
-	url.map(|u| {
-		if u.starts_with("http://") {
-			u.replacen("http://", "https://", 1)
-		} else {
-			u
-		}
-	})
 }
