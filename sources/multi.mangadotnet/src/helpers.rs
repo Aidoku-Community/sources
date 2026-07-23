@@ -1,6 +1,6 @@
-use crate::models::PageContainer;
+use crate::models::UserProfile;
 use crate::{
-	CF_CHALLENGE_ERROR_MESSAGE, LOGIN_COOKIE_KEY, models::MangaChapter, settings::get_login_cookie,
+	LOGIN_COOKIE_KEY, models::MangaChapter, models::PageContainer, settings::get_login_cookie,
 };
 use aidoku::{
 	HashMap, Result,
@@ -14,7 +14,9 @@ use aidoku::{
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
-pub fn create_request_get(url: &str) -> Result<Request> {
+const CF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned CF challenge page instead of JSON data. If problem persist, please clear the source cache and restart the application to resolve this issue.";
+
+fn create_request_get(url: &str) -> Result<Request> {
 	let mut request = Request::get(url)?;
 	if let Some(token) = get_login_cookie() {
 		request = request.header("Cookie", &format!("{LOGIN_COOKIE_KEY}={token}"));
@@ -22,7 +24,7 @@ pub fn create_request_get(url: &str) -> Result<Request> {
 	Ok(request)
 }
 
-pub fn response_is_ok(response: &Response) -> Result<()> {
+fn response_is_ok(response: &Response) -> Result<()> {
 	if response
 		.get_header("cf-mitigated")
 		.is_some_and(|value| value == "challenge")
@@ -34,11 +36,55 @@ pub fn response_is_ok(response: &Response) -> Result<()> {
 	Ok(())
 }
 
-pub fn handle_page_container_json_data_response<T>(response: Response) -> Result<T>
+pub fn get_json_data<T>(url: &str) -> Result<T>
 where
 	T: DeserializeOwned,
 {
-	let ptr_table_json = response.get_json_owned::<Vec<Value>>()?;
+	let request = create_request_get(url)?;
+	let response = request.send()?;
+	response_is_ok(&response)?;
+	response.get_json_owned::<T>()
+}
+
+pub fn get_page_container_json_data<T>(url: &str) -> Result<T>
+where
+	T: DeserializeOwned,
+{
+	let request = create_request_get(url)?;
+	let response = request.send()?;
+	response_is_ok(&response)?;
+	handle_page_container_json_data_response(&response)
+}
+
+pub fn get_bulk_page_container_json_data<T>(urls: &[String]) -> Result<Vec<T>>
+where
+	T: DeserializeOwned,
+{
+	let mut result = Vec::<T>::with_capacity(urls.len());
+	let mut requests = Vec::<Request>::with_capacity(urls.len());
+
+	for url in urls.iter() {
+		let request = create_request_get(url)?;
+		requests.push(request)
+	}
+
+	let responses = Request::send_all(requests);
+
+	for response_result in responses.into_iter() {
+		let response = response_result?;
+		response_is_ok(&response)?;
+		let data = handle_page_container_json_data_response(&response)?;
+		result.push(data);
+	}
+
+	Ok(result)
+}
+
+fn handle_page_container_json_data_response<T>(response: &Response) -> Result<T>
+where
+	T: DeserializeOwned,
+{
+	let ptr_table_json = serde_json::from_slice::<Vec<Value>>(&response.get_data()?)?;
 	let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
 	let Ok(page_container_json) = serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)
 	else {
@@ -50,7 +96,7 @@ where
 	Ok(page_container.data)
 }
 
-pub fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
+fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
 	// This function will convert pointer-table encoded JSON format into normal JSON format.
 	// Since the data format would most likely not have cycles, we didn't handle this inside here.
 	let Some(value) = table.get(index) else {
@@ -108,6 +154,13 @@ pub fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
 		// Primitive value, just return as is.
 		_ => Ok(value.clone()),
 	}
+}
+
+pub fn is_logged_in() -> bool {
+	get_login_cookie().is_some_and(|_| {
+		get_json_data::<UserProfile>("https://mangadot.net/api/profile")
+			.is_ok_and(|user_profile| user_profile.profile.is_some_and(|p| p.id.is_some()))
+	})
 }
 
 fn is_official_like(chapter: &MangaChapter) -> bool {

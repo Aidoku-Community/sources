@@ -6,11 +6,10 @@ use aidoku::{
 	WebLoginHandler,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::QueryParameters,
-	imports::{net::Request, std::send_partial_result},
+	imports::std::send_partial_result,
 	prelude::*,
 };
 use core::{cmp::*, ops::Deref};
-use serde::de::DeserializeOwned;
 
 mod helpers;
 mod models;
@@ -21,64 +20,8 @@ use models::*;
 use settings::*;
 
 const BASE_URL: &str = "https://mangadot.net";
-const CF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned CF challenge page instead of JSON data. If problem persist, please clear the source cache and restart the application to resolve this issue.";
 
 struct Mangadotnet;
-
-impl Mangadotnet {
-	fn get_page_container_json_data<T>(&self, url: &str) -> Result<T>
-	where
-		T: DeserializeOwned,
-	{
-		let request = create_request_get(url)?;
-		let response = request.send()?;
-		response_is_ok(&response)?;
-		handle_page_container_json_data_response(response)
-	}
-
-	fn get_bulk_page_container_json_data<T>(&self, urls: &[String]) -> Result<Vec<T>>
-	where
-		T: DeserializeOwned,
-	{
-		let mut result = Vec::<T>::with_capacity(urls.len());
-		let mut requests = Vec::<Request>::with_capacity(urls.len());
-
-		for url in urls.iter() {
-			let request = create_request_get(url)?;
-			requests.push(request)
-		}
-
-		let responses = Request::send_all(requests);
-
-		for response_result in responses.into_iter() {
-			let response = response_result?;
-			response_is_ok(&response)?;
-			let data = handle_page_container_json_data_response(response)?;
-			result.push(data);
-		}
-
-		Ok(result)
-	}
-
-	fn get_json_data<T>(&self, url: &str) -> Result<T>
-	where
-		T: DeserializeOwned,
-	{
-		let request = create_request_get(url)?;
-		let response = request.send()?;
-		response_is_ok(&response)?;
-		response.get_json_owned::<T>()
-	}
-
-	fn is_logged_in(&self) -> bool {
-		if get_login_cookie().is_some() {
-			self.get_json_data::<UserProfile>("https://mangadot.net/api/profile")
-				.is_ok_and(|user_profile| user_profile.profile.is_some_and(|p| p.id.is_some()))
-		} else {
-			false
-		}
-	}
-}
 
 impl Source for Mangadotnet {
 	fn new() -> Self {
@@ -155,8 +98,8 @@ impl Source for Mangadotnet {
 
 		query_parameters.push("_routes", Some("pages/SearchPage"));
 
-		let search_response: SearchPage = self
-			.get_page_container_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
+		let search_response: SearchPage =
+			get_page_container_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
 
 		Ok(MangaPageResult {
 			entries: search_response
@@ -177,11 +120,10 @@ impl Source for Mangadotnet {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		if needs_details {
-			let manga_detail_page: MangaDetailPage =
-				self.get_page_container_json_data(&format!(
-					"{BASE_URL}/manga/{}.data?_routes=pages/MangaDetailPage",
-					manga.key
-				))?;
+			let manga_detail_page: MangaDetailPage = get_page_container_json_data(&format!(
+				"{BASE_URL}/manga/{}.data?_routes=pages/MangaDetailPage",
+				manga.key
+			))?;
 
 			manga.copy_from(manga_detail_page.manga_data.manga.into());
 
@@ -192,7 +134,7 @@ impl Source for Mangadotnet {
 
 		if needs_chapters {
 			let json: Vec<MangaChapter> =
-				self.get_json_data(&format!("{BASE_URL}/api/manga/{}/chapters/list", manga.key))?;
+				get_json_data(&format!("{BASE_URL}/api/manga/{}/chapters/list", manga.key))?;
 
 			let mut chapter_map: HashMap<String, MangaChapter> = HashMap::new();
 			let mut chapter_list: Vec<MangaChapter> = Vec::new();
@@ -213,7 +155,7 @@ impl Source for Mangadotnet {
 
 			if show_standalone_volume() {
 				let volumes_json: Vec<MangaVolume> =
-					self.get_json_data(&format!("{BASE_URL}/api/manga/{}/volumes", manga.key))?;
+					get_json_data(&format!("{BASE_URL}/api/manga/{}/volumes", manga.key))?;
 
 				let mut volumes: Vec<Chapter> = volumes_json.into_iter().map(Into::into).collect();
 				chapters.append(&mut volumes);
@@ -253,9 +195,9 @@ impl Source for Mangadotnet {
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let json: MangaPage = if chapter.url.is_some_and(|url| url.contains("?source=user")) {
-			self.get_json_data(&format!("{BASE_URL}/api/uploads/{}/images", chapter.key))?
+			get_json_data(&format!("{BASE_URL}/api/uploads/{}/images", chapter.key))?
 		} else {
-			self.get_json_data(&format!("{BASE_URL}/api/chapters/{}/images", chapter.key))?
+			get_json_data(&format!("{BASE_URL}/api/chapters/{}/images", chapter.key))?
 		};
 
 		Ok(json
@@ -290,7 +232,7 @@ impl ListingProvider for Mangadotnet {
 					query_parameters.push("page", Some(&format!("{page}")));
 				}
 
-				let bookmark_page: BookmarkPage = self.get_page_container_json_data(&format!(
+				let bookmark_page: BookmarkPage = get_page_container_json_data(&format!(
 					"{BASE_URL}/bookmark.data?{query_parameters}"
 				))?;
 
@@ -305,7 +247,7 @@ impl ListingProvider for Mangadotnet {
 				});
 
 				let manga_detail_pages: Vec<MangaDetailPage> =
-					self.get_bulk_page_container_json_data(manga_query_urls.as_ref())?;
+					get_bulk_page_container_json_data(manga_query_urls.as_ref())?;
 
 				Ok(MangaPageResult {
 					entries: manga_detail_pages
@@ -326,8 +268,8 @@ impl ListingProvider for Mangadotnet {
 
 				query_parameters.push("limit", Some("100"));
 
-				let listing_data: ListingSectionData = self
-					.get_json_data(&format!("{BASE_URL}/api/manga/for-you?{query_parameters}"))?;
+				let listing_data: ListingSectionData =
+					get_json_data(&format!("{BASE_URL}/api/manga/for-you?{query_parameters}"))?;
 
 				Ok(MangaPageResult {
 					entries: listing_data.items.into_iter().map(Into::into).collect(),
@@ -354,7 +296,7 @@ impl ListingProvider for Mangadotnet {
 
 				query_parameters.push("_routes", Some("pages/ViewAllPage"));
 
-				let view_all_page: ViewAllPage = self.get_page_container_json_data(&format!(
+				let view_all_page: ViewAllPage = get_page_container_json_data(&format!(
 					"{BASE_URL}/view-all/{}.data?{}",
 					match listing.id.as_str() {
 						LATEST_UPDATES_LISTING_ID => "latest-updates",
@@ -383,42 +325,42 @@ impl ListingProvider for Mangadotnet {
 
 impl Home for Mangadotnet {
 	fn get_home(&self) -> Result<HomeLayout> {
-		send_partial_result(&HomePartialResult::Layout(HomeLayout {
-			components: vec![
-				HomeComponent {
-					title: Some("Latest Updates".into()),
-					subtitle: Some("New Chapters".into()),
-					value: HomeComponentValue::empty_scroller(),
-				},
-				HomeComponent {
-					title: Some("Recently Added".into()),
-					subtitle: Some("New Titles".into()),
-					value: HomeComponentValue::empty_scroller(),
-				},
-				HomeComponent {
-					title: Some("Most Tracked".into()),
-					subtitle: Some("Reader Favorites".into()),
-					value: HomeComponentValue::empty_scroller(),
-				},
-				HomeComponent {
-					title: Some("Top Rated".into()),
-					subtitle: Some("Highest Scores".into()),
-					value: HomeComponentValue::empty_scroller(),
-				},
-			],
-		}));
+		let mut home_components = vec![
+			HomeComponent {
+				title: Some("Latest Updates".into()),
+				subtitle: Some("New Chapters".into()),
+				value: HomeComponentValue::empty_scroller(),
+			},
+			HomeComponent {
+				title: Some("Recently Added".into()),
+				subtitle: Some("New Titles".into()),
+				value: HomeComponentValue::empty_scroller(),
+			},
+			HomeComponent {
+				title: Some("Most Tracked".into()),
+				subtitle: Some("Reader Favorites".into()),
+				value: HomeComponentValue::empty_scroller(),
+			},
+			HomeComponent {
+				title: Some("Top Rated".into()),
+				subtitle: Some("Highest Scores".into()),
+				value: HomeComponentValue::empty_scroller(),
+			},
+		];
 
-		let is_logged_in = self.is_logged_in();
+		let is_logged_in = is_logged_in();
 
 		if is_logged_in {
-			send_partial_result(&HomePartialResult::Layout(HomeLayout {
-				components: vec![HomeComponent {
-					title: Some("For You".into()),
-					subtitle: Some("Based on your bookmarks".into()),
-					value: HomeComponentValue::empty_scroller(),
-				}],
-			}))
+			home_components.push(HomeComponent {
+				title: Some("For You".into()),
+				subtitle: Some("Based on your bookmarks".into()),
+				value: HomeComponentValue::empty_scroller(),
+			});
 		}
+
+		send_partial_result(&HomePartialResult::Layout(HomeLayout {
+			components: home_components,
+		}));
 
 		for id in [
 			"latest_updates",
@@ -442,7 +384,7 @@ impl Home for Mangadotnet {
 			query_parameters.push("limit", Some("21"));
 
 			let listing_data: ListingSectionData =
-				self.get_json_data(&format!("{BASE_URL}/api/manga/section?{query_parameters}"))?;
+				get_json_data(&format!("{BASE_URL}/api/manga/section?{query_parameters}"))?;
 
 			send_partial_result(&HomePartialResult::Component(HomeComponent {
 				title: match id {
@@ -489,18 +431,10 @@ impl Home for Mangadotnet {
 		}
 
 		if is_logged_in {
-			let mut query_parameters = QueryParameters::new();
-
-			if !hide_nsfw() {
-				query_parameters.push("adult", Some("both"));
-			} else {
-				query_parameters.push("adult", Some("0"));
-			}
-
-			query_parameters.push("limit", Some("21"));
-
-			let listing_data: ListingSectionData =
-				self.get_json_data(&format!("{BASE_URL}/api/manga/for-you?{query_parameters}"))?;
+			let listing_data: ListingSectionData = get_json_data(&format!(
+				"{BASE_URL}/api/manga/for-you?adult={}&limit=21",
+				if hide_nsfw() { "0" } else { "both" }
+			))?;
 
 			send_partial_result(&HomePartialResult::Component(HomeComponent {
 				title: Some("For You".into()),
@@ -540,7 +474,7 @@ impl DeepLinkHandler for Mangadotnet {
 					if id.contains("source=user") {
 						// This is a user uploaded chapter
 						if let Some(chapter_id) = id.find('?').and_then(|idx| id.get(..idx)) {
-							let json: MangaPage = self.get_json_data(&format!(
+							let json: MangaPage = get_json_data(&format!(
 								"{BASE_URL}/api/uploads/{chapter_id}/images"
 							))?;
 							return Ok(Some(DeepLinkResult::Chapter {
@@ -550,7 +484,7 @@ impl DeepLinkHandler for Mangadotnet {
 						}
 					} else {
 						if let Some(chapter_id) = id.find('#').and_then(|idx| id.get(..idx)) {
-							let json: MangaPage = self.get_json_data(&format!(
+							let json: MangaPage = get_json_data(&format!(
 								"{BASE_URL}/api/chapters/{chapter_id}/images"
 							))?;
 							return Ok(Some(DeepLinkResult::Chapter {
@@ -574,7 +508,7 @@ impl DynamicListings for Mangadotnet {
 	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
 		let mut listings: Vec<Listing> = Vec::new();
 
-		if self.is_logged_in() {
+		if is_logged_in() {
 			listings.push(Listing {
 				id: BOOKMARKS_LISTING_ID.into(),
 				name: "Your Bookmarks".into(),
@@ -593,6 +527,8 @@ impl NotificationHandler for Mangadotnet {
 		}
 	}
 }
+
+const LOGIN_COOKIE_KEY: &str = "ory_kratos_session";
 
 impl WebLoginHandler for Mangadotnet {
 	fn handle_web_login(&self, _key: String, cookies: HashMap<String, String>) -> Result<bool> {

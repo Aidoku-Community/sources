@@ -1,6 +1,6 @@
+use crate::LOGIN_COOKIE_KEY;
 use aidoku::{
-	alloc::string::String,
-	alloc::vec::Vec,
+	alloc::{string::String, vec::Vec},
 	imports::defaults::{DefaultValue, defaults_get, defaults_get_map, defaults_set},
 };
 
@@ -11,10 +11,8 @@ const DEDUPED_CHAPTER_KEY: &str = "dedupedChapter";
 const SHOW_STANDALONE_VOLUME_KEY: &str = "showVolumes";
 
 const LOGIN_KEY: &str = "login";
-pub const LOGIN_COOKIE_KEY: &str = "ory_kratos_session";
 
 const DEFAULT_CONTENT_TYPES_KEY: &str = "contentTypes";
-
 pub const NOTIFICATION_RESET_KEY: &str = "resetFilters";
 
 /* Not in use yet, but maybe we need to do some mapping once we get enough data on how the language field works.
@@ -50,10 +48,7 @@ pub fn show_standalone_volume() -> bool {
 }
 
 pub fn get_login_cookie() -> Option<String> {
-	if let Some(cookie) = defaults_get_map(LOGIN_KEY)?.get(LOGIN_COOKIE_KEY) {
-		return Some(cookie.into());
-	}
-	None
+	defaults_get_map(LOGIN_KEY)?.get(LOGIN_COOKIE_KEY).cloned()
 }
 
 pub fn get_default_content_types() -> Option<String> {
