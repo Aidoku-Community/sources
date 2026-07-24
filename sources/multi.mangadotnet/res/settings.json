@@ -56,6 +56,35 @@
 	},
 	{
 		"type": "group",
+		"title": "Deduplicate Preference",
+		"items": [
+			{
+				"type": "editable-list",
+				"key": "deduplicateGroupList",
+				"title": "Group Preference",
+				"placeholder": "Enter Group Id (Ex: 16791)",
+				"default": [],
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "button",
+				"key": "resetDeduplicateGroupList",
+				"title": "Reset Group Preference",
+				"confirmTitle": "Reset Group Preference",
+				"confirmText": "Are you sure you want to remove all configured group preference?",
+				"destructive": true,
+				"notification": "resetDeduplicateGroupList",
+				"refreshes": [
+					"content"
+				]
+			}
+		],
+		"footer": "This helps to narrow down groups that you prefer when Deduplicate Chapters are active."
+	},
+	{
+		"type": "group",
 		"items": [
 			{
 				"type": "page",

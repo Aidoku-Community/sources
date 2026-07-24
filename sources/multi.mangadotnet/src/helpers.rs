@@ -1,6 +1,6 @@
-use crate::models::UserProfile;
 use crate::{
-	LOGIN_COOKIE_KEY, models::MangaChapter, models::PageContainer, settings::get_login_cookie,
+	LOGIN_COOKIE_KEY, models::MangaChapter, models::PageContainer, models::UserProfile,
+	settings::get_deduped_group_list, settings::get_login_cookie,
 };
 use aidoku::{
 	HashMap, Result,
@@ -166,16 +166,25 @@ pub fn is_logged_in() -> bool {
 fn is_official_like(chapter: &MangaChapter) -> bool {
 	let official_group_ids = [
 		17423, // Official
-		10712, // Manga Plus
-		16861, // Viz Manga
-		10110, // LINE Webtoon
-		16168, // Tapas
+		18142, // Animate International
 		3521,  // Comikey
-		18180, // One Peace Books
+		5952,  // FAKKU
 		3891,  // J-Novel Club
+		9438,  // Kodansha USA
+		10712, // Manga Plus
 		18036, // Manga UP!
-		18234, // Square Enix Manga
+		18180, // One Peace Books
 		18052, // Seven Seas Entertainment
+		18234, // Square Enix Manga
+		16861, // Viz Manga
+		17842, // VIZ Media
+		17841, // VIZ Shonen Jump
+		13541, // Yen Press
+		10887, // Manta
+		16168, // Tapas
+		16170, // TappyToon
+		10110, // LINE Webtoon
+		16424, // Toomics
 	];
 
 	// There are probably others but tbh, they have not standardized this properly so this is
@@ -202,6 +211,30 @@ fn is_official_like(chapter: &MangaChapter) -> bool {
 	group_id || group_ids || scanlator_name
 }
 
+fn find_personal_group_preference_index(chapter: &MangaChapter) -> Option<usize> {
+	let deduped_group_list = get_deduped_group_list();
+	let mut index: Vec<Option<usize>> = Vec::new();
+
+	let group_id = chapter.group_id.as_ref().and_then(|id| {
+		deduped_group_list
+			.iter()
+			.position(|p| p == &format!("{id}"))
+	});
+	index.push(group_id);
+
+	if let Some(groups) = chapter.groups.as_ref() {
+		groups.iter().for_each(|g| {
+			index.push(
+				deduped_group_list
+					.iter()
+					.position(|p| p == &format!("{}", g.id)),
+			);
+		});
+	}
+
+	index.into_iter().flatten().min()
+}
+
 fn is_better(new: &MangaChapter, current: &MangaChapter) -> bool {
 	let official_new = is_official_like(new);
 	let official_cur = is_official_like(current);
@@ -211,6 +244,17 @@ fn is_better(new: &MangaChapter, current: &MangaChapter) -> bool {
 	}
 	if !official_new && official_cur {
 		return false;
+	}
+
+	let order_new = find_personal_group_preference_index(new);
+	let order_cur = find_personal_group_preference_index(current);
+
+	if order_new.is_some() && order_cur.is_none() {
+		return true;
+	}
+
+	if order_new.is_some() && order_cur.is_some() && order_new.lt(&order_cur) {
+		return true;
 	}
 
 	let new_created_at = new.created_at();

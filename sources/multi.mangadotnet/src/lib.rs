@@ -522,8 +522,10 @@ impl DynamicListings for Mangadotnet {
 
 impl NotificationHandler for Mangadotnet {
 	fn handle_notification(&self, notification: String) {
-		if notification == NOTIFICATION_RESET_KEY {
+		if notification == NOTIFICATION_RESET_FILTERS_KEY {
 			reset_filters();
+		} else if notification == NOTIFICATION_RESET_DEDUPED_GROUP_KEY {
+			reset_deduped_group_list();
 		}
 	}
 }
