@@ -81,7 +81,7 @@
 				]
 			}
 		],
-		"footer": "This helps to narrow down groups that you prefer when Deduplicate Chapters are active."
+		"footer": "This helps to narrow down groups that you prefer when Deduplicate Chapters are active. Official chapters are always preferred first."
 	},
 	{
 		"type": "group",
