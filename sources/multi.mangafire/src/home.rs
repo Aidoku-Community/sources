@@ -1,5 +1,8 @@
-use crate::models::{ApiManga, ApiResponse};
-use crate::{BASE_URL, MangaFire};
+use crate::{
+	MangaFire,
+	helpers::api_request,
+	models::{ApiManga, ApiResponse},
+};
 use aidoku::{
 	Chapter, Home, HomeComponent, HomeLayout, HomePartialResult, Manga, MangaWithChapter, Result,
 	alloc::vec,
@@ -29,12 +32,23 @@ impl Home for MangaFire {
 		}));
 
 		let responses: [core::result::Result<Response, RequestError>; 2] = Request::send_all([
-			Request::get(format!(
-				"{BASE_URL}/api/top-titles?type=trending&days=1&limit=30"
-			))?,
-			Request::get(format!(
-				"{BASE_URL}/api/titles?order%5Bchapter_updated_at%5D=desc&hot=1&page=1&limit=30"
-			))?,
+			api_request(
+				"/top-titles",
+				&mut [
+					("type".into(), format!("trending").into()),
+					("days".into(), "1".into()),
+					("limit".into(), "30".into()),
+				],
+			)?,
+			api_request(
+				"/titles",
+				&mut [
+					("order[chapter_updated_at]".into(), "desc".into()),
+					("hot".into(), "1".into()),
+					("page".into(), "1".into()),
+					("limit".into(), "30".into()),
+				],
+			)?,
 		])
 		.try_into()
 		.expect("requests vec length should be 2");
