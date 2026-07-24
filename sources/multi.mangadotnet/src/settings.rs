@@ -1,20 +1,22 @@
+use crate::LOGIN_COOKIE_KEY;
 use aidoku::{
-	alloc::string::String,
-	alloc::vec::Vec,
-	imports::defaults::{DefaultValue, defaults_get, defaults_set},
+	alloc::{string::String, vec, vec::Vec},
+	imports::defaults::{DefaultValue, defaults_get, defaults_get_map, defaults_set},
 };
 
 // const LANGUAGES_KEY: &str = "languages";
 
 const HIDE_NSFW_KEY: &str = "hideNSFW";
 const DEDUPED_CHAPTER_KEY: &str = "dedupedChapter";
-const SHOW_STANALONE_VOLUME_KEY: &str = "showVolumes";
+const SHOW_STANDALONE_VOLUME_KEY: &str = "showVolumes";
 
-const USE_WEB_VIEW_WORKAROUND_KEY: &str = "useWebViewFetch";
+const LOGIN_KEY: &str = "login";
+
+const DEDUPED_GROUP_KEY: &str = "deduplicateGroupList";
+pub const NOTIFICATION_RESET_DEDUPED_GROUP_KEY: &str = "resetDeduplicateGroupList";
 
 const DEFAULT_CONTENT_TYPES_KEY: &str = "contentTypes";
-
-pub const NOTIFICATION_RESET_KEY: &str = "resetFilters";
+pub const NOTIFICATION_RESET_FILTERS_KEY: &str = "resetFilters";
 
 /* Not in use yet, but maybe we need to do some mapping once we get enough data on how the language field works.
 pub fn get_languages() -> Result<Vec<String>> {
@@ -45,11 +47,19 @@ pub fn deduped_chapter() -> bool {
 }
 
 pub fn show_standalone_volume() -> bool {
-	defaults_get::<bool>(SHOW_STANALONE_VOLUME_KEY).unwrap_or(false)
+	defaults_get::<bool>(SHOW_STANDALONE_VOLUME_KEY).unwrap_or(false)
 }
 
-pub fn use_view_web_worker() -> bool {
-	defaults_get::<bool>(USE_WEB_VIEW_WORKAROUND_KEY).unwrap_or(false)
+pub fn get_login_cookie() -> Option<String> {
+	defaults_get_map(LOGIN_KEY)?.get(LOGIN_COOKIE_KEY).cloned()
+}
+
+pub fn get_deduped_group_list() -> Vec<String> {
+	defaults_get::<Vec<String>>(DEDUPED_GROUP_KEY).unwrap_or(vec![])
+}
+
+pub fn reset_deduped_group_list() {
+	defaults_set(DEDUPED_GROUP_KEY, DefaultValue::Null)
 }
 
 pub fn get_default_content_types() -> Option<String> {

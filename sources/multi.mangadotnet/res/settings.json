@@ -36,20 +36,52 @@
 	},
 	{
 		"type": "group",
-		"title": "Advanced Settings",
+		"title": "Account",
 		"items": [
 			{
-				"type": "switch",
-				"key": "useWebViewFetch",
-				"title": "Use CF Workaround",
-				"default": false,
+				"type": "login",
+				"method": "web",
+				"url": "https://mangadot.net/login?redirect=/",
+				"key": "login",
+				"title": "Login",
+				"logoutTitle": "Logout",
+				"notification": "login",
 				"refreshes": [
 					"content",
-					"filters"
+					"listings"
 				]
 			}
 		],
-		"footer": "CloudFlare workaround uses an invisible WebView to maintain a proper session. This will allow basic function to work except for cover images. If the source stops working for you periodically, try this option."
+		"footer": "Log in to your MangaDot account to view your saved content in the Bookmark listing"
+	},
+	{
+		"type": "group",
+		"title": "Deduplicate Preference",
+		"items": [
+			{
+				"type": "editable-list",
+				"key": "deduplicateGroupList",
+				"title": "Group Preference",
+				"placeholder": "Enter Group Id (Ex: 16791)",
+				"default": [],
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "button",
+				"key": "resetDeduplicateGroupList",
+				"title": "Reset Group Preference",
+				"confirmTitle": "Reset Group Preference",
+				"confirmText": "Are you sure you want to remove all configured group preference?",
+				"destructive": true,
+				"notification": "resetDeduplicateGroupList",
+				"refreshes": [
+					"content"
+				]
+			}
+		],
+		"footer": "This helps to narrow down groups that you prefer when Deduplicate Chapters are active. Official chapters are always preferred first."
 	},
 	{
 		"type": "group",
@@ -76,8 +108,14 @@
 									"KR",
 									"CN,TW"
 								],
-								"default": ["JP", "KR", "CN,TW"],
-								"refreshes": ["content"]
+								"default": [
+									"JP",
+									"KR",
+									"CN,TW"
+								],
+								"refreshes": [
+									"content"
+								]
 							}
 						]
 					}
@@ -91,7 +129,9 @@
 				"confirmText": "Are you sure you want to remove all configured content filters?",
 				"destructive": true,
 				"notification": "resetFilters",
-				"refreshes": ["content"]
+				"refreshes": [
+					"content"
+				]
 			}
 		],
 		"footer": "Content filters are applied to the home page and listings only."
