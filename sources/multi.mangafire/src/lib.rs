@@ -3,7 +3,6 @@ use aidoku::{
 	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider,
 	Manga, MangaPageResult, MangaStatus, Page, PageContext, Result, Source, Viewer,
 	alloc::{String, Vec, string::ToString},
-	helpers::uri::QueryParameters,
 	imports::{html::Html, net::Request, std::send_partial_result},
 	prelude::*,
 };
@@ -12,6 +11,7 @@ mod helpers;
 mod home;
 mod models;
 mod settings;
+mod vrf;
 
 use helpers::*;
 use models::*;
@@ -31,7 +31,7 @@ impl Source for MangaFire {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let mut qs = QueryParameters::new();
+		let mut qs = Vec::new();
 
 		// parse filters
 		for filter in filters {
@@ -39,17 +39,18 @@ impl Source for MangaFire {
 				FilterValue::Text { id, value } => match id.as_str() {
 					"author" | "artist" => {
 						if let Some(tag) = find_tag_id(&value, id.as_str())? {
-							qs.push(
+							qs.push((
 								if id == "author" {
 									"authors[]"
 								} else {
 									"artists[]"
-								},
-								Some(&tag),
-							);
+								}
+								.into(),
+								tag.into(),
+							));
 						}
 					}
-					"minchap" => qs.push("min_chap", Some(&value)),
+					"minchap" => qs.push(("min_chap".into(), value.into())),
 					_ => bail!("Invalid text filter id"),
 				},
 				FilterValue::Sort { index, .. } => {
@@ -68,7 +69,7 @@ impl Source for MangaFire {
 						11 => ("order[follows_total]", "desc"),
 						_ => bail!("Invalid sort filter index"),
 					};
-					qs.push(key, Some(value));
+					qs.push((key.into(), value.into()));
 				}
 				FilterValue::MultiSelect {
 					id,
@@ -77,38 +78,38 @@ impl Source for MangaFire {
 				} => match id.as_str() {
 					"genres" => {
 						for option in included {
-							qs.push("genres_in[]", Some(&option));
+							qs.push(("genres_in[]".into(), option.into()));
 						}
 						for option in excluded {
-							qs.push("genres_ex[]", Some(&option));
+							qs.push(("genres_ex[]".into(), option.into()));
 						}
 					}
 					_ => {
 						for option in included {
-							qs.push(&id, Some(&option));
+							qs.push((id.clone().into(), option.into()));
 						}
 					}
 				},
-				FilterValue::Select { id, value } => qs.push(&id, Some(&value)),
+				FilterValue::Select { id, value } => qs.push((id.into(), value.into())),
 				FilterValue::Range { from, to, .. } => {
 					if let Some(from) = from {
-						qs.push_encoded("year_from", Some(&from.to_string()));
+						qs.push(("year_from".into(), from.to_string().into()));
 					}
 					if let Some(to) = to {
-						qs.push_encoded("year_to", Some(&to.to_string()));
+						qs.push(("year_to".into(), to.to_string().into()));
 					}
 				}
 				_ => {}
 			}
 		}
 
-		if query.is_some() {
-			qs.push("keyword", query.as_deref());
+		if let Some(query) = query {
+			qs.push(("keyword".into(), query.into()));
 		}
-		qs.push_encoded("page", Some(&page.to_string()));
-		qs.push_encoded("limit", Some("50"));
+		qs.push(("page".into(), page.to_string().into()));
+		qs.push(("limit".into(), "50".into()));
 
-		Request::get(format!("{BASE_URL}/api/titles?{qs}"))?
+		api_request("/titles", &mut qs)?
 			.header("Accept", "application/json")
 			.header("Referer", &format!("{BASE_URL}/"))
 			.send()?
@@ -130,7 +131,7 @@ impl Source for MangaFire {
 		}
 
 		if needs_details {
-			let details = Request::get(format!("{BASE_URL}/api/titles/{}", manga.key))?
+			let details = api_request(&format!("/titles/{}", manga.key), &mut [])?
 				.header("Accept", "application/json")
 				.header("Referer", &format!("{BASE_URL}/"))
 				.send()?
@@ -189,19 +190,20 @@ impl Source for MangaFire {
 			for lang in &languages {
 				let mut page = 1;
 				loop {
-					let mut qs = QueryParameters::new();
-					qs.push_encoded("language", Some(lang));
-					qs.push_encoded("sort", Some("number"));
-					qs.push_encoded("order", Some("desc"));
-					qs.push_encoded("page", Some(&page.to_string()));
-					qs.push_encoded("limit", Some("200"));
-
-					let response =
-						Request::get(format!("{BASE_URL}/api/titles/{}/chapters?{qs}", manga.key))?
-							.header("Accept", "application/json")
-							.header("Referer", &format!("{BASE_URL}/"))
-							.send()?
-							.get_json::<ApiResponse<ApiChapter>>()?;
+					let response = api_request(
+						&format!("/titles/{}/chapters", manga.key),
+						&mut [
+							("language".into(), lang.into()),
+							("sort".into(), "number".into()),
+							("order".into(), "desc".into()),
+							("page".into(), page.to_string().into()),
+							("limit".into(), "200".into()),
+						],
+					)?
+					.header("Accept", "application/json")
+					.header("Referer", &format!("{BASE_URL}/"))
+					.send()?
+					.get_json::<ApiResponse<ApiChapter>>()?;
 
 					chapters.extend(
 						response
@@ -227,7 +229,7 @@ impl Source for MangaFire {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		Request::get(format!("{BASE_URL}/api/chapters/{}", chapter.key))?
+		api_request(&format!("/chapters/{}", chapter.key), &mut [])?
 			.header("Accept", "application/json")
 			.header("Referer", &format!("{BASE_URL}/"))
 			.send()?
