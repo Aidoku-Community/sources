@@ -218,7 +218,7 @@ fn find_personal_group_preference_index(chapter: &MangaChapter) -> Option<usize>
 	let group_id = chapter.group_id.as_ref().and_then(|id| {
 		deduped_group_list
 			.iter()
-			.position(|p| p == &format!("{id}"))
+			.position(|p| p.eq(&id.to_string()))
 	});
 	index.push(group_id);
 
@@ -227,7 +227,7 @@ fn find_personal_group_preference_index(chapter: &MangaChapter) -> Option<usize>
 			index.push(
 				deduped_group_list
 					.iter()
-					.position(|p| p == &format!("{}", g.id)),
+					.position(|p| p.eq(&g.id.to_string())),
 			);
 		});
 	}
