@@ -64,20 +64,20 @@ fn format_genre(genre: &str) -> String {
 
 #[derive(Deserialize)]
 pub struct SeriesResponse {
-	pub data: Vec<SeriesDto>,
-	pub pagination: Option<PaginationDto>,
+	pub data: Vec<Series>,
+	pub pagination: Option<Pagination>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PaginationDto {
+pub struct Pagination {
 	pub page: Option<i32>,
 	pub total_pages: Option<i32>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SeriesDto {
+pub struct Series {
 	pub title: String,
 	pub slug: String,
 	pub cover_url: Option<String>,
@@ -86,10 +86,10 @@ pub struct SeriesDto {
 	pub author: Option<String>,
 	pub artist: Option<String>,
 	pub genres: Option<Vec<String>>,
-	pub latest_chapter: Option<ChapterDto>,
+	pub latest_chapter: Option<ChapterData>,
 }
 
-impl SeriesDto {
+impl Series {
 	pub fn into_manga(self) -> Manga {
 		let cover = self.cover_url.map(|path| format!("{BASE_URL}{path}"));
 		let key = format!("/series/{}", self.slug);
@@ -156,19 +156,19 @@ impl SeriesDto {
 
 #[derive(Deserialize)]
 pub struct ChapterListResponse {
-	pub chapters: Vec<ChapterDto>,
+	pub chapters: Vec<ChapterData>,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ChapterDto {
+pub struct ChapterData {
 	pub chapter_id: String,
 	pub chapter_number: String,
 	pub title: Option<String>,
 	pub created_at: Option<String>,
 }
 
-impl ChapterDto {
+impl ChapterData {
 	pub fn into_chapter(self, slug: &str) -> Chapter {
 		let chapter_num = self.chapter_number.parse::<f32>().ok();
 		let key = format!("/chapters/{}", self.chapter_id);
@@ -196,12 +196,12 @@ impl ChapterDto {
 }
 
 #[derive(Deserialize)]
-pub struct ChapterDetailsDto {
-	pub pages: Option<Vec<PageDto>>,
-	pub images: Option<Vec<PageDto>>,
+pub struct ChapterDetails {
+	pub pages: Option<Vec<Page>>,
+	pub images: Option<Vec<Page>>,
 }
 
 #[derive(Deserialize)]
-pub struct PageDto {
+pub struct Page {
 	pub url: String,
 }

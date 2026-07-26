@@ -63,7 +63,7 @@ impl Source for StoneScape {
 			false
 		};
 
-		let entries = res.data.into_iter().map(SeriesDto::into_manga).collect();
+		let entries = res.data.into_iter().map(Series::into_manga).collect();
 
 		Ok(MangaPageResult {
 			entries,
@@ -82,7 +82,7 @@ impl Source for StoneScape {
 		if needs_details {
 			let url = format!("{API_URL}/series/by-slug/{slug}");
 			let bytes = Request::get(&url)?.data()?;
-			let res: SeriesDto =
+			let res: Series =
 				serde_json::from_slice(&bytes).map_err(|_| AidokuError::Unimplemented)?;
 			res.apply_details(&mut manga);
 
@@ -117,7 +117,7 @@ impl Source for StoneScape {
 			.unwrap_or(&chapter.key);
 		let url = format!("{API_URL}/chapters/{chapter_id}/pages");
 		let bytes = Request::get(&url)?.data()?;
-		let res: ChapterDetailsDto =
+		let res: ChapterDetails =
 			serde_json::from_slice(&bytes).map_err(|_| AidokuError::Unimplemented)?;
 
 		let page_list = res.pages.or(res.images).unwrap_or_default();
@@ -154,7 +154,7 @@ impl ListingProvider for StoneScape {
 			false
 		};
 
-		let entries = res.data.into_iter().map(SeriesDto::into_manga).collect();
+		let entries = res.data.into_iter().map(Series::into_manga).collect();
 
 		Ok(MangaPageResult {
 			entries,
@@ -218,7 +218,7 @@ impl Home for StoneScape {
 			let entries: Vec<MangaWithChapter> = latest_res
 				.data
 				.into_iter()
-				.filter_map(SeriesDto::into_manga_with_chapter)
+				.filter_map(Series::into_manga_with_chapter)
 				.collect();
 
 			if !entries.is_empty() {
