@@ -63,6 +63,11 @@ fn format_genre(genre: &str) -> String {
 }
 
 #[derive(Deserialize)]
+pub struct BannerResponse {
+	pub data: Vec<Series>,
+}
+
+#[derive(Deserialize)]
 pub struct SeriesResponse {
 	pub data: Vec<Series>,
 	pub pagination: Option<Pagination>,
@@ -81,6 +86,7 @@ pub struct Series {
 	pub title: String,
 	pub slug: String,
 	pub cover_url: Option<String>,
+	pub banner_url: Option<String>,
 	pub description: Option<String>,
 	pub publication_status: Option<String>,
 	pub author: Option<String>,
@@ -91,7 +97,10 @@ pub struct Series {
 
 impl Series {
 	pub fn into_manga(self) -> Manga {
-		let cover = self.cover_url.map(|path| format!("{BASE_URL}{path}"));
+		let cover = self
+			.banner_url
+			.or(self.cover_url)
+			.map(|path| format!("{BASE_URL}{path}"));
 		let key = format!("/series/{}", self.slug);
 
 		Manga {
@@ -111,7 +120,10 @@ impl Series {
 
 	pub fn apply_details(self, manga: &mut Manga) {
 		manga.description = self.description;
-		manga.cover = self.cover_url.map(|path| format!("{BASE_URL}{path}"));
+		manga.cover = self
+			.banner_url
+			.or(self.cover_url)
+			.map(|path| format!("{BASE_URL}{path}"));
 		manga.url = Some(format!("{BASE_URL}/series/{}", self.slug));
 		manga.authors = self
 			.author
@@ -197,11 +209,11 @@ impl ChapterData {
 
 #[derive(Deserialize)]
 pub struct ChapterDetails {
-	pub pages: Option<Vec<Page>>,
-	pub images: Option<Vec<Page>>,
+	pub pages: Option<Vec<PageData>>,
+	pub images: Option<Vec<PageData>>,
 }
 
 #[derive(Deserialize)]
-pub struct Page {
+pub struct PageData {
 	pub url: String,
 }

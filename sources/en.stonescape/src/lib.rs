@@ -53,9 +53,7 @@ impl Source for StoneScape {
 			}
 		}
 
-		let bytes = Request::get(&url)?.data()?;
-		let res: SeriesResponse =
-			serde_json::from_slice(&bytes).map_err(|_| AidokuError::Unimplemented)?;
+		let res: SeriesResponse = Request::get(&url)?.json_owned()?;
 
 		let has_next_page = if let Some(pag) = res.pagination {
 			pag.page.unwrap_or(1) < pag.total_pages.unwrap_or(1)
@@ -81,9 +79,7 @@ impl Source for StoneScape {
 
 		if needs_details {
 			let url = format!("{API_URL}/series/by-slug/{slug}");
-			let bytes = Request::get(&url)?.data()?;
-			let res: Series =
-				serde_json::from_slice(&bytes).map_err(|_| AidokuError::Unimplemented)?;
+			let res: Series = Request::get(&url)?.json_owned()?;
 			res.apply_details(&mut manga);
 
 			if needs_chapters {
@@ -93,17 +89,15 @@ impl Source for StoneScape {
 
 		if needs_chapters {
 			let url = format!("{API_URL}/series/by-slug/{slug}/chapters");
-			let bytes = Request::get(&url)?.data()?;
-			let res: ChapterListResponse =
-				serde_json::from_slice(&bytes).map_err(|_| AidokuError::Unimplemented)?;
+			let res: ChapterListResponse = Request::get(&url)?.json_owned()?;
 
-			let mut chapters: Vec<Chapter> = res
+			let chapters: Vec<Chapter> = res
 				.chapters
 				.into_iter()
+				.rev()
 				.map(|c| c.into_chapter(&slug))
 				.collect();
 
-			chapters.reverse();
 			manga.chapters = Some(chapters);
 		}
 
@@ -116,9 +110,7 @@ impl Source for StoneScape {
 			.strip_prefix("/chapters/")
 			.unwrap_or(&chapter.key);
 		let url = format!("{API_URL}/chapters/{chapter_id}/pages");
-		let bytes = Request::get(&url)?.data()?;
-		let res: ChapterDetails =
-			serde_json::from_slice(&bytes).map_err(|_| AidokuError::Unimplemented)?;
+		let res: ChapterDetails = Request::get(&url)?.json_owned()?;
 
 		let page_list = res.pages.or(res.images).unwrap_or_default();
 
@@ -144,9 +136,7 @@ impl ListingProvider for StoneScape {
 			_ => return Err(AidokuError::Unimplemented),
 		};
 
-		let bytes = Request::get(&url)?.data()?;
-		let res: SeriesResponse =
-			serde_json::from_slice(&bytes).map_err(|_| AidokuError::Unimplemented)?;
+		let res: SeriesResponse = Request::get(&url)?.json_owned()?;
 
 		let has_next_page = if let Some(pag) = res.pagination {
 			pag.page.unwrap_or(1) < pag.total_pages.unwrap_or(1)
@@ -168,40 +158,74 @@ impl Home for StoneScape {
 		send_partial_result(&HomePartialResult::Layout(HomeLayout {
 			components: vec![
 				HomeComponent {
-					title: Some("Popular".into()),
+					title: Some("Featured".into()),
+					subtitle: None,
+					value: HomeComponentValue::empty_big_scroller(),
+				},
+				HomeComponent {
+					title: Some("Popular Series".into()),
 					subtitle: None,
 					value: HomeComponentValue::empty_scroller(),
 				},
 				HomeComponent {
-					title: Some("Latest Updates".into()),
+					title: Some("Latest Releases".into()),
 					subtitle: None,
 					value: HomeComponentValue::empty_manga_chapter_list(),
 				},
 			],
 		}));
 
-		let popular_url =
-			format!("{API_URL}/series/popular?page=1&period=week&contentType=manhwa&limit=15");
-		let popular_res: Result<SeriesResponse> = Request::get(&popular_url)
-			.and_then(|r| r.data())
-			.map_err(AidokuError::from)
-			.and_then(|b| serde_json::from_slice(&b).map_err(|_| AidokuError::Unimplemented));
-		if let Ok(popular_res) = popular_res {
-			let entries: Vec<Link> = popular_res
+		let requests = Request::send_all([
+			Request::get(format!("{API_URL}/banner-config"))?,
+			Request::get(format!(
+				"{API_URL}/series/popular?page=1&period=week&contentType=manhwa&limit=15"
+			))?,
+			Request::get(format!(
+				"{API_URL}/series?page=1&limit=20&contentType=manhwa"
+			))?,
+		]);
+
+		let mut req_iter = requests.into_iter();
+
+		if let Some(Ok(res)) = req_iter.next()
+			&& let Ok(banner_res) = res.get_json_owned::<BannerResponse>()
+		{
+			let banner_entries: Vec<Manga> = banner_res
+				.data
+				.into_iter()
+				.map(Series::into_manga)
+				.collect();
+
+			if !banner_entries.is_empty() {
+				send_partial_result(&HomePartialResult::Component(HomeComponent {
+					title: Some("Featured".into()),
+					subtitle: None,
+					value: HomeComponentValue::BigScroller {
+						entries: banner_entries,
+						auto_scroll_interval: Some(8.0),
+					},
+				}));
+			}
+		}
+
+		if let Some(Ok(res)) = req_iter.next()
+			&& let Ok(popular_res) = res.get_json_owned::<SeriesResponse>()
+		{
+			let popular_entries: Vec<Link> = popular_res
 				.data
 				.into_iter()
 				.map(|s| s.into_manga().into())
 				.collect();
 
-			if !entries.is_empty() {
+			if !popular_entries.is_empty() {
 				send_partial_result(&HomePartialResult::Component(HomeComponent {
-					title: Some("Popular".into()),
+					title: Some("Popular Series".into()),
 					subtitle: None,
 					value: HomeComponentValue::Scroller {
-						entries,
+						entries: popular_entries,
 						listing: Some(Listing {
 							id: "popular".into(),
-							name: "Popular".into(),
+							name: "Popular Series".into(),
 							kind: ListingKind::Default,
 						}),
 					},
@@ -209,28 +233,25 @@ impl Home for StoneScape {
 			}
 		}
 
-		let latest_url = format!("{API_URL}/series?page=1&limit=20&contentType=manhwa");
-		let latest_res: Result<SeriesResponse> = Request::get(&latest_url)
-			.and_then(|r| r.data())
-			.map_err(AidokuError::from)
-			.and_then(|b| serde_json::from_slice(&b).map_err(|_| AidokuError::Unimplemented));
-		if let Ok(latest_res) = latest_res {
-			let entries: Vec<MangaWithChapter> = latest_res
+		if let Some(Ok(res)) = req_iter.next()
+			&& let Ok(latest_res) = res.get_json_owned::<SeriesResponse>()
+		{
+			let latest_entries: Vec<MangaWithChapter> = latest_res
 				.data
 				.into_iter()
 				.filter_map(Series::into_manga_with_chapter)
 				.collect();
 
-			if !entries.is_empty() {
+			if !latest_entries.is_empty() {
 				send_partial_result(&HomePartialResult::Component(HomeComponent {
-					title: Some("Latest Updates".into()),
+					title: Some("Latest Releases".into()),
 					subtitle: None,
 					value: HomeComponentValue::MangaChapterList {
 						page_size: None,
-						entries,
+						entries: latest_entries,
 						listing: Some(Listing {
 							id: "latest".into(),
-							name: "Latest Updates".into(),
+							name: "Latest Releases".into(),
 							kind: ListingKind::Default,
 						}),
 					},
@@ -250,20 +271,19 @@ impl ImageRequestProvider for StoneScape {
 	) -> Result<Request> {
 		Ok(Request::get(url)?
 			.header("Referer", "https://stonescape.xyz/")
-			.header("Origin", "https://stonescape.xyz"))
+			.header("Origin", BASE_URL))
 	}
 }
 
 impl DeepLinkHandler for StoneScape {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		if !url.starts_with(BASE_URL) {
-			return Ok(None);
-		}
+		let path = url.strip_prefix(BASE_URL).unwrap_or(&url);
 
-		let key = &url[BASE_URL.len()..];
-
-		if key.starts_with("/series/") {
-			Ok(Some(DeepLinkResult::Manga { key: key.into() }))
+		if let Some(slug) = path.strip_prefix("/series/") {
+			let slug = slug.split('/').next().unwrap_or(slug);
+			Ok(Some(DeepLinkResult::Manga {
+				key: format!("/series/{slug}"),
+			}))
 		} else {
 			Ok(None)
 		}

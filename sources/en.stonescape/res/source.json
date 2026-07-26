@@ -4,17 +4,17 @@
 		"name": "StoneScape",
 		"version": 1,
 		"url": "https://stonescape.xyz",
-		"contentRating": 1,
+		"contentRating": 0,
 		"languages": ["en"]
 	},
 	"listings": [
 		{
 			"id": "popular",
-			"name": "Popular"
+			"name": "Popular Series"
 		},
 		{
 			"id": "latest",
-			"name": "Latest Updates"
+			"name": "Latest Releases"
 		}
 	]
 }
