@@ -1,5 +1,5 @@
 use crate::{
-	LOGIN_COOKIE_KEY, models::MangaChapter, models::PageContainer, models::UserProfile,
+	BASE_URL, LOGIN_COOKIE_KEY, models::MangaChapter, models::PageContainer, models::UserProfile,
 	settings::get_deduped_group_list, settings::get_login_cookie,
 };
 use aidoku::{
@@ -56,6 +56,7 @@ where
 	handle_page_container_json_data_response(&response)
 }
 
+/*
 pub fn get_bulk_page_container_json_data<T>(urls: &[String]) -> Result<Vec<T>>
 where
 	T: DeserializeOwned,
@@ -79,6 +80,7 @@ where
 
 	Ok(result)
 }
+*/
 
 fn handle_page_container_json_data_response<T>(response: &Response) -> Result<T>
 where
@@ -86,10 +88,7 @@ where
 {
 	let ptr_table_json = serde_json::from_slice::<Vec<Value>>(&response.get_data()?)?;
 	let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
-	let Ok(page_container_json) = serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)
-	else {
-		bail!("Invalid JSON data. Expected an object with page container data.")
-	};
+	let page_container_json = serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)?;
 	let Some(page_container) = page_container_json.into_values().next() else {
 		bail!("Page container data does not exists.")
 	};
@@ -163,14 +162,24 @@ pub fn is_logged_in() -> bool {
 	})
 }
 
+pub fn base_url_join(uri: &str) -> String {
+	if uri.starts_with("/") {
+		format!("{BASE_URL}{uri}")
+	} else {
+		format!("{BASE_URL}/{uri}")
+	}
+}
+
 fn is_official_like(chapter: &MangaChapter) -> bool {
 	let official_group_ids = [
 		17423, // Official
 		18142, // Animate International
 		3521,  // Comikey
+		18516, // Dark Horse Manga
 		5952,  // FAKKU
 		3891,  // J-Novel Club
 		9438,  // Kodansha USA
+		18039, // Kodansha Comics
 		10712, // Manga Plus
 		18036, // Manga UP!
 		18180, // One Peace Books
@@ -192,11 +201,6 @@ fn is_official_like(chapter: &MangaChapter) -> bool {
 	// this function. (And this only works for maybe 1% of the manga available)
 	let official_scanlator_names = ["Official", "Official?", "MangaPlus", "Comikey", "K-Manga"];
 
-	let group_id = chapter
-		.group_id
-		.as_ref()
-		.is_some_and(|id| official_group_ids.contains(id));
-
 	let group_ids = chapter
 		.groups
 		.as_ref()
@@ -208,26 +212,19 @@ fn is_official_like(chapter: &MangaChapter) -> bool {
 			.any(|s| s.to_lowercase() == name.to_lowercase())
 	});
 
-	group_id || group_ids || scanlator_name
+	group_ids || scanlator_name
 }
 
 fn find_personal_group_preference_index(chapter: &MangaChapter) -> Option<usize> {
 	let deduped_group_list = get_deduped_group_list();
 	let mut index: Vec<Option<usize>> = Vec::new();
 
-	let group_id = chapter.group_id.as_ref().and_then(|id| {
-		deduped_group_list
-			.iter()
-			.position(|p| p.eq(&id.to_string()))
-	});
-	index.push(group_id);
-
 	if let Some(groups) = chapter.groups.as_ref() {
 		groups.iter().for_each(|g| {
 			index.push(
 				deduped_group_list
 					.iter()
-					.position(|p| p.eq(&g.id.to_string())),
+					.position(|p| p.eq(&g.id.to_string()) || p.eq(&g.name)),
 			);
 		});
 	}

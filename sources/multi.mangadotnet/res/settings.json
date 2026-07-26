@@ -62,7 +62,7 @@
 				"type": "editable-list",
 				"key": "deduplicateGroupList",
 				"title": "Group Preference",
-				"placeholder": "Enter Group Id (Ex: 16791)",
+				"placeholder": "Enter Group Id or Name (Ex: 16791)",
 				"default": [],
 				"refreshes": [
 					"content"
