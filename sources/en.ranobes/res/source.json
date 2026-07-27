@@ -1,0 +1,14 @@
+{
+	"info": {
+		"id": "en.ranobes",
+		"name": "Ranobes",
+		"version": 1,
+		"url": "https://ranobes.top",
+		"contentRating": 1,
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}
