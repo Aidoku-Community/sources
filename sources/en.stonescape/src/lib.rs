@@ -75,10 +75,8 @@ impl Source for StoneScape {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let slug = String::from(manga.key.strip_prefix("/series/").unwrap_or(&manga.key));
-
 		if needs_details {
-			let url = format!("{API_URL}/series/by-slug/{slug}");
+			let url = format!("{API_URL}/series/by-slug/{}", manga.key);
 			let res: Series = Request::get(&url)?.json_owned()?;
 			res.apply_details(&mut manga);
 
@@ -88,14 +86,14 @@ impl Source for StoneScape {
 		}
 
 		if needs_chapters {
-			let url = format!("{API_URL}/series/by-slug/{slug}/chapters");
+			let url = format!("{API_URL}/series/by-slug/{}/chapters", manga.key);
 			let res: ChapterListResponse = Request::get(&url)?.json_owned()?;
 
 			let chapters: Vec<Chapter> = res
 				.chapters
 				.into_iter()
 				.rev()
-				.map(|c| c.into_chapter(&slug))
+				.map(|c| c.into_chapter(&manga.key))
 				.collect();
 
 			manga.chapters = Some(chapters);
@@ -105,11 +103,7 @@ impl Source for StoneScape {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let chapter_id = chapter
-			.key
-			.strip_prefix("/chapters/")
-			.unwrap_or(&chapter.key);
-		let url = format!("{API_URL}/chapters/{chapter_id}/pages");
+		let url = format!("{API_URL}/chapters/{}/pages", chapter.key);
 		let res: ChapterDetails = Request::get(&url)?.json_owned()?;
 
 		let page_list = res.pages.or(res.images).unwrap_or_default();
@@ -187,13 +181,26 @@ impl Home for StoneScape {
 
 		let mut req_iter = requests.into_iter();
 
-		if let Some(Ok(res)) = req_iter.next()
-			&& let Ok(banner_res) = res.get_json_owned::<BannerResponse>()
-		{
+		let banner_res: Option<BannerResponse> = req_iter
+			.next()
+			.and_then(|r| r.ok())
+			.and_then(|r| r.get_json_owned().ok());
+
+		let popular_res: Option<SeriesResponse> = req_iter
+			.next()
+			.and_then(|r| r.ok())
+			.and_then(|r| r.get_json_owned().ok());
+
+		let latest_res: Option<SeriesResponse> = req_iter
+			.next()
+			.and_then(|r| r.ok())
+			.and_then(|r| r.get_json_owned().ok());
+
+		if let Some(banner_res) = banner_res {
 			let banner_entries: Vec<Manga> = banner_res
-				.data
+				.featured_series
 				.into_iter()
-				.map(Series::into_manga)
+				.map(Series::into_banner_manga)
 				.collect();
 
 			if !banner_entries.is_empty() {
@@ -208,9 +215,7 @@ impl Home for StoneScape {
 			}
 		}
 
-		if let Some(Ok(res)) = req_iter.next()
-			&& let Ok(popular_res) = res.get_json_owned::<SeriesResponse>()
-		{
+		if let Some(popular_res) = popular_res {
 			let popular_entries: Vec<Link> = popular_res
 				.data
 				.into_iter()
@@ -233,9 +238,7 @@ impl Home for StoneScape {
 			}
 		}
 
-		if let Some(Ok(res)) = req_iter.next()
-			&& let Ok(latest_res) = res.get_json_owned::<SeriesResponse>()
-		{
+		if let Some(latest_res) = latest_res {
 			let latest_entries: Vec<MangaWithChapter> = latest_res
 				.data
 				.into_iter()
@@ -281,9 +284,7 @@ impl DeepLinkHandler for StoneScape {
 
 		if let Some(slug) = path.strip_prefix("/series/") {
 			let slug = slug.split('/').next().unwrap_or(slug);
-			Ok(Some(DeepLinkResult::Manga {
-				key: format!("/series/{slug}"),
-			}))
+			Ok(Some(DeepLinkResult::Manga { key: slug.into() }))
 		} else {
 			Ok(None)
 		}

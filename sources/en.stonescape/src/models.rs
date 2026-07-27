@@ -63,8 +63,9 @@ fn format_genre(genre: &str) -> String {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BannerResponse {
-	pub data: Vec<Series>,
+	pub featured_series: Vec<Series>,
 }
 
 #[derive(Deserialize)]
@@ -96,53 +97,8 @@ pub struct Series {
 }
 
 impl Series {
-	pub fn into_manga(self) -> Manga {
-		let cover = self
-			.banner_url
-			.or(self.cover_url)
-			.map(|path| format!("{BASE_URL}{path}"));
-		let key = format!("/series/{}", self.slug);
-
-		Manga {
-			key,
-			title: self.title,
-			cover,
-			..Default::default()
-		}
-	}
-
-	pub fn into_manga_with_chapter(mut self) -> Option<MangaWithChapter> {
-		let slug = String::from(self.slug.as_str());
-		let chapter = self.latest_chapter.take()?.into_chapter(&slug);
-		let manga = self.into_manga();
-		Some(MangaWithChapter { manga, chapter })
-	}
-
-	pub fn apply_details(self, manga: &mut Manga) {
-		manga.description = self.description;
-		manga.cover = self
-			.banner_url
-			.or(self.cover_url)
-			.map(|path| format!("{BASE_URL}{path}"));
-		manga.url = Some(format!("{BASE_URL}/series/{}", self.slug));
-		manga.authors = self
-			.author
-			.filter(|a| !a.is_empty())
-			.map(|a| aidoku::alloc::vec![a]);
-		manga.artists = self
-			.artist
-			.filter(|a| !a.is_empty())
-			.map(|a| aidoku::alloc::vec![a]);
-
-		manga.status = match self.publication_status.as_deref() {
-			Some("ongoing") => MangaStatus::Ongoing,
-			Some("completed") => MangaStatus::Completed,
-			Some("hiatus") => MangaStatus::Hiatus,
-			Some("dropped") | Some("cancelled") => MangaStatus::Cancelled,
-			_ => MangaStatus::Unknown,
-		};
-
-		if let Some(genres) = self.genres {
+	fn apply_genres(&self, manga: &mut Manga) {
+		if let Some(genres) = &self.genres {
 			let is_nsfw = genres.iter().any(|g| {
 				g.eq_ignore_ascii_case("adult")
 					|| g.eq_ignore_ascii_case("gore")
@@ -161,6 +117,61 @@ impl Series {
 
 			manga.tags = Some(genres.iter().map(|g| format_genre(g)).collect());
 		}
+	}
+
+	pub fn into_manga(self) -> Manga {
+		let mut manga = Manga::default();
+		self.apply_genres(&mut manga);
+		manga.key = self.slug;
+		manga.title = self.title;
+		manga.cover = self.cover_url.map(|path| format!("{BASE_URL}{path}"));
+		manga.description = self.description;
+		manga
+	}
+
+	pub fn into_banner_manga(self) -> Manga {
+		let cover = self
+			.banner_url
+			.or(self.cover_url)
+			.map(|path| format!("{BASE_URL}{path}"));
+
+		Manga {
+			key: self.slug,
+			title: self.title,
+			cover,
+			description: self.description,
+			..Default::default()
+		}
+	}
+
+	pub fn into_manga_with_chapter(mut self) -> Option<MangaWithChapter> {
+		let slug = String::from(self.slug.as_str());
+		let chapter = self.latest_chapter.take()?.into_chapter(&slug);
+		let manga = self.into_manga();
+		Some(MangaWithChapter { manga, chapter })
+	}
+
+	pub fn apply_details(self, manga: &mut Manga) {
+		self.apply_genres(manga);
+		manga.description = self.description;
+		manga.cover = self.cover_url.map(|path| format!("{BASE_URL}{path}"));
+		manga.url = Some(format!("{BASE_URL}/series/{}", self.slug));
+		manga.authors = self
+			.author
+			.filter(|a| !a.is_empty())
+			.map(|a| aidoku::alloc::vec![a]);
+		manga.artists = self
+			.artist
+			.filter(|a| !a.is_empty())
+			.map(|a| aidoku::alloc::vec![a]);
+
+		manga.status = match self.publication_status.as_deref() {
+			Some("ongoing") => MangaStatus::Ongoing,
+			Some("completed") => MangaStatus::Completed,
+			Some("hiatus") => MangaStatus::Hiatus,
+			Some("dropped") | Some("cancelled") => MangaStatus::Cancelled,
+			_ => MangaStatus::Unknown,
+		};
 
 		manga.viewer = Viewer::Webtoon;
 	}
@@ -183,7 +194,6 @@ pub struct ChapterData {
 impl ChapterData {
 	pub fn into_chapter(self, slug: &str) -> Chapter {
 		let chapter_num = self.chapter_number.parse::<f32>().ok();
-		let key = format!("/chapters/{}", self.chapter_id);
 		let url = format!(
 			"{BASE_URL}/series/{slug}/ch-{}#{}",
 			self.chapter_number, self.chapter_id
@@ -197,7 +207,7 @@ impl ChapterData {
 			.map(|d| d.timestamp());
 
 		Chapter {
-			key,
+			key: self.chapter_id,
 			title,
 			chapter_number: chapter_num,
 			date_uploaded,
