@@ -1,8 +1,8 @@
 #![no_std]
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
-	HomeComponentValue, HomeLayout, Listing, ListingProvider, Manga, MangaPageResult,
-	NotificationHandler, Page, PageContent, Result, Source,
+	HomeComponentValue, HomeLayout, Link, LinkValue, Listing, ListingProvider, Manga,
+	MangaPageResult, NotificationHandler, Page, PageContent, Result, Source,
 	alloc::{String, Vec, string::ToString, vec},
 	imports::std::send_partial_result,
 	prelude::*,
@@ -102,6 +102,15 @@ fn push_scroller(
 	if entries.is_empty() {
 		return Ok(());
 	}
+	let entries: Vec<Link> = entries
+		.into_iter()
+		.map(|manga| Link {
+			title: manga.title.clone(),
+			subtitle: None,
+			image_url: manga.cover.clone(),
+			value: Some(LinkValue::Manga(manga)),
+		})
+		.collect();
 	components.push(HomeComponent {
 		title: Some(title.into()),
 		subtitle: None,

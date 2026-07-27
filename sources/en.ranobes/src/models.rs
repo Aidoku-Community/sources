@@ -1,4 +1,4 @@
-use aidoku::alloc::String;
+use aidoku::alloc::{String, Vec};
 use serde::Deserialize;
 
 /// The `window.__DATA__` blob embedded in a `<script>` tag on
