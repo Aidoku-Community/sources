@@ -1,0 +1,6 @@
+language: en
+reviews:
+  path_filters:
+    - "!target/**"
+  auto_review:
+    enabled: true
