@@ -206,10 +206,9 @@ const CHAPTER_PAGE_BATCH_SIZE: usize = 10;
 const CHAPTER_PAGE_MAX_RETRIES: u32 = 3;
 
 /// Fetches every page of `/chapters/{id}/`, concatenating the `chapters`
-/// arrays in the order returned by the site.
+/// arrays in page order (page 1 first, then page 2, etc.).
 ///
-/// Confirmed newest-first (page 1 starts with the most recent chapter), so
-/// a straight concatenation across pages needs no re-sorting.
+/// Confirmed newest-first (page 1 starts with the most recent chapter).
 ///
 /// Page 1 is fetched alone first since it's the only way to learn
 /// `pages_count`. Remaining pages are sent in small concurrent batches
@@ -223,6 +222,11 @@ const CHAPTER_PAGE_MAX_RETRIES: u32 = 3;
 /// retried a few times (see CHAPTER_PAGE_MAX_RETRIES) rather than
 /// dropped immediately, since failures observed in testing were
 /// inconsistent between attempts on the same novel.
+///
+/// Each page's chapters are written into an indexed slot (rather than
+/// appended as responses/retries happen to complete) so the final order
+/// always matches page order, even when a page only succeeds on a later
+/// retry after later pages have already come back.
 pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let novel_id = novel_id_from_key(novel_key)
 		.ok_or_else(|| error!("Could not find novel id in {novel_key}"))?;
@@ -232,40 +236,40 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let first_data = extract_data_blob(&first_html)?;
 	let pages_count = first_data.pages_count.max(1);
 
-	let mut entries = first_data.chapters;
+	let mut pages: Vec<Option<Vec<ChapterEntry>>> = (0..pages_count).map(|_| None).collect();
+	pages[0] = Some(first_data.chapters);
 
-	let page_urls: Vec<String> = (2..=pages_count)
-		.map(|page| format!("{BASE_URL}/chapters/{novel_id}/page/{page}/"))
-		.collect();
+	let page_numbers: Vec<i32> = (2..=pages_count).collect();
 
-	for chunk in page_urls.chunks(CHAPTER_PAGE_BATCH_SIZE) {
-		let mut pending: Vec<String> = chunk.to_vec();
+	for chunk in page_numbers.chunks(CHAPTER_PAGE_BATCH_SIZE) {
+		let mut pending: Vec<i32> = chunk.to_vec();
 		for _ in 0..=CHAPTER_PAGE_MAX_RETRIES {
 			if pending.is_empty() {
 				break;
 			}
 
-			let mut sent_urls = Vec::with_capacity(pending.len());
+			let mut sent_pages = Vec::with_capacity(pending.len());
 			let mut reqs = Vec::with_capacity(pending.len());
 			let mut still_pending = Vec::new();
-			for url in &pending {
-				match Request::get(url) {
+			for &page in &pending {
+				let url = format!("{BASE_URL}/chapters/{novel_id}/page/{page}/");
+				match Request::get(&url) {
 					Ok(req) => {
-						sent_urls.push(url.clone());
+						sent_pages.push(page);
 						reqs.push(req);
 					}
-					Err(_) => still_pending.push(url.clone()),
+					Err(_) => still_pending.push(page),
 				}
 			}
 
-			for (url, response) in sent_urls.into_iter().zip(Request::send_all(reqs)) {
+			for (page, response) in sent_pages.into_iter().zip(Request::send_all(reqs)) {
 				match response
 					.ok()
 					.and_then(|r| r.get_html().ok())
 					.and_then(|html| extract_data_blob(&html).ok())
 				{
-					Some(data) => entries.extend(data.chapters),
-					None => still_pending.push(url),
+					Some(data) => pages[(page - 1) as usize] = Some(data.chapters),
+					None => still_pending.push(page),
 				}
 			}
 
@@ -274,6 +278,8 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 		// Any pages still pending after all retries are silently dropped —
 		// a partial chapter list is more useful than none at all.
 	}
+
+	let entries: Vec<ChapterEntry> = pages.into_iter().flatten().flatten().collect();
 
 	Ok(entries
 		.into_iter()
