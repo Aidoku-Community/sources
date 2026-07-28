@@ -153,6 +153,7 @@ impl Series {
 
 	pub fn apply_details(self, manga: &mut Manga) {
 		self.apply_genres(manga);
+		manga.title = self.title;
 		manga.description = self.description;
 		manga.cover = self.cover_url.map(|path| format!("{BASE_URL}{path}"));
 		manga.url = Some(format!("{BASE_URL}/series/{}", self.slug));
@@ -193,7 +194,7 @@ pub struct ChapterData {
 
 impl ChapterData {
 	pub fn into_chapter(self, slug: &str) -> Chapter {
-		let chapter_num = self.chapter_number.parse::<f32>().ok();
+		let chapter_number = self.chapter_number.parse::<f32>().ok();
 		let url = format!(
 			"{BASE_URL}/series/{slug}/ch-{}#{}",
 			self.chapter_number, self.chapter_id
@@ -209,7 +210,7 @@ impl ChapterData {
 		Chapter {
 			key: self.chapter_id,
 			title,
-			chapter_number: chapter_num,
+			chapter_number,
 			date_uploaded,
 			url: Some(url),
 			..Default::default()

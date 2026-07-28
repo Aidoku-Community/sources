@@ -7,6 +7,7 @@ use aidoku::{
 	HomeLayout, HomePartialResult, ImageRequestProvider, Link, Listing, ListingKind,
 	ListingProvider, Manga, MangaPageResult, MangaWithChapter, Page, PageContent, Result, Source,
 	alloc::{String, Vec, format, vec},
+	helpers::uri::encode_uri_component,
 	imports::{error::AidokuError, net::Request, std::send_partial_result},
 	prelude::*,
 };
@@ -30,9 +31,9 @@ impl Source for StoneScape {
 	) -> Result<MangaPageResult> {
 		let mut url = format!("{API_URL}/series?page={page}&limit=24&contentType=manhwa");
 
-		if let Some(q) = query.filter(|q| !q.is_empty()) {
+		if let Some(q) = query {
 			url.push_str("&search=");
-			url.push_str(&q);
+			url.push_str(&encode_uri_component(q));
 		}
 
 		for filter in filters {
