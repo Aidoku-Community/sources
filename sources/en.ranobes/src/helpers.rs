@@ -187,6 +187,24 @@ fn extract_data_blob(html: &Document) -> Result<ChapterListData> {
 	serde_json::from_str(json_str).map_err(|_| error!("Failed to parse chapter list JSON"))
 }
 
+/// How many pages to request concurrently per batch. Sending all ~124
+/// remaining pages for a novel like Shadow Slave in one single batch
+/// turned out to be too aggressive — most requests were silently dropped
+/// (likely rate-limited/blocked), returning only a handful of pages
+/// instead of the full list. Batching keeps most of the speed benefit
+/// over one-at-a-time while being much gentler on the site. This number
+/// is a starting guess, not confirmed as optimal — may need tuning based
+/// on further testing.
+const CHAPTER_PAGE_BATCH_SIZE: usize = 10;
+
+/// How many extra attempts a still-failing page within a batch gets
+/// before being given up on. Real testing showed the number of pages
+/// that fail varies between runs (5, 10, 9 failures across three
+/// attempts for the same novel) rather than being consistent, which
+/// points to transient/flaky failures rather than a hard, deterministic
+/// block — so retrying is worth it, not just batching.
+const CHAPTER_PAGE_MAX_RETRIES: u32 = 3;
+
 /// Fetches every page of `/chapters/{id}/`, concatenating the `chapters`
 /// arrays in the order returned by the site.
 ///
@@ -194,12 +212,17 @@ fn extract_data_blob(html: &Document) -> Result<ChapterListData> {
 /// a straight concatenation across pages needs no re-sorting.
 ///
 /// Page 1 is fetched alone first since it's the only way to learn
-/// `pages_count`. Remaining pages are sent as a single concurrent batch
+/// `pages_count`. Remaining pages are sent in small concurrent batches
 /// (`Request::send_all`) rather than one at a time — for a long-running
 /// novel like Shadow Slave (125 pages), 125 *sequential* requests risked
 /// exceeding a reasonable load timeout, which matched a real report of
 /// chapters silently coming back empty for novels with many pages while
-/// short novels worked fine.
+/// short novels worked fine. Sending everything as a single giant batch
+/// instead of sequential was tried first but was too aggressive (see
+/// CHAPTER_PAGE_BATCH_SIZE). Pages that still fail within a batch are
+/// retried a few times (see CHAPTER_PAGE_MAX_RETRIES) rather than
+/// dropped immediately, since failures observed in testing were
+/// inconsistent between attempts on the same novel.
 pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let novel_id = novel_id_from_key(novel_key)
 		.ok_or_else(|| error!("Could not find novel id in {novel_key}"))?;
@@ -211,25 +234,45 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 
 	let mut entries = first_data.chapters;
 
-	if pages_count > 1 {
-		let reqs: Vec<Request> = (2..=pages_count)
-			.filter_map(|page| {
-				let url = format!("{BASE_URL}/chapters/{novel_id}/page/{page}/");
-				Request::get(&url).ok()
-			})
-			.collect();
-		// Pages that fail (network error, unexpected response) are skipped
-		// rather than aborting the whole list — a partial chapter list is
-		// more useful than none at all.
-		for response in Request::send_all(reqs) {
-			if let Some(data) = response
-				.ok()
-				.and_then(|r| r.get_html().ok())
-				.and_then(|html| extract_data_blob(&html).ok())
-			{
-				entries.extend(data.chapters);
+	let page_urls: Vec<String> = (2..=pages_count)
+		.map(|page| format!("{BASE_URL}/chapters/{novel_id}/page/{page}/"))
+		.collect();
+
+	for chunk in page_urls.chunks(CHAPTER_PAGE_BATCH_SIZE) {
+		let mut pending: Vec<String> = chunk.to_vec();
+		for _ in 0..=CHAPTER_PAGE_MAX_RETRIES {
+			if pending.is_empty() {
+				break;
 			}
+
+			let mut sent_urls = Vec::with_capacity(pending.len());
+			let mut reqs = Vec::with_capacity(pending.len());
+			let mut still_pending = Vec::new();
+			for url in &pending {
+				match Request::get(url) {
+					Ok(req) => {
+						sent_urls.push(url.clone());
+						reqs.push(req);
+					}
+					Err(_) => still_pending.push(url.clone()),
+				}
+			}
+
+			for (url, response) in sent_urls.into_iter().zip(Request::send_all(reqs)) {
+				match response
+					.ok()
+					.and_then(|r| r.get_html().ok())
+					.and_then(|html| extract_data_blob(&html).ok())
+				{
+					Some(data) => entries.extend(data.chapters),
+					None => still_pending.push(url),
+				}
+			}
+
+			pending = still_pending;
 		}
+		// Any pages still pending after all retries are silently dropped —
+		// a partial chapter list is more useful than none at all.
 	}
 
 	Ok(entries
