@@ -1,5 +1,5 @@
 import json
-import os
+from typing import Dict
 
 import requests
 
@@ -33,9 +33,17 @@ def resolve_ptr_table_json(table: list, index: int):
 
 
 with requests.Session() as mangadot_session:
+    mangadot_session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:153.0) Gecko/20100101 Firefox/153.0',
+    })
+    cookies: Dict[str, str] = {
+        'cf_clearance': ''
+    }
+    mangadot_session.cookies.update(cookies)
+
     response = mangadot_session.get(f'{BASE_URL}/search.data', params={
         '_routes': 'pages/SearchPage',
-        'adult': 'both'
+        'adult': 'both',
     })
     response.raise_for_status()
     json_ptr = response.json()
@@ -43,7 +51,7 @@ with requests.Session() as mangadot_session:
 
     genres = search_json['pages/SearchPage']['data']['allGenres']
 
-    with open('../res/filters.json', 'rt+') as f:
+    with open('../res/filters.json', 'rt') as f:
         filters_json = json.load(f)
 
         for obj in filters_json:
@@ -51,5 +59,7 @@ with requests.Session() as mangadot_session:
                 obj['options'] = genres
                 break
 
-        f.seek(0, os.SEEK_SET)
+    with open('../res/filters.json', 'wt') as f:
         json.dump(filters_json, f, ensure_ascii=False, indent='\t')
+        f.write('\n')
+        f.flush()

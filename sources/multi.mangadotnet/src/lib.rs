@@ -204,10 +204,7 @@ impl Source for Mangadotnet {
 			.images
 			.into_iter()
 			.map(|page_image| Page {
-				content: PageContent::url(format!(
-					"{BASE_URL}/{}",
-					page_image.url.trim_start_matches('/')
-				)),
+				content: PageContent::url(base_url_join(&page_image.url)),
 				..Default::default()
 			})
 			.collect())
@@ -236,23 +233,12 @@ impl ListingProvider for Mangadotnet {
 					"{BASE_URL}/bookmark.data?{query_parameters}"
 				))?;
 
-				let mut manga_query_urls: Vec<String> =
-					Vec::with_capacity(bookmark_page.data.entries.len());
-
-				bookmark_page.data.entries.iter().for_each(|entry| {
-					manga_query_urls.push(format!(
-						"{BASE_URL}/manga/{}.data?_routes=pages/MangaDetailPage",
-						entry.manga_id
-					))
-				});
-
-				let manga_detail_pages: Vec<MangaDetailPage> =
-					get_bulk_page_container_json_data(manga_query_urls.as_ref())?;
-
 				Ok(MangaPageResult {
-					entries: manga_detail_pages
+					entries: bookmark_page
+						.data
+						.entries
 						.into_iter()
-						.map(|page| page.manga_data.manga.into())
+						.map(Into::into)
 						.collect(),
 					has_next_page: bookmark_page.data.page * bookmark_page.data.per_page
 						< bookmark_page.data.total,
@@ -402,7 +388,11 @@ impl Home for Mangadotnet {
 					_ => None,
 				},
 				value: HomeComponentValue::Scroller {
-					entries: listing_data.items.into_iter().map(Into::into).collect(),
+					entries: listing_data
+						.items
+						.into_iter()
+						.map(|manga| Manga::from(manga).into())
+						.collect(),
 					listing: match id {
 						"latest_updates" => Some(Listing {
 							id: LATEST_UPDATES_LISTING_ID.into(),
@@ -440,7 +430,11 @@ impl Home for Mangadotnet {
 				title: Some("For You".into()),
 				subtitle: Some("Based on your bookmarks".into()),
 				value: HomeComponentValue::Scroller {
-					entries: listing_data.items.into_iter().map(Into::into).collect(),
+					entries: listing_data
+						.items
+						.into_iter()
+						.map(|manga| Manga::from(manga).into())
+						.collect(),
 					listing: Some(Listing {
 						id: FOR_YOU_LISTING_ID.into(),
 						name: "For You".into(),
