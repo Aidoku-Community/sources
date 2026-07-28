@@ -18,9 +18,7 @@ use crate::models::ChapterListData;
 /// without false positives.
 pub fn parse_chapter_path(path: &str) -> Option<(String, String)> {
 	let path = path.trim_start_matches('/');
-	let mut parts = path.splitn(2, '/');
-	let folder = parts.next()?;
-	let file = parts.next()?;
+	let (folder, file) = path.split_once('/')?;
 
 	let chapter_id = file.strip_suffix(".html")?;
 	if chapter_id.is_empty() || !chapter_id.chars().all(|c| c.is_ascii_digit()) {
