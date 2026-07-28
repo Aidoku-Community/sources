@@ -273,7 +273,7 @@ impl From<MangaChapter> for Chapter {
 			scanlators: value
 				.groups
 				.map(|g| g.into_iter().map(|group| group.name).collect::<Vec<_>>())
-				.and_then(|s| if s.is_empty() { None } else { Some(s) })
+				.filter(|groups| !groups.is_empty())
 				.or(value.scanlator_name.map(|name| vec![name])),
 			url: value
 				.uploader_username
@@ -296,7 +296,7 @@ impl From<MangaVolume> for Chapter {
 			scanlators: value
 				.groups
 				.map(|g| g.into_iter().map(|group| group.name).collect::<Vec<_>>())
-				.and_then(|s| if s.is_empty() { None } else { Some(s) })
+				.filter(|groups| !groups.is_empty())
 				.or(value.scanlator_name.map(|name| vec![name])),
 			url: value
 				.uploader_username
