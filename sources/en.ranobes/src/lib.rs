@@ -183,7 +183,11 @@ impl Source for Ranobes {
 			let url = format!("{BASE_URL}/f/{}/", segments.join("/"));
 			request_html(&url)?
 		} else {
-			let url = format!("{BASE_URL}/search//");
+			let url = if page > 1 {
+				format!("{BASE_URL}/search//page/{page}/")
+			} else {
+				format!("{BASE_URL}/search//")
+			};
 			request_html(&url)?
 		};
 
@@ -269,9 +273,9 @@ impl DeepLinkHandler for Ranobes {
 impl Home for Ranobes {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let mut components = Vec::new();
-		push_scroller(&mut components, "Latest Updates", LISTING_LATEST)?;
-		push_scroller(&mut components, "Popular", LISTING_POPULAR)?;
-		push_scroller(&mut components, "Completed", LISTING_COMPLETED)?;
+		push_scroller(&mut components, "Latest Updates", LISTING_LATEST);
+		push_scroller(&mut components, "Popular", LISTING_POPULAR);
+		push_scroller(&mut components, "Completed", LISTING_COMPLETED);
 		Ok(HomeLayout { components })
 	}
 }

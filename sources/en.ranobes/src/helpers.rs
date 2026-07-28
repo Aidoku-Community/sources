@@ -279,9 +279,22 @@ pub fn extract_chapter_text(html: &Document) -> Result<String> {
 }
 
 /// The site encodes spaces in path-segment values as `+` (confirmed via
-/// `v.genre=Adult,Martial+Arts`).
+/// `v.genre=Adult,Martial+Arts`). Other characters that would otherwise
+/// break the `/f/...` path structure (or be ambiguous with the `+`-for-
+/// space convention) are percent-escaped.
 pub fn encode_value(value: &str) -> String {
-	value.replace(' ', "+")
+	value
+		.chars()
+		.map(|c| match c {
+			' ' => "+".to_string(),
+			'/' => "%2F".to_string(),
+			'?' => "%3F".to_string(),
+			'#' => "%23".to_string(),
+			'+' => "%2B".to_string(),
+			'%' => "%25".to_string(),
+			_ => c.to_string(),
+		})
+		.collect()
 }
 
 pub fn encode_list(values: &[String]) -> String {
@@ -336,18 +349,16 @@ pub fn build_listing_url(id: &str, page: i32) -> Option<String> {
 	Some(format!("{BASE_URL}/f/{}/", segments.join("/")))
 }
 
-pub fn push_scroller(
-	components: &mut Vec<HomeComponent>,
-	title: &str,
-	listing_id: &str,
-) -> Result<()> {
+pub fn push_scroller(components: &mut Vec<HomeComponent>, title: &str, listing_id: &str) {
 	let Some(url) = build_listing_url(listing_id, 1) else {
-		return Ok(());
+		return;
 	};
-	let html = request_html(&url)?;
+	let Ok(html) = request_html(&url) else {
+		return;
+	};
 	let entries = parse_search_results(&html);
 	if entries.is_empty() {
-		return Ok(());
+		return;
 	}
 	let entries: Vec<Link> = entries
 		.into_iter()
@@ -370,5 +381,4 @@ pub fn push_scroller(
 			}),
 		},
 	});
-	Ok(())
 }
