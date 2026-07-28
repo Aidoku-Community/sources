@@ -192,6 +192,14 @@ fn extract_data_blob(html: &Document) -> Result<ChapterListData> {
 ///
 /// Confirmed newest-first (page 1 starts with the most recent chapter), so
 /// a straight concatenation across pages needs no re-sorting.
+///
+/// Page 1 is fetched alone first since it's the only way to learn
+/// `pages_count`. Remaining pages are sent as a single concurrent batch
+/// (`Request::send_all`) rather than one at a time — for a long-running
+/// novel like Shadow Slave (125 pages), 125 *sequential* requests risked
+/// exceeding a reasonable load timeout, which matched a real report of
+/// chapters silently coming back empty for novels with many pages while
+/// short novels worked fine.
 pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let novel_id = novel_id_from_key(novel_key)
 		.ok_or_else(|| error!("Could not find novel id in {novel_key}"))?;
@@ -202,10 +210,26 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let pages_count = first_data.pages_count.max(1);
 
 	let mut entries = first_data.chapters;
-	for page in 2..=pages_count {
-		let url = format!("{BASE_URL}/chapters/{novel_id}/page/{page}/");
-		let html = request_html(&url)?;
-		entries.extend(extract_data_blob(&html)?.chapters);
+
+	if pages_count > 1 {
+		let reqs: Vec<Request> = (2..=pages_count)
+			.filter_map(|page| {
+				let url = format!("{BASE_URL}/chapters/{novel_id}/page/{page}/");
+				Request::get(&url).ok()
+			})
+			.collect();
+		// Pages that fail (network error, unexpected response) are skipped
+		// rather than aborting the whole list — a partial chapter list is
+		// more useful than none at all.
+		for response in Request::send_all(reqs) {
+			if let Some(data) = response
+				.ok()
+				.and_then(|r| r.get_html().ok())
+				.and_then(|html| extract_data_blob(&html).ok())
+			{
+				entries.extend(data.chapters);
+			}
+		}
 	}
 
 	Ok(entries
