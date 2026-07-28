@@ -280,7 +280,7 @@ pub fn extract_chapter_text(html: &Document) -> Result<String> {
 
 /// The site encodes spaces in path-segment values as `+` (confirmed via
 /// `v.genre=Adult,Martial+Arts`).
-fn encode_value(value: &str) -> String {
+pub fn encode_value(value: &str) -> String {
 	value.replace(' ', "+")
 }
 

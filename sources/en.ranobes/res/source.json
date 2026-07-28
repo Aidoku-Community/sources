@@ -7,8 +7,5 @@
 		"contentRating": 1,
 		"languages": ["en"],
 		"minAppVersion": "0.7.1"
-	},
-	"config": {
-		"hidesFiltersWhileSearching": true
 	}
 }

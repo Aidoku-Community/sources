@@ -14,8 +14,8 @@ mod settings;
 
 use helpers::{
 	LISTING_COMPLETED, LISTING_LATEST, LISTING_POPULAR, build_listing_url, encode_list,
-	extract_chapter_text, fetch_chapter_list, fill_manga_details, parse_chapter_path,
-	parse_search_results, push_scroller, request_html,
+	encode_value, extract_chapter_text, fetch_chapter_list, fill_manga_details,
+	parse_chapter_path, parse_search_results, push_scroller, request_html,
 };
 
 pub const BASE_URL: &str = "https://ranobes.top";
@@ -124,7 +124,10 @@ impl Source for Ranobes {
 			}
 		}
 
-		let has_filters = !genres_in.is_empty()
+		let query = query.filter(|q| !q.is_empty());
+
+		let has_filters = query.is_some()
+			|| !genres_in.is_empty()
 			|| !genres_ex.is_empty()
 			|| !langs_in.is_empty()
 			|| !langs_ex.is_empty()
@@ -134,11 +137,15 @@ impl Source for Ranobes {
 			|| year_to.is_some()
 			|| sort.is_some();
 
-		// Mirrors en.batcave's approach for the same underlying engine: query
-		// search and filtered browsing are separate site features that can't
-		// be combined, so filters take priority when present.
+		// Confirmed the site can combine fuzzy title search (`l.title=`)
+		// with the rest of the /f/ filter segments in one request, so
+		// there's no need to branch between /search/ and /f/ like before —
+		// the query is just one more optional segment.
 		let html = if has_filters {
 			let mut segments = Vec::new();
+			if let Some(query) = &query {
+				segments.push(format!("l.title={}", encode_value(query)));
+			}
 			if !genres_in.is_empty() {
 				segments.push(format!("n.genre={}", encode_list(&genres_in)));
 			}
@@ -176,12 +183,7 @@ impl Source for Ranobes {
 			let url = format!("{BASE_URL}/f/{}/", segments.join("/"));
 			request_html(&url)?
 		} else {
-			let query = query.unwrap_or_default();
-			let url = if page > 1 {
-				format!("{BASE_URL}/search/{query}/page/{page}/")
-			} else {
-				format!("{BASE_URL}/search/{query}/")
-			};
+			let url = format!("{BASE_URL}/search//");
 			request_html(&url)?
 		};
 
