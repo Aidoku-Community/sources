@@ -2,6 +2,7 @@ name: "Audit Dependencies"
 on:
   push:
     paths:
+      - ".github/workflows/audit.yml"
       - "**/Cargo.toml"
       - "**/Cargo.lock"
   schedule:
