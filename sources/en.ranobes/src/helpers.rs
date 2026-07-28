@@ -1,5 +1,6 @@
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaStatus, Result,
+	Chapter, ContentRating, HomeComponent, HomeComponentValue, Link, LinkValue, Listing, Manga,
+	MangaStatus, Result,
 	alloc::{String, Vec, string::ToString},
 	imports::{html::Document, net::Request, std::parse_date},
 	prelude::*,
@@ -7,6 +8,7 @@ use aidoku::{
 
 use crate::BASE_URL;
 use crate::models::ChapterListData;
+use crate::settings;
 
 /// Extracts `(slug, novel_id)` from a chapter path of the form
 /// `/{slug}-{novel_id}/{chapter_id}.html`. Confirmed against two different
@@ -150,7 +152,7 @@ pub fn fill_manga_details(html: &Document, mut manga: Manga) -> Result<Manga> {
 		.tags
 		.as_deref()
 		.map(content_rating_from_tags)
-		.unwrap_or(ContentRating::Unknown);
+		.unwrap_or_default();
 
 	manga.description = html
 		.select_first("div.cont-text.showcont-h")
@@ -250,4 +252,99 @@ pub fn extract_chapter_text(html: &Document) -> Result<String> {
 		bail!("Chapter text not found");
 	}
 	Ok(text)
+}
+
+/// The site encodes spaces in path-segment values as `+` (confirmed via
+/// `v.genre=Adult,Martial+Arts`).
+fn encode_value(value: &str) -> String {
+	value.replace(' ', "+")
+}
+
+pub fn encode_list(values: &[String]) -> String {
+	values
+		.iter()
+		.map(|v| encode_value(v))
+		.collect::<Vec<_>>()
+		.join(",")
+}
+
+pub const LISTING_LATEST: &str = "latest";
+pub const LISTING_POPULAR: &str = "popular";
+pub const LISTING_COMPLETED: &str = "completed";
+
+/// Builds a `/f/` url for a Home/listing section, re-using the same
+/// confirmed filter endpoint as search rather than needing new selectors.
+/// Hidden genres/languages are applied here too, matching the person's
+/// content-filter settings on the home page, not just in search.
+pub fn build_listing_url(id: &str, page: i32) -> Option<String> {
+	let mut segments: Vec<String> = Vec::new();
+
+	let genres_ex = settings::hidden_genres();
+	if !genres_ex.is_empty() {
+		segments.push(format!("v.genre={}", encode_list(&genres_ex)));
+	}
+	let langs_ex = settings::hidden_languages();
+	if !langs_ex.is_empty() {
+		segments.push(format!("v.languages={}", encode_list(&langs_ex)));
+	}
+
+	match id {
+		LISTING_LATEST => {
+			segments.push("sort=date".to_string());
+			segments.push("order=desc".to_string());
+		}
+		LISTING_POPULAR => {
+			segments.push("sort=news_read".to_string());
+			segments.push("order=desc".to_string());
+		}
+		LISTING_COMPLETED => {
+			segments.push("status-end=Completed".to_string());
+			segments.push("sort=date".to_string());
+			segments.push("order=desc".to_string());
+		}
+		_ => return None,
+	}
+
+	if page > 1 {
+		segments.push(format!("page/{page}"));
+	}
+
+	Some(format!("{BASE_URL}/f/{}/", segments.join("/")))
+}
+
+pub fn push_scroller(
+	components: &mut Vec<HomeComponent>,
+	title: &str,
+	listing_id: &str,
+) -> Result<()> {
+	let Some(url) = build_listing_url(listing_id, 1) else {
+		return Ok(());
+	};
+	let html = request_html(&url)?;
+	let entries = parse_search_results(&html);
+	if entries.is_empty() {
+		return Ok(());
+	}
+	let entries: Vec<Link> = entries
+		.into_iter()
+		.map(|manga| Link {
+			title: manga.title.clone(),
+			subtitle: None,
+			image_url: manga.cover.clone(),
+			value: Some(LinkValue::Manga(manga)),
+		})
+		.collect();
+	components.push(HomeComponent {
+		title: Some(title.into()),
+		subtitle: None,
+		value: HomeComponentValue::Scroller {
+			entries,
+			listing: Some(Listing {
+				id: listing_id.into(),
+				name: title.into(),
+				..Default::default()
+			}),
+		},
+	});
+	Ok(())
 }

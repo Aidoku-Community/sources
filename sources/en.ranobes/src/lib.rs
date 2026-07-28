@@ -1,8 +1,8 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
-	HomeComponentValue, HomeLayout, Link, LinkValue, Listing, ListingProvider, Manga,
-	MangaPageResult, NotificationHandler, Page, PageContent, Result, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeLayout, Listing,
+	ListingProvider, Manga, MangaPageResult, NotificationHandler, Page, PageContent, Result,
+	Source,
 	alloc::{String, Vec, string::ToString, vec},
 	imports::std::send_partial_result,
 	prelude::*,
@@ -13,8 +13,9 @@ mod models;
 mod settings;
 
 use helpers::{
+	LISTING_COMPLETED, LISTING_LATEST, LISTING_POPULAR, build_listing_url, encode_list,
 	extract_chapter_text, fetch_chapter_list, fill_manga_details, parse_chapter_path,
-	parse_search_results, request_html,
+	parse_search_results, push_scroller, request_html,
 };
 
 pub const BASE_URL: &str = "https://ranobes.top";
@@ -30,101 +31,6 @@ const SORT_IDS: &[&str] = &[
 	"d.year",
 	"editdate",
 ];
-
-/// The site encodes spaces in path-segment values as `+` (confirmed via
-/// `v.genre=Adult,Martial+Arts`).
-fn encode_value(value: &str) -> String {
-	value.replace(' ', "+")
-}
-
-fn encode_list(values: &[String]) -> String {
-	values
-		.iter()
-		.map(|v| encode_value(v))
-		.collect::<Vec<_>>()
-		.join(",")
-}
-
-const LISTING_LATEST: &str = "latest";
-const LISTING_POPULAR: &str = "popular";
-const LISTING_COMPLETED: &str = "completed";
-
-/// Builds a `/f/` url for a Home/listing section, re-using the same
-/// confirmed filter endpoint as search rather than needing new selectors.
-/// Hidden genres/languages are applied here too, matching the person's
-/// content-filter settings on the home page, not just in search.
-fn build_listing_url(id: &str, page: i32) -> Option<String> {
-	let mut segments: Vec<String> = Vec::new();
-
-	let genres_ex = settings::hidden_genres();
-	if !genres_ex.is_empty() {
-		segments.push(format!("v.genre={}", encode_list(&genres_ex)));
-	}
-	let langs_ex = settings::hidden_languages();
-	if !langs_ex.is_empty() {
-		segments.push(format!("v.languages={}", encode_list(&langs_ex)));
-	}
-
-	match id {
-		LISTING_LATEST => {
-			segments.push("sort=date".to_string());
-			segments.push("order=desc".to_string());
-		}
-		LISTING_POPULAR => {
-			segments.push("sort=news_read".to_string());
-			segments.push("order=desc".to_string());
-		}
-		LISTING_COMPLETED => {
-			segments.push("status-end=Completed".to_string());
-			segments.push("sort=date".to_string());
-			segments.push("order=desc".to_string());
-		}
-		_ => return None,
-	}
-
-	if page > 1 {
-		segments.push(format!("page/{page}"));
-	}
-
-	Some(format!("{BASE_URL}/f/{}/", segments.join("/")))
-}
-
-fn push_scroller(
-	components: &mut Vec<HomeComponent>,
-	title: &str,
-	listing_id: &str,
-) -> Result<()> {
-	let Some(url) = build_listing_url(listing_id, 1) else {
-		return Ok(());
-	};
-	let html = request_html(&url)?;
-	let entries = parse_search_results(&html);
-	if entries.is_empty() {
-		return Ok(());
-	}
-	let entries: Vec<Link> = entries
-		.into_iter()
-		.map(|manga| Link {
-			title: manga.title.clone(),
-			subtitle: None,
-			image_url: manga.cover.clone(),
-			value: Some(LinkValue::Manga(manga)),
-		})
-		.collect();
-	components.push(HomeComponent {
-		title: Some(title.into()),
-		subtitle: None,
-		value: HomeComponentValue::Scroller {
-			entries,
-			listing: Some(Listing {
-				id: listing_id.into(),
-				name: title.into(),
-				..Default::default()
-			}),
-		},
-	});
-	Ok(())
-}
 
 struct Ranobes;
 
