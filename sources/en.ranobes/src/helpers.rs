@@ -57,7 +57,7 @@ pub fn request_html(url: &str) -> Result<Document> {
 		.header("Referer", BASE_URL)
 		.send()?;
 	check_for_cf_challenge(&response)?;
-	response.get_html()
+	Ok(response.get_html()?)
 }
 
 /// Extracts the numeric novel id from a manga key of the form
@@ -206,27 +206,18 @@ fn extract_data_blob(html: &Document) -> Result<ChapterListData> {
 	serde_json::from_str(json_str).map_err(|_| error!("Failed to parse chapter list JSON"))
 }
 
-/// How many pages to request concurrently per batch. Sending all ~124
-/// remaining pages for a novel like Shadow Slave in one single batch
-/// turned out to be too aggressive — most requests were silently dropped
-/// (likely rate-limited/blocked), returning only a handful of pages
-/// instead of the full list. Batching keeps most of the speed benefit
-/// over one-at-a-time while being much gentler on the site. This number
-/// is a starting guess, not confirmed as optimal — currently being tuned
-/// down from 10 to test whether smaller batches reduce how often the
-/// site starts blocking mid-list.
+/// How many pages to request concurrently per batch. Fetching all
+/// remaining pages for a long novel in one batch is too aggressive — the
+/// site starts dropping/blocking requests, returning only a handful of
+/// pages instead of the full list. Batching keeps most of the speed
+/// benefit of concurrent requests while staying gentler on the site.
 const CHAPTER_PAGE_BATCH_SIZE: usize = 5;
 
 /// How many extra attempts a still-failing page within a batch gets
-/// before being given up on. Real testing showed the number of pages
-/// that fail varies between runs (5, 10, 9 failures across three
-/// attempts for the same novel) rather than being consistent, which
-/// points to transient/flaky failures rather than a hard, deterministic
-/// block — so retrying is worth it, not just batching. Being tuned up
-/// from 3 to test whether more retries recover more transient failures;
-/// worth watching whether this instead makes a *sustained* block (once
-/// triggered, stays blocked for a while) last longer by adding more
-/// requests on top of it.
+/// before being given up on. The number of pages that fail varies
+/// between runs for the same novel rather than being consistent,
+/// pointing to transient failures rather than a hard block — so
+/// retrying pages within a batch is worth it, not just batching itself.
 const CHAPTER_PAGE_MAX_RETRIES: u32 = 5;
 
 /// Fetches every page of `/chapters/{id}/` and returns chapters in
