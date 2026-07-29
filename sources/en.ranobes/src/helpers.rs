@@ -181,10 +181,17 @@ pub fn content_rating_from_tags(tags: &[String]) -> ContentRating {
 }
 
 pub fn fill_manga_details(html: &Document, mut manga: Manga) -> Result<Manga> {
-	let title = html
+	let title_el = html
 		.select_first("h1.title")
-		.and_then(|el| el.text())
 		.ok_or_else(|| error!("Title not found"))?;
+	let mut title = title_el.text().ok_or_else(|| error!("Title not found"))?;
+	// Confirmed against a real page: the author appears as a nested
+	// "<span class='subtitle'>by {author}</span>" *inside* h1.title, so a
+	// plain .text() on the heading pulls in "by {author}" too. Strip it
+	// off if present rather than assuming the heading is author-free.
+	if let Some(subtitle) = title_el.select_first(".subtitle").and_then(|el| el.text()) {
+		title = title.trim_end_matches(subtitle.as_str()).trim().to_string();
+	}
 	manga.title = title;
 
 	manga.cover = html
@@ -211,8 +218,16 @@ pub fn fill_manga_details(html: &Document, mut manga: Manga) -> Result<Manga> {
 		.map(content_rating_from_tags)
 		.unwrap_or_default();
 
+	// Confirmed against a real page: the description container can hold
+	// both a truncated ".moreless__short" version (with a "Read more"
+	// link) and the full ".moreless__full" version (with a "Collapse"
+	// link) at the same time — selecting the outer container directly
+	// would concatenate both plus the toggle button labels. Target the
+	// full version specifically; fall back to the outer container for
+	// any description that doesn't use this "show more" pattern at all.
 	manga.description = html
-		.select_first("div.cont-text.showcont-h")
+		.select_first("div.cont-text.showcont-h .moreless__full")
+		.or_else(|| html.select_first("div.cont-text.showcont-h"))
 		.and_then(|el| el.text())
 		.map(|t| t.trim().to_string())
 		.filter(|t| !t.is_empty());
