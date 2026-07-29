@@ -62,59 +62,39 @@ fn extract_cf_cookie(set_cookie: &str) -> Option<String> {
 		.map(|part| part.to_string())
 }
 
-/// Reads any `Set-Cookie` on the response and persists the Cloudflare
-/// cookie if present, so later requests (including ones in a future
-/// session) start "warm" instead of cold.
-///
-/// Checked under both casings since some responses (e.g. over HTTP/2)
-/// come back with lowercased header names, and it's cheap to cover both
-/// rather than assume one.
-fn capture_cf_cookie(response: &Response) {
+/// Reads any `Set-Cookie` on the response and returns the Cloudflare
+/// cookie if present. Checked under both casings since some responses
+/// (e.g. over HTTP/2) come back with lowercased header names.
+fn find_cf_cookie(response: &Response) -> Option<String> {
 	let set_cookie = response
 		.get_header("Set-Cookie")
-		.or_else(|| response.get_header("set-cookie"));
-	if let Some(set_cookie) = set_cookie
-		&& let Some(cookie) = extract_cf_cookie(&set_cookie)
-	{
-		settings::set_cf_cookie(&cookie);
-	}
+		.or_else(|| response.get_header("set-cookie"))?;
+	extract_cf_cookie(&set_cookie)
 }
 
-/// Makes a fresh request to the site's root specifically to obtain (and
-/// persist) a new Cloudflare cookie. Mirrors multi.ehentai's
-/// rejection-recovery pattern of probing the base site to refresh its
-/// session cookie before retrying the original request.
-fn refresh_cf_cookie() -> Result<()> {
-	let response = Request::get(BASE_URL)?
+/// Makes a fresh request to the site's root to obtain a Cloudflare
+/// cookie, purely local to whichever `fetch_chapter_list` call needs
+/// it — nothing is persisted beyond that one call, and nothing outside
+/// chapter-list fetching (search, novel details, chapter content) ever
+/// sees or sends this cookie. Mirrors multi.ehentai's rejection-recovery
+/// pattern of probing the base site, scoped down considerably: a cookie
+/// that helped fetch one novel's chapters isn't assumed to still be
+/// good for a completely unrelated request later.
+fn refresh_cf_cookie() -> Option<String> {
+	let response = Request::get(BASE_URL)
+		.ok()?
 		.header("User-Agent", USER_AGENT)
-		.send()?;
-	capture_cf_cookie(&response);
-	Ok(())
-}
-
-fn build_request(url: &str) -> Result<Request> {
-	let request = Request::get(url)?
-		.header("User-Agent", USER_AGENT)
-		.header("Referer", BASE_URL);
-	Ok(match settings::cf_cookie() {
-		Some(cookie) => request.header("Cookie", &cookie),
-		None => request,
-	})
+		.send()
+		.ok()?;
+	find_cf_cookie(&response)
 }
 
 pub fn request_html(url: &str) -> Result<Document> {
-	let response = build_request(url)?.send()?;
-	if check_for_cf_challenge(&response).is_err() {
-		// A cookie can go stale between fetches — refresh it once and
-		// retry before giving up, rather than failing on what might just
-		// be an out-of-date session.
-		refresh_cf_cookie()?;
-		let retry_response = build_request(url)?.send()?;
-		check_for_cf_challenge(&retry_response)?;
-		capture_cf_cookie(&retry_response);
-		return Ok(retry_response.get_html()?);
-	}
-	capture_cf_cookie(&response);
+	let response = Request::get(url)?
+		.header("User-Agent", USER_AGENT)
+		.header("Referer", BASE_URL)
+		.send()?;
+	check_for_cf_challenge(&response)?;
 	Ok(response.get_html()?)
 }
 
@@ -307,6 +287,39 @@ fn contiguous_chapters_from_end(pages: &mut [Option<Vec<ChapterEntry>>]) -> Vec<
 	ordered_chapters
 }
 
+/// Fetches a single chapter-list page (used for page 1, fetched alone
+/// before the rest), attaching `cookie` if present and updating it with
+/// whatever the response yields. On a detected challenge, refreshes the
+/// cookie and retries once before giving up — the batch loop below
+/// handles retries its own way, across many concurrent pages at once,
+/// rather than reusing this single-page version.
+fn fetch_chapter_page_html(url: &str, referer: &str, cookie: &mut Option<String>) -> Result<Document> {
+	let build_with = |cookie: &Option<String>| -> Result<Request> {
+		let request = Request::get(url)?
+			.header("User-Agent", USER_AGENT)
+			.header("Referer", referer);
+		Ok(match cookie {
+			Some(c) => request.header("Cookie", c),
+			None => request,
+		})
+	};
+
+	let response = build_with(cookie)?.send()?;
+	if check_for_cf_challenge(&response).is_err() {
+		*cookie = refresh_cf_cookie().or_else(|| cookie.clone());
+		let retry_response = build_with(cookie)?.send()?;
+		check_for_cf_challenge(&retry_response)?;
+		if let Some(new_cookie) = find_cf_cookie(&retry_response) {
+			*cookie = Some(new_cookie);
+		}
+		return Ok(retry_response.get_html()?);
+	}
+	if let Some(new_cookie) = find_cf_cookie(&response) {
+		*cookie = Some(new_cookie);
+	}
+	Ok(response.get_html()?)
+}
+
 /// Fetches every page of `/chapters/{id}/` and returns chapters in
 /// newest-to-oldest order.
 ///
@@ -321,7 +334,10 @@ fn contiguous_chapters_from_end(pages: &mut [Option<Vec<ChapterEntry>>]) -> Vec<
 /// first if the previous round's failures were specifically identified
 /// as a Cloudflare challenge (see CHAPTER_PAGE_MAX_RETRIES) — other
 /// failures (a request that couldn't be sent, a malformed response)
-/// just get a plain retry, since a fresh cookie wouldn't fix those.
+/// just get a plain retry, since a fresh cookie wouldn't fix those. The
+/// cookie itself is local to this one call — not persisted, and never
+/// used by search, novel details, or chapter content, which stay
+/// cookie-free.
 ///
 /// The oldest-first order matters for graceful degradation: if the site
 /// starts blocking partway through (observed in testing — pagination and
@@ -336,8 +352,20 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let novel_id = novel_id_from_key(novel_key)
 		.ok_or_else(|| error!("Could not find novel id in {novel_key}"))?;
 
+	// The novel's own detail page — used as the Referer for every
+	// request below, matching how a real visitor would actually arrive
+	// at the chapter list (by clicking through from that page).
+	let novel_referer = format!("{BASE_URL}{novel_key}");
+
+	// Local to this one call — never persisted, never used outside
+	// chapter-list fetching (search, novel details, and chapter content
+	// stay cookie-free). Page 1 uses the same cookie flow as the rest
+	// of the list below, since it's fetched as part of the same
+	// operation, not treated as a separate, unrelated request.
+	let mut cf_cookie: Option<String> = None;
+
 	let first_url = format!("{BASE_URL}/chapters/{novel_id}/");
-	let first_html = request_html(&first_url)?;
+	let first_html = fetch_chapter_page_html(&first_url, &novel_referer, &mut cf_cookie)?;
 	let first_data = extract_data_blob(&first_html)?;
 	let pages_count = first_data.pages_count.max(1);
 
@@ -360,8 +388,9 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 				// (a request that couldn't even be sent, a malformed
 				// response) aren't helped by a new cookie, so a plain
 				// retry avoids wasting a request on a refresh that
-				// wouldn't fix anything.
-				let _ = refresh_cf_cookie();
+				// wouldn't fix anything. Keep the old cookie if the
+				// refresh attempt itself doesn't yield a new one.
+				cf_cookie = refresh_cf_cookie().or(cf_cookie);
 				refresh_before_retry = false;
 			}
 
@@ -370,7 +399,16 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 			let mut still_pending = Vec::new();
 			for &page in &pending {
 				let url = format!("{BASE_URL}/chapters/{novel_id}/page/{page}/");
-				match build_request(&url) {
+				let built = Request::get(&url).map(|req| {
+					let req = req
+						.header("User-Agent", USER_AGENT)
+						.header("Referer", &novel_referer);
+					match &cf_cookie {
+						Some(cookie) => req.header("Cookie", cookie),
+						None => req,
+					}
+				});
+				match built {
 					Ok(req) => {
 						sent_pages.push(page);
 						reqs.push(req);
@@ -389,7 +427,9 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 					still_pending.push(page);
 					continue;
 				}
-				capture_cf_cookie(&response);
+				if let Some(cookie) = find_cf_cookie(&response) {
+					cf_cookie = Some(cookie);
+				}
 				match response
 					.get_html()
 					.ok()
