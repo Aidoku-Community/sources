@@ -287,6 +287,19 @@ fn contiguous_chapters_from_end(pages: &mut [Option<Vec<ChapterEntry>>]) -> Vec<
 	ordered_chapters
 }
 
+/// Shared by every chapter-list request (page 1's standalone fetch and
+/// each page in the batch loop) so a future header/cookie change only
+/// needs to happen in one place.
+fn build_chapter_request(url: &str, referer: &str, cookie: &Option<String>) -> Result<Request> {
+	let request = Request::get(url)?
+		.header("User-Agent", USER_AGENT)
+		.header("Referer", referer);
+	Ok(match cookie {
+		Some(c) => request.header("Cookie", c),
+		None => request,
+	})
+}
+
 /// Fetches a single chapter-list page (used for page 1, fetched alone
 /// before the rest), attaching `cookie` if present and updating it with
 /// whatever the response yields. On a detected challenge, refreshes the
@@ -294,20 +307,10 @@ fn contiguous_chapters_from_end(pages: &mut [Option<Vec<ChapterEntry>>]) -> Vec<
 /// handles retries its own way, across many concurrent pages at once,
 /// rather than reusing this single-page version.
 fn fetch_chapter_page_html(url: &str, referer: &str, cookie: &mut Option<String>) -> Result<Document> {
-	let build_with = |cookie: &Option<String>| -> Result<Request> {
-		let request = Request::get(url)?
-			.header("User-Agent", USER_AGENT)
-			.header("Referer", referer);
-		Ok(match cookie {
-			Some(c) => request.header("Cookie", c),
-			None => request,
-		})
-	};
-
-	let response = build_with(cookie)?.send()?;
+	let response = build_chapter_request(url, referer, cookie)?.send()?;
 	if check_for_cf_challenge(&response).is_err() {
 		*cookie = refresh_cf_cookie().or_else(|| cookie.clone());
-		let retry_response = build_with(cookie)?.send()?;
+		let retry_response = build_chapter_request(url, referer, cookie)?.send()?;
 		check_for_cf_challenge(&retry_response)?;
 		if let Some(new_cookie) = find_cf_cookie(&retry_response) {
 			*cookie = Some(new_cookie);
@@ -399,16 +402,7 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 			let mut still_pending = Vec::new();
 			for &page in &pending {
 				let url = format!("{BASE_URL}/chapters/{novel_id}/page/{page}/");
-				let built = Request::get(&url).map(|req| {
-					let req = req
-						.header("User-Agent", USER_AGENT)
-						.header("Referer", &novel_referer);
-					match &cf_cookie {
-						Some(cookie) => req.header("Cookie", cookie),
-						None => req,
-					}
-				});
-				match built {
+				match build_chapter_request(&url, &novel_referer, &cf_cookie) {
 					Ok(req) => {
 						sent_pages.push(page);
 						reqs.push(req);
