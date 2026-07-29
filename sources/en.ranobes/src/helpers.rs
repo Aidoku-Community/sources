@@ -1,7 +1,7 @@
 use aidoku::{
 	Chapter, ContentRating, HomeComponent, HomeComponentValue, Link, LinkValue, Listing, Manga,
 	MangaStatus, Result,
-	alloc::{String, Vec, string::ToString, vec},
+	alloc::{String, Vec, string::ToString},
 	imports::{html::Document, net::Request, std::parse_date},
 	prelude::*,
 };
@@ -236,7 +236,7 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let first_data = extract_data_blob(&first_html)?;
 	let pages_count = first_data.pages_count.max(1);
 
-	let mut pages: Vec<Option<Vec<ChapterEntry>>> = vec![None; pages_count as usize];
+	let mut pages: Vec<Option<Vec<ChapterEntry>>> = (0..pages_count).map(|_| None).collect();
 	pages[0] = Some(first_data.chapters);
 
 	let page_numbers: Vec<i32> = (2..=pages_count).collect();
