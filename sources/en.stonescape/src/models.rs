@@ -120,13 +120,14 @@ impl Series {
 	}
 
 	pub fn into_manga(self) -> Manga {
-		let mut manga = Manga::default();
-		self.apply_genres(&mut manga);
-		manga.key = self.slug;
-		manga.title = self.title;
-		manga.cover = self.cover_url.map(|path| format!("{BASE_URL}{path}"));
-		manga.description = self.description;
-		manga
+		let cover = self.cover_url.map(|path| format!("{BASE_URL}{path}"));
+
+		Manga {
+			key: self.slug,
+			title: self.title,
+			cover,
+			..Default::default()
+		}
 	}
 
 	pub fn into_banner_manga(self) -> Manga {
