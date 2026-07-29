@@ -1,6 +1,7 @@
+use crate::VERIFY_COOKIE_KEY;
 use aidoku::{
 	alloc::{string::String, vec::Vec},
-	imports::defaults::{DefaultValue, defaults_get, defaults_set},
+	imports::defaults::{DefaultValue, defaults_get, defaults_get_map, defaults_set},
 };
 
 const HIDE_NSFW_KEY: &str = "hideNSFW";
@@ -10,6 +11,8 @@ const DEDUPED_CHAPTER_KEY: &str = "dedupedChapter";
 const HIDDEN_TYPES_KEY: &str = "hiddenTypes";
 const HIDDEN_GENRES_KEY: &str = "hiddenGenres";
 const HIDDEN_THEMES_KEY: &str = "hiddenThemes";
+
+const VERIFY_KEY: &str = "verify";
 
 pub fn hide_nsfw() -> bool {
 	defaults_get::<bool>(HIDE_NSFW_KEY).unwrap_or(true)
@@ -51,4 +54,10 @@ pub fn reset_filters() {
 	defaults_set(HIDDEN_TYPES_KEY, DefaultValue::Null);
 	defaults_set(HIDDEN_GENRES_KEY, DefaultValue::Null);
 	defaults_set(HIDDEN_THEMES_KEY, DefaultValue::Null);
+}
+
+pub fn get_verify_cookie() -> Option<String> {
+	defaults_get_map(VERIFY_KEY)?
+		.get(VERIFY_COOKIE_KEY)
+		.cloned()
 }

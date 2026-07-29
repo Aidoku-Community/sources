@@ -214,5 +214,24 @@
 			}
 		],
 		"footer": "Content filters are applied globally: to the home page, listings, and search results."
+	},
+	{
+		"type": "group",
+		"title": "Verify Captcha",
+		"items": [
+			{
+				"type": "login",
+				"method": "web",
+				"url": "https://comix.to/@waf/challenge?return=/",
+				"key": "verify",
+				"title": "Verify Comix Captcha",
+				"logoutTitle": "Re-Verify Comix Captcha",
+				"notification": "verify",
+				"refreshes": [
+					"content"
+				]
+			}
+		],
+		"footer": "Please use this button to open a webview which would allow aidoku to intercept cookies generated after verification. This cookie is only valid for 30 minutes and you have to do this again afterwards. This button is not for Account Login!"
 	}
 ]

@@ -1,18 +1,17 @@
 // reference: https://github.com/nobottomline/extensions-source/blob/c8fe930f315f3baee23587559edfceab5e969202/src/en/comix/src/eu/kanade/tachiyomi/extension/en/comix/Signer.kt
-use crate::BASE_URL;
+use crate::{BASE_URL, helpers::create_request_get, models::ErrorResponse};
 use aidoku::{
 	HashMap, Result,
-	alloc::string::String,
-	alloc::string::ToString,
-	alloc::vec::Vec,
+	alloc::{string::String, string::ToString, vec::Vec},
 	helpers::uri::QueryParameters,
-	imports::net::Response,
-	imports::{js::WebView, net::Request},
+	imports::{
+		js::WebView,
+		net::{Request, Response},
+	},
 	prelude::*,
 };
 use regex::Regex;
-use serde::Deserialize;
-use serde::de::DeserializeOwned;
+use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 
 const GET_VMOBJ_JS: &str = "\
@@ -41,6 +40,10 @@ const JS_PATCHER: &str = "<head>\
 
 const CF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned CF challenge page instead of JSON data. If problem persist, please clear the source cache and restart the application to resolve this issue.";
 
+const WAF_CHALLENGE_KEY: &str = "captcha_required";
+const WAF_CHALLENGE_HTML_ERROR_MESSAGE: &str = "Response returned WAF challenge page. Please goto Comix Settings and Verify Captcha to resolve this issue.";
+const WAF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned WAF challenge page instead of JSON data. Please goto Comix Settings and Verify Captcha to resolve this issue.";
+
 #[derive(Deserialize)]
 struct AxiosRequest {
 	url: String,
@@ -67,9 +70,20 @@ impl ComixWebView {
 	}
 
 	fn load_webview(&mut self) -> Result<()> {
+		let request = create_request_get(BASE_URL)?;
+		let response = request.send()?;
+
+		if response
+			.get_html()?
+			.select_first("head > title")
+			.is_some_and(|e| e.text().is_some_and(|t| t == "Security check"))
+		{
+			bail!("{}", WAF_CHALLENGE_HTML_ERROR_MESSAGE)
+		}
+
 		self.web_view.load_html_blocking(
-			Request::get(BASE_URL)?
-				.string()?
+			response
+				.get_string()?
 				.replace("<head>", JS_PATCHER)
 				.as_str(),
 			Some(BASE_URL),
@@ -309,9 +323,9 @@ impl ComixWebView {
 
 		if let Some(params) = axios_request.params {
 			let query = build_query(&params);
-			Request::get(format!("{}?{query}", axios_request.url)).map_err(Into::into)
+			create_request_get(&format!("{}?{query}", axios_request.url))
 		} else {
-			Request::get(axios_request.url).map_err(Into::into)
+			create_request_get(&axios_request.url)
 		}
 	}
 
@@ -332,7 +346,14 @@ impl ComixWebView {
 		{
 			bail!("{CF_CHALLENGE_ERROR_MESSAGE}")
 		} else if status_code >= 400 {
-			bail!("Response Error: {}", status_code)
+			if response.status_code() == 403
+				&& serde_json::from_slice::<ErrorResponse>(&response.get_data()?)
+					.is_ok_and(|e| e.error == WAF_CHALLENGE_KEY)
+			{
+				bail!("{}", WAF_CHALLENGE_ERROR_MESSAGE)
+			} else {
+				bail!("Response Error: {}", response.status_code())
+			}
 		} else if response
 			.get_header("x-enc")
 			.is_some_and(|value| value == "1")
