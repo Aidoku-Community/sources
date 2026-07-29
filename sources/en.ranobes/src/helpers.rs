@@ -73,10 +73,10 @@ fn capture_cf_cookie(response: &Response) {
 	let set_cookie = response
 		.get_header("Set-Cookie")
 		.or_else(|| response.get_header("set-cookie"));
-	if let Some(set_cookie) = set_cookie {
-		if let Some(cookie) = extract_cf_cookie(&set_cookie) {
-			settings::set_cf_cookie(&cookie);
-		}
+	if let Some(set_cookie) = set_cookie
+		&& let Some(cookie) = extract_cf_cookie(&set_cookie)
+	{
+		settings::set_cf_cookie(&cookie);
 	}
 }
 
