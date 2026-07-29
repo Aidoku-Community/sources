@@ -65,11 +65,18 @@ fn extract_cf_cookie(set_cookie: &str) -> Option<String> {
 /// Reads any `Set-Cookie` on the response and persists the Cloudflare
 /// cookie if present, so later requests (including ones in a future
 /// session) start "warm" instead of cold.
+///
+/// Checked under both casings since some responses (e.g. over HTTP/2)
+/// come back with lowercased header names, and it's cheap to cover both
+/// rather than assume one.
 fn capture_cf_cookie(response: &Response) {
-	if let Some(set_cookie) = response.get_header("Set-Cookie")
-		&& let Some(cookie) = extract_cf_cookie(&set_cookie)
-	{
-		settings::set_cf_cookie(&cookie);
+	let set_cookie = response
+		.get_header("Set-Cookie")
+		.or_else(|| response.get_header("set-cookie"));
+	if let Some(set_cookie) = set_cookie {
+		if let Some(cookie) = extract_cf_cookie(&set_cookie) {
+			settings::set_cf_cookie(&cookie);
+		}
 	}
 }
 
@@ -599,5 +606,24 @@ mod tests {
 		let chapters = contiguous_chapters_from_end(&mut pages);
 		let titles: Vec<&str> = chapters.iter().map(|c| c.title.as_str()).collect();
 		assert_eq!(titles, ["Chapter 2", "Chapter 1"]);
+	}
+
+	#[test]
+	fn extract_cf_cookie_finds_it_among_other_attributes() {
+		let set_cookie = "__cf_bm=abc123; path=/; expires=Wed, 29-Jul-26 13:32:29 GMT; \
+			domain=.ranobes.top; HttpOnly; Secure; SameSite=None";
+		assert_eq!(extract_cf_cookie(set_cookie), Some("__cf_bm=abc123".to_string()));
+	}
+
+	#[test]
+	fn extract_cf_cookie_finds_it_when_not_first() {
+		let set_cookie = "path=/; __cf_bm=xyz789; Secure";
+		assert_eq!(extract_cf_cookie(set_cookie), Some("__cf_bm=xyz789".to_string()));
+	}
+
+	#[test]
+	fn extract_cf_cookie_returns_none_when_absent() {
+		let set_cookie = "session_id=abc; path=/; HttpOnly";
+		assert_eq!(extract_cf_cookie(set_cookie), None);
 	}
 }
