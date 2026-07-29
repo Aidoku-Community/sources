@@ -51,12 +51,63 @@ fn check_for_cf_challenge(response: &Response) -> Result<()> {
 	Ok(())
 }
 
-pub fn request_html(url: &str) -> Result<Document> {
-	let response = Request::get(url)?
+/// Pulls just the `__cf_bm=...` piece out of a `Set-Cookie` header value,
+/// dropping the surrounding attributes (path, expires, etc.) that aren't
+/// needed to send it back.
+fn extract_cf_cookie(set_cookie: &str) -> Option<String> {
+	set_cookie
+		.split(';')
+		.map(|part| part.trim())
+		.find(|part| part.starts_with("__cf_bm="))
+		.map(|part| part.to_string())
+}
+
+/// Reads any `Set-Cookie` on the response and persists the Cloudflare
+/// cookie if present, so later requests (including ones in a future
+/// session) start "warm" instead of cold.
+fn capture_cf_cookie(response: &Response) {
+	if let Some(set_cookie) = response.get_header("Set-Cookie")
+		&& let Some(cookie) = extract_cf_cookie(&set_cookie)
+	{
+		settings::set_cf_cookie(&cookie);
+	}
+}
+
+/// Makes a fresh request to the site's root specifically to obtain (and
+/// persist) a new Cloudflare cookie. Mirrors multi.ehentai's
+/// rejection-recovery pattern of probing the base site to refresh its
+/// session cookie before retrying the original request.
+fn refresh_cf_cookie() -> Result<()> {
+	let response = Request::get(BASE_URL)?
 		.header("User-Agent", USER_AGENT)
-		.header("Referer", BASE_URL)
 		.send()?;
-	check_for_cf_challenge(&response)?;
+	capture_cf_cookie(&response);
+	Ok(())
+}
+
+fn build_request(url: &str) -> Result<Request> {
+	let request = Request::get(url)?
+		.header("User-Agent", USER_AGENT)
+		.header("Referer", BASE_URL);
+	Ok(match settings::cf_cookie() {
+		Some(cookie) => request.header("Cookie", &cookie),
+		None => request,
+	})
+}
+
+pub fn request_html(url: &str) -> Result<Document> {
+	let response = build_request(url)?.send()?;
+	if check_for_cf_challenge(&response).is_err() {
+		// A cookie can go stale between fetches — refresh it once and
+		// retry before giving up, rather than failing on what might just
+		// be an out-of-date session.
+		refresh_cf_cookie()?;
+		let retry_response = build_request(url)?.send()?;
+		check_for_cf_challenge(&retry_response)?;
+		capture_cf_cookie(&retry_response);
+		return Ok(retry_response.get_html()?);
+	}
+	capture_cf_cookie(&response);
 	Ok(response.get_html()?)
 }
 
@@ -211,36 +262,15 @@ fn extract_data_blob(html: &Document) -> Result<ChapterListData> {
 /// site starts dropping/blocking requests, returning only a handful of
 /// pages instead of the full list. Batching keeps most of the speed
 /// benefit of concurrent requests while staying gentler on the site.
-const CHAPTER_PAGE_BATCH_SIZE: usize = 5;
+const CHAPTER_PAGE_BATCH_SIZE: usize = 10;
 
 /// How many extra attempts a still-failing page within a batch gets
-/// before being given up on. The number of pages that fail varies
-/// between runs for the same novel rather than being consistent,
-/// pointing to transient failures rather than a hard block — so
-/// retrying pages within a batch is worth it, not just batching itself.
-const CHAPTER_PAGE_MAX_RETRIES: u32 = 5;
+/// before being given up on. A retry after a Cloudflare challenge
+/// specifically also refreshes the session cookie first (see
+/// `fetch_chapter_list`); other kinds of failures just get a plain
+/// retry.
+const CHAPTER_PAGE_MAX_RETRIES: u32 = 3;
 
-/// Fetches every page of `/chapters/{id}/` and returns chapters in
-/// newest-to-oldest order.
-///
-/// Page 1 is fetched alone first since it's the only way to learn
-/// `pages_count`. Remaining pages are then requested **oldest-first**
-/// (highest page number first) in small concurrent batches
-/// (`Request::send_all`), with a few retries per batch — for a
-/// long-running novel like Shadow Slave (125 pages), sequential
-/// one-at-a-time requests risked exceeding a reasonable load timeout, and
-/// sending everything as one giant batch was too aggressive (see
-/// CHAPTER_PAGE_BATCH_SIZE).
-///
-/// The oldest-first order matters for graceful degradation: if the site
-/// starts blocking partway through (observed in testing — pagination and
-/// even other novels' chapter lists stopped working mid-session after
-/// heavy use), the pages fetched *before* the block hit are kept, and
-/// everything after the first gap is discarded rather than returned with
-/// a hole in the middle. Page 1's newest chapters are only included if
-/// every other page also succeeded — an isolated newest chapter far
-/// removed from an otherwise-incomplete list would be a more confusing
-/// reading experience than simply not showing it yet.
 /// Walks backward from the last page (oldest chapters) and keeps the
 /// contiguous run of successfully fetched pages, stopping at the first
 /// gap. Page 1's newest chapters are only included if every other page
@@ -270,6 +300,31 @@ fn contiguous_chapters_from_end(pages: &mut [Option<Vec<ChapterEntry>>]) -> Vec<
 	ordered_chapters
 }
 
+/// Fetches every page of `/chapters/{id}/` and returns chapters in
+/// newest-to-oldest order.
+///
+/// Page 1 is fetched alone first since it's the only way to learn
+/// `pages_count`. Remaining pages are then requested **oldest-first**
+/// (highest page number first) in small concurrent batches
+/// (`Request::send_all`), with a few retries per batch — for a
+/// long-running novel like Shadow Slave (125 pages), sequential
+/// one-at-a-time requests risked exceeding a reasonable load timeout, and
+/// sending everything as one giant batch was too aggressive (see
+/// CHAPTER_PAGE_BATCH_SIZE). A retry only refreshes the session cookie
+/// first if the previous round's failures were specifically identified
+/// as a Cloudflare challenge (see CHAPTER_PAGE_MAX_RETRIES) — other
+/// failures (a request that couldn't be sent, a malformed response)
+/// just get a plain retry, since a fresh cookie wouldn't fix those.
+///
+/// The oldest-first order matters for graceful degradation: if the site
+/// starts blocking partway through (observed in testing — pagination and
+/// even other novels' chapter lists stopped working mid-session after
+/// heavy use), the pages fetched *before* the block hit are kept, and
+/// everything after the first gap is discarded rather than returned with
+/// a hole in the middle. Page 1's newest chapters are only included if
+/// every other page also succeeded — an isolated newest chapter far
+/// removed from an otherwise-incomplete list would be a more confusing
+/// reading experience than simply not showing it yet.
 pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let novel_id = novel_id_from_key(novel_key)
 		.ok_or_else(|| error!("Could not find novel id in {novel_key}"))?;
@@ -285,15 +340,22 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	// Oldest page (highest number) first.
 	let page_numbers: Vec<i32> = (2..=pages_count).rev().collect();
 
-	let mut blocked = false;
 	for chunk in page_numbers.chunks(CHAPTER_PAGE_BATCH_SIZE) {
-		if blocked {
-			break;
-		}
 		let mut pending: Vec<i32> = chunk.to_vec();
+		let mut refresh_before_retry = false;
 		for _ in 0..=CHAPTER_PAGE_MAX_RETRIES {
-			if pending.is_empty() || blocked {
+			if pending.is_empty() {
 				break;
+			}
+			if refresh_before_retry {
+				// Only refresh when the last round's failures were
+				// specifically a Cloudflare challenge — other failures
+				// (a request that couldn't even be sent, a malformed
+				// response) aren't helped by a new cookie, so a plain
+				// retry avoids wasting a request on a refresh that
+				// wouldn't fix anything.
+				let _ = refresh_cf_cookie();
+				refresh_before_retry = false;
 			}
 
 			let mut sent_pages = Vec::with_capacity(pending.len());
@@ -301,10 +363,7 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 			let mut still_pending = Vec::new();
 			for &page in &pending {
 				let url = format!("{BASE_URL}/chapters/{novel_id}/page/{page}/");
-				match Request::get(&url).map(|req| {
-					req.header("User-Agent", USER_AGENT)
-						.header("Referer", BASE_URL)
-				}) {
+				match build_request(&url) {
 					Ok(req) => {
 						sent_pages.push(page);
 						reqs.push(req);
@@ -319,16 +378,11 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 					continue;
 				};
 				if check_for_cf_challenge(&response).is_err() {
-					// A challenge won't clear by retrying, and further
-					// pages are likely to hit it too — stop immediately
-					// rather than burning through retries and remaining
-					// batches on requests that won't succeed. Whatever
-					// pages already succeeded are kept via the contiguous-
-					// run logic below, same as any other partial failure.
-					blocked = true;
+					refresh_before_retry = true;
 					still_pending.push(page);
 					continue;
 				}
+				capture_cf_cookie(&response);
 				match response
 					.get_html()
 					.ok()
