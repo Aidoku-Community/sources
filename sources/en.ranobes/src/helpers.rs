@@ -7,7 +7,7 @@ use aidoku::{
 };
 
 use crate::BASE_URL;
-use crate::models::ChapterListData;
+use crate::models::{ChapterEntry, ChapterListData};
 use crate::settings;
 
 /// Extracts `(slug, novel_id)` from a chapter path of the form
@@ -236,7 +236,7 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let first_data = extract_data_blob(&first_html)?;
 	let pages_count = first_data.pages_count.max(1);
 
-	let mut pages: Vec<Option<Vec<ChapterEntry>>> = (0..pages_count).map(|_| None).collect();
+	let mut pages: Vec<Option<Vec<ChapterEntry>>> = vec![None; pages_count as usize];
 	pages[0] = Some(first_data.chapters);
 
 	let page_numbers: Vec<i32> = (2..=pages_count).collect();
@@ -279,10 +279,9 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 		// a partial chapter list is more useful than none at all.
 	}
 
-	let entries: Vec<ChapterEntry> = pages.into_iter().flatten().flatten().collect();
+	let entries = pages.into_iter().flatten().flatten();
 
 	Ok(entries
-		.into_iter()
 		.map(|entry| {
 			let chapter_number = parse_chapter_number(&entry.title);
 			// entry.link is a full absolute url (confirmed against real
