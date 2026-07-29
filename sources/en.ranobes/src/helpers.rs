@@ -241,6 +241,35 @@ const CHAPTER_PAGE_MAX_RETRIES: u32 = 5;
 /// every other page also succeeded — an isolated newest chapter far
 /// removed from an otherwise-incomplete list would be a more confusing
 /// reading experience than simply not showing it yet.
+/// Walks backward from the last page (oldest chapters) and keeps the
+/// contiguous run of successfully fetched pages, stopping at the first
+/// gap. Page 1's newest chapters are only included if every other page
+/// also succeeded (`pages.len() - 1` entries recovered) — see
+/// `fetch_chapter_list`'s doc comment for why a partial run doesn't
+/// include them.
+fn contiguous_chapters_from_end(pages: &mut [Option<Vec<ChapterEntry>>]) -> Vec<ChapterEntry> {
+	let pages_count = pages.len();
+	let mut contiguous_from_end = Vec::new();
+	for page_index in (1..pages_count).rev() {
+		if pages[page_index].is_none() {
+			break;
+		}
+		contiguous_from_end.push(page_index);
+	}
+	contiguous_from_end.reverse(); // ascending page order (oldest run, newest-of-the-run first)
+
+	let complete = contiguous_from_end.len() == pages_count - 1;
+
+	let mut ordered_chapters = Vec::new();
+	if complete {
+		ordered_chapters.extend(pages[0].take().unwrap_or_default());
+	}
+	for page_index in contiguous_from_end {
+		ordered_chapters.extend(pages[page_index].take().unwrap_or_default());
+	}
+	ordered_chapters
+}
+
 pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let novel_id = novel_id_from_key(novel_key)
 		.ok_or_else(|| error!("Could not find novel id in {novel_key}"))?;
@@ -256,10 +285,14 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	// Oldest page (highest number) first.
 	let page_numbers: Vec<i32> = (2..=pages_count).rev().collect();
 
+	let mut blocked = false;
 	for chunk in page_numbers.chunks(CHAPTER_PAGE_BATCH_SIZE) {
+		if blocked {
+			break;
+		}
 		let mut pending: Vec<i32> = chunk.to_vec();
 		for _ in 0..=CHAPTER_PAGE_MAX_RETRIES {
-			if pending.is_empty() {
+			if pending.is_empty() || blocked {
 				break;
 			}
 
@@ -281,9 +314,24 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 			}
 
 			for (page, response) in sent_pages.into_iter().zip(Request::send_all(reqs)) {
+				let Ok(response) = response else {
+					still_pending.push(page);
+					continue;
+				};
+				if check_for_cf_challenge(&response).is_err() {
+					// A challenge won't clear by retrying, and further
+					// pages are likely to hit it too — stop immediately
+					// rather than burning through retries and remaining
+					// batches on requests that won't succeed. Whatever
+					// pages already succeeded are kept via the contiguous-
+					// run logic below, same as any other partial failure.
+					blocked = true;
+					still_pending.push(page);
+					continue;
+				}
 				match response
+					.get_html()
 					.ok()
-					.and_then(|r| r.get_html().ok())
 					.and_then(|html| extract_data_blob(&html).ok())
 				{
 					Some(data) => pages[(page - 1) as usize] = Some(data.chapters),
@@ -301,26 +349,7 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 		}
 	}
 
-	// Walk backward from the last page (oldest chapters) and keep the
-	// contiguous run of successes; stop at the first gap.
-	let mut contiguous_from_end = Vec::new();
-	for page_index in (1..pages_count as usize).rev() {
-		if pages[page_index].is_none() {
-			break;
-		}
-		contiguous_from_end.push(page_index);
-	}
-	contiguous_from_end.reverse(); // ascending page order (oldest run, newest-of-the-run first)
-
-	let complete = contiguous_from_end.len() == (pages_count as usize - 1);
-
-	let mut ordered_chapters: Vec<ChapterEntry> = Vec::new();
-	if complete {
-		ordered_chapters.extend(pages[0].take().unwrap_or_default());
-	}
-	for page_index in contiguous_from_end {
-		ordered_chapters.extend(pages[page_index].take().unwrap_or_default());
-	}
+	let ordered_chapters = contiguous_chapters_from_end(&mut pages);
 
 	Ok(ordered_chapters
 		.into_iter()
@@ -471,4 +500,50 @@ pub fn push_scroller(components: &mut Vec<HomeComponent>, title: &str, listing_i
 			}),
 		},
 	});
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn entry(title: &str) -> ChapterEntry {
+		ChapterEntry {
+			title: title.to_string(),
+			link: String::new(),
+			date: String::new(),
+		}
+	}
+
+	#[test]
+	fn contiguous_chapters_from_end_returns_everything_when_complete() {
+		let mut pages = vec![
+			Some(vec![entry("Chapter 3")]),
+			Some(vec![entry("Chapter 2")]),
+			Some(vec![entry("Chapter 1")]),
+		];
+		let chapters = contiguous_chapters_from_end(&mut pages);
+		let titles: Vec<&str> = chapters.iter().map(|c| c.title.as_str()).collect();
+		assert_eq!(titles, ["Chapter 3", "Chapter 2", "Chapter 1"]);
+	}
+
+	#[test]
+	fn contiguous_chapters_from_end_drops_newest_page_on_gap() {
+		// page 1 (newest) succeeded, middle page failed, oldest page succeeded
+		let mut pages = vec![Some(vec![entry("Chapter 3")]), None, Some(vec![entry("Chapter 1")])];
+		let chapters = contiguous_chapters_from_end(&mut pages);
+		let titles: Vec<&str> = chapters.iter().map(|c| c.title.as_str()).collect();
+		assert_eq!(titles, ["Chapter 1"]);
+	}
+
+	#[test]
+	fn contiguous_chapters_from_end_keeps_partial_run_from_the_end() {
+		let mut pages = vec![
+			None, // page 1 (newest) failed
+			Some(vec![entry("Chapter 2")]),
+			Some(vec![entry("Chapter 1")]),
+		];
+		let chapters = contiguous_chapters_from_end(&mut pages);
+		let titles: Vec<&str> = chapters.iter().map(|c| c.title.as_str()).collect();
+		assert_eq!(titles, ["Chapter 2", "Chapter 1"]);
+	}
 }
