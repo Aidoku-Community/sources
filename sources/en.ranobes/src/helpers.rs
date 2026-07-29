@@ -1,7 +1,7 @@
 use aidoku::{
 	Chapter, ContentRating, HomeComponent, HomeComponentValue, Link, LinkValue, Listing, Manga,
 	MangaStatus, Result,
-	alloc::{String, Vec, string::ToString},
+	alloc::{String, Vec, string::ToString, vec},
 	imports::{html::Document, net::Request, std::parse_date},
 	prelude::*,
 };
