@@ -244,12 +244,15 @@ fn extract_data_blob(html: &Document) -> Result<ChapterListData> {
 	serde_json::from_str(json_str).map_err(|_| error!("Failed to parse chapter list JSON"))
 }
 
-/// How many pages to request concurrently per batch. Fetching all
-/// remaining pages for a long novel in one batch is too aggressive — the
-/// site starts dropping/blocking requests, returning only a handful of
-/// pages instead of the full list. Batching keeps most of the speed
-/// benefit of concurrent requests while staying gentler on the site.
-const CHAPTER_PAGE_BATCH_SIZE: usize = 10;
+/// How many pages to request concurrently per batch. Set to 1
+/// (sequential, no real concurrency) as a diagnostic test: real testing
+/// on Shadow Slave (125 pages) showed the block hitting inconsistently
+/// within the very first batch of 10 (chapters 27, 102, and 77 across
+/// three runs — roughly 1 to 4 pages in), pointing at the size of the
+/// concurrent burst itself rather than cumulative volume over time. If
+/// this reaches much further before blocking, that theory holds; if it
+/// still blocks early, concurrency probably isn't the real cause.
+const CHAPTER_PAGE_BATCH_SIZE: usize = 1;
 
 /// How many extra attempts a still-failing page within a batch gets
 /// before being given up on. A retry after a Cloudflare challenge
@@ -306,7 +309,11 @@ fn build_chapter_request(url: &str, referer: &str, cookie: &Option<String>) -> R
 /// cookie and retries once before giving up — the batch loop below
 /// handles retries its own way, across many concurrent pages at once,
 /// rather than reusing this single-page version.
-fn fetch_chapter_page_html(url: &str, referer: &str, cookie: &mut Option<String>) -> Result<Document> {
+fn fetch_chapter_page_html(
+	url: &str,
+	referer: &str,
+	cookie: &mut Option<String>,
+) -> Result<Document> {
 	let response = build_chapter_request(url, referer, cookie)?.send()?;
 	if check_for_cf_challenge(&response).is_err() {
 		*cookie = refresh_cf_cookie().or_else(|| cookie.clone());
@@ -355,9 +362,10 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let novel_id = novel_id_from_key(novel_key)
 		.ok_or_else(|| error!("Could not find novel id in {novel_key}"))?;
 
-	// The novel's own detail page — used as the Referer for every
-	// request below, matching how a real visitor would actually arrive
-	// at the chapter list (by clicking through from that page).
+	// The novel's own detail page — used as the Referer for page 1,
+	// matching how a real visitor would actually arrive at the chapter
+	// list (by clicking through from that page). Later pages chain their
+	// Referer forward from there instead (see `referer` below).
 	let novel_referer = format!("{BASE_URL}{novel_key}");
 
 	// Local to this one call — never persisted, never used outside
@@ -374,6 +382,15 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 
 	let mut pages: Vec<Option<Vec<ChapterEntry>>> = (0..pages_count).map(|_| None).collect();
 	pages[0] = Some(first_data.chapters);
+
+	// Chains forward through our own fetch order (page 1, then oldest to
+	// newest) instead of a fixed value, so each request's Referer is
+	// whichever page we ourselves fetched immediately before it — the
+	// same idea as novel_referer above, just carried through the rest of
+	// the list. Naturally collapses to true page-by-page chaining at a
+	// batch size of 1, or batch-to-batch chaining at any larger size,
+	// without needing separate logic for either case.
+	let mut referer = first_url.clone();
 
 	// Oldest page (highest number) first.
 	let page_numbers: Vec<i32> = (2..=pages_count).rev().collect();
@@ -402,7 +419,7 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 			let mut still_pending = Vec::new();
 			for &page in &pending {
 				let url = format!("{BASE_URL}/chapters/{novel_id}/page/{page}/");
-				match build_chapter_request(&url, &novel_referer, &cf_cookie) {
+				match build_chapter_request(&url, &referer, &cf_cookie) {
 					Ok(req) => {
 						sent_pages.push(page);
 						reqs.push(req);
@@ -441,6 +458,12 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 		// later successful page can't create a gap.
 		if !pending.is_empty() {
 			break;
+		}
+		// This chunk fully succeeded — chain the next one's Referer from
+		// its last (lowest-numbered) page, the one closest to whichever
+		// page comes next in our fetch order.
+		if let Some(&last_page) = chunk.last() {
+			referer = format!("{BASE_URL}/chapters/{novel_id}/page/{last_page}/");
 		}
 	}
 
