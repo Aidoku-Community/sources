@@ -2,7 +2,7 @@ use aidoku::{
 	Chapter, ContentRating, HomeComponent, HomeComponentValue, Link, LinkValue, Listing, Manga,
 	MangaStatus, Result,
 	alloc::{String, Vec, string::ToString},
-	imports::{html::Document, net::Request, std::parse_date},
+	imports::{html::Document, net::{Request, Response}, std::parse_date},
 	prelude::*,
 };
 
@@ -37,8 +37,27 @@ pub fn parse_chapter_path(path: &str) -> Option<(String, String)> {
 	Some((slug.to_string(), novel_id.to_string()))
 }
 
+const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 \
+	(KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+
+fn check_for_cf_challenge(response: &Response) -> Result<()> {
+	if response.status_code() == 403
+		&& response
+			.get_header("cf-mitigated")
+			.is_some_and(|value| value == "challenge")
+	{
+		bail!("Blocked by the site's bot protection (Cloudflare challenge)");
+	}
+	Ok(())
+}
+
 pub fn request_html(url: &str) -> Result<Document> {
-	Ok(Request::get(url)?.html()?)
+	let response = Request::get(url)?
+		.header("User-Agent", USER_AGENT)
+		.header("Referer", BASE_URL)
+		.send()?;
+	check_for_cf_challenge(&response)?;
+	response.get_html()
 }
 
 /// Extracts the numeric novel id from a manga key of the form
@@ -193,40 +212,44 @@ fn extract_data_blob(html: &Document) -> Result<ChapterListData> {
 /// (likely rate-limited/blocked), returning only a handful of pages
 /// instead of the full list. Batching keeps most of the speed benefit
 /// over one-at-a-time while being much gentler on the site. This number
-/// is a starting guess, not confirmed as optimal — may need tuning based
-/// on further testing.
-const CHAPTER_PAGE_BATCH_SIZE: usize = 10;
+/// is a starting guess, not confirmed as optimal — currently being tuned
+/// down from 10 to test whether smaller batches reduce how often the
+/// site starts blocking mid-list.
+const CHAPTER_PAGE_BATCH_SIZE: usize = 5;
 
 /// How many extra attempts a still-failing page within a batch gets
 /// before being given up on. Real testing showed the number of pages
 /// that fail varies between runs (5, 10, 9 failures across three
 /// attempts for the same novel) rather than being consistent, which
 /// points to transient/flaky failures rather than a hard, deterministic
-/// block — so retrying is worth it, not just batching.
-const CHAPTER_PAGE_MAX_RETRIES: u32 = 3;
+/// block — so retrying is worth it, not just batching. Being tuned up
+/// from 3 to test whether more retries recover more transient failures;
+/// worth watching whether this instead makes a *sustained* block (once
+/// triggered, stays blocked for a while) last longer by adding more
+/// requests on top of it.
+const CHAPTER_PAGE_MAX_RETRIES: u32 = 5;
 
-/// Fetches every page of `/chapters/{id}/`, concatenating the `chapters`
-/// arrays in page order (page 1 first, then page 2, etc.).
-///
-/// Confirmed newest-first (page 1 starts with the most recent chapter).
+/// Fetches every page of `/chapters/{id}/` and returns chapters in
+/// newest-to-oldest order.
 ///
 /// Page 1 is fetched alone first since it's the only way to learn
-/// `pages_count`. Remaining pages are sent in small concurrent batches
-/// (`Request::send_all`) rather than one at a time — for a long-running
-/// novel like Shadow Slave (125 pages), 125 *sequential* requests risked
-/// exceeding a reasonable load timeout, which matched a real report of
-/// chapters silently coming back empty for novels with many pages while
-/// short novels worked fine. Sending everything as a single giant batch
-/// instead of sequential was tried first but was too aggressive (see
-/// CHAPTER_PAGE_BATCH_SIZE). Pages that still fail within a batch are
-/// retried a few times (see CHAPTER_PAGE_MAX_RETRIES) rather than
-/// dropped immediately, since failures observed in testing were
-/// inconsistent between attempts on the same novel.
+/// `pages_count`. Remaining pages are then requested **oldest-first**
+/// (highest page number first) in small concurrent batches
+/// (`Request::send_all`), with a few retries per batch — for a
+/// long-running novel like Shadow Slave (125 pages), sequential
+/// one-at-a-time requests risked exceeding a reasonable load timeout, and
+/// sending everything as one giant batch was too aggressive (see
+/// CHAPTER_PAGE_BATCH_SIZE).
 ///
-/// Each page's chapters are written into an indexed slot (rather than
-/// appended as responses/retries happen to complete) so the final order
-/// always matches page order, even when a page only succeeds on a later
-/// retry after later pages have already come back.
+/// The oldest-first order matters for graceful degradation: if the site
+/// starts blocking partway through (observed in testing — pagination and
+/// even other novels' chapter lists stopped working mid-session after
+/// heavy use), the pages fetched *before* the block hit are kept, and
+/// everything after the first gap is discarded rather than returned with
+/// a hole in the middle. Page 1's newest chapters are only included if
+/// every other page also succeeded — an isolated newest chapter far
+/// removed from an otherwise-incomplete list would be a more confusing
+/// reading experience than simply not showing it yet.
 pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let novel_id = novel_id_from_key(novel_key)
 		.ok_or_else(|| error!("Could not find novel id in {novel_key}"))?;
@@ -239,7 +262,8 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 	let mut pages: Vec<Option<Vec<ChapterEntry>>> = (0..pages_count).map(|_| None).collect();
 	pages[0] = Some(first_data.chapters);
 
-	let page_numbers: Vec<i32> = (2..=pages_count).collect();
+	// Oldest page (highest number) first.
+	let page_numbers: Vec<i32> = (2..=pages_count).rev().collect();
 
 	for chunk in page_numbers.chunks(CHAPTER_PAGE_BATCH_SIZE) {
 		let mut pending: Vec<i32> = chunk.to_vec();
@@ -253,7 +277,10 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 			let mut still_pending = Vec::new();
 			for &page in &pending {
 				let url = format!("{BASE_URL}/chapters/{novel_id}/page/{page}/");
-				match Request::get(&url) {
+				match Request::get(&url).map(|req| {
+					req.header("User-Agent", USER_AGENT)
+						.header("Referer", BASE_URL)
+				}) {
 					Ok(req) => {
 						sent_pages.push(page);
 						reqs.push(req);
@@ -275,13 +302,37 @@ pub fn fetch_chapter_list(novel_key: &str) -> Result<Vec<Chapter>> {
 
 			pending = still_pending;
 		}
-		// Any pages still pending after all retries are silently dropped —
-		// a partial chapter list is more useful than none at all.
+		// Any pages still pending after all retries stop the whole batch
+		// loop early below rather than being silently skipped over, so a
+		// later successful page can't create a gap.
+		if !pending.is_empty() {
+			break;
+		}
 	}
 
-	let entries = pages.into_iter().flatten().flatten();
+	// Walk backward from the last page (oldest chapters) and keep the
+	// contiguous run of successes; stop at the first gap.
+	let mut contiguous_from_end = Vec::new();
+	for page_index in (1..pages_count as usize).rev() {
+		if pages[page_index].is_none() {
+			break;
+		}
+		contiguous_from_end.push(page_index);
+	}
+	contiguous_from_end.reverse(); // ascending page order (oldest run, newest-of-the-run first)
 
-	Ok(entries
+	let complete = contiguous_from_end.len() == (pages_count as usize - 1);
+
+	let mut ordered_chapters: Vec<ChapterEntry> = Vec::new();
+	if complete {
+		ordered_chapters.extend(pages[0].take().unwrap_or_default());
+	}
+	for page_index in contiguous_from_end {
+		ordered_chapters.extend(pages[page_index].take().unwrap_or_default());
+	}
+
+	Ok(ordered_chapters
+		.into_iter()
 		.map(|entry| {
 			let chapter_number = parse_chapter_number(&entry.title);
 			// entry.link is a full absolute url (confirmed against real
