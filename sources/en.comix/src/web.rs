@@ -89,16 +89,16 @@ impl ComixWebView {
 			Some(BASE_URL),
 		)?;
 		if self.find_functions().is_err() {
-			self.find_secure_module_src()?;
+			self.find_secure_module_src(&response)?;
 			self.find_functions()?;
 		}
 		self.is_initialized = true;
 		Ok(())
 	}
 
-	fn find_secure_module_src(&mut self) -> Result<()> {
-		let main_module_src = Request::get(BASE_URL)?
-			.html()?
+	fn find_secure_module_src(&mut self, response: &Response) -> Result<()> {
+		let main_module_src = response
+			.get_html()?
 			.select("head > script[type=\"module\"][src*=\"main\"]")
 			.and_then(|e| e.first())
 			.and_then(|e| e.attr("src"))
@@ -115,8 +115,8 @@ impl ComixWebView {
 				self.web_view.eval(&format!(
 					"(() => {{
 						import('{BASE_URL}{js_asset_path}{secure_script_path}')
-						.then((m) => window['vm'] = m)
-						.catch((e) => window['vm'] = {{}});
+							.then((m) => window['vm'] = m)
+							.catch((e) => window['vm'] = {{}});
 						return '';
 					}})()"
 				))?;
