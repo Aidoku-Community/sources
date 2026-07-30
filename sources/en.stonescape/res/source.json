@@ -1,0 +1,20 @@
+{
+	"info": {
+		"id": "en.stonescape",
+		"name": "StoneScape",
+		"version": 1,
+		"url": "https://stonescape.xyz",
+		"contentRating": 1,
+		"languages": ["en"]
+	},
+	"listings": [
+		{
+			"id": "popular",
+			"name": "Popular Series"
+		},
+		{
+			"id": "latest",
+			"name": "Latest Releases"
+		}
+	]
+}
