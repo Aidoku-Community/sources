@@ -1,10 +1,11 @@
 #![no_std]
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeLayout, Listing,
-	ListingProvider, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, Source,
+	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeLayout,
+	Listing, ListingProvider, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
+	Source, Viewer,
 	alloc::{String, Vec, format},
-	imports::net::Request,
+	imports::{net::Request, std::send_partial_result},
 	prelude::*,
 };
 
@@ -23,12 +24,19 @@ fn parse_chapter_number(title: &str) -> Option<f32> {
 fn extract_meta_value(text: &str, label: &str) -> String {
 	if let Some(pos) = text.find(label) {
 		let after = &text[pos + label.len()..];
-		let end = after
-			.find(['\n', '.', '•', ':'])
-			.unwrap_or(after.len());
+		let end = after.find(['\n', '.', '•', ':']).unwrap_or(after.len());
 		String::from(after[..end].trim())
 	} else {
 		String::new()
+	}
+}
+
+fn content_rating_from_tags(tags: &[String]) -> ContentRating {
+	const NSFW_TAGS: &[&str] = &["Adult", "Mature", "Smut"];
+	if tags.iter().any(|tag| NSFW_TAGS.contains(&tag.as_str())) {
+		ContentRating::NSFW
+	} else {
+		ContentRating::Safe
 	}
 }
 
@@ -69,7 +77,6 @@ impl Source for Hennoveltranslations {
 							title,
 							cover,
 							url: Some(href),
-							status: MangaStatus::Ongoing,
 							..Default::default()
 						});
 					}
@@ -100,8 +107,7 @@ impl Source for Hennoveltranslations {
 			manga.description = html
 				.select(".novel-content, .entry-content")
 				.and_then(|el| el.text());
-			manga.url = Some(url.clone());
-			manga.status = MangaStatus::Ongoing;
+			manga.url = Some(url);
 
 			manga.cover = html
 				.select_first(".novel-content img, .wp-post-image")
@@ -111,6 +117,12 @@ impl Source for Hennoveltranslations {
 				.select(".custom-fields, .novel-content")
 				.and_then(|el| el.text())
 				.unwrap_or_default();
+
+			manga.status = match extract_meta_value(&meta_text, "Status:").as_str() {
+				"Completed" => MangaStatus::Completed,
+				"Ongoing" => MangaStatus::Ongoing,
+				_ => MangaStatus::Unknown,
+			};
 
 			let author = extract_meta_value(&meta_text, "Author:");
 			if !author.is_empty() {
@@ -123,7 +135,19 @@ impl Source for Hennoveltranslations {
 					.split(',')
 					.map(|s| String::from(s.trim()))
 					.collect();
+				manga.content_rating = content_rating_from_tags(&tags);
 				manga.tags = Some(tags);
+			} else {
+				manga.content_rating = ContentRating::Unknown;
+			}
+
+			let type_str = extract_meta_value(&meta_text, "Type:");
+			if type_str.to_lowercase().contains("manhwa") {
+				manga.viewer = Viewer::Webtoon;
+			}
+
+			if needs_chapters {
+				send_partial_result(&manga);
 			}
 		}
 
@@ -131,23 +155,25 @@ impl Source for Hennoveltranslations {
 			let mut chapters = Vec::new();
 
 			if let Some(free_list) = html.select(".episode-list2")
-				&& let Some(links) = free_list.select("a") {
-					for node in links {
-						if let Some(chapter_url) = node.attr("href")
-							&& chapter_url.contains("/archives/episodes/") {
-								let title = node.text().unwrap_or_default();
-								let key = chapter_url.replace(BASE_URL, "");
+				&& let Some(links) = free_list.select("a")
+			{
+				for node in links {
+					if let Some(chapter_url) = node.attr("href")
+						&& chapter_url.contains("/archives/episodes/")
+					{
+						let title = node.text().unwrap_or_default();
+						let key = chapter_url.replace(BASE_URL, "");
 
-								chapters.push(Chapter {
-									key,
-									title: Some(String::from(&title)),
-									chapter_number: parse_chapter_number(&title),
-									url: Some(chapter_url),
-									..Default::default()
-								});
-							}
+						chapters.push(Chapter {
+							key,
+							title: Some(String::from(&title)),
+							chapter_number: parse_chapter_number(&title),
+							url: Some(chapter_url),
+							..Default::default()
+						});
 					}
 				}
+			}
 
 			println!("  Chapters found: {}", chapters.len());
 			manga.chapters = Some(chapters);
@@ -180,25 +206,28 @@ impl Source for Hennoveltranslations {
 		}
 
 		if let Some(content) = html.select(".episode-content")
-			&& let Some(elements) = content.select("p") {
-				for p in elements {
-					let text = p.text().unwrap_or_default();
-					if !text.is_empty() {
-						paragraphs.push(text);
-					}
+			&& let Some(elements) = content.select("p")
+		{
+			for p in elements {
+				let text = p.text().unwrap_or_default();
+				if !text.is_empty() {
+					paragraphs.push(text);
 				}
 			}
+		}
 
-		if paragraphs.len() <= 1 && !subheading.is_empty()
+		if paragraphs.len() <= 1
+			&& !subheading.is_empty()
 			&& let Some(content) = html.select(".entry-content, .reading-content")
-				&& let Some(elements) = content.select("p") {
-					for p in elements {
-						let text = p.text().unwrap_or_default();
-						if !text.is_empty() {
-							paragraphs.push(text);
-						}
-					}
+			&& let Some(elements) = content.select("p")
+		{
+			for p in elements {
+				let text = p.text().unwrap_or_default();
+				if !text.is_empty() {
+					paragraphs.push(text);
 				}
+			}
+		}
 
 		if paragraphs.len() <= 1 {
 			let fallback = html
@@ -238,8 +267,34 @@ impl Home for Hennoveltranslations {
 }
 
 impl DeepLinkHandler for Hennoveltranslations {
-	fn handle_deep_link(&self, _url: String) -> Result<Option<DeepLinkResult>> {
-		bail!("Deep linking not implemented")
+	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
+		let path = url
+			.split(['?', '#'])
+			.next()
+			.unwrap_or(&url)
+			.strip_prefix(&format!("{}/", BASE_URL))
+			.unwrap_or("");
+
+		if let Some(slug) = path.strip_prefix("archives/novels/")
+			&& !slug.is_empty()
+		{
+			let key = String::from(slug.trim_end_matches('/'));
+			return Ok(Some(DeepLinkResult::Manga { key }));
+		}
+
+		if let Some(episode_path) = path.strip_prefix("archives/episodes/")
+			&& !episode_path.is_empty()
+		{
+			let key = String::from(episode_path.trim_end_matches('/'));
+			let chapter_key = format!("/archives/episodes/{}", key);
+			let manga_key = String::new();
+			return Ok(Some(DeepLinkResult::Chapter {
+				manga_key,
+				key: chapter_key,
+			}));
+		}
+
+		Ok(None)
 	}
 }
 
