@@ -38,17 +38,15 @@ impl Source for StoneScape {
 
 		for filter in filters {
 			match filter {
-				FilterValue::Select { id, value } => {
-					if id == "status" && !value.is_empty() {
-						url.push_str("&status=");
-						url.push_str(&value);
-					}
+				FilterValue::Select { id, value } if id == "status" && !value.is_empty() => {
+					url.push_str("&status=");
+					url.push_str(&value);
 				}
-				FilterValue::MultiSelect { id, included, .. } => {
-					if id == "genres" && !included.is_empty() {
-						url.push_str("&genres=");
-						url.push_str(&included.join(","));
-					}
+				FilterValue::MultiSelect { id, included, .. }
+					if id == "genres" && !included.is_empty() =>
+				{
+					url.push_str("&genres=");
+					url.push_str(&included.join(","));
 				}
 				_ => {}
 			}
