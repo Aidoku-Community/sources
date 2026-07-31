@@ -1,9 +1,10 @@
 #![no_std]
 
+mod helper;
+
 use aidoku::{
-	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeLayout,
-	Listing, ListingProvider, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
-	Source, Viewer,
+	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Manga, MangaPageResult,
+	MangaStatus, Page, PageContent, Result, Source, Viewer,
 	alloc::{String, Vec, format},
 	imports::{net::Request, std::send_partial_result},
 	prelude::*,
@@ -12,33 +13,6 @@ use aidoku::{
 struct Hennoveltranslations;
 
 const BASE_URL: &str = "https://hennoveltranslations.com";
-
-fn parse_chapter_number(title: &str) -> Option<f32> {
-	let words: Vec<&str> = title.split_whitespace().collect();
-	if let Some(last) = words.last() {
-		return last.parse::<f32>().ok();
-	}
-	None
-}
-
-fn extract_meta_value(text: &str, label: &str) -> String {
-	if let Some(pos) = text.find(label) {
-		let after = &text[pos + label.len()..];
-		let end = after.find(['\n', '.', '•', ':']).unwrap_or(after.len());
-		String::from(after[..end].trim())
-	} else {
-		String::new()
-	}
-}
-
-fn content_rating_from_tags(tags: &[String]) -> ContentRating {
-	const NSFW_TAGS: &[&str] = &["Adult", "Mature", "Smut"];
-	if tags.iter().any(|tag| NSFW_TAGS.contains(&tag.as_str())) {
-		ContentRating::NSFW
-	} else {
-		ContentRating::Safe
-	}
-}
 
 impl Source for Hennoveltranslations {
 	fn new() -> Self {
@@ -52,14 +26,20 @@ impl Source for Hennoveltranslations {
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let url = format!("{}/archives/novels", BASE_URL);
-		println!("Fetching novel list: {}", url);
 		let html = Request::get(&url)?.html()?;
 		let mut entries = Vec::new();
+
+		let query_lower = _query.as_deref().map(|q| q.to_lowercase());
 
 		if let Some(articles) = html.select("article.novels") {
 			for article in articles {
 				if let Some(link) = article.select_first(".entry-title a") {
 					let title = link.text().unwrap_or_default();
+					if let Some(ref q) = query_lower
+						&& !title.to_lowercase().contains(q.as_str())
+					{
+						continue;
+					}
 					if let Some(href) = link.attr("href") {
 						let key = String::from(
 							href.replace(&format!("{}/archives/novels/", BASE_URL), "")
@@ -69,8 +49,6 @@ impl Source for Hennoveltranslations {
 						let cover = article
 							.select_first(".post-image img")
 							.and_then(|img| img.attr("src"));
-
-						println!("  Novel: {} -> {}", title, key);
 
 						entries.push(Manga {
 							key,
@@ -118,30 +96,30 @@ impl Source for Hennoveltranslations {
 				.and_then(|el| el.text())
 				.unwrap_or_default();
 
-			manga.status = match extract_meta_value(&meta_text, "Status:").as_str() {
+			manga.status = match helper::extract_meta_value(&meta_text, "Status:").as_str() {
 				"Completed" => MangaStatus::Completed,
 				"Ongoing" => MangaStatus::Ongoing,
 				_ => MangaStatus::Unknown,
 			};
 
-			let author = extract_meta_value(&meta_text, "Author:");
+			let author = helper::extract_meta_value(&meta_text, "Author:");
 			if !author.is_empty() {
 				manga.authors = Some(Vec::from([author]));
 			}
 
-			let genre_str = extract_meta_value(&meta_text, "Genre:");
+			let genre_str = helper::extract_meta_value(&meta_text, "Genre:");
 			if !genre_str.is_empty() {
 				let tags: Vec<String> = genre_str
 					.split(',')
 					.map(|s| String::from(s.trim()))
 					.collect();
-				manga.content_rating = content_rating_from_tags(&tags);
+				manga.content_rating = helper::content_rating_from_tags(&tags);
 				manga.tags = Some(tags);
 			} else {
 				manga.content_rating = ContentRating::Unknown;
 			}
 
-			let type_str = extract_meta_value(&meta_text, "Type:");
+			let type_str = helper::extract_meta_value(&meta_text, "Type:");
 			if type_str.to_lowercase().contains("manhwa") {
 				manga.viewer = Viewer::Webtoon;
 			}
@@ -167,7 +145,7 @@ impl Source for Hennoveltranslations {
 						chapters.push(Chapter {
 							key,
 							title: Some(String::from(&title)),
-							chapter_number: parse_chapter_number(&title),
+							chapter_number: helper::parse_chapter_number(&title),
 							url: Some(chapter_url),
 							..Default::default()
 						});
@@ -175,7 +153,7 @@ impl Source for Hennoveltranslations {
 				}
 			}
 
-			println!("  Chapters found: {}", chapters.len());
+			// println!("  Chapters found: {}", chapters.len());
 			manga.chapters = Some(chapters);
 		}
 
@@ -184,14 +162,14 @@ impl Source for Hennoveltranslations {
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = format!("{}{}", BASE_URL, chapter.key);
-		println!("  Loading page: {}", url);
+		// println!("  Loading page: {}", url);
 		let html = Request::get(&url)?.html()?;
 
 		let is_paywalled = html
 			.select(".patreon-locked-content-message")
 			.is_some_and(|el| !el.is_empty());
 
-		println!("  Paywalled: {}", is_paywalled);
+		// println!("  Paywalled: {}", is_paywalled);
 
 		let subheading = html
 			.select(".episode-content h2")
@@ -210,9 +188,7 @@ impl Source for Hennoveltranslations {
 		{
 			for p in elements {
 				let text = p.text().unwrap_or_default();
-				if !text.is_empty() {
-					paragraphs.push(text);
-				}
+				helper::push_paragraph(&mut paragraphs, text);
 			}
 		}
 
@@ -223,9 +199,7 @@ impl Source for Hennoveltranslations {
 		{
 			for p in elements {
 				let text = p.text().unwrap_or_default();
-				if !text.is_empty() {
-					paragraphs.push(text);
-				}
+				helper::push_paragraph(&mut paragraphs, text);
 			}
 		}
 
@@ -245,24 +219,12 @@ impl Source for Hennoveltranslations {
 			));
 		}
 
-		let text_content = paragraphs.join("\n\n");
+		let text_content = paragraphs.join("\n&nbsp;\n");
 
 		Ok(Vec::from([Page {
 			content: PageContent::Text(text_content),
 			..Default::default()
 		}]))
-	}
-}
-
-impl ListingProvider for Hennoveltranslations {
-	fn get_manga_list(&self, _listing: Listing, _page: i32) -> Result<MangaPageResult> {
-		self.get_search_manga_list(None, 1, Vec::new())
-	}
-}
-
-impl Home for Hennoveltranslations {
-	fn get_home(&self) -> Result<HomeLayout> {
-		bail!("Home page not implemented")
 	}
 }
 
@@ -298,4 +260,4 @@ impl DeepLinkHandler for Hennoveltranslations {
 	}
 }
 
-register_source!(Hennoveltranslations, ListingProvider, Home, DeepLinkHandler);
+register_source!(Hennoveltranslations, DeepLinkHandler);
