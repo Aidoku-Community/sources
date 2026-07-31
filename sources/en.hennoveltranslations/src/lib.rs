@@ -219,7 +219,7 @@ impl Source for Hennoveltranslations {
 			));
 		}
 
-		let text_content = paragraphs.join("\n&nbsp;\n");
+		let text_content = paragraphs.join("\n\n&nbsp;\n\n");
 
 		Ok(Vec::from([Page {
 			content: PageContent::Text(text_content),

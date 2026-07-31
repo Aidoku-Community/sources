@@ -35,7 +35,7 @@ pub fn push_paragraph(paragraphs: &mut Vec<String>, text: String) {
 		return;
 	}
 	if text.trim().chars().all(|c| c == '*') {
-		paragraphs.push(String::from("* * *"));
+		paragraphs.push(String::from("\\ \\ \\"));
 	} else {
 		paragraphs.push(text);
 	}
