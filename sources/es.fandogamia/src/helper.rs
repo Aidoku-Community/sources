@@ -42,7 +42,7 @@ pub fn fetch_series_list() -> Result<Vec<Manga>> {
 
 	let mut series_links = html
 		.select(".series_div a")
-		.ok_or_else(|| AidokuError::message("No se ha encontrado la lista de series"))?;
+		.ok_or_else(|| error!("Series list not found."))?;
 	series_links.next();
 
 	let covers = html

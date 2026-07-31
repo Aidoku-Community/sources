@@ -74,11 +74,11 @@ impl Source for Fandogamia {
 				.into_iter()
 				.find(|c| c.key == chapter.key)
 				.and_then(|c| c.url)
-				.ok_or_else(|| AidokuError::message("Falta la url de la tira"))?,
+				.ok_or_else(|| error!("Strip URL not found"))?,
 		};
 		let html = Request::get(url)?.html()?;
 		let image_url = parse_page_image_url(&html).ok_or_else(|| {
-			AidokuError::message("No se ha encontrado la imagen de la tira en la página")
+			error!("Strip URL not found in page")
 		})?;
 
 		Ok(vec![Page {
