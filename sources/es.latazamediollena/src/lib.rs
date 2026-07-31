@@ -71,7 +71,7 @@ impl Source for Latazamediollena {
 			.unwrap_or_else(|| format!("{BASE_URL}/comic/{}/", chapter.key));
 		let html = Request::get(url)?.html()?;
 		let image_url = parse_page_image_url(&html).ok_or_else(|| {
-			AidokuError::message("No se ha encontrado la imagen de la tira en la página")
+			error!("No se ha encontrado la imagen de la tira en la página")
 		})?;
 
 		Ok(vec![Page {
