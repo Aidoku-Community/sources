@@ -38,11 +38,12 @@ const FETCH_TIMEOUT_RESPONSE: &str =
 const JS_PATCHER: &str = "<head>\
 <script>window['__AIDOKU_CANVAS_TO_DATA_URL_TOKEN__'] = HTMLCanvasElement.prototype.toDataURL;</script>";
 
+const CF_CHALLENGE_HTML_ERROR_MESSAGE: &str = "Response returned CF challenge page. If problem persist, please clear the source cache and restart the application to resolve this issue.";
 const CF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned CF challenge page instead of JSON data. If problem persist, please clear the source cache and restart the application to resolve this issue.";
 
 const WAF_CHALLENGE_KEY: &str = "captcha_required";
-const WAF_CHALLENGE_HTML_ERROR_MESSAGE: &str = "Response returned WAF challenge page. Please goto Comix Settings and Verify Captcha to resolve this issue.";
-const WAF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned WAF challenge page instead of JSON data. Please goto Comix Settings and Verify Captcha to resolve this issue.";
+const WAF_CHALLENGE_HTML_ERROR_MESSAGE: &str = "Response returned WAF challenge page. Please open Comix Settings and Verify Captcha to resolve this issue.";
+const WAF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned WAF challenge page instead of JSON data. Please open Comix Settings and Verify Captcha to resolve this issue.";
 
 #[derive(Deserialize)]
 struct AxiosRequest {
@@ -73,7 +74,17 @@ impl ComixWebView {
 		let request = create_request_get(BASE_URL)?;
 		let response = request.send()?;
 
-		if response
+		let status_code = response.status_code();
+
+		if status_code == 403
+			&& response
+				.get_header("cf-mitigated")
+				.is_some_and(|value| value == "challenge")
+		{
+			bail!("{CF_CHALLENGE_HTML_ERROR_MESSAGE}")
+		} else if status_code >= 400 {
+			bail!("Response Error: {}", response.status_code())
+		} else if response
 			.get_html()?
 			.select_first("head > title")
 			.is_some_and(|e| e.text().is_some_and(|t| t == "Security check"))

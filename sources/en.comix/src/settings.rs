@@ -12,7 +12,7 @@ const HIDDEN_TYPES_KEY: &str = "hiddenTypes";
 const HIDDEN_GENRES_KEY: &str = "hiddenGenres";
 const HIDDEN_THEMES_KEY: &str = "hiddenThemes";
 
-const VERIFY_KEY: &str = "verify";
+pub const VERIFY_KEY: &str = "verify";
 
 pub fn hide_nsfw() -> bool {
 	defaults_get::<bool>(HIDE_NSFW_KEY).unwrap_or(true)

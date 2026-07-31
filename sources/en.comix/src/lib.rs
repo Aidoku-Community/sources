@@ -22,6 +22,7 @@ mod settings;
 mod web;
 
 use crate::helpers::create_request_get;
+use crate::settings::VERIFY_KEY;
 use models::*;
 use web::*;
 
@@ -604,7 +605,7 @@ const VERIFY_COOKIE_KEY: &str = "waf_pass";
 
 impl WebLoginHandler for Comix {
 	fn handle_web_login(&self, key: String, cookies: HashMap<String, String>) -> Result<bool> {
-		if key == "verify" {
+		if key == VERIFY_KEY {
 			// This is verifying button not to be confused with actual login button.
 			// We need to intercept waf_pass cookie so that we can pass the checks.
 			// This will not log you in even if you do the login page afterward.
