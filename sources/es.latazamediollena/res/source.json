@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "es.eslatazamediollena",
+		"name": "La Taza Medio Llena",
+		"version": 1,
+		"url": "https://www.latazamediollena.es/",
+		"contentRating": 0,
+		"languages": [
+			"es"
+		],
+		"minAppVersion": "0.7.1"
+	}
+}
