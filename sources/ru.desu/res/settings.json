@@ -1,6 +1,20 @@
 [
 	{
 		"type": "group",
+		"title": "Аккаунт",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"title": "Войти",
+				"notification": "login",
+				"method": "basic",
+				"refreshes": ["settings", "content", "listings"]
+			}
+		]
+	},
+	{
+		"type": "group",
 		"title": "Settings",
 		"items": [
 			{
