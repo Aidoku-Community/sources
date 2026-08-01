@@ -1,72 +1,115 @@
-use crate::models::{DesuItem, DesuResponse};
+use crate::models::{
+	DesuChapter, DesuChapterResponse, DesuChaptersResponse, DesuError, DesuItem, DesuListResponse,
+	DesuMangaResponse,
+};
 use crate::settings::domain;
 use aidoku::helpers::uri::QueryParameters;
 use aidoku::imports::net::Request;
 use aidoku::{FilterValue, Result, alloc::String, error};
+use alloc::format;
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use alloc::{format, vec};
 
-pub const PAGE_SIZE: usize = 20;
+pub const PAGE_SIZE: i32 = 10;
 
 pub fn get_base_url() -> String {
 	format!("https://{}", domain())
 }
 
 pub fn get_base_api_url() -> String {
-	format!("https://{}/manga/api", domain())
+	format!("https://{}/api/manga", domain())
 }
 
 pub fn apply_headers(request: Request) -> Request {
 	request
 		.header("User-Agent", "Aidoku")
 		.header("Referer", get_base_url().as_str())
+		.header("Accept", "application/json")
+}
+
+fn format_errors(errors: Option<Vec<DesuError>>) -> String {
+	errors
+		.map(|errs| {
+			errs.into_iter()
+				.filter_map(|e| e.message.or(e.code))
+				.collect::<Vec<_>>()
+				.join("; ")
+		})
+		.filter(|s| !s.is_empty())
+		.unwrap_or_else(|| String::from("unknown error"))
 }
 
 pub fn fetch_by_id(id: &str) -> Result<DesuItem> {
 	let url = format!("{}/{}", get_base_api_url(), id);
-	let response = apply_headers(Request::get(url)?).json_owned::<DesuResponse<DesuItem>>()?;
+	let response = apply_headers(Request::get(url)?).json_owned::<DesuMangaResponse>()?;
 
-	if let Some(err) = response.error {
-		Err(error!("Failed to fetch \"{}\": {}", id, err))
-	} else if let Some(res) = response.response {
+	if let Some(res) = response.manga {
 		Ok(res)
 	} else {
-		Err(error!("Failed to fetch \"{}\"", id))
+		Err(error!(
+			"Failed to fetch \"{}\": {}",
+			id,
+			format_errors(response.errors)
+		))
 	}
 }
 
-pub fn fetch_chapter(item_id: &str, id: &str) -> Result<DesuItem> {
-	let url = format!("{}/{}/chapter/{}", get_base_api_url(), item_id, id);
-	let response = apply_headers(Request::get(url)?).json_owned::<DesuResponse<DesuItem>>()?;
+pub fn fetch_chapters(id: &str) -> Result<Vec<DesuChapter>> {
+	let url = format!("{}/{}/chapters", get_base_api_url(), id);
+	let response = apply_headers(Request::get(url)?).json_owned::<DesuChaptersResponse>()?;
 
-	if let Some(err) = response.error {
-		Err(error!("Failed to fetch \"{}/ch/{}\": {}", item_id, id, err))
-	} else if let Some(res) = response.response {
-		Ok(res)
+	if let Some(chapters) = response.chapters {
+		Ok(chapters)
 	} else {
-		Err(error!("Failed to fetch \"{}/ch/{}\"", item_id, id))
+		Err(error!(
+			"Failed to fetch chapters for \"{}\": {}",
+			id,
+			format_errors(response.errors)
+		))
 	}
 }
 
-pub fn search(
-	query: Option<String>,
-	page: i32,
-	filters: Vec<FilterValue>,
-) -> Result<Vec<DesuItem>> {
+pub fn fetch_chapter_pages(manga_id: &str, chapter_id: &str) -> Result<Vec<String>> {
+	let url = format!(
+		"{}/{}/chapters/{}",
+		get_base_api_url(),
+		manga_id,
+		chapter_id
+	);
+	let response = apply_headers(Request::get(url)?).json_owned::<DesuChapterResponse>()?;
+
+	if let Some(chapter) = response.chapter {
+		Ok(chapter
+			.pages
+			.unwrap_or_default()
+			.into_iter()
+			.filter_map(|p| p.url)
+			.collect())
+	} else {
+		Err(error!(
+			"Failed to fetch pages for \"{}/{}\": {}",
+			manga_id,
+			chapter_id,
+			format_errors(response.errors)
+		))
+	}
+}
+
+pub struct SearchResult {
+	pub entries: Vec<DesuItem>,
+	pub has_next_page: bool,
+}
+
+pub fn search(query: Option<String>, page: i32, filters: Vec<FilterValue>) -> Result<SearchResult> {
 	let mut params = QueryParameters::new();
-
-	params.push("limit", Some(PAGE_SIZE.to_string().as_str()));
-	if page > 1 {
-		params.push("page", Some(page.to_string().as_str()));
-	}
+	params.push("page", Some(page.to_string().as_str()));
 
 	if let Some(q) = query {
 		params.push("search", Some(q.as_str()));
 	}
 
-	let mut order = "updated"; // "по обновлению" (idx: 3), default
-	let mut genres: Vec<String> = vec![];
+	let mut order = "updated";
+	let mut genres: Vec<String> = Vec::new();
 	for filter in filters {
 		match filter {
 			FilterValue::Sort { index, .. } => {
@@ -82,33 +125,47 @@ pub fn search(
 				included,
 				excluded,
 			} => {
-				let v: Vec<_> = included
+				let values: Vec<_> = included
 					.into_iter()
-					.chain(excluded.into_iter().map(|x| format!("!{}", x.as_str())))
+					.chain(excluded.into_iter().map(|x| format!("!{x}")))
 					.collect();
 				if id.eq("genres") || id.eq("tags") {
-					genres.extend(v)
-				} else {
-					params.push(&id, Some(&v.join(",")))
+					genres.extend(values);
+				} else if !values.is_empty() {
+					params.push(&id, Some(&values.join(",")));
 				}
 			}
 			FilterValue::Select { id, value } => params.push(&id, Some(&value)),
 			_ => continue,
 		}
 	}
-	params.push("order", Some(order));
+	params.push("order_by", Some(order));
 	if !genres.is_empty() {
-		params.push("genres", Some(&genres.join(",")))
+		params.push("genres", Some(&genres.join(",")));
 	}
 
-	let url = format!("{}/?{}", get_base_api_url(), params);
-	let response = apply_headers(Request::get(url)?).json_owned::<DesuResponse<Vec<DesuItem>>>()?;
+	let url = format!("{}?{}", get_base_api_url(), params);
+	let response = apply_headers(Request::get(url)?).json_owned::<DesuListResponse>()?;
 
-	if let Some(err) = response.error {
-		Err(error!("Failed to run search: {}", err))
-	} else if let Some(res) = response.response {
-		Ok(res)
+	if let Some(mangas) = response.mangas {
+		let has_next_page = response
+			.pagination
+			.as_ref()
+			.and_then(|p| {
+				let current = p.current_page?;
+				let last = p.last_page?;
+				Some(current < last)
+			})
+			.unwrap_or(mangas.len() as i32 >= PAGE_SIZE);
+
+		Ok(SearchResult {
+			entries: mangas,
+			has_next_page,
+		})
 	} else {
-		Err(error!("Failed to run search: unknown error"))
+		Err(error!(
+			"Failed to run search: {}",
+			format_errors(response.errors)
+		))
 	}
 }

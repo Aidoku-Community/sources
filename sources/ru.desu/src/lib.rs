@@ -5,8 +5,11 @@ mod helpers;
 mod models;
 mod settings;
 
-use crate::helpers::{apply_headers, fetch_by_id, fetch_chapter, get_base_url, search};
+use crate::helpers::{
+	apply_headers, fetch_by_id, fetch_chapter_pages, fetch_chapters, get_base_url, search,
+};
 use aidoku::imports::net::{Request, TimeUnit, set_rate_limit};
+use aidoku::imports::std::send_partial_result;
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider, Manga,
 	MangaPageResult, Page, PageContent, PageContext, Result, Source,
@@ -19,7 +22,6 @@ struct Desu;
 
 impl Source for Desu {
 	fn new() -> Self {
-		// 3 req per 1 sec: https://desu.uno/help/api/
 		set_rate_limit(3, 1, TimeUnit::Seconds);
 		Self
 	}
@@ -30,11 +32,13 @@ impl Source for Desu {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		search(query, page, filters).map(|r| MangaPageResult {
-			has_next_page: r.len() >= helpers::PAGE_SIZE,
-			entries: r
+		let result = search(query, page, filters)?;
+		Ok(MangaPageResult {
+			has_next_page: result.has_next_page,
+			entries: result
+				.entries
 				.into_iter()
-				.map(|m| m.into_manga(None, true, false, false))
+				.map(|m| m.into_manga(None, true, false))
 				.collect(),
 		})
 	}
@@ -45,27 +49,37 @@ impl Source for Desu {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		fetch_by_id(manga.key.as_str())
-			.map(|x| x.into_manga(Some(manga), false, needs_details, needs_chapters))
+		let mut item = if needs_details {
+			fetch_by_id(manga.key.as_str())?.into_manga(Some(manga), false, true)
+		} else {
+			manga
+		};
+
+		if needs_chapters {
+			if needs_details {
+				send_partial_result(&item);
+			}
+			item.chapters = Some(
+				fetch_chapters(item.key.as_str())?
+					.into_iter()
+					.map(Chapter::from)
+					.collect(),
+			);
+		}
+
+		Ok(item)
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let pages = fetch_chapter(manga.key.as_str(), chapter.key.as_str())
-			.and_then(|s| {
-				s.pages
-					.and_then(|x| x.list)
-					.ok_or(error!("Chapter {} not found", chapter.key))
-			})?
-			.into_iter()
-			.filter_map(|p| {
-				p.img.map(|u| Page {
-					content: PageContent::url(u),
+		Ok(
+			fetch_chapter_pages(manga.key.as_str(), chapter.key.as_str())?
+				.into_iter()
+				.map(|url| Page {
+					content: PageContent::url(url),
 					..Page::default()
 				})
-			})
-			.collect();
-
-		Ok(pages)
+				.collect(),
+		)
 	}
 }
 
@@ -79,6 +93,11 @@ impl DeepLinkHandler for Desu {
 			.split('/')
 			.skip_while(|&s| s == "manga" || s == "api")
 			.find(|s| s.contains('.'))
+			.and_then(|s| s.rsplit_once('.').map(|(_, id)| id))
+			.or_else(|| {
+				path.split('/')
+					.find(|s| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()))
+			})
 			.ok_or(error!("Invalid URL"))?;
 
 		Ok(Some(DeepLinkResult::Manga {

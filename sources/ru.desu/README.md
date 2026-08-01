@@ -1,4 +1,4 @@
-### To update filters use following JS code in browser at [this page](https://desu.work/manga/):  
+### To update filters use following JS code in browser at [this page](https://desu.uno/manga/):  
 #### Note: this code will automatically copy a new filters JSON  
 
 ```js
@@ -46,7 +46,7 @@ result.push({
 temp = Array.from(getRoot('catalog-genres')).map(x => {
     let checkBox = x.querySelector('input[type="checkbox"]');
     let isTag = x.querySelector('span[class="filter-control-text"] > span')?.innerText == '#';
-    let id = checkBox.dataset.genreSlug;
+    let id = checkBox.dataset.genreId;
     let name = checkBox.dataset.genreName;
     return { id, name, isTag };
 });
