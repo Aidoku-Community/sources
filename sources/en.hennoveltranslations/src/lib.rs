@@ -3,8 +3,8 @@
 mod helper;
 
 use aidoku::{
-	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Manga, MangaPageResult,
-	MangaStatus, Page, PageContent, Result, Source, Viewer,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Manga, MangaPageResult, MangaStatus,
+	Page, PageContent, Result, Source, Viewer,
 	alloc::{String, Vec, format},
 	imports::{net::Request, std::send_partial_result},
 	prelude::*,
@@ -21,7 +21,7 @@ impl Source for Hennoveltranslations {
 
 	fn get_search_manga_list(
 		&self,
-		_query: Option<String>,
+		query: Option<String>,
 		_page: i32,
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
@@ -29,7 +29,7 @@ impl Source for Hennoveltranslations {
 		let html = Request::get(&url)?.html()?;
 		let mut entries = Vec::new();
 
-		let query_lower = _query.as_deref().map(|q| q.to_lowercase());
+		let query_lower = query.as_deref().map(|q| q.to_lowercase());
 
 		if let Some(articles) = html.select("article.novels") {
 			for article in articles {
@@ -115,8 +115,6 @@ impl Source for Hennoveltranslations {
 					.collect();
 				manga.content_rating = helper::content_rating_from_tags(&tags);
 				manga.tags = Some(tags);
-			} else {
-				manga.content_rating = ContentRating::Unknown;
 			}
 
 			let type_str = helper::extract_meta_value(&meta_text, "Type:");
@@ -153,7 +151,6 @@ impl Source for Hennoveltranslations {
 				}
 			}
 
-			// println!("  Chapters found: {}", chapters.len());
 			manga.chapters = Some(chapters);
 		}
 
@@ -162,14 +159,11 @@ impl Source for Hennoveltranslations {
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = format!("{}{}", BASE_URL, chapter.key);
-		// println!("  Loading page: {}", url);
 		let html = Request::get(&url)?.html()?;
 
 		let is_paywalled = html
 			.select(".patreon-locked-content-message")
 			.is_some_and(|el| !el.is_empty());
-
-		// println!("  Paywalled: {}", is_paywalled);
 
 		let subheading = html
 			.select(".episode-content h2")
