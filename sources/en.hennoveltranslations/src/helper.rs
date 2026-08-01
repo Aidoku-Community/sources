@@ -4,11 +4,7 @@ use aidoku::{
 };
 
 pub fn parse_chapter_number(title: &str) -> Option<f32> {
-	let words: Vec<&str> = title.split_whitespace().collect();
-	if let Some(last) = words.last() {
-		return last.parse::<f32>().ok();
-	}
-	None
+	title.split_whitespace().last()?.parse().ok()
 }
 
 pub fn extract_meta_value(text: &str, label: &str) -> String {
