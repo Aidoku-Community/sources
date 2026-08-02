@@ -1,0 +1,663 @@
+#![no_std]
+use aidoku::{
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider, Listing,
+	ListingProvider, Manga, MangaPageResult, MangaStatus, Page, PageContent, PageContext, Result,
+	Source, UpdateStrategy, Viewer,
+	alloc::{String, Vec, string::ToString},
+	helpers::uri::QueryParameters,
+	imports::{defaults::defaults_get, html::Document, net::Request, std::send_partial_result},
+	prelude::*,
+};
+
+mod helpers;
+
+use helpers::*;
+
+const BASE_URL: &str = "https://mangaraw.best";
+
+struct MangaRawBest;
+
+impl Source for MangaRawBest {
+	fn new() -> Self {
+		Self
+	}
+
+	fn get_search_manga_list(
+		&self,
+		query: Option<String>,
+		page: i32,
+		filters: Vec<FilterValue>,
+	) -> Result<MangaPageResult> {
+		let mut sort = SORT_VALUES[0];
+		let mut search_type = String::from("name");
+		let mut statuses: Vec<String> = Vec::new();
+		let mut included_genres: Vec<String> = Vec::new();
+		let mut excluded_genres: Vec<String> = Vec::new();
+
+		for filter in filters {
+			match filter {
+				FilterValue::Sort { index, .. } => {
+					if let Some(value) = SORT_VALUES.get(index as usize) {
+						sort = value;
+					}
+				}
+				FilterValue::Select { id, value } => {
+					if id == "search_type" {
+						search_type = value;
+					}
+				}
+				FilterValue::MultiSelect {
+					id,
+					included,
+					excluded,
+				} => match id.as_str() {
+					"status" => statuses = included,
+					"genre" => {
+						included_genres = included;
+						excluded_genres = excluded;
+					}
+					_ => {}
+				},
+				_ => {}
+			}
+		}
+
+		let mut qs = QueryParameters::new();
+		qs.push("sort", Some(sort));
+		qs.push("page", Some(&page.to_string()));
+
+		if let Some(query) = query.as_deref().map(str::trim).filter(|q| !q.is_empty()) {
+			qs.push(&format!("filter[{search_type}]"), Some(query));
+		}
+		if !statuses.is_empty() {
+			qs.push("filter[status]", Some(&statuses.join(",")));
+		}
+		if !included_genres.is_empty() {
+			qs.push("filter[accept_genres]", Some(&included_genres.join(",")));
+		}
+		if !excluded_genres.is_empty() {
+			qs.push("filter[reject_genres]", Some(&excluded_genres.join(",")));
+		}
+
+		self.fetch_manga_page(&qs.to_string(), page)
+	}
+
+	fn get_manga_update(
+		&self,
+		mut manga: Manga,
+		needs_details: bool,
+		needs_chapters: bool,
+	) -> Result<Manga> {
+		let manga_url = format!("{BASE_URL}/raw/{}", manga.key);
+		let html = Request::get(&manga_url)?.html()?;
+
+		if needs_details {
+			if let Some(title) = html.select_first("main h1").and_then(|el| el.text()) {
+				manga.title = title;
+			}
+			manga.cover = html
+				.select_first(".cover-frame img")
+				.and_then(|el| el.attr("abs:src"));
+			// The description lives in an inner .manga-pilot box whose paragraphs
+			// are nested in invalid markup, so read the container's joined text.
+			manga.description = html
+				.select_first(".manga-pilot .manga-pilot")
+				.and_then(|el| el.text())
+				.map(|text| text.trim().into())
+				.filter(|text: &String| !text.is_empty());
+			manga.url = Some(manga_url);
+
+			let tags = parse_tags(&html);
+			manga.content_rating = content_rating_from_tags(&tags);
+			manga.tags = (!tags.is_empty()).then_some(tags);
+
+			manga.status = parse_status(&html);
+			manga.update_strategy = match manga.status {
+				MangaStatus::Completed => UpdateStrategy::Never,
+				_ => UpdateStrategy::Always,
+			};
+
+			// Every series is a Japanese raw scan, so pages read right to left.
+			manga.viewer = Viewer::RightToLeft;
+
+			if needs_chapters {
+				send_partial_result(&manga);
+			}
+		}
+
+		if needs_chapters {
+			manga.chapters = Some(parse_chapters(&html));
+		}
+
+		Ok(manga)
+	}
+
+	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+		let url = format!("{BASE_URL}/raw/{}/{}", manga.key, chapter.key);
+		let html = Request::get(url)?.html()?;
+
+		let server = defaults_get::<String>("imageServer").unwrap_or_else(|| String::from("1"));
+
+		let pages = html
+			.select("img.chapter-image")
+			.map(|elements| {
+				elements
+					.filter_map(|element| {
+						// data-original always holds the unproxied url, while src
+						// may already have been rewritten for another server.
+						let url = element
+							.attr("data-original")
+							.or_else(|| element.attr("abs:src"))?;
+						Some(Page {
+							content: PageContent::url(build_image_url(&server, &url)),
+							..Default::default()
+						})
+					})
+					.collect::<Vec<Page>>()
+			})
+			.unwrap_or_default();
+
+		Ok(pages)
+	}
+}
+
+impl MangaRawBest {
+	/// Requests a page of the browse grid with an already built query string.
+	fn fetch_manga_page(&self, query: &str, page: i32) -> Result<MangaPageResult> {
+		let html = Request::get(format!("{BASE_URL}/manga-list?{query}"))?.html()?;
+		Ok(parse_manga_page(&html, page))
+	}
+}
+
+impl ListingProvider for MangaRawBest {
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		let sort = match listing.id.as_str() {
+			"views" => "-views",
+			"views_week" => "-views_week",
+			"created_at" => "-created_at",
+			_ => SORT_VALUES[0],
+		};
+
+		let mut qs = QueryParameters::new();
+		qs.push("sort", Some(sort));
+		qs.push("page", Some(&page.to_string()));
+
+		self.fetch_manga_page(&qs.to_string(), page)
+	}
+}
+
+impl ImageRequestProvider for MangaRawBest {
+	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
+		Ok(Request::get(url)?.header("Referer", &format!("{BASE_URL}/")))
+	}
+}
+
+impl DeepLinkHandler for MangaRawBest {
+	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
+		let Some(path) = strip_base_url(&url).and_then(|path| path.strip_prefix("/raw/")) else {
+			return Ok(None);
+		};
+
+		// Drop any query string or fragment a shared link may carry.
+		let path = path
+			.split(['?', '#'])
+			.next()
+			.unwrap_or(path)
+			.trim_end_matches('/');
+		let mut segments = path.split('/').filter(|segment| !segment.is_empty());
+
+		let Some(manga_key) = segments.next() else {
+			return Ok(None);
+		};
+
+		Ok(Some(match segments.next() {
+			// ex: https://mangaraw.best/raw/tu-long-nobai/di-989hua
+			Some(chapter_key) => DeepLinkResult::Chapter {
+				manga_key: manga_key.into(),
+				key: chapter_key.into(),
+			},
+			// ex: https://mangaraw.best/raw/tu-long-nobai
+			None => DeepLinkResult::Manga {
+				key: manga_key.into(),
+			},
+		}))
+	}
+}
+
+/// Parses a manga grid page, shared by search, filtering and listings.
+fn parse_manga_page(html: &Document, page: i32) -> MangaPageResult {
+	let entries = html
+		.select(".manga-vertical")
+		.map(|elements| {
+			elements
+				.filter_map(|element| {
+					let link = element.select_first("a[href^='/raw/']")?;
+					let href = link.attr("href")?;
+					// Drop the trailing chapter segment of /raw/<manga>/<chapter>.
+					let key: String = href.strip_prefix("/raw/")?.split('/').next()?.into();
+					if key.is_empty() {
+						return None;
+					}
+
+					let title = element
+						.select_first(".post-title a")
+						.and_then(|el| el.text())
+						.or_else(|| link.attr("title"))?;
+
+					// Covers are lazy-loaded: src holds a placeholder until the
+					// real url in data-src is swapped in.
+					let cover = element
+						.select_first("img.cover")
+						.and_then(|el| el.attr("abs:data-src").or_else(|| el.attr("abs:src")));
+
+					Some(Manga {
+						key: key.clone(),
+						title,
+						cover,
+						url: Some(format!("{BASE_URL}/raw/{key}")),
+						..Default::default()
+					})
+				})
+				.collect::<Vec<Manga>>()
+		})
+		.unwrap_or_default();
+
+	// The pagination bar always ends with a link to the final page, and is
+	// omitted entirely when the results fit on a single page.
+	let has_next_page = html
+		.select_first("a.paging_prevnext.next")
+		.and_then(|el| el.attr("href"))
+		.and_then(|href| parse_page_param(&href))
+		.is_some_and(|last_page| page < last_page);
+
+	MangaPageResult {
+		entries,
+		has_next_page,
+	}
+}
+
+/// Collects the genres listed on a series page.
+///
+/// Scoped to the genre row of the info block: the page also ends with an SEO
+/// keyword cloud that links to the same genres, but labels each one with the
+/// series title ("<title> Action") and would otherwise pollute the tags.
+fn parse_tags(html: &Document) -> Vec<String> {
+	let mut tags = Vec::new();
+
+	if let Some(elements) = html.select("span.flex-wrap.gap-1 a[href*='/genre/']") {
+		for element in elements {
+			if let Some(tag) = element.text().as_deref().and_then(clean_tag) {
+				push_unique(&mut tags, tag);
+			}
+		}
+	}
+
+	tags
+}
+
+/// Reads the publishing status from the series page.
+fn parse_status(html: &Document) -> MangaStatus {
+	let Some(element) = html.select_first("a[href*='status']") else {
+		return MangaStatus::Unknown;
+	};
+
+	// The filter value is stable; the label next to it is only a fallback.
+	match element.attr("href").as_deref().and_then(parse_status_value) {
+		Some("completed") => return MangaStatus::Completed,
+		Some("ongoing") => return MangaStatus::Ongoing,
+		_ => {}
+	}
+
+	match element.text().unwrap_or_default().trim() {
+		"進行中" => MangaStatus::Ongoing,
+		"完了" | "完結" => MangaStatus::Completed,
+		_ => MangaStatus::Unknown,
+	}
+}
+
+/// Collects the chapter list from a series page.
+fn parse_chapters(html: &Document) -> Vec<Chapter> {
+	html.select("#chapterList ul a")
+		.map(|elements| {
+			elements
+				.filter_map(|element| {
+					// hrefs look like /raw/<manga>/<chapter>
+					let href = element.attr("href")?;
+					let key: String = href.rsplit('/').next().filter(|s| !s.is_empty())?.into();
+
+					let title = element
+						.select_first("span.text-ellipsis")
+						.and_then(|el| el.text())
+						.map(|title| title.trim().to_string())
+						.filter(|title| !title.is_empty());
+					let chapter_number = title.as_deref().and_then(parse_chapter_number);
+					// Titles are just "第N話", which the app already renders from
+					// chapter_number, so only keep ones that add something.
+					let title = title.filter(|title| !is_plain_chapter_title(title));
+
+					let date_uploaded = element
+						.select_first("span.timeago")
+						.and_then(|el| el.text())
+						.and_then(|text| parse_relative_date(&text));
+
+					Some(Chapter {
+						key,
+						title,
+						chapter_number,
+						date_uploaded,
+						url: Some(format!("{BASE_URL}{href}")),
+						..Default::default()
+					})
+				})
+				.collect::<Vec<Chapter>>()
+		})
+		.unwrap_or_default()
+}
+
+register_source!(
+	MangaRawBest,
+	ListingProvider,
+	ImageRequestProvider,
+	DeepLinkHandler
+);
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use aidoku::{ContentRating, alloc::vec};
+	use aidoku_test::aidoku_test;
+
+	/// A long-running series that is unlikely to disappear from the site.
+	const SERIES_KEY: &str = "tu-long-nobai";
+
+	fn assert_valid_entries(entries: &[Manga]) {
+		assert!(!entries.is_empty(), "no entries returned");
+
+		for entry in entries {
+			assert!(!entry.key.is_empty(), "entry has an empty key");
+			assert!(
+				!entry.key.contains('/'),
+				"key should be a bare slug: {}",
+				entry.key
+			);
+			assert!(!entry.title.is_empty(), "entry {} has no title", entry.key);
+
+			let cover = entry.cover.as_deref().unwrap_or_default();
+			assert!(
+				cover.starts_with("http"),
+				"entry {} has a non-absolute cover: {cover}",
+				entry.key
+			);
+			assert!(
+				!cover.contains("mangaraw-lazy"),
+				"entry {} kept its placeholder cover",
+				entry.key
+			);
+		}
+	}
+
+	#[aidoku_test]
+	fn test_manga_list() {
+		let source = MangaRawBest::new();
+		let result = source
+			.get_search_manga_list(None, 1, Vec::new())
+			.expect("failed to fetch manga list");
+
+		println!("entries: {}", result.entries.len());
+		assert_valid_entries(&result.entries);
+		assert!(result.has_next_page, "browse should be paginated");
+	}
+
+	#[aidoku_test]
+	fn test_listings() {
+		let source = MangaRawBest::new();
+
+		for id in ["views", "views_week", "created_at"] {
+			let result = source
+				.get_manga_list(
+					Listing {
+						id: String::from(id),
+						..Default::default()
+					},
+					1,
+				)
+				.unwrap_or_else(|_| panic!("failed to fetch listing {id}"));
+
+			println!("{id}: {} entries", result.entries.len());
+			assert_valid_entries(&result.entries);
+		}
+	}
+
+	#[aidoku_test]
+	fn test_search() {
+		let source = MangaRawBest::new();
+		let result = source
+			.get_search_manga_list(Some(String::from("土竜")), 1, Vec::new())
+			.expect("failed to search");
+
+		println!("entries: {}", result.entries.len());
+		assert_valid_entries(&result.entries);
+		assert!(
+			result.entries.iter().any(|manga| manga.key == SERIES_KEY),
+			"search did not return the expected series"
+		);
+	}
+
+	#[aidoku_test]
+	fn test_search_without_results() {
+		let source = MangaRawBest::new();
+		let result = source
+			.get_search_manga_list(Some(String::from("zzzqqqxxxnothing")), 1, Vec::new())
+			.expect("failed to search");
+
+		assert!(result.entries.is_empty());
+		// A single (or empty) result page has no pagination bar, so the app must
+		// not be told to request another page.
+		assert!(!result.has_next_page);
+	}
+
+	#[aidoku_test]
+	fn test_filters() {
+		let source = MangaRawBest::new();
+		let filtered = source
+			.get_search_manga_list(
+				None,
+				1,
+				vec![
+					FilterValue::Sort {
+						id: String::from("sort"),
+						index: 5,
+						ascending: false,
+					},
+					FilterValue::MultiSelect {
+						id: String::from("status"),
+						included: vec![String::from("2")],
+						excluded: Vec::new(),
+					},
+					// 12 = アクション, 4 = ファンタジー, 10 = 成人向け
+					FilterValue::MultiSelect {
+						id: String::from("genre"),
+						included: vec![String::from("12"), String::from("4")],
+						excluded: vec![String::from("10")],
+					},
+				],
+			)
+			.expect("failed to fetch filtered list");
+
+		println!("entries: {}", filtered.entries.len());
+		assert_valid_entries(&filtered.entries);
+
+		// The genre filter has to actually narrow the catalogue down, otherwise
+		// the ids in filters.json are being silently ignored.
+		let unfiltered = source
+			.get_search_manga_list(None, 1, Vec::new())
+			.expect("failed to fetch unfiltered list");
+		assert_ne!(
+			filtered.entries.first().map(|manga| &manga.key),
+			unfiltered.entries.first().map(|manga| &manga.key),
+			"filters had no effect on the results"
+		);
+	}
+
+	#[aidoku_test]
+	fn test_manga_details() {
+		let source = MangaRawBest::new();
+		let manga = source
+			.get_manga_update(
+				Manga {
+					key: String::from(SERIES_KEY),
+					..Default::default()
+				},
+				true,
+				true,
+			)
+			.expect("failed to fetch details");
+
+		println!("title: {}", manga.title);
+		println!("cover: {:?}", manga.cover);
+		println!("status: {:?}", manga.status);
+		println!("rating: {:?}", manga.content_rating);
+
+		assert_eq!(manga.title, "土竜の唄");
+		assert_eq!(manga.status, MangaStatus::Ongoing);
+		assert_eq!(manga.update_strategy, UpdateStrategy::Always);
+		assert_eq!(manga.viewer, Viewer::RightToLeft);
+		assert!(manga.cover.is_some_and(|cover| cover.starts_with("http")));
+		assert!(manga.description.is_some_and(|text| !text.is_empty()));
+		assert_eq!(
+			manga.url.as_deref(),
+			Some("https://mangaraw.best/raw/tu-long-nobai")
+		);
+
+		let chapters = manga.chapters.expect("no chapters returned");
+		println!("chapters: {}", chapters.len());
+		let first = chapters.first().expect("empty chapter list");
+		println!(
+			"first: {:?} key={} number={:?} date={:?}",
+			first.title, first.key, first.chapter_number, first.date_uploaded
+		);
+
+		assert!(chapters.len() > 100, "suspiciously short chapter list");
+		for chapter in &chapters {
+			assert!(!chapter.key.is_empty(), "chapter has an empty key");
+			assert!(
+				!chapter.key.contains('/'),
+				"chapter key should be a bare slug: {}",
+				chapter.key
+			);
+			// "第N話" duplicates the number the app renders from chapter_number.
+			assert!(
+				chapter.title.is_none(),
+				"redundant chapter title: {:?}",
+				chapter.title
+			);
+			assert!(chapter.chapter_number.is_some());
+			assert!(chapter.date_uploaded.is_some());
+		}
+
+		// Chapters are listed newest first.
+		assert!(
+			first.chapter_number >= chapters.last().and_then(|last| last.chapter_number),
+			"chapters are not in descending order"
+		);
+	}
+
+	#[aidoku_test]
+	fn test_manga_tags_and_rating() {
+		let source = MangaRawBest::new();
+		let manga = source
+			.get_manga_update(
+				Manga {
+					key: String::from("yao-wu-nohitorigotomao-mao-nohou-gong-mi-jie-kishou-zhang"),
+					..Default::default()
+				},
+				true,
+				false,
+			)
+			.expect("failed to fetch details");
+
+		let tags = manga.tags.expect("expected genres on this series");
+		println!("tags ({}): {:?}", tags.len(), tags);
+		println!("rating: {:?}", manga.content_rating);
+
+		assert!(tags.iter().any(|tag| tag == "Action"));
+		assert!(tags.iter().any(|tag| tag == "Ecchi"));
+		// The " raw" suffix the site appends to its Japanese genres is stripped.
+		assert!(tags.iter().any(|tag| tag == "アクション"));
+
+		let mut unique = tags.clone();
+		unique.sort();
+		unique.dedup();
+		assert_eq!(unique.len(), tags.len(), "tags contain duplicates");
+
+		// The SEO keyword cloud at the bottom of the page links to the same
+		// genres but prefixes each label with the series title.
+		for tag in &tags {
+			assert!(
+				!tag.contains(&manga.title),
+				"tag picked up from the keyword cloud: {tag}"
+			);
+		}
+
+		// This series is tagged Ecchi, so it must not be reported as safe.
+		assert_eq!(manga.content_rating, ContentRating::Suggestive);
+	}
+
+	#[aidoku_test]
+	fn test_page_list() {
+		let source = MangaRawBest::new();
+		let pages = source
+			.get_page_list(
+				Manga {
+					key: String::from(SERIES_KEY),
+					..Default::default()
+				},
+				Chapter {
+					key: String::from("di-989hua"),
+					..Default::default()
+				},
+			)
+			.expect("failed to fetch pages");
+
+		println!("pages: {}", pages.len());
+		for page in pages.iter().take(3) {
+			println!("  {:?}", page.content);
+		}
+
+		assert!(!pages.is_empty());
+		for page in &pages {
+			let PageContent::Url(url, _) = &page.content else {
+				panic!("expected a url page");
+			};
+			assert!(url.starts_with("http"), "non-absolute page url: {url}");
+		}
+	}
+
+	#[aidoku_test]
+	fn test_deep_link() {
+		let source = MangaRawBest::new();
+		let handle = |url: &str| {
+			source
+				.handle_deep_link(String::from(url))
+				.expect("failed to handle link")
+		};
+
+		assert!(matches!(
+			handle("https://mangaraw.best/raw/tu-long-nobai"),
+			Some(DeepLinkResult::Manga { ref key }) if key == SERIES_KEY
+		));
+		// Shared links may keep a trailing slash or tracking query.
+		assert!(matches!(
+			handle("http://www.mangaraw.best/raw/tu-long-nobai/?utm_source=x"),
+			Some(DeepLinkResult::Manga { ref key }) if key == SERIES_KEY
+		));
+		assert!(matches!(
+			handle("https://mangaraw.best/raw/tu-long-nobai/di-989hua"),
+			Some(DeepLinkResult::Chapter { ref manga_key, ref key })
+				if manga_key == SERIES_KEY && key == "di-989hua"
+		));
+
+		assert!(handle("https://mangaraw.best/manga-list").is_none());
+		assert!(handle("https://example.com/raw/tu-long-nobai").is_none());
+	}
+}

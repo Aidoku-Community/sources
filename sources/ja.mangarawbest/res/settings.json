@@ -1,0 +1,18 @@
+[
+	{
+		"type": "group",
+		"title": "画像サーバー",
+		"items": [
+			{
+				"type": "select",
+				"key": "imageServer",
+				"title": "サーバー",
+				"values": ["1", "2", "3"],
+				"titles": ["サーバー 1 (直接)", "サーバー 2 (wp.com)", "サーバー 3 (DuckDuckGo)"],
+				"default": "1",
+				"refreshes": ["content"]
+			}
+		],
+		"footer": "画像が表示されない場合はサーバーを変更してください。サーバー 2 と 3 は画像プロキシ経由で配信されます。"
+	}
+]
