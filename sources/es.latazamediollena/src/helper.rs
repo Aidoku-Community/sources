@@ -1,6 +1,6 @@
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaStatus, Viewer,
-	alloc::{String, Vec, string::ToString, vec},
+	alloc::{String, Vec, format, string::ToString, vec},
 	imports::{html::Document, net::Request, std::parse_date_with_options},
 };
 
@@ -115,4 +115,28 @@ pub fn fetch_all_chapters() -> aidoku::Result<Vec<Chapter>> {
 pub fn parse_page_image_url(html: &Document) -> Option<String> {
 	html.select_first("#one-comic-option .default-lang img")
 		.and_then(|img| img.attr("abs:src"))
+}
+
+/// Builds a markdown description for a strip's page out of the chapter
+/// page's real title, its posted date and the image's alt text (a summary
+/// of what happens in the strip). Reuses the document already fetched for
+/// [`parse_page_image_url`], so no extra request is needed.
+pub fn parse_page_description(html: &Document) -> Option<String> {
+	let title = html.select_first(".entry-title").and_then(|el| el.text());
+	let date = html.select_first(".posted-on a").and_then(|el| el.text());
+	let summary = html
+		.select_first("#one-comic-option .default-lang img")
+		.and_then(|img| img.attr("alt"))
+		.filter(|text| !text.is_empty());
+
+	let parts = [title.map(|title| format!("**{title}**")), date, summary]
+		.into_iter()
+		.flatten()
+		.collect::<Vec<_>>();
+
+	if parts.is_empty() {
+		None
+	} else {
+		Some(parts.join("\n\n"))
+	}
 }

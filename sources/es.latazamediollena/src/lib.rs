@@ -11,7 +11,7 @@ use aidoku::{
 };
 use helper::{
 	BASE_URL, MANGA_KEY, comic_info, fetch_all_chapters, fetch_archive_page,
-	parse_page_image_url, slug_from_url,
+	parse_page_description, parse_page_image_url, slug_from_url,
 };
 
 struct Latazamediollena;
@@ -27,7 +27,6 @@ impl Source for Latazamediollena {
 		_page: i32,
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-
 		let manga = comic_info();
 		let matches = match query {
 			Some(query) => {
@@ -61,15 +60,17 @@ impl Source for Latazamediollena {
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = chapter
 			.url
-			.clone()
 			.unwrap_or_else(|| format!("{BASE_URL}/comic/{}/", chapter.key));
 		let html = Request::get(url)?.html()?;
 		let image_url = parse_page_image_url(&html).ok_or_else(|| {
 			error!("No se ha encontrado la imagen de la tira en la página")
 		})?;
+		let description = parse_page_description(&html);
 
 		Ok(vec![Page {
 			content: PageContent::url(image_url),
+			has_description: description.is_some(),
+			description,
 			..Default::default()
 		}])
 	}
