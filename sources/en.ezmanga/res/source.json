@@ -1,0 +1,21 @@
+{
+	"info": {
+		"id": "en.ezmanga",
+		"name": "EzManga",
+		"version": 1,
+		"url": "https://ezmanga.org",
+		"minAppVersion": "0.7.1",
+		"contentRating": 1,
+		"languages": [
+			"en"
+		]
+	},
+	"listings": [
+		{
+			"id": "Popular"
+		},
+		{
+			"id": "Latest"
+		}
+	]
+}

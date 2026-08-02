@@ -3,13 +3,13 @@ use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeComponent,
 	HomeLayout, HomePartialResult, ImageRequestProvider, ImageResponse, Link, LinkValue, Listing,
 	ListingProvider, Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page,
-	PageContent, PageContext, PageImageProcessor, Result, Source,
+	PageContent, PageContext, PageImageProcessor, Result, Source, WebLoginHandler,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
 		canvas::ImageRef,
 		net::{Request, RequestError, Response},
-		std::send_partial_result,
+		std::{current_date, send_partial_result},
 	},
 	prelude::*,
 };
@@ -21,6 +21,8 @@ mod models;
 mod settings;
 mod web;
 
+use crate::helpers::create_request_get;
+use crate::settings::VERIFY_KEY;
 use models::*;
 use web::*;
 
@@ -514,7 +516,7 @@ impl ListingProvider for Comix {
 
 impl ImageRequestProvider for Comix {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-		Ok(Request::get(url)?.header("Referer", &format!("{BASE_URL}/")))
+		Ok(create_request_get(&url)?.header("Referer", &format!("{BASE_URL}/")))
 	}
 }
 
@@ -546,7 +548,7 @@ impl PageImageProcessor for Comix {
 				};
 				let bytes: Vec<u8> = general_purpose::STANDARD
 					.decode(base64_data)
-					.or_else(|_| bail!("Invalid base64 data given"))?;
+					.map_err(|_| error!("Invalid base64 data given"))?;
 
 				Ok(ImageRef::new(bytes.as_ref()))
 			} else {
@@ -599,6 +601,27 @@ impl DeepLinkHandler for Comix {
 	}
 }
 
+const VERIFY_COOKIE_KEY: &str = "waf_pass";
+
+impl WebLoginHandler for Comix {
+	fn handle_web_login(&self, key: String, cookies: HashMap<String, String>) -> Result<bool> {
+		if key == VERIFY_KEY {
+			// This is verifying button not to be confused with actual login button.
+			// We need to intercept waf_pass cookie so that we can pass the checks.
+			// This will not log you in even if you do the login page afterward.
+			return Ok(cookies.get(VERIFY_COOKIE_KEY).is_some_and(|pass| {
+				let Some((timestamp, _)) = pass.split_once('.') else {
+					return false;
+				};
+				let current_timestamp = current_date();
+				current_timestamp - timestamp.parse::<i64>().unwrap_or(0) < 30 * 60
+			}));
+		}
+
+		Ok(false)
+	}
+}
+
 register_source!(
 	Comix,
 	Home,
@@ -606,5 +629,6 @@ register_source!(
 	ImageRequestProvider,
 	PageImageProcessor,
 	NotificationHandler,
-	DeepLinkHandler
+	DeepLinkHandler,
+	WebLoginHandler
 );

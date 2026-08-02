@@ -1,0 +1,38 @@
+[
+	{
+		"id": "m_orderby",
+		"type": "sort",
+		"title": "Sıralama",
+		"canAscend": false,
+		"options": [
+			"Varsayılan",
+			"Son Güncellenen",
+			"A-Z",
+			"Puan",
+			"Trend",
+			"Görüntülenme",
+			"Yeni Seri"
+		]
+	},
+	{
+		"id": "status[]",
+		"type": "select",
+		"title": "Durum",
+		"options": [
+			"Tümü",
+			"Devam Ediyor",
+			"Tamamlanan Seriler",
+			"Çizgi Romanlar",
+			"One Shot",
+			"Yakında"
+		],
+		"ids": [
+			"",
+			"on-going",
+			"end",
+			"canceled",
+			"on-hold",
+			"upcoming"
+		]
+	}
+]

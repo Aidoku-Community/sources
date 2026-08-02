@@ -222,7 +222,76 @@ impl Impl for AquaManga {
 			kind: ListingKind::Default,
 		};
 
-		let html = Request::get(format!("{}/", BASE_URL))?.html()?;
+		let manga_to_links =
+			|entries: Vec<Manga>| -> Vec<Link> { entries.into_iter().map(Into::into).collect() };
+
+		let responses: [core::result::Result<Response, RequestError>; 5] = Request::send_all([
+			Request::get(format!("{}/manga/?m_orderby=views", BASE_URL))?,
+			Request::get(format!("{}/manga/?m_orderby=new-manga", BASE_URL))?,
+			Request::get(format!("{}/", BASE_URL))?,
+			Request::get(format!("{}/manga/?m_orderby=trending", BASE_URL))?,
+			Request::get(format!(
+				"{}/page/1/?s&post_type=wp-manga&status[]=end&m_orderby=modified",
+				BASE_URL
+			))?,
+		])
+		.try_into()
+		.expect("requests vec length should be 5");
+
+		let [
+			popular_resp,
+			new_resp,
+			latest_resp,
+			trending_resp,
+			completed_resp,
+		] = responses;
+
+		let top_popular: Vec<Manga> = popular_resp
+			.ok()
+			.and_then(|r| r.get_html().ok())
+			.map(|html| parse_manga_html(html).entries)
+			.unwrap_or_default()
+			.into_iter()
+			.take(5)
+			.collect();
+
+		let detail_responses = Request::send_all(
+			top_popular
+				.iter()
+				.map(|m| Request::get(format!("{}{}", BASE_URL, m.key)).unwrap()),
+		);
+
+		let mut popular_entries: Vec<Manga> = Vec::new();
+		for (manga, detail_resp) in top_popular.into_iter().zip(detail_responses) {
+			if let Some(detail_html) = detail_resp.ok().and_then(|r| r.get_html().ok()) {
+				let description = detail_html
+					.select_first(&params.details_description_selector)
+					.and_then(|el| el.text());
+				let cover = detail_html
+					.select_first(&params.details_cover_selector)
+					.and_then(|img| img.img_attr(false))
+					.or(manga.cover);
+				let tags: Option<Vec<String>> = detail_html
+					.select(&params.details_tag_selector)
+					.map(|els| {
+						els.filter_map(|el| el.text())
+							.filter(|s: &String| !s.is_empty())
+							.collect()
+					})
+					.filter(|v: &Vec<String>| !v.is_empty());
+				popular_entries.push(Manga {
+					key: manga.key,
+					title: manga.title,
+					cover,
+					description,
+					tags,
+					..Default::default()
+				});
+			} else {
+				popular_entries.push(manga);
+			}
+		}
+
 		let mut components: Vec<HomeComponent> = Vec::new();
 
 		// Popular Today — BigScroller from hero slides
