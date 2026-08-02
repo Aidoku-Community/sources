@@ -2,7 +2,7 @@
 	"info": {
 		"id": "ja.rawdevart",
 		"name": "Rawdevart",
-		"version": 1,
+		"version": 3,
 		"url": "https://rawdevart.art",
 		"contentRating": 1,
 		"languages": ["ja"],
@@ -21,5 +21,8 @@
 			"id": "trending",
 			"name": "Trending Today"
 		}
-	]
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
 }

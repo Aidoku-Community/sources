@@ -1,6 +1,6 @@
 #![no_std]
 use aidoku::{
-	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
 	ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus, Page,
 	PageContent, PageContext, Result, SelectFilter, Source, Viewer,
 	alloc::{String, Vec, borrow::Cow, string::ToString, vec},
@@ -8,15 +8,13 @@ use aidoku::{
 		string::StripPrefixOrSelf,
 		uri::{QueryParameters, encode_uri_component},
 	},
-	imports::{
-		html::{Element, Html},
-		net::Request,
-		std::send_partial_result,
-	},
+	imports::{html::Html, net::Request, std::send_partial_result},
 	prelude::*,
 };
 
+mod helpers;
 mod models;
+use helpers::*;
 use models::*;
 
 const BASE_URL: &str = "https://rawdevart.art";
@@ -49,7 +47,7 @@ impl Source for Rawdevart {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		// the search endpoint takes none of the other filters, so a query overrides them
-		if let Some(query) = query.filter(|query| !query.is_empty()) {
+		if let Some(query) = query {
 			return Self::parse_manga_list(&format!(
 				"{BASE_URL}/spa/search?query={}&page={page}",
 				encode_uri_component(query)
@@ -320,38 +318,6 @@ impl DeepLinkHandler for Rawdevart {
 			_ => None,
 		})
 	}
-}
-
-/// Strips the letters the site puts in front of ids in page urls, keeping only what looks like
-/// an id afterwards.
-fn manga_key(id: &str) -> Option<&str> {
-	let key = id.trim_start_matches(char::is_alphabetic);
-	(!key.is_empty() && key.bytes().all(|byte| byte.is_ascii_digit())).then_some(key)
-}
-
-/// Some descriptions hold markup, which the app doesn't render.
-fn strip_html(description: &str) -> String {
-	Html::parse_fragment(description)
-		.ok()
-		.and_then(|document| Element::from(document).text())
-		.unwrap_or_else(|| String::from(description))
-		.trim()
-		.into()
-}
-
-/// Derives a content rating from the genres of an entry, which the api doesn't provide directly.
-fn content_rating(tags: &[String]) -> ContentRating {
-	let mut rating = ContentRating::Safe;
-	for tag in tags {
-		match tag.to_lowercase().as_str() {
-			"adult" | "hentai" | "loli" | "lolicon" | "mature" | "shotacon" | "smut" => {
-				return ContentRating::NSFW;
-			}
-			"ecchi" => rating = ContentRating::Suggestive,
-			_ => continue,
-		}
-	}
-	rating
 }
 
 register_source!(
