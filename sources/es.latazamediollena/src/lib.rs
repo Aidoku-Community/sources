@@ -24,7 +24,7 @@ impl Source for Latazamediollena {
 	fn get_search_manga_list(
 		&self,
 		query: Option<String>,
-		page: i32,
+		_page: i32,
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 
