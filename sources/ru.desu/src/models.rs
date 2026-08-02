@@ -1,147 +1,129 @@
-use crate::settings::eng_title;
+use crate::keys::manga_key;
+use crate::settings::{eng_title, rewrite_media_url};
 use aidoku::{Chapter, ContentRating, Manga, MangaStatus, Viewer};
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 
 #[derive(Deserialize)]
-pub struct DesuResponse<T> {
-	pub response: Option<T>,
-	pub error: Option<String>,
+pub struct DesuError {
+	pub message: Option<String>,
+	pub code: Option<String>,
 }
 
 #[derive(Deserialize)]
-pub struct DesuImage {
-	pub original: Option<String>,
+pub struct DesuListResponse {
+	pub mangas: Option<Vec<DesuItem>>,
+	pub pagination: Option<DesuPagination>,
+	pub errors: Option<Vec<DesuError>>,
+}
+
+#[derive(Deserialize)]
+pub struct DesuPagination {
+	pub current_page: Option<i32>,
+	pub last_page: Option<i32>,
+}
+
+#[derive(Deserialize)]
+pub struct DesuMangaResponse {
+	pub manga: Option<DesuItem>,
+	pub errors: Option<Vec<DesuError>>,
+}
+
+#[derive(Deserialize)]
+pub struct DesuChaptersResponse {
+	pub chapters: Option<Vec<DesuChapter>>,
+	pub errors: Option<Vec<DesuError>>,
+}
+
+#[derive(Deserialize)]
+pub struct DesuChapterResponse {
+	pub chapter: Option<DesuChapterDetails>,
+	pub errors: Option<Vec<DesuError>>,
+}
+
+#[derive(Deserialize)]
+pub struct DesuCover {
 	pub preview: Option<String>,
-	pub x225: Option<String>,
+	pub snippet: Option<String>,
 	pub x120: Option<String>,
 }
 
 #[derive(Deserialize)]
-pub struct DesuDataSummary<T> {
-	pub list: Option<Vec<T>>,
-}
-
-#[derive(Deserialize)]
-pub struct DesuTerm {
-	pub russian: String,
+pub struct DesuGenre {
+	pub name: String,
 }
 
 #[derive(Deserialize)]
 pub struct DesuAuthor {
-	pub people_name: String,
+	pub name: String,
 }
 
 #[derive(Deserialize, Clone)]
 pub struct DesuChapter {
-	pub id: i64,
-	pub vol: Option<f32>,
-	pub ch: Option<f32>,
+	pub chapter_id: i64,
+	pub volume: Option<String>,
+	pub number: Option<String>,
 	pub title: Option<String>,
-	pub date: Option<i64>,
+	pub publish_date: Option<i64>,
+	pub view_url: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub struct DesuPage {
-	pub img: Option<String>,
+	pub url: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct DesuChapterDetails {
+	pub pages: Option<Vec<DesuPage>>,
 }
 
 #[derive(Deserialize)]
 pub struct DesuItem {
-	pub id: i64,
-	pub url: Option<String>,
+	pub manga_id: i64,
 	pub name: String,
 	pub russian: Option<String>,
-	pub image: Option<DesuImage>,
-	pub kind: String,
-	pub reading: Option<String>,
+	pub cover: Option<DesuCover>,
+	pub kind: Option<String>,
+	pub reading_direction: Option<String>,
+	pub recommended_reading_mode: Option<String>,
 	pub age_limit: Option<String>,
 	pub status: Option<String>,
+	pub translation_status: Option<String>,
 	pub description: Option<String>,
-	#[serde(default, deserialize_with = "deserialize_genres")]
-	pub genres: Option<Vec<DesuTerm>>,
-	#[serde(default, deserialize_with = "deserialize_authors")]
+	pub view_url: Option<String>,
+	pub genres: Option<Vec<DesuGenre>>,
 	pub authors: Option<Vec<DesuAuthor>>,
-	pub chapters: Option<DesuDataSummary<DesuChapter>>,
-	pub pages: Option<DesuDataSummary<DesuPage>>,
 }
 
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum RawGenres {
-	String(String),
-	Array(Vec<DesuTerm>),
-}
-
-fn deserialize_genres<'de, D>(deserializer: D) -> Result<Option<Vec<DesuTerm>>, D::Error>
-where
-	D: Deserializer<'de>,
-{
-	let opt = Option::<RawGenres>::deserialize(deserializer)?;
-
-	Ok(opt.map(|raw| match raw {
-		RawGenres::Array(vec) => vec,
-		RawGenres::String(s) => s
-			.split(',')
-			.map(|name| DesuTerm {
-				russian: name.trim().to_string(),
-			})
-			.collect(),
-	}))
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum RawAuthors {
-	String(String),
-	Array(Vec<DesuAuthor>),
-}
-
-fn deserialize_authors<'de, D>(deserializer: D) -> Result<Option<Vec<DesuAuthor>>, D::Error>
-where
-	D: Deserializer<'de>,
-{
-	Ok(Option::<RawAuthors>::deserialize(deserializer)?
-		.map(|raw| match raw {
-			RawAuthors::Array(vec) => vec,
-			RawAuthors::String(s) => s
-				.split(',')
-				.map(|name| name.trim())
-				.filter(|name| !name.is_empty())
-				.map(|name| DesuAuthor {
-					people_name: name.to_string(),
-				})
-				.collect(),
-		})
-		.filter(|l| !l.is_empty()))
+fn parse_f32(value: Option<&String>) -> Option<f32> {
+	value.and_then(|v| v.parse().ok())
 }
 
 impl From<DesuChapter> for Chapter {
 	fn from(value: DesuChapter) -> Self {
 		Self {
-			key: value.id.to_string(),
-			volume_number: value.vol,
-			chapter_number: value.ch,
+			key: value.chapter_id.to_string(),
+			volume_number: parse_f32(value.volume.as_ref()),
+			chapter_number: parse_f32(value.number.as_ref()),
 			title: value.title,
-			date_uploaded: value.date,
+			date_uploaded: value.publish_date,
+			url: value.view_url.map(|url| rewrite_media_url(&url)),
 			..Default::default()
 		}
 	}
 }
 
 impl DesuItem {
-	pub fn into_manga(
-		self,
-		manga: Option<Manga>,
-		slim: bool,
-		details: bool,
-		chapters: bool,
-	) -> Manga {
+	pub fn into_manga(self, manga: Option<Manga>, slim: bool, details: bool) -> Manga {
 		let mut item = manga.unwrap_or(Manga {
-			key: self.id.to_string(),
+			key: manga_key(&self.manga_id.to_string()),
 			..Default::default()
 		});
+		if !item.key.starts_with("m:") && !item.key.starts_with("r:") {
+			item.key = manga_key(&item.key);
+		}
 
 		item.title = if eng_title() {
 			self.name
@@ -150,8 +132,9 @@ impl DesuItem {
 		};
 
 		item.cover = self
-			.image
-			.and_then(|v| v.original.or(v.preview).or(v.x225).or(v.x120));
+			.cover
+			.and_then(|v| v.preview.or(v.snippet).or(v.x120))
+			.map(|url| rewrite_media_url(&url));
 
 		if slim {
 			return item;
@@ -161,7 +144,6 @@ impl DesuItem {
 			item.content_rating = self
 				.age_limit
 				.map(|v| match v.as_str() {
-					// "no" if no age limit. I guess safe by default is ok...
 					"18_plus" => ContentRating::NSFW,
 					"16_plus" => ContentRating::Suggestive,
 					_ => ContentRating::Safe,
@@ -169,48 +151,42 @@ impl DesuItem {
 				.unwrap_or_default();
 
 			item.status = self
-				.status
-				.map(|v| match v.as_str() {
-					// looks like they don't have hiatus status and so on
-					"ongoing" => MangaStatus::Ongoing,
-					"released" => MangaStatus::Completed,
-					_ => MangaStatus::Unknown,
+				.translation_status
+				.as_deref()
+				.and_then(|v| match v {
+					"continued" => Some(MangaStatus::Ongoing),
+					"completed" => Some(MangaStatus::Completed),
+					_ => None,
+				})
+				.or_else(|| {
+					self.status.as_deref().map(|v| match v {
+						"ongoing" => MangaStatus::Ongoing,
+						"released" => MangaStatus::Completed,
+						_ => MangaStatus::Unknown,
+					})
 				})
 				.unwrap_or_default();
 
-			item.viewer = match self.kind.as_str() {
-				// since they can set read_mode to RTL even for manhwa/manhua I decided to do this
+			let kind = self.kind.as_deref().unwrap_or("");
+			item.viewer = match kind {
 				"manhwa" | "manhua" => Viewer::Webtoon,
-				_ => self
-					.reading
-					.as_ref()
-					.map(|v| match v.as_str() {
-						"right-to-left" => Viewer::RightToLeft,
-						"left-to-right" => Viewer::LeftToRight,
-						"top-to-bottom" => Viewer::Webtoon,
+				_ => match self.recommended_reading_mode.as_deref() {
+					Some("vertical") => Viewer::Webtoon,
+					_ => match self.reading_direction.as_deref() {
+						Some("left-to-right") => Viewer::LeftToRight,
+						Some("top-to-bottom") => Viewer::Webtoon,
 						_ => Viewer::RightToLeft,
-					})
-					.unwrap_or(Viewer::RightToLeft),
+					},
+				},
 			};
 
 			item.authors = self
 				.authors
-				.map(|l| l.into_iter().map(|v| v.people_name).collect());
+				.map(|l| l.into_iter().map(|v| v.name).collect());
 
 			item.description = self.description;
-
-			item.url = self.url;
-
-			item.tags = self
-				.genres
-				.map(|l| l.into_iter().map(|v| v.russian).collect());
-		}
-
-		if chapters {
-			item.chapters = self
-				.chapters
-				.and_then(|s| s.list)
-				.map(|l| l.into_iter().map(Chapter::from).collect())
+			item.url = self.view_url.map(|url| rewrite_media_url(&url));
+			item.tags = self.genres.map(|l| l.into_iter().map(|v| v.name).collect());
 		}
 
 		item
