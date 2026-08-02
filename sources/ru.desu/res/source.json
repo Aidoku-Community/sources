@@ -7,16 +7,7 @@
 		"contentRating": 2,
 		"languages": [
 			"ru"
-		]
-	},
-	"listings": [
-		{
-			"id": "manga",
-			"name": "Манга"
-		},
-		{
-			"id": "ranobe",
-			"name": "Ранобэ"
-		}
-	]
+		],
+		"breakingChangeVersion": 5
+	}
 }

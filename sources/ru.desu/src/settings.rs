@@ -6,6 +6,7 @@ const ENGLISH_TITLE_KEY: &str = "englishTitles";
 const DOMAIN_KEY: &str = "domain";
 const DEFAULT_DOMAIN: &str = "desu.uno";
 
+/// Prefer English titles when the catalog entry has both RU and EN names.
 pub fn eng_title() -> bool {
 	defaults_get::<bool>(ENGLISH_TITLE_KEY).unwrap_or(false)
 }
@@ -38,6 +39,7 @@ pub fn base_url() -> String {
 	format!("https://{}", domain())
 }
 
+/// CDN host derived from the configured domain (`static.{domain}`).
 pub fn static_base_url() -> String {
 	format!("https://static.{}", domain())
 }

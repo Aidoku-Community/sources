@@ -2,20 +2,22 @@
 	{
 		"type": "group",
 		"title": "Аккаунт",
+		"footer": "Войдите на сайте, затем закройте окно.",
 		"items": [
 			{
 				"type": "login",
 				"key": "login",
 				"title": "Войти",
+				"method": "web",
+				"url": "https://desu.uno/login/",
 				"notification": "login",
-				"method": "basic",
 				"refreshes": ["settings", "content", "listings"]
 			}
 		]
 	},
 	{
 		"type": "group",
-		"title": "Settings",
+		"title": "Настройки",
 		"items": [
 			{
 				"type": "switch",

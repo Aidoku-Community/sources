@@ -125,22 +125,31 @@ pub fn search(query: Option<String>, page: i32, filters: Vec<FilterValue>) -> Re
 					_ => order,
 				}
 			}
+			FilterValue::Select { id, value } => {
+				// Section is handled by the caller; never send it to the manga API.
+				if id != "section" {
+					params.push(&id, Some(&value));
+				}
+			}
 			FilterValue::MultiSelect {
 				id,
 				included,
 				excluded,
 			} => {
+				// Ranobe-only genre filter must not hit /api/manga.
+				if id == "ranobe_genres" {
+					continue;
+				}
 				let values: Vec<_> = included
 					.into_iter()
 					.chain(excluded.into_iter().map(|x| format!("!{x}")))
 					.collect();
 				if id.eq("genres") || id.eq("tags") {
 					genres.extend(values);
-				} else if !values.is_empty() {
+				} else {
 					params.push(&id, Some(&values.join(",")));
 				}
 			}
-			FilterValue::Select { id, value } => params.push(&id, Some(&value)),
 			_ => continue,
 		}
 	}

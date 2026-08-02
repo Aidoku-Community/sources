@@ -8,18 +8,20 @@ mod models;
 mod ranobe;
 mod settings;
 
-use crate::auth::{is_logged_in, login, logout, stored_username, take_just_logged_in};
+use crate::auth::{
+	handle_web_login, is_logged_in, logout, refresh_username, stored_username, take_just_logged_in,
+};
 use crate::helpers::{
 	apply_headers, fetch_by_id, fetch_chapter_pages, fetch_chapters, get_base_url, search,
 };
 use crate::keys::{Section, parse_key, ranobe_slug};
-use crate::ranobe::{fetch_ranobe, fetch_ranobe_chapter_text, listing_manga, search_ranobe};
+use crate::ranobe::{fetch_ranobe, fetch_ranobe_chapter_text, search_ranobe};
 use aidoku::imports::net::{Request, TimeUnit, set_rate_limit};
 use aidoku::imports::std::send_partial_result;
 use aidoku::{
-	BasicLoginHandler, Chapter, DeepLinkHandler, DeepLinkResult, DynamicSettings, FilterValue,
-	GroupSetting, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
-	NotificationHandler, Page, PageContent, PageContext, Result, Setting, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicSettings, FilterValue, GroupSetting, HashMap,
+	ImageRequestProvider, Manga, MangaPageResult, MigrationHandler, NotificationHandler, Page,
+	PageContent, PageContext, Result, Setting, Source, WebLoginHandler,
 	alloc::{String, Vec, format, vec},
 	prelude::*,
 };
@@ -54,7 +56,7 @@ impl Source for Desu {
 		}
 
 		match section {
-			Section::Ranobe => search_ranobe(query, page),
+			Section::Ranobe => search_ranobe(query, page, rest),
 			Section::Manga => {
 				let result = search(query, page, rest)?;
 				Ok(MangaPageResult {
@@ -126,30 +128,25 @@ impl Source for Desu {
 				})
 				.collect()),
 			Section::Ranobe => {
-				let url = chapter.url.clone().unwrap_or_else(|| {
-					format!(
-						"{}/ranobe/{}/{}",
-						get_base_url(),
-						id,
-						chapter.key.trim_start_matches('/')
-					)
-				});
-				let text = fetch_ranobe_chapter_text(&url)?;
+				let fallback;
+				let url = match chapter.url.as_deref().filter(|u| !u.is_empty()) {
+					Some(url) => url,
+					None => {
+						fallback = format!(
+							"{}/ranobe/{}/{}",
+							get_base_url(),
+							id,
+							chapter.key.trim_start_matches('/')
+						);
+						fallback.as_str()
+					}
+				};
+				let text = fetch_ranobe_chapter_text(url)?;
 				Ok(vec![Page {
 					content: PageContent::text(text),
 					..Page::default()
 				}])
 			}
-		}
-	}
-}
-
-impl ListingProvider for Desu {
-	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		match listing.id.as_str() {
-			"manga" => listing_manga(page),
-			"ranobe" => search_ranobe(None, page),
-			_ => bail!("Неизвестный раздел"),
 		}
 	}
 }
@@ -193,9 +190,24 @@ impl ImageRequestProvider for Desu {
 	}
 }
 
-impl BasicLoginHandler for Desu {
-	fn handle_basic_login(&self, _key: String, username: String, password: String) -> Result<bool> {
-		login(&username, &password)
+impl MigrationHandler for Desu {
+	fn handle_manga_migration(&self, key: String) -> Result<String> {
+		// v5: numeric manga ids became `m:{id}`; ranobe keys are already `r:{slug}`.
+		if key.starts_with("m:") || key.starts_with("r:") {
+			Ok(key)
+		} else {
+			Ok(format!("m:{key}"))
+		}
+	}
+
+	fn handle_chapter_migration(&self, _manga_key: String, chapter_key: String) -> Result<String> {
+		Ok(chapter_key)
+	}
+}
+
+impl WebLoginHandler for Desu {
+	fn handle_web_login(&self, _key: String, cookies: HashMap<String, String>) -> Result<bool> {
+		handle_web_login(cookies)
 	}
 }
 
@@ -203,7 +215,7 @@ impl NotificationHandler for Desu {
 	fn handle_notification(&self, notification: String) {
 		if notification == "login" {
 			if take_just_logged_in() {
-				// Login just succeeded; keep cookies.
+				let _ = refresh_username();
 			} else {
 				logout();
 			}
@@ -213,23 +225,24 @@ impl NotificationHandler for Desu {
 
 impl DynamicSettings for Desu {
 	fn get_dynamic_settings(&self) -> Result<Vec<Setting>> {
+		// Fill username lazily if the session exists but the name was not cached yet.
+		if is_logged_in() && stored_username().is_none() {
+			let _ = refresh_username();
+		}
+
 		let footer = if is_logged_in() {
 			match stored_username() {
-				Some(name) => format!(
-					"Вход выполнен: {name}\nМанга доступна без входа, ранобэ — только с аккаунтом."
-				),
-				None => {
-					"Вход выполнен.\nМанга доступна без входа, ранобэ — только с аккаунтом.".into()
-				}
+				Some(name) => format!("Вход выполнен: {name}"),
+				None => "Вход выполнен.".into(),
 			}
 		} else {
-			"Вход не выполнен.\nРанобэ недоступно без авторизации на Desu.".into()
+			"Вход не выполнен.".into()
 		};
 
 		Ok(vec![
 			GroupSetting {
 				key: "accountStatus".into(),
-				title: "Статус аккаунта".into(),
+				title: "Статус".into(),
 				items: Vec::new(),
 				footer: Some(footer.into()),
 				..Default::default()
@@ -243,8 +256,8 @@ register_source!(
 	Desu,
 	DeepLinkHandler,
 	ImageRequestProvider,
-	ListingProvider,
-	BasicLoginHandler,
+	WebLoginHandler,
 	NotificationHandler,
-	DynamicSettings
+	DynamicSettings,
+	MigrationHandler
 );

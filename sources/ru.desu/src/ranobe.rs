@@ -1,10 +1,10 @@
 use crate::auth::{AuthedRequest, require_login};
 use crate::helpers::{apply_headers, get_base_url};
-use crate::keys::{manga_key, ranobe_key, ranobe_slug};
+use crate::keys::{ranobe_key, ranobe_slug};
 use crate::settings::{eng_title, ranobe_cover_preview, rewrite_media_url};
 use aidoku::{
-	Chapter, Manga, MangaPageResult, MangaStatus, Result, Viewer,
-	alloc::{String, Vec, string::ToString, vec},
+	Chapter, FilterValue, Manga, MangaPageResult, MangaStatus, Result, Viewer,
+	alloc::{String, Vec, string::ToString},
 	helpers::uri::QueryParameters,
 	imports::{
 		html::{Document, Element},
@@ -71,13 +71,45 @@ fn parse_catalog_item(li: &Element) -> Option<Manga> {
 	})
 }
 
-pub fn search_ranobe(query: Option<String>, page: i32) -> Result<MangaPageResult> {
+pub fn search_ranobe(
+	query: Option<String>,
+	page: i32,
+	filters: Vec<FilterValue>,
+) -> Result<MangaPageResult> {
 	let mut qs = QueryParameters::new();
-	qs.push("order_by", Some("updated"));
 	qs.push("page", Some(page.to_string().as_str()));
 	if let Some(q) = query.filter(|s| !s.is_empty()) {
 		qs.push("search", Some(q.as_str()));
 	}
+
+	let mut order = "updated";
+	let mut genres: Vec<String> = Vec::new();
+	for filter in filters {
+		match filter {
+			FilterValue::Sort { index, .. } => {
+				order = match index {
+					0 => "id",
+					1 => "name",
+					2 => "popular",
+					_ => order,
+				};
+			}
+			FilterValue::MultiSelect {
+				id,
+				included,
+				excluded,
+			} if id == "ranobe_genres" => {
+				genres.extend(included);
+				genres.extend(excluded.into_iter().map(|x| format!("!{x}")));
+			}
+			_ => {}
+		}
+	}
+	qs.push("order_by", Some(order));
+	if !genres.is_empty() {
+		qs.push("genres", Some(&genres.join(",")));
+	}
+
 	let url = format!("{}/ranobe/?{qs}", get_base_url());
 	let html = fetch_html(&url)?;
 	let entries: Vec<Manga> = html
@@ -256,32 +288,4 @@ pub fn fetch_ranobe_chapter_text(chapter_url: &str) -> Result<String> {
 		bail!("Текст главы не найден");
 	}
 	Ok(text)
-}
-
-pub fn listing_manga(page: i32) -> Result<MangaPageResult> {
-	use crate::helpers::search;
-	use aidoku::FilterValue;
-	let result = search(
-		None,
-		page,
-		vec![FilterValue::Sort {
-			id: "order".into(),
-			index: 3,
-			ascending: false,
-		}],
-	)?;
-	Ok(MangaPageResult {
-		has_next_page: result.has_next_page,
-		entries: result
-			.entries
-			.into_iter()
-			.map(|m| {
-				let mut manga = m.into_manga(None, true, false);
-				if !manga.key.starts_with("m:") && !manga.key.starts_with("r:") {
-					manga.key = manga_key(&manga.key);
-				}
-				manga
-			})
-			.collect(),
-	})
 }

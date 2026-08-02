@@ -1,12 +1,11 @@
 use crate::settings::base_url;
 use aidoku::{
-	Result,
-	alloc::{String, Vec},
-	helpers::uri::encode_uri_component,
+	HashMap, Result,
+	alloc::{String, Vec, format, string::ToString},
 	imports::{
 		defaults::{DefaultValue, defaults_get, defaults_set},
 		html::Document,
-		net::{Request, Response},
+		net::Request,
 	},
 	prelude::*,
 };
@@ -17,11 +16,16 @@ const JUST_LOGGED_IN_KEY: &str = "login.just";
 const USERNAME_KEY: &str = "login.username";
 const STORED_USERNAME_KEY: &str = "desu.username";
 
+/// XenForo session cookies required for authenticated Desu requests.
+const XF_COOKIE_NAMES: &[&str] = &["xf_user", "xf_session"];
+
+/// Whether a Desu session is available (flag or `xf_user` cookie).
 pub fn is_logged_in() -> bool {
 	defaults_get::<bool>(LOGGED_IN_KEY).unwrap_or(false)
 		|| defaults_get::<String>(COOKIE_KEY).is_some_and(|c| c.contains("xf_user="))
 }
 
+/// Username shown in settings after a successful web login.
 pub fn stored_username() -> Option<String> {
 	defaults_get::<String>(STORED_USERNAME_KEY)
 		.or_else(|| defaults_get::<String>(USERNAME_KEY))
@@ -29,13 +33,17 @@ pub fn stored_username() -> Option<String> {
 }
 
 fn store_username(username: &str) {
-	defaults_set(STORED_USERNAME_KEY, DefaultValue::String(username.into()));
+	let trimmed = username.trim();
+	if !trimmed.is_empty() {
+		defaults_set(STORED_USERNAME_KEY, DefaultValue::String(trimmed.into()));
+	}
 }
 
-pub fn set_just_logged_in() {
+fn set_just_logged_in() {
 	defaults_set(JUST_LOGGED_IN_KEY, DefaultValue::Bool(true));
 }
 
+/// Consumes the one-shot “login just succeeded” flag used by the login notification.
 pub fn take_just_logged_in() -> bool {
 	let flag = defaults_get::<bool>(JUST_LOGGED_IN_KEY).unwrap_or(false);
 	if flag {
@@ -44,6 +52,7 @@ pub fn take_just_logged_in() -> bool {
 	flag
 }
 
+/// Clears the stored XenForo cookie header and account metadata.
 pub fn logout() {
 	defaults_set(COOKIE_KEY, DefaultValue::Null);
 	defaults_set(LOGGED_IN_KEY, DefaultValue::Null);
@@ -63,43 +72,28 @@ fn set_logged_in(value: bool) {
 	}
 }
 
-fn merge_xf_cookies(existing: &str, set_cookie: &str) -> String {
-	let mut map: Vec<(String, String)> = Vec::new();
-	for part in existing.split(';') {
-		let part = part.trim();
-		if let Some((name, value)) = part.split_once('=')
-			&& (name == "xf_user" || name == "xf_session")
-		{
-			map.retain(|(n, _)| n != name);
-			map.push((name.into(), value.into()));
+/// Builds `Cookie` header from WebView cookies (`xf_user` / `xf_session` only).
+fn cookie_header_from_map(cookies: &HashMap<String, String>) -> Option<String> {
+	let mut parts = Vec::new();
+	for name in XF_COOKIE_NAMES {
+		let value = cookies.get(*name).or_else(|| {
+			cookies
+				.iter()
+				.find(|(k, _)| k.eq_ignore_ascii_case(name))
+				.map(|(_, v)| v)
+		});
+		if let Some(value) = value.filter(|v| !v.is_empty()) {
+			parts.push(format!("{name}={value}"));
 		}
 	}
-	for segment in set_cookie.split('\n') {
-		let pair = segment.split(';').next().unwrap_or("").trim();
-		if let Some((name, value)) = pair.split_once('=')
-			&& (name == "xf_user" || name == "xf_session")
-			&& !value.is_empty()
-		{
-			map.retain(|(n, _)| n != name);
-			map.push((name.into(), value.into()));
-		}
-	}
-	map.into_iter()
-		.map(|(n, v)| format!("{n}={v}"))
-		.collect::<Vec<_>>()
-		.join("; ")
-}
-
-fn capture_cookies(response: &Response) {
-	let existing = defaults_get::<String>(COOKIE_KEY).unwrap_or_default();
-	if let Some(set_cookie) = response.get_header("Set-Cookie") {
-		let merged = merge_xf_cookies(&existing, &set_cookie);
-		if !merged.is_empty() {
-			store_cookie_header(&merged);
-		}
+	if parts.iter().any(|p| p.starts_with("xf_user=")) {
+		Some(parts.join("; "))
+	} else {
+		None
 	}
 }
 
+/// Attaches the stored Desu session cookie to outbound requests.
 pub trait AuthedRequest {
 	fn authed(self) -> Self;
 }
@@ -114,71 +108,187 @@ impl AuthedRequest for Request {
 	}
 }
 
-fn get_base_url() -> String {
-	base_url()
-}
-
-fn base_headers(request: Request) -> Request {
-	request
+fn authed_get(url: &str) -> Result<(String, Document)> {
+	let base = base_url();
+	let response = Request::get(url)?
 		.authed()
 		.header("User-Agent", "Aidoku")
-		.header("Referer", get_base_url().as_str())
-}
-
-fn request_html(url: &str) -> Result<Document> {
-	let response = base_headers(Request::get(url)?).send()?;
-	capture_cookies(&response);
-	Ok(response.get_html()?)
-}
-
-pub fn login(username: &str, password: &str) -> Result<bool> {
-	if username.is_empty() || password.is_empty() {
-		return Ok(false);
-	}
-
-	logout();
-
-	let base = get_base_url();
-	let login_page = request_html(&format!("{base}/login/"))?;
-	let token = login_page
-		.select_first("input[name=_xfToken]")
-		.and_then(|el| el.attr("value"))
-		.unwrap_or_default();
-
-	let body = [
-		("login", username),
-		("password", password),
-		("remember", "1"),
-		("register", "0"),
-		("cookie_check", "1"),
-		("_xfToken", token.as_str()),
-		("redirect", base.as_str()),
-	]
-	.into_iter()
-	.map(|(k, v)| format!("{k}={}", encode_uri_component(v)))
-	.collect::<Vec<_>>()
-	.join("&");
-
-	let response = base_headers(Request::post(format!("{base}/login/login"))?)
-		.header("Content-Type", "application/x-www-form-urlencoded")
-		.header("Referer", &format!("{base}/login/"))
-		.body(body.as_bytes())
+		.header("Referer", &format!("{base}/"))
 		.send()?;
-	capture_cookies(&response);
-
-	let verify = base_headers(Request::get(format!("{base}/ranobe/?order_by=updated"))?).send()?;
-	capture_cookies(&verify);
-	let ok = verify.status_code() < 400;
-	set_logged_in(ok);
-	if ok {
-		store_username(username);
-		set_just_logged_in();
-	} else {
-		logout();
-	}
-	Ok(ok)
+	let raw = response.get_string()?;
+	let doc = response.get_html()?;
+	Ok((raw, doc))
 }
 
+fn xf_user_id_from_cookie_header(header: &str) -> Option<String> {
+	for part in header.split(';') {
+		let part = part.trim();
+		let Some((name, value)) = part.split_once('=') else {
+			continue;
+		};
+		if !name.eq_ignore_ascii_case("xf_user") || value.is_empty() {
+			continue;
+		}
+		// Values are either `id` or `id,hash`.
+		let id = value.split(',').next().unwrap_or(value).trim();
+		if !id.is_empty() && id.chars().all(|c| c.is_ascii_digit()) {
+			return Some(id.into());
+		}
+	}
+	None
+}
+
+/// Prefer Desu account menu markup: `.visitorText a.username`.
+fn username_from_visitor_text(html: &str) -> Option<String> {
+	let start = html.find("visitorText")?;
+	let end = (start + 800).min(html.len());
+	let slice = html.get(start..end)?;
+
+	let mut search_from = 0;
+	while let Some(rel) = slice[search_from..].find("<a ") {
+		let a_start = search_from + rel;
+		let a_tag = &slice[a_start..];
+		let Some(gt) = a_tag.find('>') else {
+			break;
+		};
+		let open = &a_tag[..=gt];
+		if open.contains("username") {
+			let rest = &a_tag[gt + 1..];
+			if let Some(close) = rest.find('<') {
+				let name = rest[..close].trim();
+				if !name.is_empty() {
+					return Some(name.into());
+				}
+			}
+		}
+		search_from = a_start + 3;
+		if search_from >= slice.len() {
+			break;
+		}
+	}
+
+	// Fallback: members/{slug}.{id}/ inside visitorText.
+	if let Some(href) = slice.find("members/") {
+		let rest = &slice[href + "members/".len()..];
+		let end = rest.find(['"', '\'', ' ', '/', '?']).unwrap_or(rest.len());
+		let slug = &rest[..end];
+		if let Some((name, id)) = slug.rsplit_once('.')
+			&& !name.is_empty()
+			&& id.chars().all(|c| c.is_ascii_digit())
+		{
+			return Some(name.into());
+		}
+	}
+	None
+}
+
+fn username_from_dom(doc: &Document) -> Option<String> {
+	const SELECTORS: &[&str] = &[
+		".visitorText a.username",
+		".visitorText .username",
+		"a.username.NoOverlay",
+		"a.username[href*='members/']",
+		".username[href*='members/']",
+		".p-navgroup-link--user .p-navgroup-linkText",
+		".p-navgroup-link--user",
+	];
+	for sel in SELECTORS {
+		if let Some(name) = doc
+			.select_first(*sel)
+			.and_then(|el| el.text())
+			.map(|s| s.trim().to_string())
+			.filter(|s| {
+				!s.is_empty()
+					&& !s.eq_ignore_ascii_case("войти")
+					&& !s.contains("Вошли как")
+					&& !s.contains("вошли как")
+			}) {
+			return Some(name);
+		}
+	}
+	None
+}
+
+fn username_from_member_href(html: &str) -> Option<String> {
+	// members/{slug}.{id}/
+	let key = "members/";
+	let mut from = 0;
+	while let Some(rel) = html[from..].find(key) {
+		let abs = from + rel + key.len();
+		let rest = &html[abs..];
+		let end = rest
+			.find(['"', '\'', ' ', '?', '#'])
+			.unwrap_or(rest.len().min(80));
+		let slug = rest[..end].trim_end_matches('/');
+		if let Some((name, id)) = slug.rsplit_once('.')
+			&& !name.is_empty()
+			&& id.chars().all(|c| c.is_ascii_digit())
+		{
+			return Some(name.into());
+		}
+		from = abs;
+		if from >= html.len() {
+			break;
+		}
+	}
+	None
+}
+
+/// Fetches the current username for the settings status footer.
+///
+/// Desu exposes it in `.visitorText a.username` (account menu) and as `members/{name}.{id}/`.
+pub fn refresh_username() -> Result<()> {
+	let base = base_url();
+	let cookie = defaults_get::<String>(COOKIE_KEY).unwrap_or_default();
+	let user_id = xf_user_id_from_cookie_header(&cookie);
+
+	// Account / profile pages usually contain visitorText for the signed-in user.
+	let candidates = [
+		format!("{base}/account/"),
+		format!("{base}/"),
+		user_id
+			.as_ref()
+			.map(|id| format!("{base}/members/{id}/"))
+			.unwrap_or_default(),
+	];
+
+	for url in candidates {
+		if url.is_empty() {
+			continue;
+		}
+		let Ok((raw, doc)) = authed_get(&url) else {
+			continue;
+		};
+		if let Some(name) = username_from_visitor_text(&raw)
+			.or_else(|| username_from_dom(&doc))
+			.or_else(|| username_from_member_href(&raw))
+		{
+			store_username(&name);
+			return Ok(());
+		}
+	}
+	Ok(())
+}
+
+/// Completes Aidoku web login by adopting XenForo cookies from the WebView.
+///
+/// Returns `true` when `xf_user` is present so ranobe/HTML routes can send `Cookie`.
+pub fn handle_web_login(cookies: HashMap<String, String>) -> Result<bool> {
+	let Some(header) = cookie_header_from_map(&cookies) else {
+		return Ok(false);
+	};
+
+	store_cookie_header(&header);
+	set_logged_in(true);
+	set_just_logged_in();
+
+	// Best-effort; notification handler also refreshes for DynamicSettings.
+	let _ = refresh_username();
+
+	Ok(true)
+}
+
+/// Gates ranobe scraping behind an existing Desu session.
 pub fn require_login() -> Result<()> {
 	if is_logged_in() {
 		Ok(())
