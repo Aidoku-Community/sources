@@ -74,9 +74,10 @@ pub fn fetch_archive_page(url: &str) -> aidoku::Result<(Vec<Chapter>, Option<Str
 				.and_then(|a| a.text())
 				.and_then(|text| parse_spanish_date(&text));
 
+			let title = title_from_slug(&slug);
 			chapters.push(Chapter {
-				key: slug.clone(),
-				title: Some(title_from_slug(&slug)),
+				key: slug,
+				title: Some(title),
 				date_uploaded,
 				url: Some(href),
 				..Default::default()

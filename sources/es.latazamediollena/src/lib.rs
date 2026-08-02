@@ -2,7 +2,7 @@
 mod helper;
 
 use aidoku::{
-	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
 	HomeComponentValue, HomeLayout, Listing, ListingProvider, Manga, MangaPageResult,
 	MangaWithChapter, Page, PageContent, Result, Source,
 	alloc::{String, Vec, vec},
@@ -27,16 +27,10 @@ impl Source for Latazamediollena {
 		page: i32,
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		if page > 1 {
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
-		}
 
 		let manga = comic_info();
 		let matches = match query {
-			Some(query) if !query.is_empty() => {
+			Some(query) => {
 				let query = query.to_ascii_lowercase();
 				manga.title.to_ascii_lowercase().contains(&query)
 			}
@@ -78,12 +72,6 @@ impl Source for Latazamediollena {
 			content: PageContent::url(image_url),
 			..Default::default()
 		}])
-	}
-}
-
-impl ListingProvider for Latazamediollena {
-	fn get_manga_list(&self, _listing: Listing, page: i32) -> Result<MangaPageResult> {
-		self.get_search_manga_list(None, page, Vec::new())
 	}
 }
 
