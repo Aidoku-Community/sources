@@ -37,22 +37,14 @@ pub struct MangaEntry {
 	pub manga_cover_img_full: Option<String>,
 }
 
-impl MangaEntry {
-	/// Prefers the full size cover, which listings don't always provide.
-	pub fn cover(&self) -> Option<String> {
-		self.manga_cover_img_full
-			.clone()
-			.or_else(|| self.manga_cover_img.clone())
-	}
-}
-
 impl From<MangaEntry> for Manga {
 	fn from(value: MangaEntry) -> Self {
 		let key = value.manga_id.to_string();
 		Manga {
-			cover: value.cover(),
+			// the full size cover is preferred, but listings don't always provide it
+			cover: value.manga_cover_img_full.or(value.manga_cover_img),
 			url: Some(manga_url(&key)),
-			title: value.manga_name.trim().into(),
+			title: String::from(value.manga_name.trim()),
 			key,
 			..Default::default()
 		}
@@ -83,14 +75,6 @@ pub struct MangaEntryDetail {
 	pub manga_status: Option<bool>,
 	pub manga_cover_img: Option<String>,
 	pub manga_cover_img_full: Option<String>,
-}
-
-impl MangaEntryDetail {
-	pub fn cover(&self) -> Option<String> {
-		self.manga_cover_img_full
-			.clone()
-			.or_else(|| self.manga_cover_img.clone())
-	}
 }
 
 #[derive(Deserialize)]

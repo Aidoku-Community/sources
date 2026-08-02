@@ -92,14 +92,19 @@ impl Source for Rawdevart {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let response = api_request(format!("{BASE_URL}/spa/manga/{}", manga.key))?
+		let MangaDetailsResponse {
+			detail,
+			tags,
+			authors,
+			chapters,
+		} = Request::get(format!("{BASE_URL}/spa/manga/{}", manga.key))?
 			.json_owned::<MangaDetailsResponse>()?;
 
-		if needs_details && let Some(detail) = response.detail.as_ref() {
-			if let Some(title) = detail.manga_name.as_deref() {
-				manga.title = title.trim().into();
+		if needs_details && let Some(detail) = detail {
+			if let Some(title) = detail.manga_name {
+				manga.title = String::from(title.trim());
 			}
-			if let Some(cover) = detail.cover() {
+			if let Some(cover) = detail.manga_cover_img_full.or(detail.manga_cover_img) {
 				manga.cover = Some(cover);
 			}
 			manga.url = Some(manga_url(&manga.key));
@@ -108,37 +113,30 @@ impl Source for Rawdevart {
 				.as_deref()
 				.map(strip_html)
 				.filter(|description| !description.is_empty());
-			let authors = response
-				.authors
-				.as_ref()
-				.map(|authors| {
-					authors
-						.iter()
-						.filter_map(|author| author.author_name.as_deref())
-						.map(|author| String::from(author.trim()))
-						.filter(|author| !author.is_empty())
-						.collect::<Vec<String>>()
-				})
-				.unwrap_or_default();
+
+			let authors = authors
+				.unwrap_or_default()
+				.into_iter()
+				.filter_map(|author| author.author_name)
+				.map(|author| String::from(author.trim()))
+				.filter(|author| !author.is_empty())
+				.collect::<Vec<String>>();
 			manga.authors = (!authors.is_empty()).then_some(authors);
 
-			let tags = response
-				.tags
-				.as_ref()
-				.map(|tags| {
-					tags.iter()
-						.filter_map(|tag| tag.tag_name.as_deref())
-						.map(|tag| String::from(tag.trim()))
-						.collect::<Vec<String>>()
-				})
-				.unwrap_or_default();
+			let tags = tags
+				.unwrap_or_default()
+				.into_iter()
+				.filter_map(|tag| tag.tag_name)
+				.map(|tag| String::from(tag.trim()))
+				.filter(|tag| !tag.is_empty())
+				.collect::<Vec<String>>();
 			manga.content_rating = content_rating(&tags);
 			manga.tags = (!tags.is_empty()).then_some(tags);
 
-			manga.status = if detail.manga_status.unwrap_or(false) {
-				MangaStatus::Completed
-			} else {
-				MangaStatus::Ongoing
+			manga.status = match detail.manga_status {
+				Some(true) => MangaStatus::Completed,
+				Some(false) => MangaStatus::Ongoing,
+				None => MangaStatus::Unknown,
 			};
 			// the "manhwa" and "manhua" genres exist but hold no entries, so everything is japanese
 			manga.viewer = Viewer::RightToLeft;
@@ -150,8 +148,7 @@ impl Source for Rawdevart {
 
 		if needs_chapters {
 			manga.chapters = Some(
-				response
-					.chapters
+				chapters
 					.unwrap_or_default()
 					.into_iter()
 					.filter_map(|chapter| chapter.into_chapter(&manga.key))
@@ -164,11 +161,12 @@ impl Source for Rawdevart {
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = format!("{BASE_URL}/spa/manga/{}/{}", manga.key, chapter.key);
-		let response = api_request(url)?.json_owned::<ChapterPagesResponse>()?;
+		let response = Request::get(url)?.json_owned::<ChapterPagesResponse>()?;
 
-		// the endpoint answers with a null detail for chapters it doesn't know
+		// the endpoint answers with a null detail for chapters it doesn't know, which is a
+		// failure rather than an empty chapter
 		let Some(detail) = response.chapter_detail else {
-			return Ok(Vec::new());
+			bail!("chapter {} of manga {} not found", chapter.key, manga.key);
 		};
 
 		// page images are given as paths relative to the image server
@@ -213,17 +211,9 @@ impl Source for Rawdevart {
 	}
 }
 
-/// Builds a request for the "/spa" endpoints, which the site only ever calls from its own pages.
-/// Sending what its scripts send keeps the responses identical to the ones a browser receives.
-fn api_request(url: String) -> Result<Request> {
-	Ok(Request::get(url)?
-		.header("Referer", format!("{BASE_URL}/").as_str())
-		.header("X-Requested-With", "XMLHttpRequest"))
-}
-
 impl Rawdevart {
 	fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
-		let response = api_request(String::from(url))?.json_owned::<MangaListResponse>()?;
+		let response = Request::get(url)?.json_owned::<MangaListResponse>()?;
 
 		let has_next_page = response
 			.pagi
@@ -252,7 +242,7 @@ impl DynamicFilters for Rawdevart {
 	// the genre list is fetched instead of hardcoded, so new genres are picked up automatically
 	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
 		let response =
-			api_request(format!("{BASE_URL}/spa/genre/all"))?.json_owned::<MangaListResponse>()?;
+			Request::get(format!("{BASE_URL}/spa/genre/all"))?.json_owned::<MangaListResponse>()?;
 		let Some(genre_opt) = response.genre_opt else {
 			return Ok(Vec::new());
 		};
@@ -307,6 +297,8 @@ impl DeepLinkHandler for Rawdevart {
 		let Some(path) = url.strip_prefix(BASE_URL) else {
 			return Ok(None);
 		};
+		// shared urls tend to carry tracking parameters, which aren't part of the id
+		let path = path.split(['?', '#']).next().unwrap_or_default();
 		let segments = path
 			.split('/')
 			.filter(|segment| !segment.is_empty())
@@ -314,22 +306,27 @@ impl DeepLinkHandler for Rawdevart {
 
 		Ok(match segments.as_slice() {
 			// https://rawdevart.art/g/ne854721
-			["g", id] => Some(DeepLinkResult::Manga {
-				key: strip_id_prefix(id).into(),
-			}),
+			["g", id] => manga_key(id).map(|key| DeepLinkResult::Manga { key: key.into() }),
 			// https://rawdevart.art/read/ne854721/chapter-28
-			["read", id, chapter] | ["reader", id, chapter] => Some(DeepLinkResult::Chapter {
-				manga_key: strip_id_prefix(id).into(),
-				key: chapter.strip_prefix_or_self("chapter-").into(),
-			}),
+			["read", id, chapter] | ["reader", id, chapter] => {
+				manga_key(id).and_then(|manga_key| {
+					let key = chapter.strip_prefix_or_self("chapter-");
+					(!key.is_empty()).then(|| DeepLinkResult::Chapter {
+						manga_key: manga_key.into(),
+						key: key.into(),
+					})
+				})
+			}
 			_ => None,
 		})
 	}
 }
 
-/// Strips the leading letters the site puts in front of ids in page urls.
-fn strip_id_prefix(id: &str) -> &str {
-	id.trim_start_matches(char::is_alphabetic)
+/// Strips the letters the site puts in front of ids in page urls, keeping only what looks like
+/// an id afterwards.
+fn manga_key(id: &str) -> Option<&str> {
+	let key = id.trim_start_matches(char::is_alphabetic);
+	(!key.is_empty() && key.bytes().all(|byte| byte.is_ascii_digit())).then_some(key)
 }
 
 /// Some descriptions hold markup, which the app doesn't render.
@@ -549,6 +546,32 @@ mod test {
 			.handle_deep_link(String::from("https://rawdevart.art/latest"))
 			.expect("unknown deep link");
 		assert_eq!(unknown, None);
+
+		// shared urls often carry tracking parameters, which aren't part of the id
+		let tracked = Rawdevart
+			.handle_deep_link(String::from(
+				"https://rawdevart.art/g/ne854721?utm_source=share#top",
+			))
+			.expect("tracked deep link");
+		assert_eq!(
+			tracked,
+			Some(DeepLinkResult::Manga {
+				key: String::from(MANGA_KEY)
+			})
+		);
+
+		// anything that doesn't leave a numeric id behind isn't a manga link
+		for url in [
+			"https://rawdevart.art/g/abc",
+			"https://rawdevart.art/g/",
+			"https://rawdevart.art/read/ne854721/chapter-",
+		] {
+			assert_eq!(
+				Rawdevart.handle_deep_link(String::from(url)).expect(url),
+				None,
+				"{url} should not resolve"
+			);
+		}
 	}
 
 	// the entry that was reported as having no readable chapters
@@ -562,8 +585,9 @@ mod test {
 			.get_manga_update(manga, true, true)
 			.expect("reported manga");
 
+		// bounds rather than exact counts, since the entry is still being updated
 		let chapters = manga.chapters.clone().expect("chapters");
-		assert_eq!(chapters.len(), 9);
+		assert!(chapters.len() >= 9, "only {} chapters", chapters.len());
 		assert!(chapters.iter().all(|chapter| chapter.language.is_none()));
 
 		let chapter = chapters
@@ -579,7 +603,7 @@ mod test {
 		let pages = Rawdevart
 			.get_page_list(manga, chapter)
 			.expect("reported chapter pages");
-		assert_eq!(pages.len(), 25);
+		assert!(pages.len() >= 20, "only {} pages", pages.len());
 		for page in &pages {
 			let PageContent::Url(url, _) = &page.content else {
 				panic!("expected a page url");
