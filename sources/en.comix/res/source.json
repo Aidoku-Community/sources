@@ -2,10 +2,11 @@
 	"info": {
 		"id": "en.comix",
 		"name": "Comix",
-		"version": 21,
+		"version": 23,
 		"url": "https://comix.to",
 		"contentRating": 1,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.8.4"
 	},
 	"listings": [
 		{
