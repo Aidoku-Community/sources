@@ -8,7 +8,10 @@ use aidoku::{
 	imports::net::Request,
 	prelude::*,
 };
-use madara::{Impl, LoadMoreStrategy, Madara, helpers::ElementImageAttr};
+use madara::{
+	Impl, LoadMoreStrategy, Madara,
+	helpers::ElementImageAttr,
+};
 
 const BASE_URL: &str = "https://aquareader.org";
 
@@ -49,8 +52,7 @@ impl Impl for AquaManga {
 			details_title_selector: "h1.aqua-series-info__title".into(),
 			details_cover_selector: "[class*='cover'] img, [class*='poster'] img".into(),
 			details_author_selector: ".aqua-series-info__creator-value".into(),
-			details_artist_selector:
-				".aqua-series-info__creator-value ~ .aqua-series-info__creator-value".into(),
+			details_artist_selector: ".aqua-series-info__creator-value ~ .aqua-series-info__creator-value".into(),
 			details_description_selector: ".aqua-series-synopsis".into(),
 			details_tag_selector: ".aqua-series-genres a".into(),
 			details_status_selector: ".aqua-series-meta__status".into(),
@@ -238,13 +240,16 @@ impl Impl for AquaManga {
 							.select_first(".aqua-hero-slide__title a")
 							.and_then(|a| a.text())?;
 						let key = strip_base(href);
-						let cover = item.select_first("img").and_then(|img| img.img_attr(false));
+						let cover = item
+							.select_first("img")
+							.and_then(|img| img.img_attr(false));
 						let description = item
 							.select_first(".aqua-hero-slide__excerpt")
 							.and_then(|p| p.text())
 							.map(|t| String::from(t.trim()));
-						let tags: Option<Vec<String>> =
-							item.select(".aqua-hero-slide__genre").map(|els| {
+						let tags: Option<Vec<String>> = item
+							.select(".aqua-hero-slide__genre")
+							.map(|els| {
 								els.filter_map(|el| el.text())
 									.map(|t| String::from(t.trim()))
 									.filter(|s| !s.is_empty())
@@ -284,7 +289,9 @@ impl Impl for AquaManga {
 						let link = card.select_first(".aqua-manga-card__cover-link")?;
 						let href = link.attr("href")?;
 						let key = strip_base(href);
-						let cover = link.select_first("img").and_then(|img| img.img_attr(false));
+						let cover = link
+							.select_first("img")
+							.and_then(|img| img.img_attr(false));
 						let title = card
 							.select_first(".aqua-manga-card__title a")
 							.and_then(|a| a.text())?;
@@ -371,7 +378,9 @@ impl Impl for AquaManga {
 						if key.is_empty() {
 							return None;
 						}
-						let cover = a.select_first("img").and_then(|img| img.img_attr(false));
+						let cover = a
+							.select_first("img")
+							.and_then(|img| img.img_attr(false));
 						// Title from img alt or sibling text
 						let title = a
 							.select_first("img")
@@ -414,7 +423,9 @@ impl Impl for AquaManga {
 					.filter_map(|card| {
 						let href = card.attr("href")?;
 						let key = strip_base(href);
-						let cover = card.select_first("img").and_then(|img| img.img_attr(false));
+						let cover = card
+							.select_first("img")
+							.and_then(|img| img.img_attr(false));
 						let title = card
 							.select_first("[class*='title']")
 							.and_then(|el| el.text())?;
