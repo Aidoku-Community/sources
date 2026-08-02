@@ -5,7 +5,7 @@ use aidoku::{
 	Source, UpdateStrategy, Viewer,
 	alloc::{String, Vec, string::ToString},
 	helpers::uri::QueryParameters,
-	imports::{defaults::defaults_get, html::Document, net::Request, std::send_partial_result},
+	imports::{defaults::defaults_get, net::Request, std::send_partial_result},
 	prelude::*,
 };
 
@@ -28,11 +28,10 @@ impl Source for MangaRawBest {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
+		let mut qs = QueryParameters::new();
+		// Both are only known once every filter has been seen.
 		let mut sort = SORT_VALUES[0];
 		let mut search_type = String::from("name");
-		let mut statuses: Vec<String> = Vec::new();
-		let mut included_genres: Vec<String> = Vec::new();
-		let mut excluded_genres: Vec<String> = Vec::new();
 
 		for filter in filters {
 			match filter {
@@ -51,10 +50,18 @@ impl Source for MangaRawBest {
 					included,
 					excluded,
 				} => match id.as_str() {
-					"status" => statuses = included,
+					"status" => {
+						if !included.is_empty() {
+							qs.push("filter[status]", Some(&included.join(",")));
+						}
+					}
 					"genre" => {
-						included_genres = included;
-						excluded_genres = excluded;
+						if !included.is_empty() {
+							qs.push("filter[accept_genres]", Some(&included.join(",")));
+						}
+						if !excluded.is_empty() {
+							qs.push("filter[reject_genres]", Some(&excluded.join(",")));
+						}
 					}
 					_ => {}
 				},
@@ -62,21 +69,11 @@ impl Source for MangaRawBest {
 			}
 		}
 
-		let mut qs = QueryParameters::new();
 		qs.push("sort", Some(sort));
 		qs.push("page", Some(&page.to_string()));
 
-		if let Some(query) = query.as_deref().map(str::trim).filter(|q| !q.is_empty()) {
+		if let Some(query) = query.as_deref().map(str::trim) {
 			qs.push(&format!("filter[{search_type}]"), Some(query));
-		}
-		if !statuses.is_empty() {
-			qs.push("filter[status]", Some(&statuses.join(",")));
-		}
-		if !included_genres.is_empty() {
-			qs.push("filter[accept_genres]", Some(&included_genres.join(",")));
-		}
-		if !excluded_genres.is_empty() {
-			qs.push("filter[reject_genres]", Some(&excluded_genres.join(",")));
 		}
 
 		self.fetch_manga_page(&qs.to_string(), page)
@@ -222,136 +219,6 @@ impl DeepLinkHandler for MangaRawBest {
 			},
 		}))
 	}
-}
-
-/// Parses a manga grid page, shared by search, filtering and listings.
-fn parse_manga_page(html: &Document, page: i32) -> MangaPageResult {
-	let entries = html
-		.select(".manga-vertical")
-		.map(|elements| {
-			elements
-				.filter_map(|element| {
-					let link = element.select_first("a[href^='/raw/']")?;
-					let href = link.attr("href")?;
-					// Drop the trailing chapter segment of /raw/<manga>/<chapter>.
-					let key: String = href.strip_prefix("/raw/")?.split('/').next()?.into();
-					if key.is_empty() {
-						return None;
-					}
-
-					let title = element
-						.select_first(".post-title a")
-						.and_then(|el| el.text())
-						.or_else(|| link.attr("title"))?;
-
-					// Covers are lazy-loaded: src holds a placeholder until the
-					// real url in data-src is swapped in.
-					let cover = element
-						.select_first("img.cover")
-						.and_then(|el| el.attr("abs:data-src").or_else(|| el.attr("abs:src")));
-
-					Some(Manga {
-						key: key.clone(),
-						title,
-						cover,
-						url: Some(format!("{BASE_URL}/raw/{key}")),
-						..Default::default()
-					})
-				})
-				.collect::<Vec<Manga>>()
-		})
-		.unwrap_or_default();
-
-	// The pagination bar always ends with a link to the final page, and is
-	// omitted entirely when the results fit on a single page.
-	let has_next_page = html
-		.select_first("a.paging_prevnext.next")
-		.and_then(|el| el.attr("href"))
-		.and_then(|href| parse_page_param(&href))
-		.is_some_and(|last_page| page < last_page);
-
-	MangaPageResult {
-		entries,
-		has_next_page,
-	}
-}
-
-/// Collects the genres listed on a series page.
-///
-/// Scoped to the genre row of the info block: the page also ends with an SEO
-/// keyword cloud that links to the same genres, but labels each one with the
-/// series title ("<title> Action") and would otherwise pollute the tags.
-fn parse_tags(html: &Document) -> Vec<String> {
-	let mut tags = Vec::new();
-
-	if let Some(elements) = html.select("span.flex-wrap.gap-1 a[href*='/genre/']") {
-		for element in elements {
-			if let Some(tag) = element.text().as_deref().and_then(clean_tag) {
-				push_unique(&mut tags, tag);
-			}
-		}
-	}
-
-	tags
-}
-
-/// Reads the publishing status from the series page.
-fn parse_status(html: &Document) -> MangaStatus {
-	let Some(element) = html.select_first("a[href*='status']") else {
-		return MangaStatus::Unknown;
-	};
-
-	// The filter value is stable; the label next to it is only a fallback.
-	match element.attr("href").as_deref().and_then(parse_status_value) {
-		Some("completed") => return MangaStatus::Completed,
-		Some("ongoing") => return MangaStatus::Ongoing,
-		_ => {}
-	}
-
-	match element.text().unwrap_or_default().trim() {
-		"進行中" => MangaStatus::Ongoing,
-		"完了" | "完結" => MangaStatus::Completed,
-		_ => MangaStatus::Unknown,
-	}
-}
-
-/// Collects the chapter list from a series page.
-fn parse_chapters(html: &Document) -> Vec<Chapter> {
-	html.select("#chapterList ul a")
-		.map(|elements| {
-			elements
-				.filter_map(|element| {
-					// hrefs look like /raw/<manga>/<chapter>
-					let href = element.attr("href")?;
-					let key: String = href.rsplit('/').next().filter(|s| !s.is_empty())?.into();
-
-					let title = element
-						.select_first("span.text-ellipsis")
-						.and_then(|el| el.text())
-						.map(|title| title.trim().to_string())
-						.filter(|title| !title.is_empty());
-					let chapter_number = title.as_deref().and_then(parse_chapter_number);
-					// Titles are just "第N話", which the app already renders from
-					// chapter_number, so only keep ones that add something.
-					let title = title.filter(|title| !is_plain_chapter_title(title));
-
-					let date_uploaded = element
-						.select_first("span.timeago")
-						.and_then(|el| el.text())
-						.and_then(|text| parse_relative_date(&text));
-
-					Some(Chapter {
-						key,
-						title,
-						chapter_number,
-						date_uploaded,
-						url: Some(format!("{BASE_URL}{href}")),
-						..Default::default()
-					})
-				})
-				.collect::<Vec<Chapter>>()
-		})
-		.unwrap_or_default()
 }
 
 register_source!(

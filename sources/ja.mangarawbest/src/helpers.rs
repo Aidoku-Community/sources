@@ -1,8 +1,9 @@
+use crate::BASE_URL;
 use aidoku::{
-	ContentRating,
+	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus,
 	alloc::{String, Vec, string::ToString},
 	helpers::uri::encode_uri_component,
-	imports::std::current_date,
+	imports::{html::Document, std::current_date},
 	prelude::*,
 };
 
@@ -163,14 +164,144 @@ pub fn strip_base_url(url: &str) -> Option<&str> {
 	path.strip_prefix("mangaraw.best")
 }
 
-/// Appends `value` to `values` unless it is already present.
-///
-/// The responsive series layout renders each genre twice, so the tag list has
-/// to be deduplicated without disturbing the site's ordering.
+/// Appends `value` to `values` unless it is already present, preserving the
+/// order the site lists them in.
 pub fn push_unique(values: &mut Vec<String>, value: String) {
 	if !values.contains(&value) {
 		values.push(value);
 	}
+}
+
+/// Parses a manga grid page, shared by search, filtering and listings.
+pub fn parse_manga_page(html: &Document, page: i32) -> MangaPageResult {
+	let entries = html
+		.select(".manga-vertical")
+		.map(|elements| {
+			elements
+				.filter_map(|element| {
+					let link = element.select_first("a[href^='/raw/']")?;
+					let href = link.attr("href")?;
+					// Drop the trailing chapter segment of /raw/<manga>/<chapter>.
+					let key: String = href.strip_prefix("/raw/")?.split('/').next()?.into();
+					if key.is_empty() {
+						return None;
+					}
+
+					let title = element
+						.select_first(".post-title a")
+						.and_then(|el| el.text())
+						.or_else(|| link.attr("title"))?;
+
+					// Covers are lazy-loaded: src holds a placeholder until the
+					// real url in data-src is swapped in.
+					let cover = element
+						.select_first("img.cover")
+						.and_then(|el| el.attr("abs:data-src").or_else(|| el.attr("abs:src")));
+
+					let url = format!("{BASE_URL}/raw/{key}");
+
+					Some(Manga {
+						key,
+						title,
+						cover,
+						url: Some(url),
+						..Default::default()
+					})
+				})
+				.collect::<Vec<Manga>>()
+		})
+		.unwrap_or_default();
+
+	// The pagination bar always ends with a link to the final page, and is
+	// omitted entirely when the results fit on a single page.
+	let has_next_page = html
+		.select_first("a.paging_prevnext.next")
+		.and_then(|el| el.attr("href"))
+		.and_then(|href| parse_page_param(&href))
+		.is_some_and(|last_page| page < last_page);
+
+	MangaPageResult {
+		entries,
+		has_next_page,
+	}
+}
+
+/// Collects the genres listed on a series page.
+///
+/// Scoped to the genre row of the info block: the page also ends with an SEO
+/// keyword cloud that links to the same genres, but labels each one with the
+/// series title ("<title> Action") and would otherwise pollute the tags.
+pub fn parse_tags(html: &Document) -> Vec<String> {
+	let mut tags = Vec::new();
+
+	if let Some(elements) = html.select("span.flex-wrap.gap-1 a[href*='/genre/']") {
+		for element in elements {
+			if let Some(tag) = element.text().as_deref().and_then(clean_tag) {
+				push_unique(&mut tags, tag);
+			}
+		}
+	}
+
+	tags
+}
+
+/// Reads the publishing status from the series page.
+pub fn parse_status(html: &Document) -> MangaStatus {
+	let Some(element) = html.select_first("a[href*='status']") else {
+		return MangaStatus::Unknown;
+	};
+
+	// The filter value is stable; the label next to it is only a fallback.
+	match element.attr("href").as_deref().and_then(parse_status_value) {
+		Some("completed") => return MangaStatus::Completed,
+		Some("ongoing") => return MangaStatus::Ongoing,
+		_ => {}
+	}
+
+	match element.text().unwrap_or_default().trim() {
+		"進行中" => MangaStatus::Ongoing,
+		"完了" | "完結" => MangaStatus::Completed,
+		_ => MangaStatus::Unknown,
+	}
+}
+
+/// Collects the chapter list from a series page.
+pub fn parse_chapters(html: &Document) -> Vec<Chapter> {
+	html.select("#chapterList ul a")
+		.map(|elements| {
+			elements
+				.filter_map(|element| {
+					// hrefs look like /raw/<manga>/<chapter>
+					let href = element.attr("href")?;
+					let key: String = href.rsplit('/').next().filter(|s| !s.is_empty())?.into();
+
+					let title = element
+						.select_first("span.text-ellipsis")
+						.and_then(|el| el.text())
+						.map(|title| title.trim().to_string())
+						.filter(|title| !title.is_empty());
+					let chapter_number = title.as_deref().and_then(parse_chapter_number);
+					// Titles are just "第N話", which the app already renders from
+					// chapter_number, so only keep ones that add something.
+					let title = title.filter(|title| !is_plain_chapter_title(title));
+
+					let date_uploaded = element
+						.select_first("span.timeago")
+						.and_then(|el| el.text())
+						.and_then(|text| parse_relative_date(&text));
+
+					Some(Chapter {
+						key,
+						title,
+						chapter_number,
+						date_uploaded,
+						url: Some(format!("{BASE_URL}{href}")),
+						..Default::default()
+					})
+				})
+				.collect::<Vec<Chapter>>()
+		})
+		.unwrap_or_default()
 }
 
 #[cfg(test)]

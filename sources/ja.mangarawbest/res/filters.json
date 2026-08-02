@@ -4,10 +4,6 @@
 		"id": "sort",
 		"title": "並び替え",
 		"canAscend": false,
-		"default": {
-			"index": 0,
-			"ascending": false
-		},
 		"options": [
 			"更新順",
 			"作成順",
