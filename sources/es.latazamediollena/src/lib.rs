@@ -3,7 +3,7 @@ mod helper;
 
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
-	HomeComponentValue, HomeLayout, Listing, ListingProvider, Manga, MangaPageResult,
+	HomeComponentValue, HomeLayout, Manga, MangaPageResult,
 	MangaWithChapter, Page, PageContent, Result, Source,
 	alloc::{String, Vec, vec},
 	imports::net::Request,
@@ -126,4 +126,4 @@ impl DeepLinkHandler for Latazamediollena {
 	}
 }
 
-register_source!(Latazamediollena, ListingProvider, Home, DeepLinkHandler);
+register_source!(Latazamediollena, Home, DeepLinkHandler);
