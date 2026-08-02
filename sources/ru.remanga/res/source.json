@@ -2,11 +2,12 @@
 	"info": {
 		"id": "ru.remanga",
 		"name": "ReManga",
-		"version": 1,
+		"version": 3,
 		"url": "https://remanga.org",
 		"contentRating": 1,
 		"languages": [
 			"ru"
-		]
+		],
+		"breakingChangeVersion": 3
 	}
 }

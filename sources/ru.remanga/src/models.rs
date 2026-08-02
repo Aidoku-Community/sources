@@ -382,11 +382,12 @@ impl TitleCard {
 			.as_ref()
 			.and_then(Cover::best)
 			.or_else(|| self.img.as_ref().and_then(Cover::best));
+		let url = format!("{SITE_URL}/manga/{key}");
 		Some(Manga {
-			key: key.clone(),
+			key,
 			title,
 			cover,
-			url: Some(format!("{SITE_URL}/manga/{key}")),
+			url: Some(url),
 			status: status_from(self.status.as_ref()),
 			content_rating: rating_from(
 				self.is_erotic.unwrap_or(false),
@@ -406,10 +407,7 @@ impl TitleDetail {
 			.clone()
 			.or_else(|| existing.as_ref().map(|m| m.key.clone()))
 			.unwrap_or_default();
-		let mut manga = existing.unwrap_or(Manga {
-			key: key.clone(),
-			..Default::default()
-		});
+		let mut manga = existing.unwrap_or_default();
 		manga.key = key.clone();
 		manga.title = pick_title(self.main_name, self.secondary_name, &key);
 		manga.cover = self.cover.as_ref().and_then(Cover::best).or(manga.cover);

@@ -46,9 +46,8 @@ impl Source for Remanga {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let key = manga.key.clone();
 		let (mut item, branches) = if needs_details {
-			fetch_manga_with_branches(&key, manga)
+			fetch_manga_with_branches(manga)
 		} else {
 			(manga, None)
 		};
@@ -57,6 +56,7 @@ impl Source for Remanga {
 			if needs_details {
 				send_partial_result(&item);
 			}
+			let key = item.key.clone();
 			let chapters = fetch_chapters(&key, branches, |partial| {
 				item.chapters = Some(partial.to_vec());
 				send_partial_result(&item);
@@ -74,15 +74,14 @@ impl Source for Remanga {
 
 impl DeepLinkHandler for Remanga {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let rest = url
-			.strip_prefix("https://")
-			.or_else(|| url.strip_prefix("http://"))
-			.unwrap_or(&url);
-		let path = rest
-			.strip_prefix("remanga.org/")
-			.or_else(|| rest.strip_prefix("www.remanga.org/"))
-			.unwrap_or(rest)
-			.trim_start_matches('/');
+		// Aidoku only forwards URLs matching `source.json` base URL.
+		let Some(path) = url
+			.strip_prefix(SITE_URL)
+			.or_else(|| url.strip_prefix("https://remanga.org"))
+			.map(|p| p.trim_start_matches('/'))
+		else {
+			return Ok(None);
+		};
 
 		let mut parts = path.split('/').filter(|p| !p.is_empty());
 		let section = parts.next().unwrap_or("");

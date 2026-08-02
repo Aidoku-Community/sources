@@ -155,8 +155,8 @@ fn fetch_title(slug: &str) -> Result<TitleDetail> {
 }
 
 /// Loads title details once and returns branches for chapter fetching (avoids a second title GET).
-pub fn fetch_manga_with_branches(slug: &str, existing: Manga) -> (Manga, Option<Vec<Branch>>) {
-	match fetch_title(slug) {
+pub fn fetch_manga_with_branches(existing: Manga) -> (Manga, Option<Vec<Branch>>) {
+	match fetch_title(&existing.key) {
 		Ok(detail) => {
 			let branches = detail.branches().to_vec();
 			let branches = if branches.is_empty() {
@@ -214,9 +214,8 @@ pub fn fetch_chapters(
 	let branch = select_primary_branch(branches)?;
 	let label = branch
 		.publishers
-		.as_ref()
-		.and_then(|p| p.first())
-		.and_then(|p| p.name.clone());
+		.and_then(|p| p.into_iter().next())
+		.and_then(|p| p.name);
 
 	let mut chapters = Vec::new();
 	let mut page = 1;
