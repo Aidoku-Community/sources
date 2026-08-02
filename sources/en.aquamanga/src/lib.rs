@@ -111,7 +111,7 @@ impl Impl for AquaManga {
 					format!("{}/manga/page/{}/?m_orderby=new-manga", BASE_URL, page)
 				}
 			}
-			"All Series" | _ => {
+			_ => {
 				if page <= 1 {
 					format!("{}/manga/", BASE_URL)
 				} else {
