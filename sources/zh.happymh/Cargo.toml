@@ -6,9 +6,12 @@ edition = "2024"
 [dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs", features = ["helpers", "json"] }
 chrono = { version = "0.4.31", default-features = false, features = ["serde"] }
+base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
+miniz_oxide = { version = "0.8.9", default-features = false, features = ["with-alloc"] }
 regex = { version = "1.11.1", default-features = false, features = ["unicode"] }
 serde = { version = "1.0.219", default-features = false }
 serde_json = { version = "1.0.140", default-features = false }
+sha2 = { version = "0.10.9", default-features = false }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }

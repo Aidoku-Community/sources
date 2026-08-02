@@ -1,0 +1,24 @@
+[
+	{
+		"type": "group",
+		"title": "Content",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "contentRating",
+				"title": "Content Rating",
+				"values": ["Safe", "Suggestive", "Erotica", "Pornographic"],
+				"default": ["Safe", "Suggestive"],
+				"refreshes": ["content"]
+			},
+			{
+				"type": "multi-select",
+				"key": "sourceType",
+				"title": "Source Type",
+				"values": ["Official", "Unofficial", "Mixed"],
+				"default": ["Official", "Unofficial", "Mixed"],
+				"refreshes": ["content"]
+			}
+		]
+	}
+]

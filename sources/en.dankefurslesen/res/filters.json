@@ -1,0 +1,9 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"title": "Sort",
+		"canAscend": false,
+		"options": ["Alphabetical", "Latest Chapter"]
+	}
+]
