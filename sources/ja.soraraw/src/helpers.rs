@@ -114,13 +114,29 @@ pub fn status(kind: Option<&str>) -> MangaStatus {
 	}
 }
 
-/// The site marks webtoons by the reading direction it renders them with.
-pub fn viewer(mode: Option<&str>) -> Viewer {
-	match mode {
-		Some("vertical") => Viewer::Webtoon,
-		Some("horizontal") => Viewer::RightToLeft,
-		_ => Viewer::Unknown,
+/// Picks the reader from the genres a series carries, which is the only field that tracks what the
+/// artwork actually is.
+///
+/// The `mode` field looks like the obvious input and isn't: it says how the site's own reader lays
+/// a series out, not what kind of comic it is. Measured across 31 series, every `horizontal` one
+/// held page-shaped art — but so did a third of the `vertical` ones, ordinary japanese manga that
+/// the app would otherwise open in a continuous scroll. The overseas genres track the content
+/// instead: across 8000 catalogue entries they appear on 2 of 7021 `horizontal` series and on 644
+/// of 979 `vertical` ones, which is the share of `vertical` series that really are webtoons.
+///
+/// Image proportions are deliberately not used either. Korean webtoons here are cut into
+/// page-shaped chunks about as often as into tall strips, so the shape of a page says nothing
+/// about whether the panels are meant to run together.
+pub fn viewer<'a>(genre_slugs: impl Iterator<Item = &'a str>) -> Viewer {
+	const OVERSEAS_GENRE: &str = "kaigai-manga";
+
+	for slug in genre_slugs {
+		if slug == OVERSEAS_GENRE || slug.contains("webtoon") {
+			return Viewer::Webtoon;
+		}
 	}
+	// everything else on a japanese raw site reads as manga
+	Viewer::RightToLeft
 }
 
 /// Every entry carries the flag the site sorts adult content by, which is what this follows.

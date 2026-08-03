@@ -1,5 +1,5 @@
 use aidoku::{
-	Chapter, Manga,
+	Chapter, Manga, Viewer,
 	alloc::{String, Vec},
 	imports::std::parse_date_with_options,
 	prelude::format,
@@ -85,13 +85,13 @@ pub struct MangaEntry {
 	/// Publishing status, either "incomplete" or "complete".
 	#[serde(rename = "type")]
 	pub kind: Option<String>,
-	/// Reading direction, either "horizontal" or "vertical".
-	pub mode: Option<String>,
 	pub is_adult: Option<String>,
 }
 
 impl From<MangaEntry> for Manga {
 	fn from(value: MangaEntry) -> Self {
+		// `viewer` is left unset: listings carry no genres, and the reader is picked from those.
+		// The app fills it in from `get_manga_update` before a chapter can be opened anyway
 		Manga {
 			cover: cover(value.thumbnail, value.image.as_deref()),
 			title: value.name.trim().into(),
@@ -100,7 +100,6 @@ impl From<MangaEntry> for Manga {
 			key: value.slug,
 			status: status(value.kind.as_deref()),
 			content_rating: content_rating(value.is_adult.as_deref()),
-			viewer: viewer(value.mode.as_deref()),
 			..Default::default()
 		}
 	}
@@ -125,7 +124,6 @@ pub struct CatalogueEntry {
 	pub img: Option<String>,
 	#[serde(rename = "type")]
 	pub kind: Option<String>,
-	pub mode: Option<String>,
 	pub is_adult: Option<String>,
 }
 
@@ -147,6 +145,8 @@ impl CatalogueEntry {
 
 impl From<CatalogueEntry> for Manga {
 	fn from(value: CatalogueEntry) -> Self {
+		// the dump gives genres as bare ids, which would need the genre index to resolve, so the
+		// reader is left to the details request like it is for the listings
 		Manga {
 			cover: cover(None, value.img.as_deref()),
 			title: value.name.trim().into(),
@@ -155,7 +155,6 @@ impl From<CatalogueEntry> for Manga {
 			key: value.slug,
 			status: status(value.kind.as_deref()),
 			content_rating: content_rating(value.is_adult.as_deref()),
-			viewer: viewer(value.mode.as_deref()),
 			..Default::default()
 		}
 	}
@@ -180,7 +179,6 @@ pub struct MangaDetails {
 	pub content: Option<String>,
 	#[serde(rename = "type")]
 	pub kind: Option<String>,
-	pub mode: Option<String>,
 	pub is_adult: Option<String>,
 	#[serde(default)]
 	pub genres: Vec<Genre>,
@@ -191,6 +189,10 @@ pub struct MangaDetails {
 impl MangaDetails {
 	pub fn cover(&self) -> Option<String> {
 		cover(None, self.image.as_deref())
+	}
+
+	pub fn viewer(&self) -> Viewer {
+		viewer(self.genres.iter().map(|genre| genre.slug.as_str()))
 	}
 
 	pub fn authors(&self) -> Option<Vec<String>> {
@@ -231,6 +233,8 @@ impl MangaDetails {
 #[derive(Deserialize)]
 pub struct Genre {
 	pub name: String,
+	/// Stable identifier of the genre; names are not unique, so the reader is picked from this.
+	pub slug: String,
 }
 
 impl Genre {

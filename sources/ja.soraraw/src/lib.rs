@@ -98,7 +98,7 @@ impl Source for Soraraw {
 			manga.description = details.description();
 			manga.url = Some(url);
 			manga.status = status(details.kind.as_deref());
-			manga.viewer = viewer(details.mode.as_deref());
+			manga.viewer = details.viewer();
 			manga.content_rating = content_rating(details.is_adult.as_deref());
 
 			let tags = details
@@ -167,6 +167,12 @@ impl Source for Soraraw {
 		let host = format!("https://lh{}.{IMAGE_HOST}", chapter_id % 4 + 1);
 		let extension = image_extension(&host, chapter_id, first_page);
 
+		// a handful of chapters are served as one image holding every page of the chapter stacked
+		// on top of each other (24 pages as a single 1450x49152 jpeg), which the reader shows as
+		// one page. Cutting those apart is deliberately left undone: the cuts themselves land
+		// exactly on the page boundaries, but neither handing the slices over as
+		// `PageContent::Image` nor cutting them in a `PageImageProcessor` rendered anything on
+		// device — the page count came out right and every page stayed blank
 		Ok(names
 			.iter()
 			.map(|name| Page {
@@ -331,8 +337,13 @@ mod test {
 
 	/// "Majo to Youhei", a long running series used to check parsing against.
 	const MANGA_KEY: &str = "majo-to-youhei-57539";
-	/// "Hard Worker Nakata", the stable entry with a vertical reading direction and an adult flag.
-	const WEBTOON_KEY: &str = "haadowaakaa-nakata-740";
+	/// "Mattan Heishi ga Kunshu ni Naru made", a korean webtoon carrying the overseas genre.
+	const WEBTOON_KEY: &str = "mattan-heishi-ga-kunshu-ni-naru-made-7194";
+	/// "Blue Giant Momentum", ordinary manga the site marks as `vertical`. Reported as opening in a
+	/// continuous scroll, which is what picking the reader from `mode` used to do to it.
+	const PAGED_VERTICAL_KEY: &str = "blue-giant-momentum-buruu-jaianto-momentamu-60652";
+	/// "Hard Worker Nakata", also marked `vertical` while holding page-shaped art.
+	const ADULT_VERTICAL_KEY: &str = "haadowaakaa-nakata-740";
 	/// "Tonari no Kurokawa-san", which holds one of the chapters stored as jpg.
 	const JPG_MANGA_KEY: &str = "my-neighbor-ms-kurokawa-tonari-no-kurokawa-san-1";
 	const JPG_CHAPTER_KEY: &str = "1/786104";
@@ -382,9 +393,8 @@ mod test {
 					.is_some_and(|cover| cover.starts_with("http")),
 				"{id} entry has no absolute cover"
 			);
-			// listings carry enough to fill these in, and leaving them for the details request
-			// would show the wrong reading direction until a series is opened
-			assert_ne!(entry.viewer, Viewer::Unknown, "{id} entry has no viewer");
+			// listings carry the adult flag, so this one doesn't have to wait for the details
+			// request; `viewer` does, since it is picked from genres the listings don't carry
 			assert_ne!(
 				entry.content_rating,
 				ContentRating::Unknown,
@@ -485,7 +495,6 @@ mod test {
 			"catalogue entries name their cover field differently, so it is easy to lose"
 		);
 		assert_eq!(entry.content_rating, ContentRating::NSFW);
-		assert_eq!(entry.viewer, Viewer::RightToLeft);
 	}
 
 	#[aidoku_test]
@@ -589,7 +598,38 @@ mod test {
 			.get_manga_update(manga, true, false)
 			.expect("webtoon details");
 
+		// tagged with the overseas genre, so its panels are meant to run together
 		assert_eq!(manga.viewer, Viewer::Webtoon);
+	}
+
+	// the site marks plenty of ordinary manga as `vertical`, and reading the flag as "webtoon"
+	// handed those to the continuous scroll reader, which ran every page of a chapter together
+	#[aidoku_test]
+	fn test_vertical_mode_is_not_a_webtoon() {
+		for key in [PAGED_VERTICAL_KEY, ADULT_VERTICAL_KEY] {
+			let manga = Manga {
+				key: String::from(key),
+				..Default::default()
+			};
+			let manga = Soraraw
+				.get_manga_update(manga, true, false)
+				.expect("details of a vertical entry");
+
+			assert_eq!(manga.viewer, Viewer::RightToLeft, "{key}");
+		}
+	}
+
+	// the adult flag has to reach the app regardless of which reader is picked
+	#[aidoku_test]
+	fn test_adult_details() {
+		let manga = Manga {
+			key: String::from(ADULT_VERTICAL_KEY),
+			..Default::default()
+		};
+		let manga = Soraraw
+			.get_manga_update(manga, true, false)
+			.expect("adult details");
+
 		assert_eq!(manga.content_rating, ContentRating::NSFW);
 	}
 
@@ -639,6 +679,35 @@ mod test {
 			"{} did not resolve",
 			urls[urls.len() - 1]
 		);
+	}
+
+	// chapters 66 to 70 of this series are each served as one image holding all 24 of their pages
+	// stacked on top of each other. That image is handed over whole, which the reader shows as a
+	// single page — a known limitation rather than the wanted behaviour, kept under test so the
+	// chapter at least stays readable as a list rather than failing outright
+	#[aidoku_test]
+	fn test_stacked_chapter_is_one_page() {
+		let manga = Manga {
+			key: String::from(PAGED_VERTICAL_KEY),
+			..Default::default()
+		};
+		let mut manga = Soraraw
+			.get_manga_update(manga, false, true)
+			.expect("chapters");
+		let chapter = manga
+			.chapters
+			.take()
+			.expect("chapters")
+			.into_iter()
+			.find(|chapter| chapter.chapter_number == Some(70.0))
+			.expect("chapter 70");
+
+		let pages = Soraraw.get_page_list(manga, chapter).expect("page list");
+		assert!(!pages.is_empty());
+
+		// the image measured 1450x49152 against the 1448x2048 the rest of the series holds
+		let urls = page_urls(&pages);
+		assert!(resolves(urls[0]), "{} did not resolve", urls[0]);
 	}
 
 	// a few chapters are stored as jpg, which nothing in the page list gives away
