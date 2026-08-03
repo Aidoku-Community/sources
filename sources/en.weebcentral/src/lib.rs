@@ -1,11 +1,11 @@
 #![no_std]
 use aidoku::{
-	alloc::{borrow::ToOwned, vec, String, Vec},
-	imports::{html::Element, net::Request, std::send_partial_result},
-	prelude::*,
 	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Home,
 	HomeComponent, HomeLayout, ImageRequestProvider, Listing, ListingProvider, Manga,
 	MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source, Viewer,
+	alloc::{String, Vec, borrow::ToOwned, vec},
+	imports::{html::Element, net::Request, std::send_partial_result},
+	prelude::*,
 };
 
 mod filter;
@@ -251,7 +251,7 @@ impl ListingProvider for WeebCentral {
 						let manga_key = el
 							.select_first("a")?
 							.attr("href")?
-							.strip_prefix(BASE_URL)?
+							.trim_start_matches(BASE_URL)
 							.into();
 						let cover = el.select_first("img")?.attr("src");
 						let title = el.select_first(".text-lg")?.text()?;
@@ -282,9 +282,16 @@ impl Home for WeebCentral {
 
 		fn parse_manga_with_chapter(el: &Element) -> Option<MangaWithChapter> {
 			let mut links = el.select("a")?;
-			let manga_key = links.first()?.attr("href")?.strip_prefix(BASE_URL)?.into();
+			let manga_key = links
+				.first()?
+				.attr("href")?
+				.trim_start_matches(BASE_URL)
+				.into();
 			let chapter_link = links.next_back()?;
-			let chapter_key = chapter_link.attr("href")?.strip_prefix(BASE_URL)?.into();
+			let chapter_key = chapter_link
+				.attr("href")?
+				.trim_start_matches(BASE_URL)
+				.into();
 			let cover = el.select_first("img")?.attr("src");
 			let title = el.select_first(".text-lg")?.text()?;
 			let chapter_number = chapter_link
@@ -318,7 +325,7 @@ impl Home for WeebCentral {
 			let key = el
 				.select_first("a")?
 				.attr("href")?
-				.strip_prefix(BASE_URL)?
+				.trim_start_matches(BASE_URL)
 				.into();
 			let cover = el.select_first("img")?.attr("src");
 			let title = el.select_first(".text-lg")?.text()?;
@@ -347,8 +354,13 @@ impl Home for WeebCentral {
 			.unwrap_or_default();
 
 		let recommendations = html
-			.select("section:has(h2:contains(Recommendations)) li.glide__slide:not(.glide__slide--clone)")
-			.map(|els| els.filter_map(|el| parse_manga(&el).map(Into::into)).collect::<Vec<_>>())
+			.select(
+				"section:has(span:contains(Recommendations)) li.glide__slide:not(.glide__slide--clone)",
+			)
+			.map(|els| {
+				els.filter_map(|el| parse_manga(&el).map(Into::into))
+					.collect::<Vec<_>>()
+			})
 			.unwrap_or_default();
 
 		Ok(HomeLayout {
@@ -357,7 +369,7 @@ impl Home for WeebCentral {
 					title: Some("Hot Updates".into()),
 					subtitle: None,
 					value: aidoku::HomeComponentValue::MangaChapterList {
-						page_size: Some(6),
+						page_size: Some(3),
 						entries: hot_updates,
 						listing: Some(Listing {
 							id: "hot".into(),
@@ -370,7 +382,7 @@ impl Home for WeebCentral {
 					title: Some("Latest Updates".into()),
 					subtitle: None,
 					value: aidoku::HomeComponentValue::MangaChapterList {
-						page_size: Some(16),
+						page_size: Some(3),
 						entries: latest_updates,
 						listing: None,
 					},
