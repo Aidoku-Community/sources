@@ -98,19 +98,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "ezmanga"
-version = "0.1.0"
-dependencies = [
- "aidoku",
- "aidoku-test",
- "ezmanhwa",
-]
-
-[[package]]
 name = "ezmanhwa"
 version = "0.1.0"
 dependencies = [
  "aidoku",
+ "aidoku-test",
  "serde",
 ]
 
