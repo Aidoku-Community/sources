@@ -2,9 +2,9 @@
 	"info": {
 		"id": "ja.soraraw",
 		"name": "Soraraw",
-		"version": 2,
+		"version": 1,
 		"url": "https://soraraw.com",
-		"contentRating": 1,
+		"contentRating": 2,
 		"languages": [
 			"ja"
 		],
