@@ -2,12 +2,11 @@
 	"info": {
 		"id": "en.batcave",
 		"name": "BatCave",
-		"version": 1,
+		"version": 2,
 		"url": "https://batcave.biz",
 		"contentRating": 0,
-		"languages": [
-			"en"
-		]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	},
 	"config": {
 		"hidesFiltersWhileSearching": true

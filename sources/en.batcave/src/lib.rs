@@ -1,39 +1,30 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider, Manga,
-	MangaPageResult, MangaStatus, Page, PageContent, Result, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, ImageRequestProvider, Manga,
+	MangaPageResult, MangaStatus, Page, PageContent, Result, Source, WebLoginHandler,
 	alloc::{String, Vec, string::ToString, vec},
-	imports::{
-		net::Request,
-		std::{parse_date, send_partial_result},
-	},
+	helpers::uri::encode_uri_component,
+	imports::net::Request,
 	prelude::*,
 };
-use regex::Regex;
-use serde::Deserialize;
 
+mod helpers;
 mod home;
+mod models;
+
+use models::*;
+
+use crate::helpers::BatCaveHtml;
 
 const BASE_URL: &str = "https://batcave.biz";
 const REFERER: &str = "https://batcave.biz/";
+const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) \
+                          AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 \
+                          Mobile/15E148 Safari/604.1";
+const VERIFY_KEY: &str = "verify";
+const TRUST_COOKIE_KEY: &str = "__guard_trust";
 
 struct BatCave;
-
-#[derive(Deserialize)]
-struct ChapterList {
-	news_id: i32,
-	chapters: Vec<SingleChapter>,
-}
-#[derive(Deserialize)]
-struct SingleChapter {
-	date: String,
-	id: i32,
-	title: String,
-}
-#[derive(Deserialize)]
-struct PageList {
-	images: Vec<String>,
-}
 
 impl Source for BatCave {
 	fn new() -> Self {
@@ -46,12 +37,16 @@ impl Source for BatCave {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let mut filters_vec = Vec::<String>::new();
-
-		for filter in filters {
-			match filter {
-				FilterValue::Range { id, from, to } => {
-					if id.as_str() == "year_of_issue" {
+		let url = if let Some(query) = query {
+			format!(
+				"{BASE_URL}/search/{}/page/{page}/",
+				encode_uri_component(query)
+			)
+		} else {
+			let mut filters_vec = Vec::<String>::new();
+			for filter in filters {
+				match filter {
+					FilterValue::Range { from, to, .. } => {
 						if let Some(from) = from {
 							filters_vec.push(format!("y[from]={}", from));
 						}
@@ -59,48 +54,46 @@ impl Source for BatCave {
 							filters_vec.push(format!("y[to]={}", to));
 						}
 					}
-				}
-				FilterValue::MultiSelect { id, included, .. } => {
-					if id.as_str() == "genre" {
+					FilterValue::MultiSelect { included, .. } => {
 						filters_vec.push(format!("g={}", included.join(",")));
 					}
+					_ => {}
 				}
-				_ => {}
 			}
-		}
-
-		let url = if filters_vec.is_empty() {
-			format!(
-				"{BASE_URL}/search/{}/page/{page}/",
-				query.unwrap_or_default()
-			)
-		} else {
-			format!(
-				"{BASE_URL}/ComicList/{}/page/{page}/",
-				filters_vec.join("/")
-			)
+			if !filters_vec.is_empty() {
+				format!(
+					"{BASE_URL}/ComicList/{}/page/{page}/",
+					filters_vec.join("/")
+				)
+			} else {
+				format!(
+					"{BASE_URL}/comix/{}",
+					if page > 1 {
+						format!("page/{page}/")
+					} else {
+						String::new()
+					}
+				)
+			}
 		};
 
-		let result = Request::get(&url)?.html()?;
+		let html = Request::get(&url)?.batcave_html()?;
 
-		let entries = result
-			.select("#dle-content > div:not(.pagination)")
+		let entries = html
+			.select("#dle-content > .readed")
 			.map(|elements| {
 				elements
 					.filter_map(|element| {
-						let url = element.select_first("a")?.attr("abs:href");
-						let key = url.clone()?.strip_prefix(BASE_URL)?.to_string();
+						let link = element.select_first(".readed__title > a")?;
+						let url = link.attr("abs:href")?;
+						let key = url.strip_prefix(BASE_URL)?.to_string();
 						let cover = element.select_first("img")?.attr("abs:data-src");
-						let title = element
-							.select_first("div > h2")
-							.and_then(|x| x.text())
-							.unwrap_or_default();
-
+						let title = link.own_text()?;
 						Some(Manga {
 							key,
 							cover,
 							title,
-							url,
+							url: Some(url),
 							..Default::default()
 						})
 					})
@@ -108,7 +101,11 @@ impl Source for BatCave {
 			})
 			.unwrap_or_default();
 
-		let has_next_page = !entries.is_empty();
+		let has_next_page = html
+			.select_first("div.pagination__pages")
+			.and_then(|el| el.children().next_back())
+			.map(|child| child.tag_name().as_deref() == Some("a"))
+			.unwrap_or_default();
 
 		Ok(MangaPageResult {
 			entries,
@@ -123,7 +120,7 @@ impl Source for BatCave {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let url = format!("{BASE_URL}{}", manga.key);
-		let html = Request::get(&url)?.html()?;
+		let html = Request::get(&url)?.batcave_html()?;
 
 		if needs_details {
 			manga.title = html
@@ -168,10 +165,6 @@ impl Source for BatCave {
 				"Ongoing" => MangaStatus::Ongoing,
 				_ => MangaStatus::Unknown,
 			};
-
-			if needs_chapters {
-				send_partial_result(&manga);
-			}
 		}
 
 		if needs_chapters {
@@ -190,31 +183,7 @@ impl Source for BatCave {
 			let chapters = chapter_list
 				.chapters
 				.into_iter()
-				.map(|chapter| {
-					let url = format!("/reader/{}/{}", chapter_list.news_id, chapter.id);
-
-					let title = chapter
-						.title
-						.strip_prefix(&manga.title)
-						.map(str::trim)
-						.map(String::from)
-						.unwrap_or_else(|| chapter.title);
-
-					let chapter_number = title
-						.find('#')
-						.and_then(|idx| title[idx + 1..].parse::<f32>().ok());
-
-					let date_uploaded = parse_date(&chapter.date, "dd.MM.yyyy");
-
-					Chapter {
-						key: url.clone(),
-						url: Some(url),
-						title: Some(title),
-						chapter_number,
-						date_uploaded,
-						..Default::default()
-					}
-				})
+				.map(|chapter| chapter.into_chapter(chapter_list.news_id, &manga.title))
 				.collect::<Vec<Chapter>>();
 
 			manga.chapters = Some(chapters);
@@ -225,7 +194,7 @@ impl Source for BatCave {
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url = format!("{BASE_URL}{}", chapter.key);
-		let html = Request::get(&url)?.html()?;
+		let html = Request::get(&url)?.batcave_html()?;
 
 		let pages = html
 			.select("script")
@@ -237,23 +206,22 @@ impl Source for BatCave {
 							return None;
 						}
 
-						let page_json_str = text
-							.strip_prefix("window.__DATA__ = ")
-							.and_then(|x| x.strip_suffix(";"))
-							.unwrap_or_default();
+						let page_json_str =
+							text.strip_prefix("window.__DATA__ = ")?.strip_suffix(";")?;
 
 						let page_list = serde_json::from_str::<PageList>(page_json_str).ok()?;
 
 						let pages = page_list
 							.images
 							.into_iter()
-							.map(|mut page_url| {
-								if page_url.starts_with("/") {
-									page_url = format!("{BASE_URL}{}", page_url);
-								}
-
+							.map(|page_url| {
+								let url = if page_url.starts_with("/") {
+									format!("{BASE_URL}{}", page_url)
+								} else {
+									page_url
+								};
 								Page {
-									content: PageContent::url(page_url),
+									content: PageContent::url(url),
 									..Default::default()
 								}
 							})
@@ -267,6 +235,12 @@ impl Source for BatCave {
 			.unwrap_or_default();
 
 		Ok(pages)
+	}
+}
+
+impl WebLoginHandler for BatCave {
+	fn handle_web_login(&self, key: String, cookies: HashMap<String, String>) -> Result<bool> {
+		Ok(key == VERIFY_KEY && cookies.contains_key(TRUST_COOKIE_KEY))
 	}
 }
 
@@ -286,25 +260,36 @@ impl ImageRequestProvider for BatCave {
 
 impl DeepLinkHandler for BatCave {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let pattern = format!(r"^{}\/\d+-[\w-]+\.html$", regex::escape(BASE_URL));
+		let Some(key) = url.strip_prefix(BASE_URL) else {
+			return Ok(None);
+		};
+		let Some((id, slug)) = key.strip_prefix('/').and_then(|path| path.split_once('-')) else {
+			return Ok(None);
+		};
+		let Some(slug) = slug.strip_suffix(".html") else {
+			return Ok(None);
+		};
 
-		let re = Regex::new(&pattern);
-		if re.is_err() {
+		if id.is_empty()
+			|| slug.is_empty()
+			|| !id.bytes().all(|byte| byte.is_ascii_digit())
+			|| !slug
+				.bytes()
+				.all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+		{
 			return Ok(None);
 		}
 
-		let re = re.unwrap();
-		if !re.is_match(&url) {
-			return Ok(None);
-		}
-
-		let key = url
-			.strip_prefix(BASE_URL)
-			.ok_or(error!("Invalid URL prefix"))?
-			.to_string();
-
-		Ok(Some(DeepLinkResult::Manga { key }))
+		Ok(Some(DeepLinkResult::Manga {
+			key: key.to_string(),
+		}))
 	}
 }
 
-register_source!(BatCave, Home, ImageRequestProvider, DeepLinkHandler);
+register_source!(
+	BatCave,
+	Home,
+	ImageRequestProvider,
+	DeepLinkHandler,
+	WebLoginHandler
+);
