@@ -2,7 +2,6 @@ use aidoku::{
 	Chapter, Manga, Viewer,
 	alloc::{String, Vec},
 	imports::std::parse_date_with_options,
-	prelude::format,
 };
 use serde::Deserialize;
 
@@ -303,6 +302,12 @@ pub struct ChapterData {
 pub struct ChapterDetails {
 	pub id: i64,
 	pub manga_id: i64,
+	/// Key the paths of the chapter's images are encrypted with. Only the chapter page carries it,
+	/// which is why requesting pages has to read one.
+	pub uuid: Option<String>,
+	/// Host the chapter's images are served from.
+	#[serde(rename = "_b")]
+	pub base: Option<String>,
 }
 
 /// Response of the image endpoint, which hands out the page list as an obfuscated payload.
@@ -318,20 +323,10 @@ pub struct ImagePayload {
 /// derive at runtime, and the name can be rebuilt from the two fields that aren't encrypted.
 #[derive(Deserialize)]
 pub struct PageImage {
-	pub id: i64,
 	pub order: Number,
-}
-
-impl PageImage {
-	/// File name of the page, without the extension.
-	pub fn file_name(&self) -> Option<String> {
-		let order = self.order.as_f32()? as i32;
-		(order > 0).then(|| format!("{order:03}_{}", self.id))
-	}
-
-	pub fn order(&self) -> i32 {
-		self.order.as_f32().unwrap_or_default() as i32
-	}
+	/// Path the image is served at, encrypted. The entries also hold a `d` for the mirror on
+	/// google drive, which answers for none of the chapters that were tried.
+	pub b: String,
 }
 
 /// A value the site gives as either a number or a string, depending on the entry.

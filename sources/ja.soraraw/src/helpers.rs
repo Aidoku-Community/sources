@@ -1,3 +1,7 @@
+use aes::{
+	Aes256,
+	cipher::{BlockEncrypt, KeyInit, generic_array::GenericArray},
+};
 use aidoku::{
 	AidokuError, ContentRating, MangaStatus, Result, Viewer,
 	alloc::{String, Vec, string::ToString},
@@ -6,7 +10,10 @@ use aidoku::{
 };
 use serde::de::DeserializeOwned;
 
-use crate::{BASE_URL, THUMBNAIL_URL, models::NextData};
+use crate::{BASE_URL, HEADER_BYTES, MAX_DRAWABLE_HEIGHT, THUMBNAIL_URL, models::NextData};
+
+/// Block size of the cipher the site encrypts image paths with.
+const BLOCK_SIZE: usize = 16;
 
 pub fn manga_url(slug: &str) -> String {
 	format!("{BASE_URL}/manga/{slug}")
@@ -64,25 +71,67 @@ pub fn strip_html(text: &str) -> String {
 		.into()
 }
 
-/// Picks the extension the pages of a chapter are stored under.
-///
-/// Page file names only ever leave the server encrypted, so they're rebuilt from the id and the
-/// position of each page, which the endpoint does hand out in the clear. That leaves the extension
-/// open: of 50 chapters sampled across the catalogue, 47 held webp and 3 held jpg, with nothing in
-/// the response telling the two apart. Asking for the first page is what keeps the jpg chapters
-/// readable, and costs one head request per chapter.
-pub fn image_extension(host: &str, chapter_id: i64, first_page: &str) -> &'static str {
-	const DEFAULT: &str = "webp";
-	const FALLBACK: &str = "jpg";
+/// Reads the height of an image off its header, without pulling the whole file down.
+fn image_height(url: &str) -> Option<u32> {
+	let range = format!("bytes=0-{}", HEADER_BYTES - 1);
+	let head = Request::get(url)
+		.ok()?
+		.header("Range", range.as_str())
+		.data()
+		.ok()?;
+	jpeg_height(&head)
+}
 
-	let response = Request::head(format!("{host}/c{chapter_id}/{first_page}.{DEFAULT}"))
-		.and_then(|request| request.send());
-	match response {
-		// only a missing file rules the default out; a request that failed outright, or a server
-		// answering anything else, is better served by the extension almost every chapter uses
-		Ok(response) if response.status_code() == 404 => FALLBACK,
-		_ => DEFAULT,
+/// Refuses an image the reader can't put on screen.
+///
+/// A few chapters ship as a single image stacking every page of them, standing 49152 pixels tall,
+/// which runs past the texture size the gpu takes. Cutting one into pages the reader can draw
+/// isn't something a source can do today: `Canvas::copy_image` and `draw_image` place the
+/// destination rect off the canvas whenever it is shorter than the image drawn from, so every
+/// slice comes back a flat colour (Aidoku/AidokuRunner#3). Saying so beats handing back a black
+/// page the reader can't tell apart from a download that failed. Once that lands, slicing becomes
+/// worth adding: the stacked images cut cleanly on 2048 pixel boundaries.
+pub fn check_drawable(url: &str) -> Result<()> {
+	match image_height(url) {
+		Some(height) if height > MAX_DRAWABLE_HEIGHT => bail!(
+			"{url} stands {height} pixels tall, past the {MAX_DRAWABLE_HEIGHT} the reader can draw"
+		),
+		_ => Ok(()),
 	}
+}
+
+/// Reads the height in pixels out of the header of a jpeg, given the opening bytes of the file.
+///
+/// Only jpeg needs measuring: webp caps a side at 16383 pixels, which the reader still handles, so
+/// a webp page can never be too tall to draw.
+pub fn jpeg_height(head: &[u8]) -> Option<u32> {
+	fn length(head: &[u8], at: usize) -> Option<usize> {
+		Some(usize::from(u16::from_be_bytes([
+			*head.get(at)?,
+			*head.get(at + 1)?,
+		])))
+	}
+
+	if *head.first()? != 0xFF || *head.get(1)? != 0xD8 {
+		return None;
+	}
+
+	let mut index = 2;
+	while *head.get(index)? == 0xFF {
+		match *head.get(index + 1)? {
+			// padding written ahead of the next marker
+			0xFF => index += 1,
+			// markers standing on their own, without a segment behind them
+			0x01 | 0xD0..=0xD9 => index += 2,
+			// a frame header, which opens with the precision and then the size of the image
+			0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF => {
+				return length(head, index + 5)?.try_into().ok();
+			}
+			_ => index += 2 + length(head, index + 2)?,
+		}
+	}
+
+	None
 }
 
 /// Listings hand out either a full cover url or just the file name on the thumbnail host.
@@ -215,4 +264,75 @@ pub fn deobfuscate(payload: &str, key: &[u8]) -> Option<String> {
 		.trim_start_matches('\u{feff}')
 		.trim_matches(|char| char == '\0' || char::is_whitespace(char));
 	(!json.is_empty()).then(|| json.to_string())
+}
+
+/// Turns the encrypted path of a page entry back into the path its image is served at. The site
+/// xors the value with a fixed secret and encrypts what's left with aes-256-ctr, keyed on the uuid
+/// its chapter page carries.
+///
+/// Building the path out of the ids instead only holds for part of the site: the file extension
+/// varies per chapter, and guessing it leaves whole series answering 404.
+pub fn decrypt_path(payload: &str, uuid: &str, secret: &[u8]) -> Option<String> {
+	if secret.is_empty() {
+		return None;
+	}
+	let key = decode_hex(uuid)?;
+	if key.len() != 32 {
+		return None;
+	}
+
+	let mut bytes = decode_base64(payload)?;
+	// the value opens with the counter the stream starts at, so anything shorter holds no path
+	if bytes.len() <= BLOCK_SIZE {
+		return None;
+	}
+	for (index, byte) in bytes.iter_mut().enumerate() {
+		*byte ^= secret[index % secret.len()];
+	}
+
+	let cipher = Aes256::new(GenericArray::from_slice(&key));
+	let mut counter = [0u8; BLOCK_SIZE];
+	counter.copy_from_slice(&bytes[..BLOCK_SIZE]);
+
+	let mut path = Vec::with_capacity(bytes.len() - BLOCK_SIZE);
+	for chunk in bytes[BLOCK_SIZE..].chunks(BLOCK_SIZE) {
+		let mut block = GenericArray::from(counter);
+		cipher.encrypt_block(&mut block);
+		for (byte, mask) in chunk.iter().zip(block.iter()) {
+			path.push(byte ^ mask);
+		}
+		increment(&mut counter);
+	}
+
+	String::from_utf8(path).ok().filter(|path| !path.is_empty())
+}
+
+/// Counts the counter block up the way the site's cipher does, as one big endian number.
+fn increment(counter: &mut [u8; BLOCK_SIZE]) {
+	for byte in counter.iter_mut().rev() {
+		*byte = byte.wrapping_add(1);
+		if *byte != 0 {
+			break;
+		}
+	}
+}
+
+fn decode_hex(input: &str) -> Option<Vec<u8>> {
+	if !input.len().is_multiple_of(2) {
+		return None;
+	}
+
+	let mut output = Vec::with_capacity(input.len() / 2);
+	let mut bytes = input.bytes();
+	while let (Some(high), Some(low)) = (bytes.next(), bytes.next()) {
+		let digit = |byte: u8| match byte {
+			b'0'..=b'9' => Some(byte - b'0'),
+			b'a'..=b'f' => Some(byte - b'a' + 10),
+			b'A'..=b'F' => Some(byte - b'A' + 10),
+			_ => None,
+		};
+		output.push(digit(high)? << 4 | digit(low)?);
+	}
+
+	Some(output)
 }

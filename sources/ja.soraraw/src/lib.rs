@@ -18,11 +18,20 @@ const BASE_URL: &str = "https://soraraw.com";
 const THUMBNAIL_URL: &str = "https://i.mangaraw.lat";
 /// Endpoint holding the page list of a chapter, which no page of the site embeds.
 const IMAGE_API_URL: &str = "https://api.mangarawgo.site";
-/// Page images are spread over four subdomains of this host.
-const IMAGE_HOST: &str = "rawcontent.top";
 const DATE_FORMAT: &str = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX";
 /// Key the site xors the payload of the image endpoint with.
 const PAYLOAD_KEY: &[u8] = b"/fuCkYou!!!";
+/// Secret the site xors an encrypted image path with before deciphering it.
+const PATH_SECRET: &[u8] = b"202508055d0db38bae2e86cc41649f90";
+/// How many images a chapter may hold before they're taken as one page each. A chapter served as
+/// a strip holds a handful of images at most, while a scanned one holds an image per page, so this
+/// keeps the request that measures them off the common case.
+const STRIP_IMAGE_LIMIT: usize = 4;
+/// Tallest image the reader can put on screen, being the texture size the gpu takes.
+const MAX_DRAWABLE_HEIGHT: u32 = 16384;
+/// How much of an image to read to find its size in. The size sits in the header, ahead of the
+/// scan data, so the opening kilobytes hold it unless the file leads with a large colour profile.
+const HEADER_BYTES: usize = 16 * 1024;
 /// How many genres to offer as filter options. The site lists over 1800 of them, most holding a
 /// handful of entries, and hands them out sorted by how many series they hold.
 const GENRE_LIMIT: usize = 100;
@@ -141,42 +150,61 @@ impl Source for Soraraw {
 			bail!("malformed chapter key {}", chapter.key);
 		};
 
+		// the page list holds the paths of the images encrypted, and the key to them lives on the
+		// chapter page rather than alongside the list
+		let Some(url) = chapter.url.as_deref() else {
+			bail!("no url to read the image key of chapter {chapter_id} from");
+		};
+		let Some(details) = next_data::<DataProps<ChapterData>>(url)?.data.chapter else {
+			bail!("no chapter data at {url}");
+		};
+		let (Some(uuid), Some(host)) = (details.uuid, details.base) else {
+			bail!("chapter {chapter_id} hands out no image key");
+		};
+
 		let payload = Request::get(format!("{IMAGE_API_URL}/{manga_id}/{chapter_id}.json"))?
 			.json_owned::<ImagePayload>()?;
 		let Some(json) = deobfuscate(&payload.d, PAYLOAD_KEY) else {
 			bail!("could not decode the page list of chapter {chapter_id}");
 		};
-		let mut images = serde_json::from_str::<Vec<PageImage>>(&json).map_err(|error| {
+		let images = serde_json::from_str::<Vec<PageImage>>(&json).map_err(|error| {
 			AidokuError::Message(format!(
 				"unexpected page list for chapter {chapter_id}: {error}"
 			))
 		})?;
-		// the endpoint returns them in order, but the site sorts them anyway before reading
-		images.sort_by_key(PageImage::order);
 
-		let names = images
-			.iter()
-			.filter_map(PageImage::file_name)
-			.collect::<Vec<String>>();
-		let Some(first_page) = names.first() else {
+		let mut urls = Vec::with_capacity(images.len());
+		for image in images {
+			// a page that can't be placed or decrypted is not skipped: the chapter would read as
+			// complete while missing a page, which nothing downstream could tell apart
+			let (Some(order), Some(path)) = (
+				image.order.as_f32(),
+				decrypt_path(&image.b, &uuid, PATH_SECRET),
+			) else {
+				bail!("could not read a page of chapter {chapter_id}");
+			};
+			urls.push((order, format!("{host}/{path}")));
+		}
+		if urls.is_empty() {
 			// an empty list is indistinguishable from a failed request once it reaches the app
 			bail!("no pages returned for chapter {chapter_id}");
-		};
+		}
+		// the endpoint returns them in order, but the site sorts them anyway before reading. some
+		// chapters number an inserted page as a fraction, so the order can't be taken as an integer
+		urls.sort_by(|(left, _), (right, _)| left.total_cmp(right));
 
-		// the four hosts serve the same images, and the one a chapter is on follows from its id
-		let host = format!("https://lh{}.{IMAGE_HOST}", chapter_id % 4 + 1);
-		let extension = image_extension(&host, chapter_id, first_page);
+		// a chapter holding few enough images to be a strip gets measured before it's handed over,
+		// so one too tall to draw fails with a reason instead of turning up blank
+		if urls.len() <= STRIP_IMAGE_LIMIT {
+			for (_, url) in &urls {
+				check_drawable(url)?;
+			}
+		}
 
-		// a handful of chapters are served as one image holding every page of the chapter stacked
-		// on top of each other (24 pages as a single 1450x49152 jpeg), which the reader shows as
-		// one page. Cutting those apart is deliberately left undone: the cuts themselves land
-		// exactly on the page boundaries, but neither handing the slices over as
-		// `PageContent::Image` nor cutting them in a `PageImageProcessor` rendered anything on
-		// device — the page count came out right and every page stayed blank
-		Ok(names
-			.iter()
-			.map(|name| Page {
-				content: PageContent::url(format!("{host}/c{chapter_id}/{name}.{extension}")),
+		Ok(urls
+			.into_iter()
+			.map(|(_, url)| Page {
+				content: PageContent::url(url),
 				..Default::default()
 			})
 			.collect())
@@ -681,12 +709,13 @@ mod test {
 		);
 	}
 
-	// chapters 66 to 70 of this series are each served as one image holding all 24 of their pages
-	// stacked on top of each other. That image is handed over whole, which the reader shows as a
-	// single page — a known limitation rather than the wanted behaviour, kept under test so the
-	// chapter at least stays readable as a list rather than failing outright
+	// at least chapters 66 to 70 of this series are each served as one image holding all 24 of
+	// their pages stacked on top of each other, 49152 pixels tall. The reader can't draw that and
+	// no cut a source can make reaches into it while Aidoku/AidokuRunner#3 stands, so the chapter
+	// has to fail with a reason rather than hand back a page that renders blank. Getting as far as
+	// the refusal also means the decrypted path resolved and its header read back
 	#[aidoku_test]
-	fn test_stacked_chapter_is_one_page() {
+	fn test_stacked_chapter_is_refused() {
 		let manga = Manga {
 			key: String::from(PAGED_VERTICAL_KEY),
 			..Default::default()
@@ -702,33 +731,39 @@ mod test {
 			.find(|chapter| chapter.chapter_number == Some(70.0))
 			.expect("chapter 70");
 
-		let pages = Soraraw.get_page_list(manga, chapter).expect("page list");
-		assert!(!pages.is_empty());
-
+		let Err(AidokuError::Message(reason)) = Soraraw.get_page_list(manga, chapter) else {
+			panic!("an undrawable strip has to fail rather than hand back a blank page");
+		};
 		// the image measured 1450x49152 against the 1448x2048 the rest of the series holds
-		let urls = page_urls(&pages);
-		assert!(resolves(urls[0]), "{} did not resolve", urls[0]);
+		assert!(reason.contains(".jpg"), "{reason}");
+		assert!(reason.contains("49152"), "{reason}");
 	}
 
-	// a few chapters are stored as jpg, which nothing in the page list gives away
+	// stacked chapters are not one series' quirk: this one holds 21 pages in a single 800x24003
+	// jpg, so it has to be refused the same way. The chapter has to come from the chapter list
+	// rather than be built by hand — its url is where the key to the paths is read from
 	#[aidoku_test]
-	fn test_jpg_chapter_pages() {
+	fn test_stacked_chapter_of_another_series_is_refused() {
 		let manga = Manga {
 			key: String::from(JPG_MANGA_KEY),
 			..Default::default()
 		};
-		let chapter = Chapter {
-			key: String::from(JPG_CHAPTER_KEY),
-			..Default::default()
-		};
-		let pages = Soraraw
-			.get_page_list(manga, chapter)
-			.expect("jpg page list");
+		let mut manga = Soraraw
+			.get_manga_update(manga, false, true)
+			.expect("chapters");
+		let chapter = manga
+			.chapters
+			.take()
+			.expect("chapters")
+			.into_iter()
+			.find(|chapter| chapter.key == JPG_CHAPTER_KEY)
+			.expect("the jpg chapter");
 
-		let urls = page_urls(&pages);
-		assert!(!urls.is_empty());
-		assert!(urls[0].ends_with(".jpg"), "{} is not a jpg", urls[0]);
-		assert!(resolves(urls[0]), "{} did not resolve", urls[0]);
+		let Err(AidokuError::Message(reason)) = Soraraw.get_page_list(manga, chapter) else {
+			panic!("an undrawable strip has to fail rather than hand back a blank page");
+		};
+		assert!(reason.contains(".jpg"), "{reason}");
+		assert!(reason.contains("24003"), "{reason}");
 	}
 
 	// a chapter numbered "74.2" has to survive the round trip into a page request
@@ -834,20 +869,54 @@ mod test {
 		// "[{\"id\":1,\"order\":1}]" xored with the key and encoded, padding left off
 		let payload = "dB1XKg97VUQNA05dAhAxSWNeCHw";
 		let json = deobfuscate(payload, PAYLOAD_KEY).expect("decoded payload");
-		let images = serde_json::from_str::<Vec<PageImage>>(&json).expect("page list");
-		assert_eq!(images.len(), 1);
-		assert_eq!(images[0].id, 1);
-		assert_eq!(images[0].file_name().as_deref(), Some("001_1"));
+		assert_eq!(json, r#"[{"id":1,"order":1}]"#);
 
 		// the endpoint gives the order as a number, but strings appear in the same shape of
 		// payload elsewhere on the site, so both have to survive
-		let text_order =
-			serde_json::from_str::<Vec<PageImage>>(r#"[{"id":2,"order":"12"}]"#).expect("text");
-		assert_eq!(text_order[0].file_name().as_deref(), Some("012_2"));
+		let images =
+			serde_json::from_str::<Vec<PageImage>>(r#"[{"order":"12","b":"AA"}]"#).expect("text");
+		assert_eq!(images[0].order.as_f32(), Some(12.0));
 
 		assert_eq!(deobfuscate("*", PAYLOAD_KEY), None);
 		assert_eq!(decode_base64("QUJD"), Some(Vec::from(*b"ABC")));
 		assert_eq!(decode_base64("QUJD="), Some(Vec::from(*b"ABC")));
 		assert_eq!(decode_base64("*"), None);
+	}
+
+	// the path of a page image is what the site encrypts, and building one out of the ids instead
+	// held only for part of it: "BLUE GIANT MOMENTUM" is served as jpg, not webp
+	#[aidoku_test]
+	fn test_decrypt_path() {
+		// chapter 722455, whose uuid the chapter page carries
+		let uuid = "003a8cfd16281b2b1d255d06524d8639ac1f7497533220824247f76eba48aeb9";
+		let path = decrypt_path(
+			"UQajtZjw1-nFt7IgA1ot0f9ahvQL5noTTVZv-2P0EASrNeOXH94Kyw",
+			uuid,
+			PATH_SECRET,
+		);
+		assert_eq!(path.as_deref(), Some("c722455/001_25706548.jpg"));
+
+		// a uuid that isn't a 32 byte key, and a value too short to hold a counter and a path
+		assert_eq!(
+			decrypt_path("UQajtZjw1-nFt7IgA1ot0f9a", "00ff", PATH_SECRET),
+			None
+		);
+		assert_eq!(decrypt_path("QUJD", uuid, PATH_SECRET), None);
+	}
+
+	// the header of a jpeg is what refusing an undrawable chapter rests on, and a frame header sits
+	// behind however many segments the encoder wrote ahead of it
+	#[aidoku_test]
+	fn test_jpeg_height() {
+		let head = [
+			0xFF, 0xD8, // start of image
+			0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00, // an app segment to skip over
+			0xFF, 0xC0, 0x00, 0x11, 0x08, 0xC0, 0x00, 0x05, 0xAA, // a frame of 1450 x 49152
+		];
+		assert_eq!(jpeg_height(&head), Some(49152));
+
+		// anything that isn't a jpeg, and a header cut off ahead of the frame
+		assert_eq!(jpeg_height(b"RIFF\0\0\0\0WEBPVP8 "), None);
+		assert_eq!(jpeg_height(&head[..8]), None);
 	}
 }
