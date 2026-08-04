@@ -317,15 +317,12 @@ pub struct ImagePayload {
 }
 
 /// A page as listed in the decoded payload.
-///
-/// Every entry also carries a "b" and a "d" field holding the encrypted name of the file on each
-/// of the two image servers. Those are left alone: the site encrypts them with a key its scripts
-/// derive at runtime, and the name can be rebuilt from the two fields that aren't encrypted.
 #[derive(Deserialize)]
 pub struct PageImage {
 	pub order: Number,
-	/// Path the image is served at, encrypted. The entries also hold a `d` for the mirror on
-	/// google drive, which answers for none of the chapters that were tried.
+	/// Path the image is served at, encrypted. Entries also carry a `d` naming the same file on the
+	/// mirror the site keeps on google drive, which is left unread: not every entry holds one, so
+	/// reading from it would leave some chapters short of pages.
 	pub b: String,
 }
 

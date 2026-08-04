@@ -1,8 +1,7 @@
 #![no_std]
 use aidoku::{
-	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
-	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result, SelectFilter,
-	Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Listing,
+	ListingProvider, Manga, MangaPageResult, Page, PageContent, Result, SelectFilter, Source,
 	alloc::{String, Vec, borrow::Cow, vec},
 	imports::{net::Request, std::send_partial_result},
 	prelude::*,
@@ -64,13 +63,6 @@ impl Source for Soraraw {
 			.filter(|query| !query.is_empty())
 		{
 			// every match is collected in one go, leaving no page for the app to ask for
-			if page > 1 {
-				return Ok(MangaPageResult {
-					entries: Vec::new(),
-					has_next_page: false,
-				});
-			}
-
 			return Ok(MangaPageResult {
 				entries: Self::search_catalogue(query)?,
 				has_next_page: false,
@@ -132,10 +124,6 @@ impl Source for Soraraw {
 				.into_iter()
 				.map(|chapter| chapter.into_chapter(manga_id, &slug))
 				.collect::<Vec<Chapter>>();
-			if chapters.is_empty() {
-				// surfaces in `aidoku logcat` when a series is listed without a readable chapter
-				println!("no chapters returned for manga {}", manga.key);
-			}
 			manga.chapters = Some(chapters);
 		}
 
@@ -167,11 +155,8 @@ impl Source for Soraraw {
 		let Some(json) = deobfuscate(&payload.d, PAYLOAD_KEY) else {
 			bail!("could not decode the page list of chapter {chapter_id}");
 		};
-		let images = serde_json::from_str::<Vec<PageImage>>(&json).map_err(|error| {
-			AidokuError::Message(format!(
-				"unexpected page list for chapter {chapter_id}: {error}"
-			))
-		})?;
+		let images = serde_json::from_str::<Vec<PageImage>>(&json)
+			.map_err(|error| error!("unexpected page list for chapter {chapter_id}: {error}"))?;
 
 		let mut urls = Vec::with_capacity(images.len());
 		for image in images {
@@ -227,12 +212,22 @@ impl Soraraw {
 			let response = Request::get(format!("{BASE_URL}/mangas_{page}.json"))?.send()?;
 			// the dump ends with a 404, which is how the site's own search stops walking it
 			if response.status_code() != 200 {
+				// the first page is the exception: with nothing walked yet, a dump that can't be
+				// reached hands back the empty result of a query that matched nothing
+				if page == 1 {
+					bail!(
+						"the catalogue is unreachable: page 1 answered {}",
+						response.status_code()
+					);
+				}
 				break;
 			}
 			let Ok(catalogue) = response.get_json_owned::<CataloguePage>() else {
-				// a page that stopped being json is worth reporting, but the matches already
-				// collected are still worth returning
-				println!("could not read catalogue page {page}");
+				// a page that stopped being json leaves the matches collected before it worth
+				// returning, except on the first page, which leaves none
+				if page == 1 {
+					bail!("could not read catalogue page 1");
+				}
 				break;
 			};
 
@@ -360,7 +355,7 @@ register_source!(Soraraw, ListingProvider, DynamicFilters, DeepLinkHandler);
 #[cfg(test)]
 mod test {
 	use super::*;
-	use aidoku::{ContentRating, FilterKind, MangaStatus, Viewer};
+	use aidoku::{AidokuError, ContentRating, FilterKind, MangaStatus, Viewer};
 	use aidoku_test::aidoku_test;
 
 	/// "Majo to Youhei", a long running series used to check parsing against.
@@ -471,15 +466,6 @@ mod test {
 		);
 		// every match is returned at once, so there is no page to follow
 		assert!(!result.has_next_page);
-
-		let empty = Soraraw
-			.get_search_manga_list(
-				Some(String::from("小林さんちのメイドラゴン")),
-				2,
-				Vec::new(),
-			)
-			.expect("second search page");
-		assert!(empty.entries.is_empty());
 	}
 
 	// about half the catalogue carries an author, which the same walk matches against; this is

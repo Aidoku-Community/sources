@@ -13,15 +13,15 @@
 	"listings": [
 		{
 			"id": "newest",
-			"name": "Latest"
+			"name": "新着"
 		},
 		{
 			"id": "hot",
-			"name": "Popular"
+			"name": "人気"
 		},
 		{
 			"id": "trending",
-			"name": "Trending"
+			"name": "ランキング"
 		}
 	],
 	"config": {
