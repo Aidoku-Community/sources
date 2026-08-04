@@ -37,6 +37,7 @@ pub struct TitleCard {
 	#[serde(rename = "type")]
 	pub title_type: Option<TypeField>,
 	pub status: Option<NamedId>,
+	pub genres: Option<Vec<NamedId>>,
 	pub is_erotic: Option<bool>,
 	pub is_yaoi: Option<bool>,
 	pub age_limit: Option<AgeLimit>,
@@ -58,6 +59,7 @@ pub struct NamedId {
 #[derive(Deserialize)]
 pub struct AgeLimit {
 	pub id: Option<i32>,
+	pub name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -328,10 +330,49 @@ fn status_from(status: Option<&NamedId>) -> MangaStatus {
 	}
 }
 
-fn rating_from(is_erotic: bool, is_yaoi: bool, age_id: Option<i32>) -> ContentRating {
-	if is_erotic || is_yaoi || age_id == Some(2) {
+fn rating_from(
+	is_erotic: bool,
+	is_yaoi: bool,
+	age: Option<&AgeLimit>,
+	genres: Option<&[NamedId]>,
+) -> ContentRating {
+	let age_id = age.and_then(|a| a.id);
+	let age_name = age.and_then(|a| a.name.as_deref()).unwrap_or("");
+	let adult_age = age_id == Some(2)
+		|| age_name.contains("18")
+		|| age_name.eq_ignore_ascii_case("nsfw");
+	let teen_age = age_id == Some(1) || age_name.contains("16") || age_name.contains("17");
+
+	let mut suggestive = teen_age;
+	let mut nsfw = is_erotic || is_yaoi || adult_age;
+
+	if let Some(genres) = genres {
+		for genre in genres {
+			let id = genre.id;
+			let name = genre.name.as_deref().unwrap_or("");
+			let lower = name.to_lowercase();
+			// Remanga genre ids: 40 Этти, 41 Юри, 43 Яой
+			if id == Some(40) || lower.contains("этти") || lower.contains("ecchi") {
+				suggestive = true;
+			}
+			if id == Some(43)
+				|| id == Some(41)
+				|| lower.contains("яой")
+				|| lower.contains("yaoi")
+				|| lower.contains("юри")
+				|| lower.contains("yuri")
+				|| lower.contains("эро")
+				|| lower.contains("hentai")
+				|| lower.contains("хент")
+			{
+				nsfw = true;
+			}
+		}
+	}
+
+	if nsfw {
 		ContentRating::NSFW
-	} else if age_id == Some(1) {
+	} else if suggestive {
 		ContentRating::Suggestive
 	} else {
 		ContentRating::Safe
@@ -392,7 +433,8 @@ impl TitleCard {
 			content_rating: rating_from(
 				self.is_erotic.unwrap_or(false),
 				self.is_yaoi.unwrap_or(false),
-				self.age_limit.as_ref().and_then(|a| a.id),
+				self.age_limit.as_ref(),
+				self.genres.as_deref(),
 			),
 			viewer: viewer_for(tname.as_deref()),
 			..Default::default()
@@ -420,7 +462,8 @@ impl TitleDetail {
 		manga.content_rating = rating_from(
 			self.is_erotic.unwrap_or(false),
 			self.is_yaoi.unwrap_or(false),
-			self.age_limit.as_ref().and_then(|a| a.id),
+			self.age_limit.as_ref(),
+			self.genres.as_deref(),
 		);
 		manga.viewer = viewer_for(self.title_type.as_ref().and_then(|t| t.name.as_deref()));
 
