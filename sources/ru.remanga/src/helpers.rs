@@ -6,7 +6,8 @@ use crate::models::{
 use crate::settings::API_V2;
 use aidoku::helpers::uri::{QueryParameters, encode_uri_component};
 use aidoku::imports::net::Request;
-use aidoku::{Chapter, FilterValue, Manga, MangaPageResult, Page, PageContent, Result, prelude::*};
+use aidoku::imports::std::send_partial_result;
+use aidoku::{FilterValue, Manga, MangaPageResult, Page, PageContent, Result, prelude::*};
 use alloc::{format, string::String, string::ToString, vec::Vec};
 
 const PAGE_SIZE: i32 = 30;
@@ -92,21 +93,6 @@ fn catalog(page: i32, filters: Vec<FilterValue>) -> Result<MangaPageResult> {
 				included,
 				excluded,
 			} => match id.as_str() {
-				"types" => {
-					for value in included {
-						params.push("types", Some(&value));
-					}
-				}
-				"status" => {
-					for value in included {
-						params.push("status", Some(&value));
-					}
-				}
-				"age_limit" => {
-					for value in included {
-						params.push("age_limit", Some(&value));
-					}
-				}
 				"genres" => {
 					for value in included {
 						params.push("genres", Some(&value));
@@ -123,7 +109,11 @@ fn catalog(page: i32, filters: Vec<FilterValue>) -> Result<MangaPageResult> {
 						params.push("exclude_categories", Some(&value));
 					}
 				}
-				_ => {}
+				_ => {
+					for value in included {
+						params.push(&id, Some(&value));
+					}
+				}
 			},
 			_ => {}
 		}
@@ -198,18 +188,15 @@ fn select_primary_branch(mut branches: Vec<Branch>) -> Result<Branch> {
 		.ok_or_else(|| error!("У тайтла нет веток перевода"))
 }
 
-/// Fetches chapters for the primary branch.
+/// Fetches chapters for the primary branch into `manga.chapters`.
 ///
 /// `branches` may come from a prior title details call to skip an extra request.
-/// `on_progress` is invoked after each page so Aidoku can show a growing list.
-pub fn fetch_chapters(
-	slug: &str,
-	branches: Option<Vec<Branch>>,
-	mut on_progress: impl FnMut(&[Chapter]),
-) -> Result<Vec<Chapter>> {
+/// Progress is pushed via `send_partial_result` after each page.
+pub fn fetch_chapters(manga: &mut Manga, branches: Option<Vec<Branch>>) -> Result<()> {
+	let slug = manga.key.clone();
 	let branches = match branches {
 		Some(b) if !b.is_empty() => b,
-		_ => fetch_branches(slug)?,
+		_ => fetch_branches(&slug)?,
 	};
 	let branch = select_primary_branch(branches)?;
 	let label = branch
@@ -236,9 +223,10 @@ pub fn fetch_chapters(
 		}
 		let has_more = response.next.as_ref().is_some_and(|n| n.has_more());
 		for item in batch {
-			chapters.push(item.into_chapter(slug, label.as_deref()));
+			chapters.push(item.into_chapter(&slug, label.as_deref()));
 		}
-		on_progress(&chapters);
+		manga.chapters = Some(chapters.clone());
+		send_partial_result(manga);
 		if !has_more {
 			break;
 		}
@@ -248,7 +236,8 @@ pub fn fetch_chapters(
 		}
 	}
 
-	Ok(chapters)
+	manga.chapters = Some(chapters);
+	Ok(())
 }
 
 fn absolutize_page_url(link: &str, server: Option<&str>) -> String {

@@ -56,12 +56,7 @@ impl Source for Remanga {
 			if needs_details {
 				send_partial_result(&item);
 			}
-			let key = item.key.clone();
-			let chapters = fetch_chapters(&key, branches, |partial| {
-				item.chapters = Some(partial.to_vec());
-				send_partial_result(&item);
-			})?;
-			item.chapters = Some(chapters);
+			fetch_chapters(&mut item, branches)?;
 		}
 
 		Ok(item)
