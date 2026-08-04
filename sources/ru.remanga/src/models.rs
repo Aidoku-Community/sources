@@ -346,7 +346,9 @@ fn rating_from(
 	let mut suggestive = teen_age;
 	let mut nsfw = is_erotic || is_yaoi || adult_age;
 
-	if let Some(genres) = genres {
+	if !nsfw
+		&& let Some(genres) = genres
+	{
 		for genre in genres {
 			let id = genre.id;
 			let name = genre.name.as_deref().unwrap_or("");
@@ -366,6 +368,7 @@ fn rating_from(
 				|| lower.contains("хент")
 			{
 				nsfw = true;
+				break;
 			}
 		}
 	}
