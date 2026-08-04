@@ -1,0 +1,26 @@
+{
+	"info": {
+		"id": "ja.mangarawbest",
+		"name": "Manga Raw Best",
+		"version": 1,
+		"url": "https://mangaraw.best",
+		"contentRating": 1,
+		"languages": [
+			"ja"
+		]
+	},
+	"listings": [
+		{
+			"id": "views",
+			"name": "人気"
+		},
+		{
+			"id": "views_week",
+			"name": "週間人気"
+		},
+		{
+			"id": "created_at",
+			"name": "新着"
+		}
+	]
+}
