@@ -1,0 +1,19 @@
+[
+	{
+		"type": "group",
+		"title": "Verify Access",
+		"items": [
+			{
+				"type": "login",
+				"method": "web",
+				"url": "https://batcave.biz/",
+				"key": "verify",
+				"title": "Verify BatCave Access",
+				"logoutTitle": "Re-Verify BatCave Access",
+				"notification": "verify",
+				"refreshes": ["content"]
+			}
+		],
+		"footer": "Open this if BatCave fails to load."
+	}
+]
