@@ -4,10 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0", features = ["json"] }
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
 hashbrown = { version = "0.16" }
-serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
-serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+prost = { version = "0.14", default-features = false, features = ["derive"] }
 uuid = { version = "1.23", default-features = false }
 
 [dev-dependencies]
