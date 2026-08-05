@@ -45,7 +45,9 @@ impl From<SearchItem> for Manga {
 		Manga {
 			key: s.series_id,
 			title: String::from(s.title.trim()),
-			cover: s.cover_image_id.map(|id| format!("{API_BASE}/image/{id}")),
+			cover: s
+				.cover_image_id
+				.map(|id| format!("{API_BASE}/image/{id}/compressed")),
 			url,
 			..Default::default()
 		}

@@ -24,12 +24,15 @@ const SORT_PARAMS: &[&str] = &[
 	"created_at",  // 2: Recently Added
 ];
 
-struct Kagane;
+#[derive(Default)]
+struct Kagane {
+	client: ApiClient,
+}
 
 impl Source for Kagane {
 	fn new() -> Self {
 		set_rate_limit(2, 2, TimeUnit::Seconds);
-		Self
+		Self::default()
 	}
 
 	fn get_search_manga_list(
@@ -73,11 +76,18 @@ impl Source for Kagane {
 			page - 1,
 			sort
 		);
-		let body = build_search_body(query.as_deref(), &statuses, &formats, &genres_inc, &genres_exc);
-		let resp: SearchResponse = api_post(&url, body)?.json_owned()?;
+		let body = build_search_body(
+			query.as_deref(),
+			&statuses,
+			&formats,
+			&genres_inc,
+			&genres_exc,
+		);
+		let resp: SearchResponse = self.client.post_json(&url, &body)?;
 
 		let has_next_page = !resp.last;
-		let entries = resp.content.into_iter().map(Manga::from).collect();
+		let mut entries: Vec<Manga> = resp.content.into_iter().map(Manga::from).collect();
+		self.client.apply_covers(&mut entries)?;
 		Ok(MangaPageResult {
 			entries,
 			has_next_page,
@@ -90,15 +100,18 @@ impl Source for Kagane {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let det: SeriesDetail =
-			api_get(&format!("{API_BASE}/series/{}", manga.key))?.json_owned()?;
+		let det: SeriesDetail = self
+			.client
+			.get_json(&format!("{API_BASE}/series/{}", manga.key))?;
 
 		if needs_details {
 			manga.title = String::from(det.title.trim());
 			manga.cover = det
 				.series_covers
 				.first()
-				.map(|c| format!("{API_BASE}/image/{}", c.image_id));
+				.map(|c| format!("{API_BASE}/image/{}/compressed", c.image_id));
+			self.client
+				.apply_covers(core::slice::from_mut(&mut manga))?;
 			manga.url = Some(format!("{BASE_URL}/series/{}", manga.key));
 			manga.status = parse_status(&det.upload_status);
 			manga.viewer = parse_viewer(det.format.as_deref());
@@ -201,24 +214,16 @@ impl Source for Kagane {
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		// Step 1: obtain a short-lived integrity token
-		let integrity: IntegrityResponse = Request::post(format!("{BASE_URL}/api/integrity"))?
-			.header("Content-Type", "application/json")
-			.header("Origin", BASE_URL)
-			.header("Referer", &format!("{BASE_URL}/"))
-			.body(String::new())
-			.json_owned()?;
+		let integrity: IntegrityResponse = self
+			.client
+			.post_json(&format!("{BASE_URL}/api/integrity"), "")?;
 
 		// Step 2: exchange the integrity token for an access token + page manifest
-		let challenge: ChallengeResponse = Request::post(format!(
-			"{API_BASE}/books/{}?is_datasaver=false",
-			chapter.key
-		))?
-		.header("Content-Type", "application/json")
-		.header("Origin", BASE_URL)
-		.header("Referer", &format!("{BASE_URL}/"))
-		.header("x-integrity-token", &integrity.token)
-		.body(String::from("{}"))
-		.json_owned()?;
+		let challenge: ChallengeResponse = self.client.post_json_with_header(
+			&format!("{API_BASE}/books/{}?is_datasaver=false", chapter.key),
+			"{}",
+			("x-integrity-token", &integrity.token),
+		)?;
 
 		let cache_url = challenge.cache_url;
 		let token = challenge.access_token;
@@ -263,10 +268,11 @@ impl ListingProvider for Kagane {
 			sort
 		);
 		let body = build_search_body(None, &[], &[], &[], &[]);
-		let resp: SearchResponse = api_post(&url, body)?.json_owned()?;
+		let resp: SearchResponse = self.client.post_json(&url, &body)?;
 
 		let has_next_page = !resp.last;
-		let entries = resp.content.into_iter().map(Manga::from).collect();
+		let mut entries: Vec<Manga> = resp.content.into_iter().map(Manga::from).collect();
+		self.client.apply_covers(&mut entries)?;
 		Ok(MangaPageResult {
 			entries,
 			has_next_page,
@@ -281,26 +287,43 @@ impl Home for Kagane {
 		let updated_url = format!("{API_BASE}/search/series?page=0&size=20&sort=updated_at,desc");
 		let body = build_search_body(None, &[], &[], &[], &[]);
 
-		let popular: Vec<Link> = api_post(&pop_url, body.clone())?
-			.json_owned::<SearchResponse>()?
+		let mut popular_manga: Vec<Manga> = self
+			.client
+			.post_json::<SearchResponse>(&pop_url, &body)?
 			.content
 			.into_iter()
-			.map(|s| Manga::from(s).into())
+			.map(Manga::from)
 			.collect();
+		self.client.apply_covers(&mut popular_manga)?;
+		let popular: Vec<Link> = popular_manga.into_iter().map(Into::into).collect();
 
-		let recently_added: Vec<Link> = api_post(&added_url, body.clone())?
-			.json_owned::<SearchResponse>()?
+		let mut added_manga: Vec<Manga> = self
+			.client
+			.post_json::<SearchResponse>(&added_url, &body)?
 			.content
 			.into_iter()
-			.map(|s| Manga::from(s).into())
+			.map(Manga::from)
 			.collect();
+		self.client.apply_covers(&mut added_manga)?;
+		let recently_added: Vec<Link> = added_manga.into_iter().map(Into::into).collect();
 
-		let recently_updated: Vec<MangaWithChapter> = api_post(&updated_url, body)?
-			.json_owned::<SearchResponse>()?
+		let mut recently_updated: Vec<MangaWithChapter> = self
+			.client
+			.post_json::<SearchResponse>(&updated_url, &body)?
 			.content
 			.into_iter()
 			.filter_map(|s| MangaWithChapter::try_from(s).ok())
 			.collect();
+		// `apply_covers` works on a `Manga` slice, so pull the covers out,
+		// resolve them, and put them back.
+		let mut updated_manga: Vec<Manga> = recently_updated
+			.iter()
+			.map(|entry| entry.manga.clone())
+			.collect();
+		self.client.apply_covers(&mut updated_manga)?;
+		for (entry, manga) in recently_updated.iter_mut().zip(updated_manga) {
+			entry.manga = manga;
+		}
 
 		Ok(HomeLayout {
 			components: vec![
