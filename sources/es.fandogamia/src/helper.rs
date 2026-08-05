@@ -1,5 +1,5 @@
 use aidoku::{
-	AidokuError, Chapter, ContentRating, Manga, Result, Viewer,
+	Chapter, ContentRating, Manga, Result, Viewer,
 	alloc::{String, Vec},
 	helpers::uri::encode_uri,
 	imports::{html::Document, net::Request, std::parse_date},
@@ -57,13 +57,14 @@ pub fn fetch_series_list() -> Result<Vec<Manga>> {
 		};
 		let slug = slug_from_url(&href);
 		let title = link.text().unwrap_or_default();
+		let content_rating = content_rating_for(&slug);
 
 		entries.push(Manga {
-			key: slug.clone(),
+			key: slug,
 			title,
 			cover: cover.attr("abs:src").map(encode_uri),
 			url: Some(href),
-			content_rating: content_rating_for(&slug),
+			content_rating,
 			viewer: Viewer::LeftToRight,
 			..Default::default()
 		});

@@ -2,7 +2,7 @@
 mod helper;
 
 use aidoku::{
-	AidokuError, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
 	HomeComponentValue, HomeLayout, Link, Listing, ListingProvider, Manga, MangaPageResult, Page,
 	PageContent, Result, Source,
 	alloc::{String, Vec, vec},
@@ -23,18 +23,11 @@ impl Source for Fandogamia {
 	fn get_search_manga_list(
 		&self,
 		query: Option<String>,
-		page: i32,
+		_page: i32,
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		if page > 1 {
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
-		}
-
 		let mut entries = fetch_series_list()?;
-		if let Some(query) = query.filter(|q| !q.is_empty()) {
+		if let Some(query) = query {
 			let query = query.to_ascii_lowercase();
 			entries.retain(|manga| manga.title.to_ascii_lowercase().contains(&query));
 		}
