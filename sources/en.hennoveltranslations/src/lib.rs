@@ -94,10 +94,15 @@ impl Source for Hennoveltranslations {
 			manga.status = html
 				.select_first(".single-novel-title p")
 				.and_then(|el| el.text())
-				.map(|t| match t.replace("Status:", "").trim() {
-					"Completed" => MangaStatus::Completed,
-					"Ongoing" => MangaStatus::Ongoing,
-					_ => MangaStatus::Unknown,
+				.map(|t| {
+					let t = t.replace("Status:", "").trim().to_lowercase();
+					if t.contains("completed") {
+						MangaStatus::Completed
+					} else if t.contains("ongoing") {
+						MangaStatus::Ongoing
+					} else {
+						MangaStatus::Unknown
+					}
 				})
 				.unwrap_or(MangaStatus::Unknown);
 
