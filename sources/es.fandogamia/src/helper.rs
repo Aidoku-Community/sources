@@ -117,8 +117,8 @@ pub fn fetch_series_chapters(slug: &str) -> Result<Vec<Chapter>> {
 				Some(date) => full_text
 					.strip_prefix(&format!("{date} - "))
 					.map(String::from)
-					.unwrap_or_else(|| full_text.clone()),
-				None => full_text.clone(),
+					.unwrap_or_else(|| full_text),
+				None => full_text,
 			};
 
 			chapters.push(Chapter {
