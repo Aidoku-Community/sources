@@ -1,12 +1,9 @@
-use crate::{BatCave, BASE_URL};
+use crate::{BASE_URL, BatCave, BatCaveHtml};
 use aidoku::{
-	alloc::string::ToString,
-	alloc::{Box, String, Vec},
-	imports::std::send_partial_result,
-	imports::{html::Document, net::Request, std::parse_date},
+	Home, HomeComponent, HomeLayout, HomePartialResult, Link, Manga, Result,
+	alloc::{Box, Vec, string::ToString},
+	imports::{html::Document, net::Request, std::send_partial_result},
 	prelude::*,
-	Chapter, Home, HomeComponent, HomeLayout, HomePartialResult, Link, Manga, MangaWithChapter,
-	Result,
 };
 
 type ComponentBuilderFn = Box<dyn Fn(&Document) -> Option<HomeComponent>>;
@@ -62,86 +59,45 @@ impl Home for BatCave {
 			}
 		}
 
-		fn get_home_newest_releases(html: &Document) -> Option<HomeComponent> {
-			let title = html
-				.select_first(".sect--latest > .sect__title")
-				.and_then(|x| x.text());
+		fn get_home_series_worth_starting(html: &Document) -> Option<HomeComponent> {
+			let section = html.select_first("section.sect--worth-starting")?;
+			let title = section.select_first(".sect__title").and_then(|x| x.text());
 
-			let entries = html
-				.select(".sect--latest > .sect__content > li.latest")
+			let entries = section
+				.select(".sect__content > a.grid-item")
 				.map(|elements| {
 					elements
 						.filter_map(|element| {
-							let manga_url = element
-								.select_first(".latest__title")
-								.and_then(|x| x.attr("abs:href"));
-							let manga_key = manga_url.clone()?.strip_prefix(BASE_URL)?.to_string();
-
-							let chapter_url = element
-								.select_first(".latest__chapter > a")
-								.and_then(|x| x.attr("abs:href"));
-							let chapter_key =
-								chapter_url.clone()?.strip_prefix(BASE_URL)?.to_string();
-
-							let cover = element
-								.select_first(".latest__img > img")
-								.and_then(|x| x.attr("abs:src"));
-
-							let manga_title = element
-								.select_first(".latest__title")
+							let title = element
+								.select_first(".poster__title")
 								.and_then(|x| x.text())
 								.unwrap_or_default();
+							let cover = element
+								.select_first("img")
+								.and_then(|x| x.attr("abs:data-src"));
+							let url = element.attr("abs:href");
+							let key = url.clone()?.strip_prefix(BASE_URL)?.to_string();
 
-							let details_text = element
-								.select_first(".latest__chapter")
-								.and_then(|x| x.text());
-
-							let mut date_uploaded = None;
-							let mut chapter_title = None;
-							let mut chapter_number = None;
-
-							if let Some(text) = details_text {
-								let parts = text.splitn(2, " - ").collect::<Vec<&str>>();
-								if parts.len() == 2 {
-									date_uploaded = parse_date(parts[0].trim(), "dd.MM.yyyy");
-
-									chapter_title = parts[1]
-										.strip_prefix(&manga_title)
-										.map(str::trim)
-										.map(String::from);
-
-									if let Some(idx) = parts[1].find('#') {
-										chapter_number = parts[1][idx + 1..].parse::<f32>().ok();
-									}
-								}
-							}
-
-							Some(MangaWithChapter {
-								manga: Manga {
-									key: manga_key,
-									cover,
-									title: manga_title,
-									url: manga_url,
-									..Default::default()
-								},
-								chapter: Chapter {
-									key: chapter_key,
-									url: chapter_url,
-									title: chapter_title,
-									chapter_number,
-									date_uploaded,
-									..Default::default()
-								},
+							Some(Manga {
+								key,
+								cover,
+								title,
+								url,
+								..Default::default()
 							})
 						})
-						.collect::<Vec<MangaWithChapter>>()
+						.map(Into::into)
+						.collect::<Vec<Link>>()
 				})
 				.unwrap_or_default();
 
+			if entries.is_empty() {
+				return None;
+			}
+
 			Some(HomeComponent {
 				title,
-				value: aidoku::HomeComponentValue::MangaChapterList {
-					page_size: Some(6),
+				value: aidoku::HomeComponentValue::Scroller {
 					entries,
 					listing: None,
 				},
@@ -196,13 +152,14 @@ impl Home for BatCave {
 				})
 			})
 		}
-		let html = Request::get(BASE_URL)?.html()?;
+		let html = Request::get(BASE_URL)?.batcave_html()?;
 
 		let component_fns: &[ComponentBuilderFn; 4] = &[
 			Box::new(get_home_hot_releases),
-			Box::new(get_home_newest_releases),
-			get_side_block(1),
+			Box::new(get_home_series_worth_starting),
+			// get_side_block(1), "Free Steam games"
 			get_side_block(2),
+			get_side_block(3),
 		];
 
 		for component_fn in component_fns {

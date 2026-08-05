@@ -1,6 +1,6 @@
 use aidoku::{alloc::string::String, imports::defaults::defaults_get};
 
-const BASE_URL: &str = "https://rawfree.gg";
+const BASE_URL: &str = "https://rawfree.sale";
 
 pub fn get_base_url() -> String {
 	let base_url = defaults_get::<String>("baseUrl");

@@ -1,5 +1,4 @@
 use crate::BASE_URL;
-use crate::settings;
 use aidoku::{
 	AidokuError, Chapter, ContentRating, Manga, MangaStatus, Result, Viewer,
 	alloc::{
@@ -7,438 +6,152 @@ use aidoku::{
 		string::{String, ToString},
 		vec::Vec,
 	},
+	prelude::*,
 };
-use serde::Deserialize;
+use prost::Message;
 
-#[derive(Deserialize)]
+#[derive(Message)]
 pub struct MangaPlusResponse {
+	#[prost(message, optional, tag = "1")]
 	pub success: Option<SuccessResult>,
+	#[prost(message, optional, tag = "2")]
 	pub error: Option<ErrorResult>,
 }
 
 impl MangaPlusResponse {
+	pub fn decode(data: &[u8]) -> Result<Self> {
+		<Self as Message>::decode(data)
+			.map_err(|error| error!("Invalid protobuf response: {error}"))
+	}
+
 	pub fn result_or_error<T: AsRef<str>>(self, fallback: T) -> Result<SuccessResult> {
 		self.success.ok_or_else(|| {
-			let error = self
-				.error
-				.and_then(|result| result.get(Language::English))
-				.map(|popup| popup.body)
-				.unwrap_or(fallback.as_ref().into());
-			AidokuError::Message(error)
+			AidokuError::Message(
+				self.error
+					.and_then(ErrorResult::body)
+					.unwrap_or_else(|| fallback.as_ref().into()),
+			)
 		})
 	}
 }
 
-#[derive(Deserialize)]
+#[derive(Message)]
 pub struct ErrorResult {
-	#[serde(default)]
-	pub popups: Vec<Popup>,
+	#[prost(message, optional, tag = "2")]
+	english_popup: Option<Popup>,
+	#[prost(message, optional, tag = "3")]
+	spanish_popup: Option<Popup>,
 }
-
 impl ErrorResult {
-	pub fn get(self, language: Language) -> Option<Popup> {
-		self.popups
-			.into_iter()
-			.find(|popup| popup.language == Some(language))
+	fn body(self) -> Option<String> {
+		self.english_popup
+			.or(self.spanish_popup)
+			.map(|popup| popup.body)
 	}
 }
 
-#[derive(Deserialize)]
-pub struct Popup {
-	// pub subject: String,
-	pub body: String,
-	#[serde(default = "default_language")]
-	pub language: Option<Language>,
+#[derive(Message)]
+struct Popup {
+	#[prost(string, tag = "2")]
+	body: String,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Message)]
 pub struct SuccessResult {
-	// pub is_featured_updated: Option<bool>,
-	// pub title_ranking_view_v2: Option<TitleRankingViewV2>,
+	#[prost(message, optional, tag = "8")]
 	pub title_detail_view: Option<TitleDetailView>,
+	#[prost(message, optional, tag = "10")]
 	pub manga_viewer: Option<MangaViewer>,
-	pub all_titles_view_v2: Option<AllTitlesViewV2>,
-	pub web_home_view_v4: Option<WebHomeViewV4>,
+	#[prost(message, optional, tag = "29")]
+	pub all_titles_view_v3: Option<AllTitlesViewV3>,
+	#[prost(message, optional, tag = "37")]
+	pub title_ranking_view: Option<TitleRankingView>,
+	#[prost(message, optional, tag = "38")]
+	pub web_home_view: Option<WebHomeView>,
 }
 
-// #[derive(Deserialize)]
-// #[serde(rename_all = "camelCase")]
-// pub struct TitleRankingViewV2 {
-// 	pub ranked_titles: Vec<RankedTitle>,
-// }
-
-#[derive(Deserialize)]
-pub struct RankedTitle {
-	pub titles: Vec<Title>,
+#[derive(Message)]
+pub struct AllTitlesViewV3 {
+	#[prost(message, repeated, tag = "3")]
+	pub titles: Vec<AllTitlesV3Entry>,
 }
 
-#[derive(Deserialize)]
-pub struct AllTitlesViewV2 {
-	#[serde(rename = "AllTitlesGroup")]
-	pub all_titles_group: Vec<AllTitlesGroup>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AllTitlesGroup {
-	// pub the_title: String,
-	#[serde(default)]
-	pub titles: Vec<Title>,
-}
-
-#[derive(Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-#[serde(default)]
-pub struct WebHomeViewV4 {
-	pub top_banners: Vec<Banner>,
-	pub groups: Vec<UpdatedTitleV2Group>,
-	pub ranked_titles: Vec<RankedTitle>,
-	// pub featured_title_lists: Vec<FeaturedTitleList>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Banner {
-	pub image_url: String,
-	pub action: BannerAction,
-	// pub id: i32,
-}
-
-#[derive(Deserialize)]
-pub struct BannerAction {
-	// pub method: Option<String>,
-	pub url: String,
-}
-
-// #[derive(Deserialize)]
-// #[serde(rename_all = "camelCase")]
-// pub struct FeaturedTitleList {
-// 	pub featured_titles: Vec<Title>,
-// }
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct TitleDetailView {
+#[derive(Message)]
+pub struct AllTitlesV3Entry {
+	#[prost(message, required, tag = "2")]
 	pub title: Title,
-	pub title_image_url: String,
-	pub overview: Option<String>,
-	#[serde(default)]
-	pub next_time_stamp: i64,
-	#[serde(default)]
-	pub viewing_period_description: String,
-	#[serde(default)]
-	pub non_appearance_info: String,
-	#[serde(default)]
-	pub chapter_list_group: Vec<ChapterListGroup>,
-	#[serde(default)]
-	pub chapter_list_v2: Vec<MangaPlusChapter>,
-	#[serde(default)]
-	pub is_simul_released: bool,
-	#[serde(default)]
-	pub rating: Rating,
-	#[serde(default = "default_true")]
-	pub chapters_descending: bool,
-	#[serde(default)]
-	pub title_labels: TitleLabels,
-	#[serde(default = "default_wsj")]
-	pub label: Option<Label>,
 }
 
-impl TitleDetailView {
-	pub fn chapter_list(&self) -> Vec<&MangaPlusChapter> {
-		if settings::get_mobile() {
-			self.chapter_list_v2.iter().collect()
-		} else {
-			self.chapter_list_group
-				.iter()
-				.flat_map(|group| {
-					group
-						.first_chapter_list
-						.iter()
-						.chain(group.last_chapter_list.iter())
-				})
-				.collect()
-		}
-	}
+#[derive(Message)]
+pub struct TitleRankingView {
+	#[prost(message, repeated, tag = "3")]
+	pub ranked_titles: Vec<RankedTitle>,
+}
 
-	fn is_webtoon(&self) -> bool {
-		false
-	}
+#[derive(Message)]
+pub struct RankedTitle {
+	#[prost(message, repeated, tag = "2")]
+	pub titles: Vec<Title>,
+}
 
-	fn is_oneshot(&self) -> bool {
-		let chapter_list = self.chapter_list();
-		chapter_list.len() == 1 && chapter_list[0].name.to_lowercase() == "one-shot"
-	}
+#[derive(Message)]
+pub struct WebHomeView {
+	#[prost(message, repeated, tag = "2")]
+	pub groups: Vec<UpdatedTitleGroup>,
+}
 
-	fn is_reedition(&self) -> bool {
-		self.viewing_period_description.contains("revival")
-			|| self.viewing_period_description.contains("remasterizada")
-	}
+#[derive(Message)]
+pub struct UpdatedTitleGroup {
+	#[prost(message, repeated, tag = "2")]
+	pub titles: Vec<UpdatedTitle>,
+}
 
-	fn is_completed(&self) -> bool {
-		self.non_appearance_info.contains("complet") // completado|complete|completo
-			|| self.is_oneshot()
-			|| self.title_labels.release_schedule == ReleaseSchedule::Completed
-			|| self.title_labels.release_schedule == ReleaseSchedule::Disabled
-	}
-
-	fn is_simulpub(&self) -> bool {
-		self.is_simul_released || self.title_labels.is_simulpub
-	}
-
-	fn is_on_hiatus(&self) -> bool {
-		self.non_appearance_info
-			.to_lowercase()
-			.contains("on a hiatus")
-	}
-
-	fn genres(&self) -> Vec<String> {
-		let mut genres = Vec::new();
-
-		let is_oneshot = self.is_oneshot();
-		let is_reedition = self.is_reedition();
-		let is_completed = self.is_completed();
-
-		if self.is_simulpub() && !is_reedition && !is_completed {
-			genres.push("Simulrelease".into());
-		}
-
-		if is_oneshot {
-			genres.push("One-Shot".into());
-		}
-
-		if is_reedition {
-			genres.push("Re-edition".into());
-		}
-
-		if self.is_webtoon() {
-			genres.push("Webtoon".into());
-		}
-
-		if let Some(magazine) = self.label.as_ref().and_then(|l| l.magazine()) {
-			genres.push(magazine.into());
-		}
-
-		if !is_completed {
-			genres.push(self.title_labels.release_schedule.to_str().into());
-		}
-
-		genres.push(self.rating.to_str().into());
-
-		genres
-	}
-
-	fn viewing_information(&self) -> Option<&String> {
-		if !self.is_completed() {
-			Some(&self.viewing_period_description)
-		} else {
-			None
-		}
+#[derive(Message)]
+pub struct UpdatedTitle {
+	#[prost(message, optional, tag = "3")]
+	latest_chapter: Option<LatestChapter>,
+}
+impl UpdatedTitle {
+	pub fn title(self) -> Option<Title> {
+		self.latest_chapter.and_then(|chapter| chapter.title)
 	}
 }
 
-impl From<TitleDetailView> for Manga {
-	fn from(value: TitleDetailView) -> Self {
-		let description = format!(
-			"{}\n\n{}",
-			value.overview.as_ref().unwrap_or(&String::default()),
-			value.viewing_information().unwrap_or(&String::default())
-		)
-		.trim()
-		.into();
-		let genres = value.genres();
-		let status = if value.is_completed() {
-			MangaStatus::Completed
-		} else if value.is_on_hiatus() {
-			MangaStatus::Hiatus
-		} else {
-			MangaStatus::Ongoing
-		};
-		let viewer = if value.is_webtoon() {
-			Viewer::Webtoon
-		} else {
-			Viewer::RightToLeft
-		};
-		let base: Manga = value.title.into();
-		Manga {
-			description: Some(description),
-			url: Some(format!("{BASE_URL}/titles/{}", base.key)),
-			tags: Some(genres),
-			status,
-			content_rating: if value.rating == Rating::Mature {
-				ContentRating::NSFW
-			} else {
-				ContentRating::Safe
-			},
-			viewer,
-			next_update_time: if value.next_time_stamp != 0 {
-				Some(value.next_time_stamp)
-			} else {
-				None
-			},
-			..base
-		}
-	}
+#[derive(Message)]
+struct LatestChapter {
+	#[prost(message, optional, tag = "1")]
+	title: Option<Title>,
 }
 
-#[derive(Deserialize, Default, Debug)]
-#[serde(rename_all = "camelCase")]
-#[serde(default)]
-pub struct TitleLabels {
-	pub release_schedule: ReleaseSchedule,
-	pub is_simulpub: bool,
-}
-
-#[derive(Deserialize, Default, PartialEq, Eq, Debug)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum ReleaseSchedule {
-	#[default]
-	Disabled,
-	Everyday,
-	Weekly,
-	Biweekly,
-	Monthly,
-	Bimonthly,
-	Trimonthly,
-	Other,
-	Completed,
-}
-
-impl ReleaseSchedule {
-	fn to_str(&self) -> &'static str {
-		match self {
-			ReleaseSchedule::Disabled => "Disabled",
-			ReleaseSchedule::Everyday => "Everyday",
-			ReleaseSchedule::Weekly => "Weekly",
-			ReleaseSchedule::Biweekly => "Biweekly",
-			ReleaseSchedule::Monthly => "Monthly",
-			ReleaseSchedule::Bimonthly => "Bimonthly",
-			ReleaseSchedule::Trimonthly => "Trimonthly",
-			ReleaseSchedule::Other => "Other",
-			ReleaseSchedule::Completed => "Completed",
-		}
-	}
-}
-
-#[derive(Deserialize, Default, PartialEq, Eq, Debug)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum Rating {
-	#[default]
-	AllAge,
-	Teen,
-	TeenPlus,
-	Mature,
-}
-
-impl Rating {
-	fn to_str(&self) -> &'static str {
-		match self {
-			Rating::AllAge => "All Ages",
-			Rating::Teen => "Teen",
-			Rating::TeenPlus => "Teen+",
-			Rating::Mature => "Mature",
-		}
-	}
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct Label {
-	#[serde(default = "default_wsj_code")]
-	pub label: Option<LabelCode>,
-}
-
-impl Label {
-	fn magazine(&self) -> Option<&'static str> {
-		match self.label {
-			Some(LabelCode::WeeklyShonenJump) => Some("Weekly Shounen Jump"),
-			Some(LabelCode::JumpSquare) => Some("Jump SQ."),
-			Some(LabelCode::VJump) => Some("V Jump"),
-			Some(LabelCode::Giga) => Some("Shounen Jump GIGA"),
-			Some(LabelCode::WeeklyYoungJump) => Some("Weekly Young Jump"),
-			Some(LabelCode::TonariNoYoungJump) => Some("Tonari no Young Jump"),
-			Some(LabelCode::JPlus) => Some("Shounen Jump+"),
-			Some(LabelCode::Creators) => Some("MANGA Plus Creators"),
-			Some(LabelCode::SaikyoJump) => Some("Saikyou Jump"),
-			Some(LabelCode::UltraJump) => Some("Ultra Jump"),
-			Some(LabelCode::DashX) => Some("Dash X Comic"),
-			Some(LabelCode::MangaMee) => Some("Manga Mee"),
-			_ => None,
-		}
-	}
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "UPPERCASE")]
-pub enum LabelCode {
-	Creators,
-	Giga,
-	#[serde(rename = "J_PLUS")]
-	JPlus,
-	Others,
-	Revival,
-	#[serde(rename = "SKJ")]
-	SaikyoJump,
-	#[serde(rename = "SQ")]
-	JumpSquare,
-	#[serde(rename = "TYJ")]
-	TonariNoYoungJump,
-	#[serde(rename = "VJ")]
-	VJump,
-	#[serde(rename = "YJ")]
-	WeeklyYoungJump,
-	#[serde(rename = "WSJ")]
-	WeeklyShonenJump,
-	#[serde(rename = "UJ")]
-	UltraJump,
-	#[serde(rename = "DX")]
-	DashX,
-	#[serde(rename = "MEE")]
-	MangaMee,
-}
-
-#[derive(Deserialize, Default, Debug)]
-#[serde(rename_all = "camelCase")]
-#[serde(default)]
-pub struct ChapterListGroup {
-	pub first_chapter_list: Vec<MangaPlusChapter>,
-	// pub mid_chapter_list: Vec<MangaPlusChapter>,
-	pub last_chapter_list: Vec<MangaPlusChapter>,
-}
-
-#[derive(Deserialize, Default, Debug)]
-#[serde(rename_all = "camelCase")]
-#[serde(default)]
-pub struct MangaViewer {
-	pub pages: Vec<MangaPlusPage>,
-	pub title_id: Option<i32>,
-	pub title_name: Option<String>,
-}
-
-#[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Message)]
 pub struct Title {
+	#[prost(int32, tag = "1")]
 	pub title_id: i32,
+	#[prost(string, tag = "2")]
 	pub name: String,
+	#[prost(string, optional, tag = "3")]
 	pub author: Option<String>,
+	#[prost(string, tag = "4")]
 	pub portrait_image_url: String,
-	#[serde(default)]
-	pub view_count: i32,
-	#[serde(default = "default_language")]
-	pub language: Option<Language>,
+	#[prost(enumeration = "Language", optional, tag = "7")]
+	language_code: Option<i32>,
 }
-
+impl Title {
+	pub fn language(&self) -> Option<Language> {
+		self.language_code
+			.and_then(|value| Language::try_from(value).ok())
+	}
+}
 impl From<Title> for Manga {
 	fn from(value: Title) -> Self {
 		Self {
 			key: value.title_id.to_string(),
 			title: value.name,
 			cover: Some(value.portrait_image_url),
-			authors: value.author.map(|s| {
-				s.split(['/', ','])
-					.map(|part| part.trim())
-					.map(String::from)
+			authors: value.author.map(|author| {
+				author
+					.split(['/', ','])
+					.map(|part| part.trim().into())
 					.collect()
 			}),
 			..Default::default()
@@ -446,86 +159,126 @@ impl From<Title> for Manga {
 	}
 }
 
-#[derive(Deserialize, Default, PartialEq, Clone, Copy, Debug)]
-#[serde(rename_all = "UPPERCASE")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, prost::Enumeration)]
+#[repr(i32)]
 pub enum Language {
-	#[default]
-	English,
-	Spanish,
-	French,
-	Indonesian,
-	#[serde(rename = "PORTUGUESE_BR")]
-	BrazilianPortuguese,
-	Russian,
-	Thai,
-	Vietnamese,
-	German,
+	English = 0,
+	Spanish = 1,
+	French = 2,
+	Indonesian = 3,
+	BrazilianPortuguese = 4,
+	Russian = 5,
+	Thai = 6,
+	German = 7,
+	Vietnamese = 9,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdatedTitleV2Group {
-	pub group_name: String,
-	#[serde(default)]
-	pub title_groups: Vec<OriginalTitleGroup>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OriginalTitleGroup {
-	// pub the_title: String,
-	#[serde(default)]
-	pub titles: Vec<UpdatedTitle>,
-}
-
-#[derive(Deserialize, Clone)]
-pub struct UpdatedTitle {
+#[derive(Message)]
+pub struct TitleDetailView {
+	#[prost(message, required, tag = "1")]
 	pub title: Title,
+	#[prost(string, optional, tag = "3")]
+	pub overview: Option<String>,
+	#[prost(string, tag = "7")]
+	pub viewing_period_description: String,
+	#[prost(string, tag = "8")]
+	pub non_appearance_info: String,
+	#[prost(message, repeated, tag = "28")]
+	pub chapter_list_group: Vec<ChapterListGroup>,
+}
+impl TitleDetailView {
+	pub fn chapter_list(&self) -> Vec<&MangaPlusChapter> {
+		self.chapter_list_group
+			.iter()
+			.flat_map(|group| {
+				group
+					.first_chapter_list
+					.iter()
+					.chain(group.last_chapter_list.iter())
+			})
+			.collect()
+	}
+	fn is_oneshot(&self) -> bool {
+		self.chapter_list().len() == 1 && self.chapter_list()[0].name.to_lowercase() == "one-shot"
+	}
+	fn is_completed(&self) -> bool {
+		self.non_appearance_info.to_lowercase().contains("complet")
+			|| self.is_oneshot()
+			|| self
+				.viewing_period_description
+				.contains("latest 0 chapters")
+	}
+	fn is_on_hiatus(&self) -> bool {
+		self.non_appearance_info
+			.to_lowercase()
+			.contains("on a hiatus")
+	}
+}
+impl From<TitleDetailView> for Manga {
+	fn from(value: TitleDetailView) -> Self {
+		let description = format!(
+			"{}\n\n{}",
+			value.overview.as_deref().unwrap_or_default(),
+			if value.is_completed() {
+				""
+			} else {
+				&value.viewing_period_description
+			},
+		)
+		.trim()
+		.into();
+		let status = if value.is_completed() {
+			MangaStatus::Completed
+		} else if value.is_on_hiatus() {
+			MangaStatus::Hiatus
+		} else {
+			MangaStatus::Ongoing
+		};
+		let base: Manga = value.title.into();
+		Manga {
+			description: Some(description),
+			url: Some(format!("{BASE_URL}/titles/{}", base.key)),
+			status,
+			content_rating: ContentRating::Safe,
+			viewer: Viewer::RightToLeft,
+			..base
+		}
+	}
 }
 
-#[derive(Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
+#[derive(Message)]
+pub struct ChapterListGroup {
+	#[prost(message, repeated, tag = "2")]
+	pub first_chapter_list: Vec<MangaPlusChapter>,
+	#[prost(message, repeated, tag = "4")]
+	pub last_chapter_list: Vec<MangaPlusChapter>,
+}
+
+#[derive(Clone, Message)]
 pub struct MangaPlusChapter {
-	pub title_id: i32,
+	#[prost(int32, tag = "2")]
 	pub chapter_id: i32,
+	#[prost(string, tag = "3")]
 	pub name: String,
+	#[prost(string, optional, tag = "4")]
 	pub sub_title: Option<String>,
+	#[prost(int64, tag = "6")]
 	pub start_time_stamp: i64,
-	pub end_time_stamp: i64,
-	#[serde(default)]
-	pub is_vertical_only: bool,
 }
-
 impl MangaPlusChapter {
 	pub fn is_expired(&self) -> bool {
 		self.sub_title.is_none()
 	}
 }
-
 impl From<MangaPlusChapter> for Chapter {
 	fn from(value: MangaPlusChapter) -> Self {
-		let chapter_number = if let Some(idx) = value.name.find('#') {
-			value.name[idx + 1..].parse::<f32>().ok()
-		} else {
-			None
-		};
+		let chapter_number = value
+			.name
+			.find('#')
+			.and_then(|idx| value.name[idx + 1..].parse::<f32>().ok());
 		Chapter {
 			key: value.chapter_id.to_string(),
-			title: Some(if let Some(sub_title) = value.sub_title {
-				if let Some(stripped_title) =
-					chapter_number.and_then(|num| sub_title.strip_prefix(&format!("Chapter {num}")))
-				{
-					if let Some(final_title) = stripped_title.strip_prefix(": ") {
-						final_title.into()
-					} else {
-						stripped_title.into()
-					}
-				} else {
-					sub_title
-				}
-			} else {
-				value.name
-			}),
+			title: Some(value.sub_title.unwrap_or(value.name)),
 			chapter_number,
 			date_uploaded: Some(value.start_time_stamp),
 			url: Some(format!("{BASE_URL}/viewer/{}", value.chapter_id)),
@@ -534,35 +287,26 @@ impl From<MangaPlusChapter> for Chapter {
 	}
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
+#[derive(Message)]
+pub struct MangaViewer {
+	#[prost(message, repeated, tag = "1")]
+	pub pages: Vec<MangaPlusPage>,
+	#[prost(int32, optional, tag = "9")]
+	pub title_id: Option<i32>,
+	#[prost(string, optional, tag = "19")]
+	pub view_token: Option<String>,
+}
+
+#[derive(Message)]
 pub struct MangaPlusPage {
+	#[prost(message, optional, tag = "1")]
 	pub manga_page: Option<MangaPage>,
 }
 
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
+#[derive(Message)]
 pub struct MangaPage {
+	#[prost(string, tag = "1")]
 	pub image_url: String,
-	// pub width: i32,
-	// pub height: i32,
+	#[prost(string, optional, tag = "5")]
 	pub encryption_key: Option<String>,
-}
-
-// default values
-fn default_true() -> bool {
-	true
-}
-
-fn default_language() -> Option<Language> {
-	Some(Language::English)
-}
-
-fn default_wsj() -> Option<Label> {
-	Some(Label {
-		label: Some(LabelCode::WeeklyShonenJump),
-	})
-}
-fn default_wsj_code() -> Option<LabelCode> {
-	Some(LabelCode::WeeklyShonenJump)
 }

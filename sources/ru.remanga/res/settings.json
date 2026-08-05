@@ -1,0 +1,54 @@
+[
+	{
+		"type": "group",
+		"title": "Аккаунт",
+		"footer": "Войдите на Remanga во встроенном браузере, затем закройте окно.",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"title": "Войти",
+				"method": "web",
+				"url": "https://remanga.org/",
+				"notification": "login",
+				"refreshes": ["settings", "content"]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Запасной вход",
+		"footer": "Если веб-вход не сработал — вставьте cookie token.",
+		"items": [
+			{
+				"type": "text",
+				"key": "accessToken",
+				"title": "Токен",
+				"placeholder": "без префикса Bearer",
+				"autocorrectionDisabled": true,
+				"notification": "token.changed",
+				"refreshes": ["settings", "content"]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Главы",
+		"items": [
+			{
+				"type": "switch",
+				"key": "showPaidInfo",
+				"title": "Цена и дата бесплатной публикации",
+				"default": true,
+				"refreshes": ["content"]
+			},
+			{
+				"type": "switch",
+				"key": "englishTitles",
+				"title": "Английские названия",
+				"default": false,
+				"refreshes": ["content"]
+			}
+		]
+	}
+]

@@ -1,0 +1,28 @@
+{
+	"info": {
+		"id": "ja.rawdevart",
+		"name": "Rawdevart",
+		"version": 3,
+		"url": "https://rawdevart.art",
+		"contentRating": 1,
+		"languages": ["ja"],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "Latest"
+		},
+		{
+			"id": "popular",
+			"name": "Popular"
+		},
+		{
+			"id": "trending",
+			"name": "Trending Today"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}

@@ -8,7 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", package = "aidoku", features = ["json"], version = "0.3.0" }
-serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
+ezmanhwa = { path = "../../templates/ezmanhwa" }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
