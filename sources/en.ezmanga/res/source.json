@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.ezmanga",
 		"name": "EzManga",
-		"version": 1,
+		"version": 2,
 		"url": "https://ezmanga.org",
 		"minAppVersion": "0.7.1",
 		"contentRating": 1,
@@ -17,5 +17,8 @@
 		{
 			"id": "Latest"
 		}
-	]
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
 }

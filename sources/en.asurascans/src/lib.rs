@@ -362,7 +362,7 @@ impl Home for AsuraScans {
 				.map(|els| {
 					els.filter_map(|el| {
 						let link = el.select_first("a.font-bold")?;
-						let chapter_link = el.select_first("div.col-span-8 > div.flex > a")?;
+						let chapter_link = el.select_first("div.flex > div > a.group.grid")?;
 						let manga_key = helpers::get_manga_key(&link.attr("abs:href")?)?;
 						let chapter_key =
 							helpers::get_chapter_key(&chapter_link.attr("abs:href")?)?;

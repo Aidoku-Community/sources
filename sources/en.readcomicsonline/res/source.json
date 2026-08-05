@@ -1,0 +1,17 @@
+{
+	"info": {
+		"id": "en.readcomicsonline",
+		"name": "Read Comics Online",
+		"version": 2,
+		"url": "https://readcomicsonline.ru",
+		"contentRating": 1,
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{
+			"id": "Latest Releases",
+			"kind": 1
+		}
+	]
+}

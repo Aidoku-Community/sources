@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "tr.tortugaceviri",
+		"name": "Tortuga Çeviri",
+		"version": 1,
+		"url": "https://tortugaceviri.com",
+		"contentRating": 1,
+		"languages": [
+			"tr"
+		],
+		"minAppVersion": "0.7.1"
+	}
+}

@@ -1,9 +1,7 @@
-use crate::BASE_URL;
+use crate::{BASE_URL, helpers::base_url_join};
 use aidoku::{
-	Chapter, ContentRating, Link, Manga, MangaStatus, Viewer,
-	alloc::string::ToString,
-	alloc::vec,
-	alloc::{String, Vec},
+	Chapter, ContentRating, Manga, MangaStatus, Viewer,
+	alloc::{String, Vec, string::ToString, vec},
 	imports::std::parse_date,
 	prelude::*,
 };
@@ -14,54 +12,64 @@ pub struct PageContainer<T> {
 	pub data: T,
 }
 
-/* Replaced by a different api but just in case we ever need it again
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HomePage {
-	pub sections_data: HomePageSectionData,
+pub struct UserProfile {
+	pub profile: Option<UserProfileData>,
 }
 
 #[derive(Deserialize)]
-pub struct HomePageSectionData {
-	pub sections: HomePageSection,
+pub struct UserProfileData {
+	pub id: Option<String>,
 }
 
 #[derive(Deserialize)]
-pub struct HomePageSection {
-	pub latest_updates: HomePageSectionItem,
-	pub recently_added: HomePageSectionItem,
-	pub most_tracked: HomePageSectionItem,
-	pub top_rated: HomePageSectionItem,
+pub struct BookmarkPage {
+	pub data: BookmarkPageData,
 }
 
 #[derive(Deserialize)]
-pub struct HomePageSectionItem {
-	pub items: Vec<MangaItem>,
+pub struct BookmarkPageData {
+	pub total: i32,
+	pub page: i32,
+	pub per_page: i32,
+	pub entries: Vec<BookmarkPageDataEntry>,
 }
-*/
+
+#[derive(Deserialize)]
+pub struct BookmarkPageDataEntry {
+	pub manga_id: i32,
+	pub title: String,
+	pub photo: Option<String>,
+}
+
+impl From<BookmarkPageDataEntry> for Manga {
+	fn from(value: BookmarkPageDataEntry) -> Self {
+		Self {
+			key: value.manga_id.to_string(),
+			title: value.title,
+			cover: value.photo.map(|photo| base_url_join(&photo)),
+			..Default::default()
+		}
+	}
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ViewAllPage {
-	// pub adult: bool,
-	// pub all_genres: Vec<String>,
 	pub data: ViewAllPageData,
-	// pub page: i32,
-	// pub section: String,
 }
 
 #[derive(Deserialize)]
 pub struct ViewAllPageData {
-	pub manga_list: Vec<MangaItem>,
+	pub manga_list: Vec<ShortMangaItem>,
 	pub pagination: Pagination,
 }
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchPage {
-	pub all_genres: Vec<String>,
 	pub pagination: Option<Pagination>,
-	pub results: Option<Vec<MangaItem>>,
+	pub results: Option<Vec<ShortMangaItem>>,
 }
 
 #[derive(Deserialize)]
@@ -77,14 +85,13 @@ pub struct MangaDetailData {
 
 #[derive(Deserialize)]
 pub struct ListingSectionData {
-	pub items: Vec<MangaItem>,
+	pub items: Vec<ShortMangaItem>,
 }
 
 #[derive(Deserialize)]
 pub struct Pagination {
 	pub current_page: i32,
 	pub total_pages: i32,
-	// pub next_cursor: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -97,37 +104,48 @@ pub enum StringOrVec {
 impl StringOrVec {
 	fn into_vec(self) -> Vec<String> {
 		match self {
-			Self::Single(s) => serde_json::from_str(&s).unwrap_or_else(|_| vec![s]),
+			Self::Single(s) => serde_json::from_str(&s).unwrap_or(vec![s]),
 			Self::Multiple(v) => v,
 		}
 	}
 }
 
 #[derive(Deserialize)]
-pub struct MangaItem {
-	pub alt_titles: Option<StringOrVec>,
-	pub artists: Option<StringOrVec>,
-	pub authors: Option<StringOrVec>,
-	pub avg_rating: Option<f32>,
-	pub content_rating: Option<String>,
-	pub country_of_origin: Option<String>,
-	pub description: Option<String>,
-	pub genres: Option<Vec<String>>,
-	#[serde(deserialize_with = "bool_from_any")]
-	pub hiatus: bool,
+pub struct ShortMangaItem {
 	pub id: i32,
-	#[serde(deserialize_with = "bool_from_any", default = "default_bool")]
-	pub is_adult: bool,
-	#[serde(deserialize_with = "bool_from_any")]
-	pub is_blurworthy: bool,
-	pub photo: Option<String>,
-	pub status: String,
 	pub title: String,
+	pub photo: Option<String>,
+}
+
+impl From<ShortMangaItem> for Manga {
+	fn from(value: ShortMangaItem) -> Self {
+		Self {
+			key: value.id.to_string(),
+			title: value.title,
+			cover: value.photo.map(|photo| base_url_join(&photo)),
+			..Default::default()
+		}
+	}
 }
 
 #[derive(Deserialize)]
-pub struct MangaId {
+pub struct MangaItem {
 	pub id: i32,
+	pub photo: Option<String>,
+	pub title: String,
+	pub artists: Option<StringOrVec>,
+	pub authors: Option<StringOrVec>,
+	pub status: String,
+	#[serde(deserialize_with = "bool_from_any")]
+	pub hiatus: bool,
+	pub content_rating: Option<String>,
+	#[serde(deserialize_with = "bool_from_any")]
+	pub is_adult: bool,
+	pub description: Option<String>,
+	pub genres: Option<Vec<String>>,
+	pub country_of_origin: Option<String>,
+	#[serde(deserialize_with = "bool_from_any_optional")]
+	pub is_longstrip: Option<bool>,
 }
 
 impl From<MangaItem> for Manga {
@@ -135,11 +153,7 @@ impl From<MangaItem> for Manga {
 		Self {
 			key: value.id.to_string(),
 			title: value.title,
-			cover: if let Some(photo) = value.photo {
-				photo.strip_prefix("/").map(|s| format!("{BASE_URL}/{s}"))
-			} else {
-				None
-			},
+			cover: value.photo.map(|photo| base_url_join(&photo)),
 			artists: value.artists.map(|a| a.into_vec()),
 			authors: value.authors.map(|a| a.into_vec()),
 			description: value.description,
@@ -156,59 +170,38 @@ impl From<MangaItem> for Manga {
 				"Completed" => MangaStatus::Completed,
 				_ => MangaStatus::Unknown,
 			},
-			content_rating: if value.is_blurworthy || value.is_adult {
+			content_rating: if value.is_adult {
 				ContentRating::NSFW
 			} else {
-				if let Some(content_rating) = value.content_rating {
-					match content_rating.as_str() {
-						"safe" => ContentRating::Safe,
-						"suggestive" => ContentRating::Suggestive,
-						"erotica" => ContentRating::Suggestive,
-						_ => ContentRating::Unknown,
-					}
-				} else {
-					ContentRating::Unknown
-				}
+				value
+					.content_rating
+					.map_or(
+						ContentRating::Unknown,
+						|content_rating| match content_rating.as_str() {
+							"safe" => ContentRating::Safe,
+							"suggestive" => ContentRating::Suggestive,
+							"erotica" => ContentRating::Suggestive,
+							_ => ContentRating::Unknown,
+						},
+					)
 			},
-			viewer: if let Some(coo) = value.country_of_origin {
-				match coo.as_str() {
-					"JP" => Viewer::RightToLeft,
+			viewer: value
+				.country_of_origin
+				.map_or(Viewer::Unknown, |coo| match coo.as_str() {
+					"JP" => value.is_longstrip.map_or(Viewer::RightToLeft, |is_ls| {
+						if is_ls {
+							Viewer::Webtoon
+						} else {
+							Viewer::RightToLeft
+						}
+					}),
 					"KR" => Viewer::Webtoon,
 					"CN" => Viewer::Webtoon,
 					_ => Viewer::Unknown,
-				}
-			} else {
-				Viewer::Unknown
-			},
+				}),
 			..Default::default()
 		}
 	}
-}
-
-impl From<MangaItem> for Link {
-	fn from(value: MangaItem) -> Self {
-		let manga: Manga = value.into();
-		manga.into()
-	}
-}
-
-#[derive(Deserialize)]
-pub struct MangaChapter {
-	pub id: i32,
-	#[serde(deserialize_with = "f32_from_any")]
-	pub chapter_number: Option<f32>,
-	#[serde(deserialize_with = "f32_from_any", default = "default_option_f32")]
-	pub volume_number: Option<f32>,
-	pub chapter_title: Option<String>,
-	pub language: Option<String>,
-	pub group_id: Option<i32>,
-	pub group_name: Option<String>,
-	pub uploader_id: Option<String>,
-	pub uploader_username: Option<String>,
-	pub date_added: String,
-	pub source: Option<String>,
-	pub scanlator_name: Option<String>,
-	pub groups: Option<Vec<MangaGroup>>,
 }
 
 #[derive(Deserialize)]
@@ -218,15 +211,30 @@ pub struct MangaGroup {
 }
 
 #[derive(Deserialize)]
+pub struct MangaChapter {
+	pub id: i32,
+	pub language: Option<String>,
+	#[serde(deserialize_with = "f32_from_any_optional")]
+	pub chapter_number: Option<f32>,
+	#[serde(deserialize_with = "f32_from_any_optional")]
+	pub volume_number: Option<f32>,
+	pub chapter_title: Option<String>,
+	pub groups: Option<Vec<MangaGroup>>,
+	pub scanlator_name: Option<String>,
+	pub date_added: String,
+	pub uploader_username: Option<String>,
+}
+
+#[derive(Deserialize)]
 pub struct MangaVolume {
 	pub id: i32,
+	pub language: String,
 	pub volume_number: f32,
 	pub cover_url: Option<String>,
-	pub group_name: Option<String>,
-	pub uploader_username: Option<String>,
-	pub date_added: String,
+	pub groups: Option<Vec<MangaGroup>>,
 	pub scanlator_name: Option<String>,
-	pub groups: Vec<MangaGroup>,
+	pub date_added: String,
+	pub uploader_username: Option<String>,
 }
 
 impl MangaChapter {
@@ -264,13 +272,13 @@ impl From<MangaChapter> for Chapter {
 			date_uploaded: date,
 			scanlators: value
 				.groups
-				.map(|g| g.into_iter().map(|group| group.name).collect())
+				.map(|g| g.into_iter().map(|group| group.name).collect::<Vec<_>>())
+				.filter(|groups| !groups.is_empty())
 				.or(value.scanlator_name.map(|name| vec![name])),
-			url: if value.source.is_some_and(|s| s == "user") || value.uploader_id.is_some() {
-				Some(format!("{BASE_URL}/chapter/{}?source=user", value.id))
-			} else {
-				Some(format!("{BASE_URL}/chapter/{}", value.id))
-			},
+			url: value
+				.uploader_username
+				.map(|_| format!("{BASE_URL}/chapter/{}?source=user", value.id))
+				.or(Some(format!("{BASE_URL}/chapter/{}", value.id))),
 			language: value.language,
 			..Default::default()
 		}
@@ -279,27 +287,22 @@ impl From<MangaChapter> for Chapter {
 
 impl From<MangaVolume> for Chapter {
 	fn from(value: MangaVolume) -> Self {
-		let date = value.created_at();
 		Self {
 			key: value.id.to_string(),
 			title: None,
 			chapter_number: None,
 			volume_number: Some(value.volume_number),
-			date_uploaded: date,
-			scanlators: if !value.groups.is_empty() {
-				Some(value.groups.into_iter().map(|group| group.name).collect())
-			} else {
-				value.scanlator_name.map(|name| vec![name])
-			},
-			url: if value.uploader_username.is_some() {
-				Some(format!(
-					"{BASE_URL}/chapter/{}?source=user&mode=volume",
-					value.id
-				))
-			} else {
-				Some(format!("{BASE_URL}/chapter/{}?mode=volume", value.id))
-			},
-			language: Some("en".into()),
+			date_uploaded: value.created_at(),
+			scanlators: value
+				.groups
+				.map(|g| g.into_iter().map(|group| group.name).collect::<Vec<_>>())
+				.filter(|groups| !groups.is_empty())
+				.or(value.scanlator_name.map(|name| vec![name])),
+			url: value
+				.uploader_username
+				.map(|_| format!("{BASE_URL}/chapter/{}?source=user&mode=volume", value.id))
+				.or(Some(format!("{BASE_URL}/chapter/{}?mode=volume", value.id))),
+			language: Some(value.language),
 			thumbnail: value
 				.cover_url
 				.map(|cover_url| format!("{BASE_URL}/{cover_url}")),
@@ -310,9 +313,14 @@ impl From<MangaVolume> for Chapter {
 
 #[derive(Deserialize)]
 pub struct MangaPage {
-	pub chapter: MangaChapter,
-	pub manga: MangaId,
+	pub chapter: MangaPageIdOnly,
+	pub manga: MangaPageIdOnly,
 	pub images: Vec<MangaPageImage>,
+}
+
+#[derive(Deserialize)]
+pub struct MangaPageIdOnly {
+	pub id: i32,
 }
 
 #[derive(Deserialize)]
@@ -330,25 +338,25 @@ fn bool_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::
 			formatter.write_str("a boolean that can be converted to bool")
 		}
 
-		fn visit_bool<E>(self, v: bool) -> Result<bool, E> {
+		fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E> {
 			Ok(v)
 		}
 
-		fn visit_i64<E>(self, v: i64) -> Result<bool, E> {
+		fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
 			match v {
 				0 => Ok(false),
 				_ => Ok(true),
 			}
 		}
 
-		fn visit_u64<E>(self, v: u64) -> Result<bool, E> {
+		fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
 			match v {
 				0 => Ok(false),
 				_ => Ok(true),
 			}
 		}
 
-		fn visit_str<E: Error>(self, v: &str) -> Result<bool, E> {
+		fn visit_str<E: Error>(self, v: &str) -> Result<Self::Value, E> {
 			match v.to_ascii_lowercase().as_str() {
 				"true" => Ok(true),
 				"false" => Ok(false),
@@ -360,7 +368,10 @@ fn bool_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::
 			}
 		}
 
-		fn visit_none<E>(self) -> Result<bool, E> {
+		fn visit_unit<E>(self) -> Result<Self::Value, E>
+		where
+			E: Error,
+		{
 			Ok(false)
 		}
 	}
@@ -368,7 +379,62 @@ fn bool_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<bool, D::
 	deserializer.deserialize_any(BoolVisitor)
 }
 
-fn f32_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<f32>, D::Error> {
+fn bool_from_any_optional<'de, D: Deserializer<'de>>(
+	deserializer: D,
+) -> Result<Option<bool>, D::Error> {
+	struct BoolVisitor;
+
+	impl<'de> de::Visitor<'de> for BoolVisitor {
+		type Value = Option<bool>;
+
+		fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+			formatter.write_str("a boolean that can be converted to bool")
+		}
+
+		fn visit_bool<E>(self, v: bool) -> Result<Self::Value, E> {
+			Ok(Some(v))
+		}
+
+		fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
+			match v {
+				0 => Ok(Some(false)),
+				_ => Ok(Some(true)),
+			}
+		}
+
+		fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
+			match v {
+				0 => Ok(Some(false)),
+				_ => Ok(Some(true)),
+			}
+		}
+
+		fn visit_str<E: Error>(self, v: &str) -> Result<Self::Value, E> {
+			match v.to_ascii_lowercase().as_str() {
+				"true" => Ok(Some(true)),
+				"false" => Ok(Some(false)),
+				"1" => Ok(Some(true)),
+				"0" => Ok(Some(false)),
+				"yes" => Ok(Some(true)),
+				"no" => Ok(Some(false)),
+				_ => Err(E::custom(format!("invalid string for bool: {v}"))),
+			}
+		}
+
+		fn visit_unit<E>(self) -> Result<Self::Value, E>
+		where
+			E: Error,
+		{
+			Ok(None)
+		}
+	}
+
+	deserializer.deserialize_any(BoolVisitor)
+}
+
+fn f32_from_any_optional<'de, D: Deserializer<'de>>(
+	deserializer: D,
+) -> Result<Option<f32>, D::Error> {
 	struct F32Visitor;
 
 	impl<'de> de::Visitor<'de> for F32Visitor {
@@ -436,12 +502,4 @@ fn f32_from_any<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<f32
 	}
 
 	deserializer.deserialize_any(F32Visitor)
-}
-
-fn default_bool() -> bool {
-	false
-}
-
-fn default_option_f32() -> Option<f32> {
-	None
 }

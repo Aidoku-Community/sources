@@ -2,9 +2,15 @@
 	"info": {
 		"id": "en.qiscans",
 		"name": "Qi Scans",
-		"version": 1,
-		"url": "https://qiscans.org",
+		"altNames": ["Qi Manga"],
+		"version": 2,
+		"url": "https://qimanga.org",
 		"contentRating": 0,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true,
+		"breakingChangeVersion": 2
 	}
 }
