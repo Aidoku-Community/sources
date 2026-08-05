@@ -3,8 +3,8 @@
 mod helper;
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Manga, MangaPageResult, MangaStatus,
-	Page, PageContent, Result, Source, Viewer,
+	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Manga, MangaPageResult,
+	MangaStatus, Page, PageContent, Result, Source, Viewer,
 	alloc::{String, Vec, format},
 	imports::{net::Request, std::send_partial_result},
 	prelude::*,
@@ -91,35 +91,50 @@ impl Source for Hennoveltranslations {
 				.select_first(".novel-content img, .wp-post-image")
 				.and_then(|img| img.attr("src"));
 
-			let meta_text = html
-				.select(".custom-fields, .novel-content")
+			manga.status = html
+				.select_first(".single-novel-title p")
 				.and_then(|el| el.text())
-				.unwrap_or_default();
+				.map(|t| match t.replace("Status:", "").trim() {
+					"Completed" => MangaStatus::Completed,
+					"Ongoing" => MangaStatus::Ongoing,
+					_ => MangaStatus::Unknown,
+				})
+				.unwrap_or(MangaStatus::Unknown);
 
-			manga.status = match helper::extract_meta_value(&meta_text, "Status:").as_str() {
-				"Completed" => MangaStatus::Completed,
-				"Ongoing" => MangaStatus::Ongoing,
-				_ => MangaStatus::Unknown,
-			};
-
-			let author = helper::extract_meta_value(&meta_text, "Author:");
-			if !author.is_empty() {
-				manga.authors = Some(Vec::from([author]));
-			}
-
-			let genre_str = helper::extract_meta_value(&meta_text, "Genre:");
-			if !genre_str.is_empty() {
-				let tags: Vec<String> = genre_str
-					.split(',')
-					.map(|s| String::from(s.trim()))
-					.collect();
-				manga.content_rating = helper::content_rating_from_tags(&tags);
-				manga.tags = Some(tags);
-			}
-
-			let type_str = helper::extract_meta_value(&meta_text, "Type:");
-			if type_str.to_lowercase().contains("manhwa") {
-				manga.viewer = Viewer::Webtoon;
+			if let Some(elements) = html.select(".custom-fields p") {
+				for p in elements {
+					let text = p.text().unwrap_or_default();
+					if text.starts_with("Author:") {
+						let author = text.strip_prefix("Author:").unwrap_or("").trim();
+						if !author.is_empty() {
+							manga.authors = Some(Vec::from([String::from(author)]));
+						}
+					} else if text.starts_with("Genre:") {
+						let genre_str = text
+							.strip_prefix("Genre:")
+							.unwrap_or("")
+							.trim()
+							.trim_start_matches("Genre-")
+							.trim();
+						if !genre_str.is_empty() {
+							let tags: Vec<String> = genre_str
+								.split(',')
+								.flat_map(|s| s.split_whitespace())
+								.map(String::from)
+								.filter(|s| !s.is_empty())
+								.collect();
+							manga.content_rating = helper::content_rating_from_tags(&tags);
+							manga.tags = Some(tags);
+						} else {
+							manga.content_rating = ContentRating::Unknown;
+						}
+					} else if text.starts_with("Type:") {
+						let type_str = text.strip_prefix("Type:").unwrap_or("").trim();
+						if type_str.to_lowercase().contains("manhwa") {
+							manga.viewer = Viewer::Webtoon;
+						}
+					}
+				}
 			}
 
 			if needs_chapters {
@@ -135,7 +150,7 @@ impl Source for Hennoveltranslations {
 			{
 				for node in links {
 					if let Some(chapter_url) = node.attr("href")
-						&& chapter_url.contains("/archives/episodes/")
+						&& chapter_url.contains("/episodes/")
 					{
 						let title = node.text().unwrap_or_default();
 						let key = chapter_url.replace(BASE_URL, "");
@@ -158,7 +173,12 @@ impl Source for Hennoveltranslations {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let url = format!("{}{}", BASE_URL, chapter.key);
+		let url = chapter
+			.url
+			.unwrap_or_else(|| format!("{}{}", BASE_URL, chapter.key));
+		if !url.starts_with(BASE_URL) {
+			bail!("Chapter URL does not start with base URL");
+		}
 		let html = Request::get(&url)?.html()?;
 
 		let is_paywalled = html
@@ -238,11 +258,11 @@ impl DeepLinkHandler for Hennoveltranslations {
 			return Ok(Some(DeepLinkResult::Manga { key }));
 		}
 
-		if let Some(episode_path) = path.strip_prefix("archives/episodes/")
+		if let Some(episode_path) = path.strip_prefix("episodes/")
 			&& !episode_path.is_empty()
 		{
 			let key = String::from(episode_path.trim_end_matches('/'));
-			let chapter_key = format!("/archives/episodes/{}", key);
+			let chapter_key = format!("/episodes/{}", key);
 			let manga_key = String::new();
 			return Ok(Some(DeepLinkResult::Chapter {
 				manga_key,
