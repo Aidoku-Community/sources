@@ -2,9 +2,9 @@
 mod helper;
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
-	HomeComponentValue, HomeLayout, Link, Listing, ListingProvider, Manga, MangaPageResult, Page,
-	PageContent, Result, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
+	HomeLayout, Link, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result,
+	Source,
 	alloc::{String, Vec, vec},
 	imports::net::Request,
 	prelude::*,
@@ -70,9 +70,8 @@ impl Source for Fandogamia {
 				.ok_or_else(|| error!("Strip URL not found"))?,
 		};
 		let html = Request::get(url)?.html()?;
-		let image_url = parse_page_image_url(&html).ok_or_else(|| {
-			error!("Strip URL not found in page")
-		})?;
+		let image_url =
+			parse_page_image_url(&html).ok_or_else(|| error!("Strip URL not found in page"))?;
 
 		Ok(vec![Page {
 			content: PageContent::url(image_url),
