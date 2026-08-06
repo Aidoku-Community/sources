@@ -39,7 +39,15 @@
 			"Spanish",
 			"Novel"
 		],
-		"ids": ["", "WEBTOON", "MANHWA", "MANHUA", "MANGA", "SPANISH", "NOVEL"]
+		"ids": [
+			"",
+			"WEBTOON",
+			"MANHWA",
+			"MANHUA",
+			"MANGA",
+			"SPANISH",
+			"NOVEL"
+		]
 	},
 	{
 		"type": "multi-select",
@@ -82,7 +90,7 @@
 			"Webtoon",
 			"+100 Chapter",
 			"Tower",
-			"Legendary ",
+			"Legendary",
 			"Dungeons",
 			"bully",
 			"orphan",
@@ -107,7 +115,29 @@
 			"CharacterGrowth",
 			"Mercenary",
 			"Elementals",
-			"Genius"
+			"Genius",
+			"Psychological",
+			"Tragedy",
+			"Gender Bender",
+			"Streamer",
+			"office",
+			"Modern Fantasy",
+			"super powers",
+			"mystery",
+			"Steampunk",
+			"SciFiAction",
+			"SciFi",
+			"cyperpunk",
+			"edgerunner",
+			"Neo-Noir",
+			"Thriller",
+			"Crime Mystery",
+			"Survival",
+			"Corporate Conspiracy",
+			"Bullying",
+			"Delinquents",
+			"Twins",
+			"Identity Switch"
 		],
 		"ids": [
 			"1",
@@ -170,7 +200,29 @@
 			"58",
 			"59",
 			"60",
-			"61"
+			"61",
+			"62",
+			"63",
+			"64",
+			"405",
+			"423",
+			"424",
+			"586",
+			"588",
+			"618",
+			"619",
+			"621",
+			"622",
+			"623",
+			"624",
+			"625",
+			"626",
+			"628",
+			"629",
+			"1359",
+			"1360",
+			"1361",
+			"1362"
 		]
 	}
 ]
