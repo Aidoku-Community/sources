@@ -140,6 +140,13 @@ impl CatalogueEntry {
 		.flatten()
 		.any(|field| contains_ignore_ascii_case(field, needle))
 	}
+
+	/// Matches the author alone, for the search field that "supportsAuthorSearch" enables.
+	pub fn matches_author(&self, needle: &str) -> bool {
+		self.author
+			.as_deref()
+			.is_some_and(|author| contains_ignore_ascii_case(author, needle))
+	}
 }
 
 impl From<CatalogueEntry> for Manga {
