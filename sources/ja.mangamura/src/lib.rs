@@ -1,8 +1,8 @@
 #![no_std]
-use aidoku::{alloc::borrow::Cow, prelude::*, Source};
+use aidoku::{Source, alloc::borrow::Cow, prelude::*};
 use mangareader::{Impl, MangaReader, Params};
 
-const BASE_URL: &str = "https://mangamura.net";
+const BASE_URL: &str = "https://mangamura.me";
 
 struct MangaMura;
 
@@ -50,3 +50,49 @@ register_source!(
 	ImageRequestProvider,
 	DeepLinkHandler
 );
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use aidoku::alloc::{String, vec::Vec};
+	use aidoku_test::aidoku_test;
+
+	fn source() -> MangaReader<MangaMura> {
+		Source::new()
+	}
+
+	// The site links entries with absolute urls, so keys are only stripped down
+	// to paths when BASE_URL matches the live domain. A stale domain silently
+	// turns every key into a full url and breaks details and chapter lists.
+	#[aidoku_test]
+	fn search_returns_path_keys() {
+		let result = source()
+			.get_search_manga_list(Some(String::from("ワンピース")), 1, Vec::new())
+			.expect("search failed");
+		assert!(!result.entries.is_empty(), "expected at least one result");
+		for manga in &result.entries {
+			assert!(
+				manga.key.starts_with('/'),
+				"expected a path key, got {}",
+				manga.key
+			);
+		}
+	}
+
+	#[aidoku_test]
+	fn manga_details_have_chapters() {
+		let source = source();
+		let manga = source
+			.get_search_manga_list(Some(String::from("ワンピース")), 1, Vec::new())
+			.expect("search failed")
+			.entries
+			.into_iter()
+			.next()
+			.expect("expected at least one result");
+		let manga = source
+			.get_manga_update(manga, true, true)
+			.expect("get_manga_update failed");
+		let chapters = manga.chapters.expect("no chapters returned");
+		assert!(chapters.len() > 100, "got {} chapters", chapters.len());
+	}
+}
