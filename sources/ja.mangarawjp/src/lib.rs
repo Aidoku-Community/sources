@@ -34,44 +34,24 @@ impl Source for MangaRawJP {
 		&self,
 		query: Option<String>,
 		page: i32,
-		_filters: Vec<FilterValue>,
+		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let url = format!(
-			"{BASE_URL}?s={}&page={page}",
-			encode_uri_component(query.unwrap_or_default())
-		);
+		// searching has its own endpoint that the ordering paths cannot be applied
+		// to, so a query takes precedence over the sort filter, which the app hides
+		// while searching
+		if let Some(query) = query.filter(|query| !query.is_empty()) {
+			let query = encode_uri_component(query);
+			return parse_listing_page(&format!("{BASE_URL}?s={query}&page={page}"));
+		}
 
-		let html = Request::get(&url)?.html()?;
-
-		let entries = html
-			.select(".post-list > a")
-			.map(|elements| {
-				elements
-					.filter_map(|element| {
-						let url = element.attr("abs:href")?;
-						let key = url.strip_prefix(BASE_URL).map(String::from)?;
-						let title = element.select_first("h3")?.text()?;
-						let cover = element.select_first("img").and_then(|img| {
-							img.attr("abs:data-src").or_else(|| img.attr("abs:src"))
-						});
-						Some(Manga {
-							key,
-							title: clean_title(title),
-							cover,
-							url: Some(url),
-							..Default::default()
-						})
-					})
-					.collect::<Vec<Manga>>()
-			})
-			.unwrap_or_default();
-
-		let has_next_page = !entries.is_empty();
-
-		Ok(MangaPageResult {
-			entries,
-			has_next_page,
-		})
+		// the site has no sort parameter: each ordering is served from its own path
+		let url = match sort_index(&filters) {
+			// all-time view count, descending
+			1 => format!("{BASE_URL}/ranking/{page}/"),
+			// most recently updated chapters first; page 1 is the site home page
+			_ => format!("{BASE_URL}/page/{page}/"),
+		};
+		parse_listing_page(&url)
 	}
 
 	fn get_manga_update(
@@ -223,6 +203,65 @@ impl Source for MangaRawJP {
 	}
 }
 
+/// The selected option of the sort filter, falling back to the first one.
+fn sort_index(filters: &[FilterValue]) -> i32 {
+	filters
+		.iter()
+		.find_map(|filter| match filter {
+			FilterValue::Sort { index, .. } => Some(*index),
+			_ => None,
+		})
+		.unwrap_or(0)
+}
+
+/// Scrapes a paginated listing page into manga entries.
+///
+/// The first page of the updates ordering is the site home page, which stacks
+/// several ".post-list" blocks: the updates list, then the ranking and one block
+/// per featured genre. Only the first block is the paginated list, so entries
+/// are always scoped to it — scraping every block there mixes the rankings and
+/// genre picks into the updates order.
+fn parse_listing_page(url: &str) -> Result<MangaPageResult> {
+	let html = Request::get(url)?.html()?;
+
+	// an exhausted listing still renders an empty block, so a missing block means
+	// the page did not load rather than that there is nothing left to show
+	let list = html
+		.select_first(".post-list")
+		.ok_or_else(|| error!("Manga list not found"))?;
+
+	let entries = list
+		.select("a")
+		.map(|elements| {
+			elements
+				.filter_map(|element| {
+					let url = element.attr("abs:href")?;
+					let key = url.strip_prefix(BASE_URL).map(String::from)?;
+					let title = element.select_first("h3")?.text()?;
+					// the plain src is a base64 placeholder until the lazy loader runs
+					let cover = element
+						.select_first("img")
+						.and_then(|img| img.attr("abs:data-src"));
+					Some(Manga {
+						key,
+						title: clean_title(title),
+						cover,
+						url: Some(url),
+						..Default::default()
+					})
+				})
+				.collect::<Vec<Manga>>()
+		})
+		.unwrap_or_default();
+
+	let has_next_page = !entries.is_empty();
+
+	Ok(MangaPageResult {
+		entries,
+		has_next_page,
+	})
+}
+
 impl PageImageProcessor for MangaRawJP {
 	fn process_page_image(
 		&self,
@@ -232,10 +271,7 @@ impl PageImageProcessor for MangaRawJP {
 		let Some(context) = context else {
 			return Ok(response.image);
 		};
-		let Some(order_key) = context
-			.get("key")
-			.and_then(|s| if s.is_empty() { None } else { Some(s) })
-		else {
+		let Some(order_key) = context.get("key").filter(|s| !s.is_empty()) else {
 			return Ok(response.image);
 		};
 
@@ -341,3 +377,188 @@ register_source!(
 	ImageRequestProvider,
 	DeepLinkHandler
 );
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use aidoku::alloc::vec;
+	use aidoku_test::aidoku_test;
+
+	const SORT_UPDATED: i32 = 0;
+	const SORT_RANKING: i32 = 1;
+
+	fn sort(index: i32) -> Vec<FilterValue> {
+		vec![FilterValue::Sort {
+			id: String::from("sort"),
+			index,
+			ascending: false,
+		}]
+	}
+
+	fn browse(index: i32, page: i32) -> MangaPageResult {
+		MangaRawJP
+			.get_search_manga_list(None, page, sort(index))
+			.expect("browse request should succeed")
+	}
+
+	/// The leading keys of a result, which is what an ordering actually changes.
+	fn leading_keys(result: &MangaPageResult) -> Vec<&String> {
+		result
+			.entries
+			.iter()
+			.take(5)
+			.map(|manga| &manga.key)
+			.collect()
+	}
+
+	/// The app sends no filter value until one is picked, so the fallback has to
+	/// be a real ordering rather than an out of range option.
+	#[aidoku_test]
+	fn test_sort_index_falls_back_to_the_first_option() {
+		assert_eq!(sort_index(&[]), SORT_UPDATED);
+		assert_eq!(sort_index(&sort(SORT_RANKING)), SORT_RANKING);
+	}
+
+	#[aidoku_test]
+	fn test_sort_updated() {
+		assert!(
+			!browse(SORT_UPDATED, 1).entries.is_empty(),
+			"updates ordering should return entries"
+		);
+	}
+
+	#[aidoku_test]
+	fn test_sort_updated_page_2() {
+		assert!(
+			!browse(SORT_UPDATED, 2).entries.is_empty(),
+			"updates ordering page 2 should return entries"
+		);
+	}
+
+	#[aidoku_test]
+	fn test_sort_ranking() {
+		assert!(
+			!browse(SORT_RANKING, 1).entries.is_empty(),
+			"ranking ordering should return entries"
+		);
+	}
+
+	#[aidoku_test]
+	fn test_browse_without_filters() {
+		let result = MangaRawJP
+			.get_search_manga_list(None, 1, Vec::new())
+			.expect("browse request should succeed");
+		assert!(!result.entries.is_empty(), "browse should return entries");
+	}
+
+	#[aidoku_test]
+	fn test_search() {
+		let result = MangaRawJP
+			.get_search_manga_list(Some(String::from("ワンピース")), 1, Vec::new())
+			.expect("search request should succeed");
+		assert!(!result.entries.is_empty(), "search should return entries");
+	}
+
+	/// The search endpoint takes no ordering, so a query has to win over whatever
+	/// sort value is still stored while the filter is hidden. Matching the query
+	/// against the titles would not catch a fallback, since the query is also the
+	/// top ranking entry, so the result is compared against the ranking page.
+	#[aidoku_test]
+	fn test_query_takes_precedence_over_sort() {
+		let searched = MangaRawJP
+			.get_search_manga_list(Some(String::from("ワンピース")), 1, sort(SORT_RANKING))
+			.expect("search request should succeed");
+		let ranking = browse(SORT_RANKING, 1);
+		assert!(!searched.entries.is_empty(), "search should return entries");
+		assert_ne!(
+			leading_keys(&searched),
+			leading_keys(&ranking),
+			"a query should search rather than fall back to the ranking path"
+		);
+	}
+
+	/// An empty query is not a search, so it has to fall through to the ordering
+	/// paths instead of hitting the search endpoint with nothing.
+	#[aidoku_test]
+	fn test_empty_query_falls_through_to_the_sort() {
+		let result = MangaRawJP
+			.get_search_manga_list(Some(String::new()), 1, sort(SORT_RANKING))
+			.expect("browse request should succeed");
+		let ranking = browse(SORT_RANKING, 1);
+		assert!(!result.entries.is_empty(), "browse should return entries");
+		assert_eq!(
+			leading_keys(&result),
+			leading_keys(&ranking),
+			"an empty query should use the sort path"
+		);
+	}
+
+	/// The updates ordering starts at the site home page, which stacks the updates
+	/// block together with the ranking and featured genre blocks. Scraping every
+	/// ".post-list" there mixes all four into one page and repeats entries, so
+	/// guard against that regression.
+	#[aidoku_test]
+	fn test_updated_page_1_holds_only_the_updates_block() {
+		let result = browse(SORT_UPDATED, 1);
+
+		let mut keys = result
+			.entries
+			.iter()
+			.map(|manga| manga.key.as_str())
+			.collect::<Vec<_>>();
+		let total = keys.len();
+		keys.sort_unstable();
+		keys.dedup();
+		assert_eq!(keys.len(), total, "a page should not repeat entries");
+
+		// one block currently holds 24 entries; the mixed-in version yields 84
+		assert!(
+			total <= 40,
+			"a page should hold a single block, got {total} entries"
+		);
+	}
+
+	/// Keys are site-relative paths, which is what "/manga-raw/..." hrefs already
+	/// hold, while covers have to be joined into absolute urls to be fetchable.
+	#[aidoku_test]
+	fn test_keys_stay_relative_and_covers_absolute() {
+		let result = browse(SORT_UPDATED, 1);
+
+		for manga in &result.entries {
+			assert!(
+				manga.key.starts_with("/manga-raw/"),
+				"key should be a site-relative path, got {}",
+				manga.key
+			);
+			let cover = manga.cover.as_ref().expect("entry should have a cover");
+			assert!(
+				cover.starts_with(BASE_URL),
+				"cover should be an absolute url, got {cover}"
+			);
+		}
+	}
+
+	/// Pages past the end return no entries, which is how the app learns to stop
+	/// paginating.
+	#[aidoku_test]
+	fn test_pagination_ends() {
+		let result = browse(SORT_UPDATED, 9999);
+		assert!(
+			result.entries.is_empty() && !result.has_next_page,
+			"out of range page should end pagination"
+		);
+	}
+
+	/// Each option has to actually change the order, otherwise the filter is a
+	/// no-op and everything falls back to one ordering.
+	#[aidoku_test]
+	fn test_sorts_return_different_orders() {
+		let updated = browse(SORT_UPDATED, 1);
+		let ranking = browse(SORT_RANKING, 1);
+		assert_ne!(
+			leading_keys(&updated),
+			leading_keys(&ranking),
+			"the sort options should not resolve to the same order"
+		);
+	}
+}
