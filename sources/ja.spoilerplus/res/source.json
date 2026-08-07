@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "ja.spoilerplus",
+		"name": "SpoilerPlus",
+		"version": 1,
+		"url": "https://spoilerplus.tv",
+		"contentRating": 2,
+		"languages": ["ja"]
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}

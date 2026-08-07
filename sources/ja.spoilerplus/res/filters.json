@@ -1,0 +1,8 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"canAscend": false,
+		"options": ["最近の更新", "ランキング"]
+	}
+]
