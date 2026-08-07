@@ -1,0 +1,22 @@
+[
+	{
+		"type": "sort",
+		"id": "order",
+		"canAscend": false,
+		"options": ["Popular", "Title", "Updated", "Rating"]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": ["Any", "Ongoing", "Completed", "Hiatus", "Cancelled"],
+		"ids": ["", "Ongoing", "Completed", "Hiatus", "Cancelled"]
+	},
+	{
+		"type": "select",
+		"id": "type",
+		"title": "Type",
+		"options": ["Any", "Manga", "Manhwa", "Manhua"],
+		"ids": ["", "Manga", "Manhwa", "Manhua"]
+	}
+]
