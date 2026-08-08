@@ -4,11 +4,13 @@ use crate::{
 	helpers::{extract_f32_from_string, find_first_f32, text_with_newlines},
 };
 use aidoku::{
-	Chapter, ContentRating, DeepLinkResult, Filter, FilterValue, HomeComponent, HomeLayout, Manga,
-	MangaPageResult, MangaWithChapter, MultiSelectFilter, Page, PageContent, PageContext, Result,
-	Viewer,
+	Chapter, ContentRating, DeepLinkResult, Filter, FilterValue, HomeComponent, HomeLayout,
+	ImageResponse, Manga, MangaPageResult, MangaWithChapter, MultiSelectFilter, Page, PageContent,
+	PageContext, Result, Viewer,
 	alloc::{String, Vec, borrow::ToOwned, string::ToString, vec},
 	imports::{
+		canvas::ImageRef,
+		error::AidokuError,
 		html::{Element, Html},
 		net::Request,
 		std::send_partial_result,
@@ -629,6 +631,15 @@ pub trait Impl {
 		}
 
 		Ok(request)
+	}
+
+	fn process_page_image(
+		&self,
+		_params: &Params,
+		_response: ImageResponse,
+		_context: Option<PageContext>,
+	) -> Result<ImageRef> {
+		Err(AidokuError::Unimplemented)
 	}
 
 	fn modify_request(

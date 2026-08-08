@@ -1,10 +1,10 @@
 #![no_std]
 use aidoku::{
 	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter,
-	FilterValue, Home, HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult,
-	MangaStatus, Page, PageContext, Result, Source, Viewer,
+	FilterValue, Home, HomeLayout, ImageRequestProvider, ImageResponse, ListingProvider, Manga,
+	MangaPageResult, MangaStatus, Page, PageContext, PageImageProcessor, Result, Source, Viewer,
 	alloc::{String, Vec, borrow::Cow},
-	imports::{html::Element, net::Request},
+	imports::{canvas::ImageRef, html::Element, net::Request},
 	prelude::*,
 };
 use core::cell::RefCell;
@@ -316,6 +316,17 @@ impl<T: Impl> ImageRequestProvider for WpComics<T> {
 		let mut cache = self.cache.borrow_mut();
 		self.inner
 			.get_image_request(&mut cache, &self.params, url, context)
+	}
+}
+
+impl<T: Impl> PageImageProcessor for WpComics<T> {
+	fn process_page_image(
+		&self,
+		response: ImageResponse,
+		context: Option<PageContext>,
+	) -> Result<ImageRef> {
+		self.inner
+			.process_page_image(&self.params, response, context)
 	}
 }
 
