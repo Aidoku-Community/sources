@@ -1,18 +1,17 @@
 #![no_std]
 use aidoku::{
-	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider,
-	ImageResponse, Manga, MangaPageResult, MangaStatus, Page, PageContent, PageContext,
-	PageImageProcessor, Result, Source, Viewer,
+	Chapter, ContentRating, DeepLinkResult, FilterValue, ImageResponse, Manga, MangaStatus, Page,
+	PageContent, PageContext, Result, Source, Viewer,
 	alloc::{string::String, vec::Vec},
 	canvas::Rect,
 	helpers::uri::{decode_uri, encode_uri_component},
 	imports::{
 		canvas::{Canvas, ImageRef},
 		net::Request,
-		std::send_partial_result,
 	},
 	prelude::*,
 };
+use wpcomics::{Cache, Impl, Params, WpComics};
 
 mod helpers;
 mod models;
@@ -24,124 +23,97 @@ const IMG_CDN: &str = "https://img-cdn.stackpathcdn.app";
 
 struct SpoilerPlus;
 
-impl Source for SpoilerPlus {
+impl Impl for SpoilerPlus {
 	fn new() -> Self {
 		Self
 	}
 
-	fn get_search_manga_list(
-		&self,
-		query: Option<String>,
-		page: i32,
-		filters: Vec<FilterValue>,
-	) -> Result<MangaPageResult> {
-		// searching has its own endpoint that the ordering paths cannot be applied
-		// to, so a query takes precedence over the sort filter, which the app hides
-		// while searching
-		if let Some(query) = query.filter(|query| !query.is_empty()) {
-			let query = encode_uri_component(query);
-			return parse_listing_page(&format!("{BASE_URL}?s={query}&page={page}"));
-		}
+	fn params(&self) -> Params {
+		Params {
+			base_url: BASE_URL.into(),
+			viewer: Viewer::RightToLeft,
 
-		// the site has no sort parameter: each ordering is served from its own path
-		let url = match sort_index(&filters) {
-			// all-time view count, descending
-			1 => format!("{BASE_URL}/ranking/{page}/"),
-			// most recently updated chapters first
-			_ => format!("{BASE_URL}/page/{page}/"),
-		};
-		parse_listing_page(&url)
-	}
+			manga_cell: "div.items > div.row > article.item > figure.clearfix",
+			manga_cell_image_attr: "abs:data-src",
+			manga_parse_id: |url| to_key(url).unwrap_or_default(),
 
-	fn get_manga_update(
-		&self,
-		mut manga: Manga,
-		needs_details: bool,
-		needs_chapters: bool,
-	) -> Result<Manga> {
-		let manga_url = url_for(&manga.key);
-		let html = Request::get(&manga_url)?.html()?;
+			manga_details_title_transformer: clean_title,
+			manga_details_cover_attr: "abs:src",
+			manga_details_authors_transformer: |authors| {
+				authors.into_iter().filter(|a| a != "更新中").collect()
+			},
+			// both the genre and the tag row are rendered as li.kind, and each value
+			// is its own anchor rather than a delimited string
+			manga_details_tags: "ul.list-info > li.kind p.col-xs-8 > a",
+			manga_details_tags_splitter: "",
+			// the alternative titles row carries the same classes as the publication
+			// status row, and only the leading icon tells the two apart
+			manga_details_status: "ul.list-info > li.row.status:has(i.fa-rss) > p.col-xs-8",
+			status_mapping: |status| match status.trim() {
+				"連載中" => MangaStatus::Ongoing,
+				"完結" | "完了" => MangaStatus::Completed,
+				// an unrecognised value is not a reason to claim the series is running
+				_ => MangaStatus::Unknown,
+			},
 
-		if needs_details {
-			manga.title = clean_title(
-				html.select_first("h1.title-detail")
-					.and_then(|e| e.text())
-					.unwrap_or(manga.title),
-			);
-			manga.cover = html
-				.select_first(".detail-info .col-image img")
-				.and_then(|el| el.attr("src"))
-				.map(|src| absolute_url(&src));
-			manga.authors = html
-				.select_first("ul.list-info > li.author > p.col-xs-8")
-				.and_then(|el| el.text())
-				.filter(|author| !author.is_empty() && author != "更新中")
-				.map(|author| Vec::from([author]));
-			// the summary sits in a nested <p>, which the parser flattens into
-			// siblings, so the blocks are joined back together here
-			manga.description = html.select(".detail-content p").and_then(|els| {
-				let texts: Vec<String> = els
-					.filter_map(|el| el.own_text())
-					.filter(|text| !text.is_empty())
-					.collect();
-				if texts.is_empty() {
-					None
-				} else {
-					Some(texts.join("\n"))
+			chapter_parse_id: |url| to_key(&url).unwrap_or_default(),
+
+			datetime_format: "yyyy年MM月dd日",
+			datetime_locale: "ja_JP",
+			datetime_timezone: "Asia/Tokyo",
+
+			manga_page: |_, manga| url_for(&manga.key),
+			page_list_page: |_, _, chapter| url_for(&chapter.key),
+
+			get_search_url: |params, query, page, filters| {
+				// searching has its own endpoint that the ordering paths cannot be
+				// applied to, so a query takes precedence over the sort filter, which
+				// the app hides while searching
+				if let Some(query) = query.filter(|query| !query.is_empty()) {
+					let query = encode_uri_component(query);
+					return Ok(format!("{}?s={query}&page={page}", params.base_url));
 				}
-			});
-			manga.url = Some(manga_url);
-			manga.tags = html
-				.select("ul.list-info > li.kind p.col-xs-8 > a")
-				.map(|els| {
-					let mut tags = els.filter_map(|el| el.text()).collect::<Vec<String>>();
-					tags.sort();
-					tags.dedup();
-					tags
-				});
-			manga.status = parse_status(&html);
-			let tags = manga.tags.as_deref().unwrap_or(&[]);
-			manga.content_rating = if tags.iter().any(|e| e == "オトナ" || e.contains("エロ"))
-			{
-				ContentRating::NSFW
-			} else if tags.iter().any(|e| e == "Ecchi") {
-				ContentRating::Suggestive
-			} else {
-				ContentRating::Safe
-			};
-			manga.viewer = Viewer::RightToLeft;
 
-			if needs_chapters {
-				send_partial_result(&manga);
-			}
+				// the site has no sort parameter: each ordering is served from its own
+				// path
+				Ok(match sort_index(&filters) {
+					1 => format!("{}/ranking/{page}/", params.base_url),
+					_ => format!("{}/page/{page}/", params.base_url),
+				})
+			},
+
+			..Default::default()
 		}
-
-		if needs_chapters {
-			manga.chapters = html
-				.select("div.list-chapter > nav > ul > li div.chapter > a")
-				.map(|elements| {
-					elements
-						.filter_map(|element| {
-							let key = to_key(&element.attr("href")?)?;
-							let title_text = element.text()?;
-							let chapter_number = extract_ch_number(&title_text);
-							Some(Chapter {
-								url: Some(url_for(&key)),
-								key,
-								chapter_number,
-								..Default::default()
-							})
-						})
-						.collect::<Vec<_>>()
-				});
-		}
-
-		Ok(manga)
 	}
 
-	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+	fn category_parser(
+		&self,
+		params: &Params,
+		categories: &Option<Vec<String>>,
+	) -> (ContentRating, Viewer) {
+		let tags = categories.as_deref().unwrap_or(&[]);
+		let rating = if tags
+			.iter()
+			.any(|tag| tag == "オトナ" || tag.contains("エロ"))
+		{
+			ContentRating::NSFW
+		} else if tags.iter().any(|tag| tag == "Ecchi") {
+			ContentRating::Suggestive
+		} else {
+			ContentRating::Safe
+		};
+		(rating, params.viewer)
+	}
+
+	fn get_page_list(
+		&self,
+		cache: &mut Cache,
+		params: &Params,
+		_manga: Manga,
+		chapter: Chapter,
+	) -> Result<Vec<Page>> {
 		let url = url_for(&chapter.key);
-		let html = Request::get(&url)?.html()?;
+		let html = self.create_request(cache, params, &url, None)?.html()?;
 
 		// the reader holds empty placeholders and asks for the image list over the
 		// api, keyed by the ids an inline script declares
@@ -169,8 +141,7 @@ impl Source for SpoilerPlus {
 		let chapter_num =
 			chapter_num_opt.ok_or_else(|| error!("Chapter number not found in {url}"))?;
 
-		// Fetch image URL list via JSON API
-		let api_url = format!("{BASE_URL}/api/v1/get/c");
+		let api_url = format!("{}/api/v1/get/c", params.base_url);
 		let body = format!("{{\"m\":{manga_id},\"n\":{chapter_num}}}");
 
 		let response = Request::post(&api_url)?
@@ -190,8 +161,8 @@ impl Source for SpoilerPlus {
 			bail!("No pages found");
 		}
 
-		// every page carries the same descrambling key, so it has to be copied
-		// into each page's context
+		// every page carries the same descrambling key, so it has to be copied into
+		// each page's context
 		let pages = paths
 			.into_iter()
 			.map(|path| {
@@ -207,109 +178,10 @@ impl Source for SpoilerPlus {
 
 		Ok(pages)
 	}
-}
 
-/// The selected option of the sort filter, falling back to the first one.
-fn sort_index(filters: &[FilterValue]) -> i32 {
-	filters
-		.iter()
-		.find_map(|filter| match filter {
-			FilterValue::Sort { index, .. } => Some(*index),
-			_ => None,
-		})
-		.unwrap_or(0)
-}
-
-/// Read a numeric `window.<name> = <number>` assignment out of a script body.
-fn read_window_number(data: &str, name: &str, fractional: bool) -> Option<String> {
-	let after = &data[data.find(name)? + name.len()..];
-	let after_eq = after[after.find('=')? + 1..].trim_start();
-	let end = after_eq
-		.find(|c: char| !c.is_ascii_digit() && !(fractional && c == '.'))
-		.unwrap_or(after_eq.len());
-	let number = after_eq[..end].trim();
-	(!number.is_empty()).then(|| number.into())
-}
-
-/// The publication status, read off the info row labelled 状態.
-///
-/// The label is what identifies the row: the alternative titles row carries the
-/// same "row status" classes, so keying on the class alone reads that instead.
-fn parse_status(html: &aidoku::imports::html::Document) -> MangaStatus {
-	let Some(rows) = html.select("ul.list-info > li.status") else {
-		return MangaStatus::Unknown;
-	};
-	for row in rows {
-		let is_status_row = row
-			.select_first("p.name")
-			.and_then(|el| el.text())
-			.is_some_and(|label| label.contains("状態"));
-		if !is_status_row {
-			continue;
-		}
-		let Some(value) = row.select_first("p.col-xs-8").and_then(|el| el.text()) else {
-			continue;
-		};
-		return match value.trim() {
-			"連載中" => MangaStatus::Ongoing,
-			"完結" | "完了" => MangaStatus::Completed,
-			// an unrecognised value is not a reason to claim the series is running
-			_ => MangaStatus::Unknown,
-		};
-	}
-	MangaStatus::Unknown
-}
-
-/// Scrapes a paginated listing page into manga entries.
-///
-/// Every listing renders the paginated block as ".items", while the home page
-/// stacks a carousel and a ranking block around it. Entries are scoped to the
-/// block so those extras do not get mixed into the ordering.
-fn parse_listing_page(url: &str) -> Result<MangaPageResult> {
-	let html = Request::get(url)?.html()?;
-
-	// an exhausted listing still renders an empty block, so a missing block means
-	// the page did not load rather than that there is nothing left to show
-	let list = html
-		.select_first("div.items")
-		.ok_or_else(|| error!("Manga list not found"))?;
-
-	let entries = list
-		.select("article.item")
-		.map(|elements| {
-			elements
-				.filter_map(|element| {
-					let link = element.select_first("figcaption h3 > a")?;
-					let key = to_key(&link.attr("href")?)?;
-					let title = link.text()?;
-					// the plain src is a placeholder until the lazy loader runs
-					let cover = element
-						.select_first("div.image img")
-						.and_then(|img| img.attr("data-src"))
-						.map(|src| absolute_url(&src));
-					Some(Manga {
-						url: Some(url_for(&key)),
-						key,
-						title: clean_title(title),
-						cover,
-						..Default::default()
-					})
-				})
-				.collect::<Vec<Manga>>()
-		})
-		.unwrap_or_default();
-
-	let has_next_page = !entries.is_empty();
-
-	Ok(MangaPageResult {
-		entries,
-		has_next_page,
-	})
-}
-
-impl PageImageProcessor for SpoilerPlus {
 	fn process_page_image(
 		&self,
+		_params: &Params,
 		response: ImageResponse,
 		context: Option<PageContext>,
 	) -> Result<ImageRef> {
@@ -320,8 +192,8 @@ impl PageImageProcessor for SpoilerPlus {
 			return Ok(response.image);
 		};
 
-		// the site scrambles each page into a square grid and hands the order out
-		// as hex bytes xored with its own domain
+		// the site scrambles each page into a square grid and hands the order out as
+		// hex bytes xored with its own domain
 		const XOR_KEY: &str = "spoilerplus.tv";
 
 		let order_bytes = order_key
@@ -380,17 +252,14 @@ impl PageImageProcessor for SpoilerPlus {
 
 		Ok(canvas.get_image())
 	}
-}
 
-impl ImageRequestProvider for SpoilerPlus {
-	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-		Ok(Request::get(url)?.header("Referer", &format!("{BASE_URL}/")))
-	}
-}
-
-impl DeepLinkHandler for SpoilerPlus {
-	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let Some(path) = url.strip_prefix(BASE_URL) else {
+	fn handle_deep_link(
+		&self,
+		_cache: &mut Cache,
+		params: &Params,
+		url: String,
+	) -> Result<Option<DeepLinkResult>> {
+		let Some(path) = url.strip_prefix(params.base_url.as_ref()) else {
 			return Ok(None);
 		};
 		// keys are stored decoded, and a shared link carries the encoded form
@@ -421,8 +290,28 @@ impl DeepLinkHandler for SpoilerPlus {
 	}
 }
 
+fn sort_index(filters: &[FilterValue]) -> i32 {
+	filters
+		.iter()
+		.find_map(|filter| match filter {
+			FilterValue::Sort { index, .. } => Some(*index),
+			_ => None,
+		})
+		.unwrap_or(0)
+}
+
+fn read_window_number(data: &str, name: &str, fractional: bool) -> Option<String> {
+	let after = &data[data.find(name)? + name.len()..];
+	let after_eq = after[after.find('=')? + 1..].trim_start();
+	let end = after_eq
+		.find(|c: char| !c.is_ascii_digit() && !(fractional && c == '.'))
+		.unwrap_or(after_eq.len());
+	let number = after_eq[..end].trim();
+	(!number.is_empty()).then(|| number.into())
+}
+
 register_source!(
-	SpoilerPlus,
+	WpComics<SpoilerPlus>,
 	PageImageProcessor,
 	ImageRequestProvider,
 	DeepLinkHandler
@@ -431,14 +320,17 @@ register_source!(
 #[cfg(test)]
 mod test {
 	use super::*;
-	use aidoku::alloc::vec;
+	use aidoku::{DeepLinkHandler, MangaPageResult, alloc::vec};
 	use aidoku_test::aidoku_test;
 
 	const SORT_UPDATED: i32 = 0;
 	const SORT_RANKING: i32 = 1;
 
-	/// A long running series, used wherever a test needs a stable entry.
 	const SERIES_KEY: &str = "/HUNTER X HUNTER-raw-free/";
+
+	fn source() -> WpComics<SpoilerPlus> {
+		WpComics::new()
+	}
 
 	fn sort(index: i32) -> Vec<FilterValue> {
 		vec![FilterValue::Sort {
@@ -449,13 +341,13 @@ mod test {
 	}
 
 	fn browse(index: i32, page: i32) -> MangaPageResult {
-		SpoilerPlus
+		source()
 			.get_search_manga_list(None, page, sort(index))
 			.expect("browse request should succeed")
 	}
 
 	fn series() -> Manga {
-		SpoilerPlus
+		source()
 			.get_manga_update(
 				Manga {
 					key: SERIES_KEY.into(),
@@ -467,7 +359,6 @@ mod test {
 			.expect("details request should succeed")
 	}
 
-	/// The leading keys of a result, which is what an ordering actually changes.
 	fn leading_keys(result: &MangaPageResult) -> Vec<&String> {
 		result
 			.entries
@@ -477,8 +368,8 @@ mod test {
 			.collect()
 	}
 
-	/// The app sends no filter value until one is picked, so the fallback has to
-	/// be a real ordering rather than an out of range option.
+	// The app sends no filter value until one is picked, so the fallback has to be
+	// a real ordering rather than an out of range option.
 	#[aidoku_test]
 	fn test_sort_index_falls_back_to_the_first_option() {
 		assert_eq!(sort_index(&[]), SORT_UPDATED);
@@ -511,7 +402,7 @@ mod test {
 
 	#[aidoku_test]
 	fn test_browse_without_filters() {
-		let result = SpoilerPlus
+		let result = source()
 			.get_search_manga_list(None, 1, Vec::new())
 			.expect("browse request should succeed");
 		assert!(!result.entries.is_empty(), "browse should return entries");
@@ -519,17 +410,15 @@ mod test {
 
 	#[aidoku_test]
 	fn test_search() {
-		let result = SpoilerPlus
+		let result = source()
 			.get_search_manga_list(Some(String::from("ワンピース")), 1, Vec::new())
 			.expect("search request should succeed");
 		assert!(!result.entries.is_empty(), "search should return entries");
 	}
 
-	/// The search endpoint takes no ordering, so a query has to win over whatever
-	/// sort value is still stored while the filter is hidden.
 	#[aidoku_test]
 	fn test_query_takes_precedence_over_sort() {
-		let searched = SpoilerPlus
+		let searched = source()
 			.get_search_manga_list(Some(String::from("ワンピース")), 1, sort(SORT_RANKING))
 			.expect("search request should succeed");
 		let ranking = browse(SORT_RANKING, 1);
@@ -541,11 +430,9 @@ mod test {
 		);
 	}
 
-	/// An empty query is not a search, so it has to fall through to the ordering
-	/// paths instead of hitting the search endpoint with nothing.
 	#[aidoku_test]
 	fn test_empty_query_falls_through_to_the_sort() {
-		let result = SpoilerPlus
+		let result = source()
 			.get_search_manga_list(Some(String::new()), 1, sort(SORT_RANKING))
 			.expect("browse request should succeed");
 		let ranking = browse(SORT_RANKING, 1);
@@ -557,9 +444,8 @@ mod test {
 		);
 	}
 
-	/// The updates ordering starts at the site home page, which stacks a carousel
-	/// and a ranking block around the paginated list. Scraping outside ".items"
-	/// mixes those into the page and repeats entries, so guard against that.
+	// The updates ordering starts at the site home page, which stacks a carousel
+	// and a ranking block around the paginated list.
 	#[aidoku_test]
 	fn test_updated_page_1_holds_only_the_paginated_block() {
 		let result = browse(SORT_UPDATED, 1);
@@ -581,8 +467,6 @@ mod test {
 		);
 	}
 
-	/// Keys are site-relative paths, which is what the listing hrefs already hold,
-	/// while covers have to be joined into absolute urls to be fetchable.
 	#[aidoku_test]
 	fn test_keys_stay_relative_and_covers_absolute() {
 		let result = browse(SORT_UPDATED, 1);
@@ -601,8 +485,6 @@ mod test {
 		}
 	}
 
-	/// Pages past the end return no entries, which is how the app learns to stop
-	/// paginating.
 	#[aidoku_test]
 	fn test_pagination_ends() {
 		let result = browse(SORT_UPDATED, 9999);
@@ -612,8 +494,6 @@ mod test {
 		);
 	}
 
-	/// Each option has to actually change the order, otherwise the filter is a
-	/// no-op and everything falls back to one ordering.
 	#[aidoku_test]
 	fn test_sorts_return_different_orders() {
 		let updated = browse(SORT_UPDATED, 1);
@@ -647,11 +527,8 @@ mod test {
 		);
 	}
 
-	/// The info list labels the alternative titles row with the same "status"
-	/// class as the publication status, so keying on the class alone reads the
-	/// title as the status and drops it to unknown.
 	#[aidoku_test]
-	fn test_status_is_read_from_the_labelled_row() {
+	fn test_status_is_not_read_from_the_alternative_titles_row() {
 		assert_eq!(
 			series().status,
 			MangaStatus::Ongoing,
@@ -683,7 +560,7 @@ mod test {
 			.into_iter()
 			.next()
 			.expect("chapter list should not be empty");
-		let pages = SpoilerPlus
+		let pages = source()
 			.get_page_list(Manga::default(), chapter)
 			.expect("page list request should succeed");
 
@@ -708,12 +585,10 @@ mod test {
 		}
 	}
 
-	/// Series live at the site root, so the deep link handler has to tell them
-	/// apart from the genre, tag and ranking paths by their slug suffix.
 	#[aidoku_test]
 	fn test_deep_links() {
 		let handle = |url: &str| {
-			SpoilerPlus
+			source()
 				.handle_deep_link(String::from(url))
 				.expect("deep link should be handled")
 		};
