@@ -2,10 +2,13 @@
 	"info": {
 		"id": "ja.senmanga",
 		"name": "Sen Manga",
-		"version": 1,
+		"version": 2,
 		"url": "https://raw.senmanga.com",
 		"contentRating": 1,
 		"languages": ["ja"],
 		"minAppVersion": "0.7.1"
+	},
+	"config": {
+		"breakingChangeVersion": 2
 	}
 }

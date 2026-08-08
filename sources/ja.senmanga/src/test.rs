@@ -2,7 +2,6 @@ use super::*;
 use aidoku::alloc::vec;
 use aidoku_test::aidoku_test;
 
-/// A long-running series, so its chapter list stays large enough to assert on.
 const TEST_MANGA_KEY: &str = "one-piece";
 
 #[aidoku_test]
@@ -13,7 +12,7 @@ fn browse_test() {
 		.expect("get_search_manga_list failed");
 
 	assert!(result.entries.len() >= 10);
-	// The directory spans hundreds of pages, so the first one is never last.
+	// the directory spans hundreds of pages, so the first one is never last
 	assert!(result.has_next_page);
 
 	for manga in result.entries {
@@ -32,8 +31,7 @@ fn browse_test() {
 fn search_test() {
 	let source = SenManga;
 
-	// The api matches against alternative titles too, so a japanese query
-	// has to reach the romanized entry.
+	// the api matches alternative titles, so a japanese query reaches the romanized entry
 	let result = source
 		.get_search_manga_list(Some("ワンピース".into()), 1, vec![])
 		.expect("get_search_manga_list failed");
@@ -73,8 +71,7 @@ fn manga_details_test() {
 	for chapter in chapters {
 		assert!(!chapter.key.is_empty());
 		assert!(chapter.chapter_number.is_some());
-		// Setting a language would hide every chapter behind the app's
-		// language filter, since this source is japanese-only.
+		// a language would hide every chapter behind the app's language filter
 		assert!(chapter.language.is_none());
 	}
 }
@@ -83,8 +80,7 @@ fn manga_details_test() {
 fn status_test() {
 	let source = SenManga;
 
-	// The listing carries a status, the details endpoint answers with a
-	// null one, so what the manga arrives with has to survive the fetch.
+	// the details endpoint answers with a null status, so the listing value has to survive
 	let result = source
 		.get_search_manga_list(Some("ワンピース".into()), 1, vec![])
 		.expect("get_search_manga_list failed");
@@ -104,7 +100,7 @@ fn status_test() {
 #[aidoku_test]
 fn page_list_test() {
 	let source = SenManga;
-	let manga = source
+	let mut manga = source
 		.get_manga_update(
 			Manga {
 				key: TEST_MANGA_KEY.into(),
@@ -116,10 +112,9 @@ fn page_list_test() {
 		.expect("get_manga_update failed");
 	let chapter = manga
 		.chapters
-		.as_ref()
-		.and_then(|chapters| chapters.first())
-		.expect("no chapters")
-		.clone();
+		.take()
+		.and_then(|chapters| chapters.into_iter().next())
+		.expect("no chapters");
 
 	let pages = source
 		.get_page_list(manga, chapter)
@@ -165,4 +160,44 @@ fn deep_link_test() {
 		.handle_deep_link(format!("{BASE_URL}/directory"))
 		.expect("handle_deep_link failed");
 	assert_eq!(result, None);
+}
+
+#[aidoku_test]
+fn migration_test() {
+	let source = SenManga;
+
+	assert_eq!(
+		source
+			.handle_manga_migration(format!("/{TEST_MANGA_KEY}"))
+			.expect("handle_manga_migration failed"),
+		TEST_MANGA_KEY
+	);
+
+	let mut manga = source
+		.get_manga_update(
+			Manga {
+				key: TEST_MANGA_KEY.into(),
+				..Default::default()
+			},
+			false,
+			true,
+		)
+		.expect("get_manga_update failed");
+	let chapter = manga
+		.chapters
+		.take()
+		.and_then(|chapters| chapters.into_iter().next())
+		.expect("no chapters");
+	// rebuild the v1 key of a chapter that is still listed
+	let (number, _) = chapter
+		.key
+		.rsplit_once('.')
+		.expect("chapter key is not <number>.<id>");
+
+	assert_eq!(
+		source
+			.handle_chapter_migration(TEST_MANGA_KEY.into(), format!("/{TEST_MANGA_KEY}/{number}"))
+			.expect("handle_chapter_migration failed"),
+		chapter.key
+	);
 }

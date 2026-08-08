@@ -1,7 +1,7 @@
 #![no_std]
 use aidoku::{
 	Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Manga, MangaPageResult,
-	MangaStatus, Page, PageContent, Result, Source, Viewer,
+	MangaStatus, MigrationHandler, Page, PageContent, Result, Source, Viewer,
 	alloc::{String, Vec, string::ToString},
 	helpers::uri::QueryParameters,
 	imports::{
@@ -20,19 +20,13 @@ use models::*;
 const BASE_URL: &str = "https://raw.senmanga.com";
 const API_URL: &str = "https://raw.senmanga.com/api";
 
-/// Order values accepted by `/api/directory`, in the same order as the sort
-/// options in res/filters.json. Any other value makes the api return a 500.
+// same order as the sort options in res/filters.json; any other value 500s
 const SORT_VALUES: [&str; 4] = ["popular", "title", "updated", "rating"];
 
-/// Format of `chapterList[].datetime`, e.g. "2026-08-06T12:04:20Z". The offset
-/// has to be read with `XXX` rather than a literal `'Z'`, or the timestamp gets
-/// interpreted in the device timezone instead of utc.
+// a literal 'Z' would make the timestamp parse in the device timezone
 const DATE_FORMAT: &str = "yyyy-MM-dd'T'HH:mm:ssXXX";
 
-/// Tags that mark an entry as explicit.
 const NSFW_TAGS: [&str; 6] = ["Adult", "Smut", "Lolicon", "Shotacon", "Yaoi", "Yuri"];
-
-/// Tags that mark an entry as suggestive.
 const SUGGESTIVE_TAGS: [&str; 2] = ["Ecchi", "Mature"];
 
 struct SenManga;
@@ -62,7 +56,7 @@ impl Source for SenManga {
 						params.push("order", Some(value));
 					}
 				}
-				// An empty value is the "Any" option, which the api rejects.
+				// an empty value is the "Any" option, which the api rejects
 				FilterValue::Select { id, value } if !value.is_empty() => {
 					params.push(&id, Some(&value));
 				}
@@ -93,13 +87,19 @@ impl Source for SenManga {
 					key: slug,
 					title,
 					cover,
-					status: parse_status(status.as_deref()),
+					status: match status.as_deref() {
+						Some("Ongoing") => MangaStatus::Ongoing,
+						Some("Completed") => MangaStatus::Completed,
+						Some("Cancelled") => MangaStatus::Cancelled,
+						Some("Hiatus") => MangaStatus::Hiatus,
+						_ => MangaStatus::Unknown,
+					},
 					..Default::default()
 				}
 			})
 			.collect::<Vec<Manga>>();
 
-		// Both fields are null when the result fits on a single page.
+		// both fields are null when the result fits on a single page
 		let has_next_page = match (current_page, total_pages) {
 			(Some(current), Some(total)) => current < total,
 			_ => false,
@@ -140,16 +140,29 @@ impl Source for SenManga {
 				})
 				.unwrap_or_default();
 
-			manga.content_rating = content_rating(&tags);
+			manga.content_rating = if tags.iter().any(|tag| NSFW_TAGS.contains(&tag.as_str())) {
+				ContentRating::NSFW
+			} else if tags
+				.iter()
+				.any(|tag| SUGGESTIVE_TAGS.contains(&tag.as_str()))
+			{
+				ContentRating::Suggestive
+			} else {
+				ContentRating::Safe
+			};
 			manga.viewer = match kind.as_deref() {
 				Some("Manhwa") | Some("Manhua") => Viewer::Webtoon,
 				_ => Viewer::RightToLeft,
 			};
-			// This endpoint answers with a null status, while the directory
-			// entry the manga came from carries one, so the existing value is
-			// kept rather than overwritten with Unknown.
+			// this endpoint answers with a null status, the listing entry carries one
 			if let Some(status) = status {
-				manga.status = parse_status(Some(&status));
+				manga.status = match status.as_str() {
+					"Ongoing" => MangaStatus::Ongoing,
+					"Completed" => MangaStatus::Completed,
+					"Cancelled" => MangaStatus::Cancelled,
+					"Hiatus" => MangaStatus::Hiatus,
+					_ => MangaStatus::Unknown,
+				};
 			}
 			manga.url = Some(format!("{BASE_URL}/manga/{}/", manga.key));
 			manga.title = title;
@@ -176,8 +189,7 @@ impl Source for SenManga {
 						} = entry;
 						let chapter_number =
 							number.as_deref().and_then(|it| it.parse::<f32>().ok());
-						// Most titles just repeat the number ("Chapter 8"), which
-						// the app already displays on its own.
+						// most titles just repeat the number ("Chapter 8")
 						let title = title.filter(|title| {
 							!matches!(
 								number.as_deref(),
@@ -235,8 +247,7 @@ impl DeepLinkHandler for SenManga {
 			return Ok(None);
 		};
 
-		// Series: /manga/<slug>/
-		// Chapter: /manga/<slug>/chapter-<key>/
+		// series: /manga/<slug>/, chapter: /manga/<slug>/chapter-<key>/
 		Ok(Some(
 			match segments.next().and_then(|it| it.strip_prefix("chapter-")) {
 				Some(chapter_key) => DeepLinkResult::Chapter {
@@ -251,27 +262,33 @@ impl DeepLinkHandler for SenManga {
 	}
 }
 
-fn parse_status(status: Option<&str>) -> MangaStatus {
-	match status {
-		Some("Ongoing") => MangaStatus::Ongoing,
-		Some("Completed") => MangaStatus::Completed,
-		Some("Cancelled") => MangaStatus::Cancelled,
-		Some("Hiatus") => MangaStatus::Hiatus,
-		_ => MangaStatus::Unknown,
+// v1 keys were site paths: "/<slug>" for a series, "/<slug>/<number>" for a chapter
+impl MigrationHandler for SenManga {
+	fn handle_manga_migration(&self, key: String) -> Result<String> {
+		Ok(key.trim_matches('/').into())
+	}
+
+	fn handle_chapter_migration(&self, manga_key: String, chapter_key: String) -> Result<String> {
+		let manga_key = manga_key.trim_matches('/');
+		let chapter_key = chapter_key.trim_matches('/');
+		let number = chapter_key
+			.rsplit_once('/')
+			.map_or(chapter_key, |(_, number)| number);
+
+		let url = format!("{API_URL}/manga/{manga_key}");
+		let MangaDetails { chapter_list, .. } =
+			Request::get(&url)?.send()?.get_json::<MangaDetails>()?;
+
+		// the api needs the "<number>.<id>" key, which only the chapter list has
+		let Some(entry) = chapter_list
+			.into_iter()
+			.find(|entry| entry.number.as_deref() == Some(number))
+		else {
+			bail!("No chapter {number} of {manga_key}");
+		};
+
+		Ok(entry.url)
 	}
 }
 
-fn content_rating(tags: &[String]) -> ContentRating {
-	if tags.iter().any(|tag| NSFW_TAGS.contains(&tag.as_str())) {
-		ContentRating::NSFW
-	} else if tags
-		.iter()
-		.any(|tag| SUGGESTIVE_TAGS.contains(&tag.as_str()))
-	{
-		ContentRating::Suggestive
-	} else {
-		ContentRating::Safe
-	}
-}
-
-register_source!(SenManga, DeepLinkHandler);
+register_source!(SenManga, DeepLinkHandler, MigrationHandler);
