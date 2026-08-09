@@ -2,12 +2,10 @@
 	"info": {
 		"id": "vi.cuutruyen",
 		"name": "Cứu Truyện",
-		"version": 4,
+		"version": 5,
 		"urls": [
 			"https://cuutruyen.net",
-			"https://hetcuutruyen.net",
-			"https://nettrom.com",
-			"https://cuutruyen5c844.site"
+			"https://hetcuutruyen.net"
 		],
 		"contentRating": 1,
 		"minAppVersion": "0.7.1",

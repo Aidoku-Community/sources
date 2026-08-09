@@ -1,10 +1,11 @@
 // a source made by @c0ntens
+use crate::helpers::rewrite_storage_url;
 use aidoku::{
-	alloc::{string::ToString, vec, String, Vec},
+	ContentRating, Manga, MangaStatus, Viewer,
+	alloc::{String, Vec, string::ToString, vec},
 	helpers::element::ElementHelpers,
 	imports::html::Html,
 	prelude::format,
-	ContentRating, Manga, MangaStatus, Viewer,
 };
 use serde::Deserialize;
 
@@ -95,7 +96,7 @@ impl CuuManga {
 		Manga {
 			key: self.id.to_string(),
 			title: self.name.to_string(),
-			cover: self.cover_url.clone(),
+			cover: self.cover_url.as_ref().map(rewrite_storage_url),
 			..Default::default()
 		}
 	}
@@ -164,13 +165,7 @@ impl From<CuuMangaDetails> for Manga {
 			MangaStatus::Unknown
 		};
 
-		let content_rating = if val.is_nsfw
-			|| tags
-				.iter()
-				.any(|tag| tag == "Khỏa Thân" || tag == "Nsfw" || tag == "Ntr")
-		{
-			ContentRating::NSFW
-		} else if tags.iter().any(|tag| tag == "Ecchi") {
+		let content_rating = if tags.iter().any(|tag| tag == "Ecchi") {
 			ContentRating::Suggestive
 		} else {
 			ContentRating::Safe
@@ -191,7 +186,7 @@ impl From<CuuMangaDetails> for Manga {
 		Manga {
 			key: val.id.to_string(),
 			title: val.name.to_string(),
-			cover: val.cover_url.clone(),
+			cover: val.cover_url.as_ref().map(rewrite_storage_url),
 			authors: val.authors(),
 			description: val.description(),
 			url: Some(format!(
