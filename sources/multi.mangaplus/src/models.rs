@@ -62,7 +62,7 @@ pub struct SuccessResult {
 	pub title_detail_view: Option<TitleDetailView>,
 	#[prost(message, optional, tag = "10")]
 	pub manga_viewer: Option<MangaViewer>,
-	#[prost(message, optional, tag = "29")]
+	#[prost(message, optional, tag = "35")]
 	pub all_titles_view_v3: Option<AllTitlesViewV3>,
 	#[prost(message, optional, tag = "37")]
 	pub title_ranking_view: Option<TitleRankingView>,
