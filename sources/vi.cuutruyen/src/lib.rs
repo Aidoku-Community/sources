@@ -16,10 +16,12 @@ use aidoku::{
 	prelude::*,
 };
 
+mod helpers;
 mod home;
 mod models;
 
 use base64::{Engine, engine::general_purpose};
+use helpers::rewrite_storage_url;
 use models::*;
 
 struct CuuTruyen;
@@ -138,15 +140,11 @@ impl Source for CuuTruyen {
 					let title = if chapter_number.is_none()
 						&& !chap.name.as_ref().is_none_or(|r| r.is_empty())
 					{
-						Some(format!(
-							"Ch.{} - {}",
-							chap.number.clone(),
-							chap.name.unwrap().clone()
-						))
+						Some(format!("Ch.{} - {}", chap.number, chap.name.unwrap()))
 					} else if chapter_number.is_none()
 						&& chap.name.as_ref().is_none_or(|r| r.is_empty())
 					{
-						Some(format!("Ch.{}", chap.number.clone()))
+						Some(format!("Ch.{}", chap.number))
 					} else {
 						chap.name.clone()
 					};
@@ -191,7 +189,7 @@ impl Source for CuuTruyen {
 				);
 
 				Page {
-					content: PageContent::url_context(p.image_url, context),
+					content: PageContent::url_context(rewrite_storage_url(p.image_url), context),
 					..Default::default()
 				}
 			})
@@ -227,7 +225,7 @@ impl PageImageProcessor for CuuTruyen {
 			.unwrap_or_default();
 
 		// if the image is not from the specified CDN, return the original image without trying to descramble
-		if response.request.url.is_none() || drm_data.is_empty() {
+		if response.request.url.is_none() || drm_data.is_empty() || response.code >= 400 {
 			return Ok(response.image);
 		};
 
@@ -310,8 +308,6 @@ impl DeepLinkHandler for CuuTruyen {
 		let all_urls = vec![
 			"https://cuutruyen.net",
 			"https://hetcuutruyen.net",
-			"https://nettrom.com",
-			"https://cuutruyen5c844.site",
 			"https://truycapcuutruyen.pages.dev",
 		];
 
