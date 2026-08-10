@@ -60,12 +60,8 @@ impl Source for Desu {
 			Section::Manga => {
 				let result = search(query, page, rest)?;
 				Ok(MangaPageResult {
+					entries: result.entries,
 					has_next_page: result.has_next_page,
-					entries: result
-						.entries
-						.into_iter()
-						.map(|m| m.into_manga(None, true, false))
-						.collect(),
 				})
 			}
 		}

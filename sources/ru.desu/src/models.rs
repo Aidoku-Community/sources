@@ -12,19 +12,6 @@ pub struct DesuError {
 }
 
 #[derive(Deserialize)]
-pub struct DesuListResponse {
-	pub mangas: Option<Vec<DesuItem>>,
-	pub pagination: Option<DesuPagination>,
-	pub errors: Option<Vec<DesuError>>,
-}
-
-#[derive(Deserialize)]
-pub struct DesuPagination {
-	pub current_page: Option<i32>,
-	pub last_page: Option<i32>,
-}
-
-#[derive(Deserialize)]
 pub struct DesuMangaResponse {
 	pub manga: Option<DesuItem>,
 	pub errors: Option<Vec<DesuError>>,
@@ -61,12 +48,14 @@ pub struct DesuAuthor {
 
 #[derive(Deserialize, Clone)]
 pub struct DesuChapter {
-	pub chapter_id: i64,
+	pub id: i64,
+	pub manga_id: Option<i64>,
 	pub volume: Option<String>,
 	pub number: Option<String>,
 	pub title: Option<String>,
 	pub publish_date: Option<i64>,
 	pub view_url: Option<String>,
+	pub is_readable: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -81,16 +70,16 @@ pub struct DesuChapterDetails {
 
 #[derive(Deserialize)]
 pub struct DesuItem {
-	pub manga_id: i64,
+	pub id: i64,
 	pub name: String,
 	pub russian: Option<String>,
 	pub cover: Option<DesuCover>,
 	pub kind: Option<String>,
 	pub reading_direction: Option<String>,
+	#[serde(rename = "reading_mode")]
 	pub recommended_reading_mode: Option<String>,
-	pub age_limit: Option<String>,
+	pub content_rating: Option<String>,
 	pub status: Option<String>,
-	pub translation_status: Option<String>,
 	pub description: Option<String>,
 	pub view_url: Option<String>,
 	pub genres: Option<Vec<DesuGenre>>,
@@ -104,7 +93,7 @@ fn parse_f32(value: Option<&String>) -> Option<f32> {
 impl From<DesuChapter> for Chapter {
 	fn from(value: DesuChapter) -> Self {
 		Self {
-			key: value.chapter_id.to_string(),
+			key: value.id.to_string(),
 			volume_number: parse_f32(value.volume.as_ref()),
 			chapter_number: parse_f32(value.number.as_ref()),
 			title: value.title,
@@ -118,7 +107,7 @@ impl From<DesuChapter> for Chapter {
 impl DesuItem {
 	pub fn into_manga(self, manga: Option<Manga>, slim: bool, details: bool) -> Manga {
 		let mut item = manga.unwrap_or(Manga {
-			key: manga_key(&self.manga_id.to_string()),
+			key: manga_key(&self.id.to_string()),
 			..Default::default()
 		});
 		if !item.key.starts_with("m:") && !item.key.starts_with("r:") {
@@ -142,28 +131,22 @@ impl DesuItem {
 
 		if details {
 			item.content_rating = self
-				.age_limit
-				.map(|v| match v.as_str() {
-					"18_plus" => ContentRating::NSFW,
-					"16_plus" => ContentRating::Suggestive,
+				.content_rating
+				.as_deref()
+				.map(|value| match value {
+					"18_plus" | "adult" | "nsfw" => ContentRating::NSFW,
+					"16_plus" | "suggestive" => ContentRating::Suggestive,
 					_ => ContentRating::Safe,
 				})
 				.unwrap_or_default();
 
 			item.status = self
-				.translation_status
+				.status
 				.as_deref()
-				.and_then(|v| match v {
-					"continued" => Some(MangaStatus::Ongoing),
-					"completed" => Some(MangaStatus::Completed),
-					_ => None,
-				})
-				.or_else(|| {
-					self.status.as_deref().map(|v| match v {
-						"ongoing" => MangaStatus::Ongoing,
-						"released" => MangaStatus::Completed,
-						_ => MangaStatus::Unknown,
-					})
+				.map(|v| match v {
+					"ongoing" => MangaStatus::Ongoing,
+					"released" | "completed" => MangaStatus::Completed,
+					_ => MangaStatus::Unknown,
 				})
 				.unwrap_or_default();
 
