@@ -11,6 +11,10 @@ aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["json"] 
 serde = { version = "1.0", features = ["derive"], default-features = false }
 serde_json = { version = "1.0.143", default-features = false, features = ["alloc"] }
 
+[dev-dependencies]
+aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
+aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }
+
 [profile.dev]
 panic = "abort"
 

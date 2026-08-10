@@ -926,8 +926,9 @@ impl WebLoginHandler for Senkuro {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use aidoku_test::aidoku_test;
 
-	#[test]
+	#[aidoku_test]
 	fn decodes_senkuro_chapter_detail_contract() {
 		let payload = r#"{
           "data": {
@@ -937,6 +938,7 @@ mod tests {
               "titles": [],
               "manga_status": "ONGOING",
               "rating": "EXPLICIT",
+              "mainStaff": [],
               "branches": [{"id": "branch-1", "primaryBranch": true, "teamActivities": []}],
               "cover": null,
               "labels": []

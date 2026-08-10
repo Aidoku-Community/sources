@@ -2,4 +2,5 @@
 target = "wasm32-unknown-unknown"
 
 [target.wasm32-unknown-unknown]
+runner = "aidoku-test-runner"
 rustflags = ["-C", "link-arg=--export-table"]
