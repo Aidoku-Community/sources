@@ -1,0 +1,18 @@
+[
+	{
+		"type": "group",
+		"title": "Senkuro",
+		"footer": "Войдите в Senkuro во встроенном браузере, чтобы читать защищённые главы.",
+		"items": [
+			{
+				"type": "login",
+				"key": "senkuro_login",
+				"method": "web",
+				"title": "Войти в Senkuro через сайт",
+				"logoutTitle": "Сбросить вход Senkuro",
+				"url": "https://senkuro.me/",
+				"refreshes": ["content"]
+			}
+		]
+	}
+]

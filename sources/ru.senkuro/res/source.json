@@ -1,0 +1,29 @@
+{
+	"info": {
+		"id": "ru.senkuro",
+		"name": "Senkuro",
+		"version": 1,
+		"url": "https://senkuro.me",
+		"contentRating": 2,
+		"languages": ["ru"],
+		"minAppVersion": "0.8.4"
+	},
+	"listings": [
+		{
+			"id": "latest-updates",
+			"name": "Свежие обновления"
+		},
+		{
+			"id": "popular-day",
+			"name": "Популярное за день"
+		},
+		{
+			"id": "new-titles",
+			"name": "Новые тайтлы"
+		},
+		{
+			"id": "recommendations",
+			"name": "Рекомендации"
+		}
+	]
+}
