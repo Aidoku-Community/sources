@@ -391,7 +391,7 @@ impl Senkuro {
 
 		let envelope = response.get_json_owned::<GraphqlResponse<T>>()?;
 		if let Some(error) = envelope.errors.and_then(|mut errors| errors.pop()) {
-			return Err(error!("Senkuro API: {}", error.message));
+			bail!("Senkuro API: {}", error.message);
 		}
 
 		envelope
@@ -399,23 +399,7 @@ impl Senkuro {
 			.ok_or_else(|| error!("Senkuro API: пустой ответ"))
 	}
 
-	fn title(localized: &Localized, titles: &[Localized]) -> String {
-		for item in titles {
-			if item.lang == "RU" {
-				return item.content.clone();
-			}
-		}
-		if !localized.content.is_empty() {
-			localized.content.clone()
-		} else {
-			titles
-				.first()
-				.map(|item| item.content.clone())
-				.unwrap_or_default()
-		}
-	}
-
-	fn title_string(original: &str, titles: &[Localized]) -> String {
+	fn title(original: &str, titles: &[Localized]) -> String {
 		for item in titles {
 			if item.lang == "RU" {
 				return item.content.clone();
@@ -430,7 +414,6 @@ impl Senkuro {
 				.unwrap_or_default()
 		}
 	}
-
 	fn rating(value: &str) -> ContentRating {
 		match value {
 			"EXPLICIT" => ContentRating::NSFW,
@@ -450,8 +433,8 @@ impl Senkuro {
 		}
 	}
 
-	fn cover(cover: Option<&Cover>) -> Option<String> {
-		cover.and_then(|value| value.original.as_ref().map(|image| image.url.clone()))
+	fn cover(cover: Option<Cover>) -> Option<String> {
+		cover.and_then(|value| value.original.map(|image| image.url))
 	}
 
 	fn staff_names(staff: &[StaffMember], roles: &[&str]) -> Vec<String> {
@@ -468,11 +451,12 @@ impl Senkuro {
 	}
 
 	fn home_manga(item: HomeManga) -> Manga {
+		let url = format!("{BASE_URL}/manga/{}", item.slug);
 		Manga {
-			key: item.slug.clone(),
-			title: Self::title(&item.original_name, &item.titles),
-			cover: Self::cover(item.cover.as_ref()),
-			url: Some(format!("{BASE_URL}/manga/{}", item.slug)),
+			key: item.slug,
+			title: Self::title(&item.original_name.content, &item.titles),
+			cover: Self::cover(item.cover),
+			url: Some(url),
 			status: Self::status(&item.status),
 			content_rating: Self::rating(&item.rating),
 			..Default::default()
@@ -488,13 +472,6 @@ impl Senkuro {
 	}
 
 	fn home_manga_page(&self, query: &str, page: i32) -> Result<MangaPageResult> {
-		if page < 1 {
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
-		}
-
 		let mut cursor: Option<String> = None;
 		let mut current_page = 1;
 		loop {
@@ -565,11 +542,11 @@ impl Senkuro {
 	}
 
 	fn search_manga(&self, item: SearchManga) -> Manga {
-		let title = Self::title_string(&item.original_name, &item.titles);
+		let title = Self::title(&item.original_name, &item.titles);
 		Manga {
 			key: item.slug.clone(),
 			title,
-			cover: Self::cover(item.cover.as_ref()),
+			cover: Self::cover(item.cover),
 			url: Some(format!("{BASE_URL}/manga/{}", item.slug)),
 			status: Self::status(&item.manga_status),
 			content_rating: Self::rating(&item.manga_rating),
@@ -670,13 +647,9 @@ impl Source for Senkuro {
 		_page: i32,
 		_filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let query = query.unwrap_or_default();
-		if query.trim().is_empty() {
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
-		}
+		let Some(query) = query else {
+			return Ok(MangaPageResult::default());
+		};
 
 		let data: SearchData = self.graphql(
 			SEARCH_QUERY,
@@ -704,11 +677,11 @@ impl Source for Senkuro {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let data: MangaData = self.graphql(MANGA_QUERY, SlugVariables { slug: &manga.key })?;
-		let remote = data.manga;
+		let mut remote = data.manga;
 
 		if needs_details {
-			manga.title = Self::title(&remote.original_name, &remote.titles);
-			manga.cover = Self::cover(remote.cover.as_ref());
+			manga.title = Self::title(&remote.original_name.content, &remote.titles);
+			manga.cover = Self::cover(remote.cover.take());
 			manga.url = Some(format!("{BASE_URL}/manga/{}", remote.slug));
 			manga.status = Self::status(&remote.manga_status);
 			manga.content_rating = Self::rating(&remote.rating);
@@ -732,13 +705,7 @@ impl Source for Senkuro {
 
 			let mut tags = Vec::new();
 			for label in &remote.labels {
-				let label_title = Self::title(
-					&Localized {
-						lang: String::new(),
-						content: label.slug.clone(),
-					},
-					&label.titles,
-				);
+				let label_title = Self::title(&label.slug, &label.titles);
 				if !label_title.is_empty() {
 					tags.push(label_title);
 				}
