@@ -60,12 +60,8 @@ impl Source for Desu {
 			Section::Manga => {
 				let result = search(query, page, rest)?;
 				Ok(MangaPageResult {
+					entries: result.entries,
 					has_next_page: result.has_next_page,
-					entries: result
-						.entries
-						.into_iter()
-						.map(|m| m.into_manga(None, true, false))
-						.collect(),
 				})
 			}
 		}
@@ -249,6 +245,86 @@ impl DynamicSettings for Desu {
 			}
 			.into(),
 		])
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::keys::{Section, manga_key, parse_key, ranobe_key, ranobe_slug};
+	use crate::models::{DesuChapter, DesuCover, DesuItem};
+	use aidoku_test::aidoku_test;
+
+	#[aidoku_test]
+	fn preserves_manga_and_ranobe_keys() {
+		assert_eq!(manga_key("4193"), "m:4193");
+		assert_eq!(manga_key("m:4193"), "m:4193");
+		assert_eq!(ranobe_key("novel.example"), "r:novel.example");
+		assert_eq!(
+			ranobe_slug("/ranobe/novel.example/chapter-1?foo=bar").as_deref(),
+			Some("novel.example")
+		);
+
+		let (section, id) = parse_key("r:novel.example").unwrap();
+		assert!(matches!(section, Section::Ranobe));
+		assert_eq!(id, "novel.example");
+	}
+
+	#[aidoku_test]
+	fn maps_desu_chapter_contract() {
+		let chapter = DesuChapter {
+			id: 690950,
+			manga_id: Some(4193),
+			volume: Some("2".into()),
+			number: Some("39".into()),
+			title: Some("Глава 39".into()),
+			publish_date: Some(1_700_000_000),
+			view_url: Some("https://desu.uno/api/manga/4193/chapters/690950".into()),
+			is_readable: Some(true),
+		};
+		let mapped: Chapter = chapter.into();
+
+		assert_eq!(mapped.key, "690950");
+		assert_eq!(mapped.volume_number, Some(2.0));
+		assert_eq!(mapped.chapter_number, Some(39.0));
+		assert_eq!(mapped.title.as_deref(), Some("Глава 39"));
+		assert_eq!(mapped.date_uploaded, Some(1_700_000_000));
+	}
+
+	#[aidoku_test]
+	fn maps_desu_detail_metadata_contract() {
+		let item = DesuItem {
+			id: 4193,
+			name: "Naruto".into(),
+			russian: Some("Наруто".into()),
+			cover: Some(DesuCover {
+				preview: Some("https://static.desu.uno/preview.jpg".into()),
+				snippet: None,
+				x120: None,
+			}),
+			kind: Some("manga".into()),
+			reading_direction: Some("left-to-right".into()),
+			recommended_reading_mode: None,
+			content_rating: Some("18_plus".into()),
+			status: Some("ongoing".into()),
+			description: Some("Описание".into()),
+			view_url: Some("https://desu.uno/manga/naruto.4193".into()),
+			genres: Some(vec![crate::models::DesuGenre {
+				name: "Экшен".into(),
+			}]),
+			authors: Some(vec![crate::models::DesuAuthor {
+				name: "Автор".into(),
+			}]),
+		};
+		let mapped = item.into_manga(None, false, true);
+
+		assert_eq!(mapped.key, "m:4193");
+		assert_eq!(mapped.title, "Наруто");
+		assert_eq!(mapped.description.as_deref(), Some("Описание"));
+		assert!(matches!(mapped.status, aidoku::MangaStatus::Ongoing));
+		assert!(matches!(mapped.content_rating, aidoku::ContentRating::NSFW));
+		assert_eq!(mapped.authors.as_deref(), Some(["Автор".into()].as_slice()));
+		assert_eq!(mapped.tags.as_deref(), Some(["Экшен".into()].as_slice()));
 	}
 }
 

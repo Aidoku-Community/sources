@@ -1,5 +1,41 @@
-### To update filters use following JS code in browser at [this page](https://desu.uno/manga/):  
-#### Note: this code will automatically copy a new filters JSON  
+# Desu
+
+Aidoku source for [desu.uno](https://desu.uno).
+
+## Current API
+
+- Catalog: `GET /manga/?page=...&order_by=...`
+- Search: `POST /manga/search/` with the form field `q` and the
+  `X-Requested-With: XMLHttpRequest` header
+- Manga details: `GET /api/manga/{manga_id}`
+- Chapters: `GET /api/manga/{manga_id}/chapters`
+- Chapter pages: `GET /api/manga/{manga_id}/chapters/{chapter_id}`
+
+The root `/api/manga` list endpoint is obsolete. Catalog and search use the
+HTML endpoints above instead.
+
+## Updating filters
+
+Generate `res/filters.json` from the current `/manga/` DOM. Status values come
+from `data-status`, kinds from `data-kind`, and genres from both
+`data-genre-id` and `data-genre-slug`. Genre values must use the current
+`id-slug` pairs, for example `90-Dementia`, rather than numeric IDs alone.
+
+The source intentionally does not register `Home` or `ListingProvider`.
+
+## Legacy filter generator
+
+The script below was used with the previous desu.uno catalog DOM. It is kept
+as a historical reference for maintainers and for investigating older source
+versions.
+
+It is **not compatible with the current source** and must not be run unchanged
+to regenerate `res/filters.json`. In particular, the current genre filters use
+`data-genre-id` together with `data-genre-slug` and `id-slug` values, while this
+script emits the older genre representation.
+
+### To update filters use following JS code in browser at [this page](https://desu.uno/manga/)
+#### Note: this code will automatically copy a new filters JSON
 
 ```js
 let result = [{
