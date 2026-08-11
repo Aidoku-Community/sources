@@ -2,9 +2,8 @@
 mod helper;
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
-	HomeLayout, Link, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, Result,
-	Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Manga, MangaPageResult, Page,
+	PageContent, Result, Source,
 	alloc::{String, Vec, vec},
 	imports::net::Request,
 	prelude::*,
@@ -80,31 +79,6 @@ impl Source for Fandogamia {
 	}
 }
 
-impl ListingProvider for Fandogamia {
-	fn get_manga_list(&self, _listing: Listing, page: i32) -> Result<MangaPageResult> {
-		self.get_search_manga_list(None, page, Vec::new())
-	}
-}
-
-impl Home for Fandogamia {
-	fn get_home(&self) -> Result<HomeLayout> {
-		let entries = fetch_series_list()?.into_iter().map(Link::from).collect();
-
-		Ok(HomeLayout {
-			components: vec![HomeComponent {
-				title: Some(String::from("Series")),
-				subtitle: None,
-				value: HomeComponentValue::MangaList {
-					ranking: false,
-					page_size: None,
-					entries,
-					listing: None,
-				},
-			}],
-		})
-	}
-}
-
 impl DeepLinkHandler for Fandogamia {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		if !url.starts_with(BASE_URL) {
@@ -144,4 +118,4 @@ impl DeepLinkHandler for Fandogamia {
 	}
 }
 
-register_source!(Fandogamia, ListingProvider, Home, DeepLinkHandler);
+register_source!(Fandogamia, DeepLinkHandler);
