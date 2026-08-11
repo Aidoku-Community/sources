@@ -4,10 +4,7 @@ use crate::models::{
 };
 use crate::settings::{base_url, domain, rewrite_media_url};
 use aidoku::helpers::uri::QueryParameters;
-use aidoku::imports::{
-	html::{Document, Html},
-	net::Request,
-};
+use aidoku::imports::{html::Document, net::Request};
 use aidoku::{FilterValue, Manga, Result, alloc::String, error, prelude::*};
 use alloc::format;
 use alloc::string::ToString;
@@ -218,9 +215,6 @@ fn catalog_url(page: i32, filters: Vec<FilterValue>) -> String {
 					.into_iter()
 					.chain(excluded.into_iter().map(|value| format!("!{value}")))
 					.collect();
-				if values.is_empty() {
-					continue;
-				}
 				if id == "genres" || id == "tags" {
 					genres.extend(values);
 				} else {
@@ -241,15 +235,15 @@ fn catalog_url(page: i32, filters: Vec<FilterValue>) -> String {
 	}
 }
 
-fn parse_response_html(response: aidoku::imports::net::Response, base: &str) -> Result<Document> {
+fn parse_response_html(response: aidoku::imports::net::Response) -> Result<Document> {
 	if response.status_code() >= 400 {
 		bail!("HTTP {}", response.status_code());
 	}
-	Ok(Html::parse_with_url(response.get_string()?, base)?)
+	Ok(response.get_html()?)
 }
 
 pub fn search(query: Option<String>, page: i32, filters: Vec<FilterValue>) -> Result<SearchResult> {
-	if let Some(query) = query.filter(|query| !query.trim().is_empty()) {
+	if let Some(query) = query {
 		let mut params = QueryParameters::new();
 		params.push("q", Some(query.as_str()));
 		let response = apply_headers(
@@ -259,7 +253,7 @@ pub fn search(query: Option<String>, page: i32, filters: Vec<FilterValue>) -> Re
 				.header("X-Requested-With", "XMLHttpRequest"),
 		)
 		.send()?;
-		let html = parse_response_html(response, &format!("{}/manga/", get_base_url()))?;
+		let html = parse_response_html(response)?;
 		let entries = html
 			.select("#acpQuickSearch ul.blockLinksList > li")
 			.map(|elements| elements.filter_map(parse_quick_search_item).collect())
@@ -271,10 +265,7 @@ pub fn search(query: Option<String>, page: i32, filters: Vec<FilterValue>) -> Re
 	}
 
 	let url = catalog_url(page, filters);
-	let html = parse_response_html(
-		apply_headers(Request::get(url.clone())?).send()?,
-		&format!("{}/manga/", get_base_url()),
-	)?;
+	let html = parse_response_html(apply_headers(Request::get(&url)?).send()?)?;
 	let entries = html
 		.select("li.memberListItem")
 		.map(|elements| elements.filter_map(parse_catalog_item).collect())
