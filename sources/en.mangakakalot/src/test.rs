@@ -11,41 +11,16 @@ use aidoku::{
 };
 use aidoku_test::aidoku_test;
 
-<<<<<<< HEAD
-/// "Solo Leveling", a completed webtoon with a few hundred chapters, used to check parsing
-/// against.
-const MANGA_KEY: &str = "/manga/solo-leveling";
-
-/// The mirror listed second in `source.json`, reachable while the default url answers every
-/// content path with a cloudflare challenge.
-const MIRROR_URL: &str = "https://www.mangakakalove.com";
-
-/// Selecting a base url is the whole point of the change, so the tests run against the value the
-/// setting writes rather than the compiled in fallback. The test runner starts with no stored
-/// defaults, so this stands in for the dropdown.
-fn source() -> MangaBox<MangaKakalot> {
-	pause();
-=======
 const MANGA_KEY: &str = "/manga/solo-leveling";
 
 const MIRROR_URL: &str = "https://www.mangakakalove.com";
 
 fn source() -> MangaBox<MangaKakalot> {
 	sleep(3);
->>>>>>> 3ae3c93 (fix(en.mangakakalot): add minApiVersion, cleanup, add tests)
 	defaults_set("url", DefaultValue::String(MIRROR_URL.into()));
 	Source::new()
 }
 
-<<<<<<< HEAD
-/// The site answers back to back requests with 429, and the test runner does not rate limit. Run
-/// with `--test-threads=1` so these actually space the requests out.
-fn pause() {
-	sleep(3);
-}
-
-=======
->>>>>>> 3ae3c93 (fix(en.mangakakalot): add minApiVersion, cleanup, add tests)
 fn listing(id: &str) -> Listing {
 	Listing {
 		id: id.into(),
@@ -116,11 +91,7 @@ fn listings_test() {
 		let result = with_retry(|| source.get_manga_list(listing(id), 1));
 
 		assert_entries(&result);
-<<<<<<< HEAD
-		pause();
-=======
 		sleep(3);
->>>>>>> 3ae3c93 (fix(en.mangakakalot): add minApiVersion, cleanup, add tests)
 	}
 }
 
@@ -155,12 +126,6 @@ fn manga_details_test() {
 			.as_deref()
 			.is_some_and(|url| url.ends_with(MANGA_KEY))
 	);
-<<<<<<< HEAD
-	// authors, tags, status and viewer are read with `:contains`/`:containsOwn`, jsoup
-	// extensions the test runner's css engine cannot parse, so they only fill in inside the
-	// app and have to be checked there
-=======
->>>>>>> 3ae3c93 (fix(en.mangakakalot): add minApiVersion, cleanup, add tests)
 
 	let chapters = manga.chapters.expect("no chapters");
 	// the chapter api pages 500 at a time, so this also covers a series past a single page
@@ -196,11 +161,7 @@ fn page_list_test() {
 		.take()
 		.and_then(|chapters| chapters.into_iter().next())
 		.expect("no chapters");
-<<<<<<< HEAD
-	pause();
-=======
 	sleep(3);
->>>>>>> 3ae3c93 (fix(en.mangakakalot): add minApiVersion, cleanup, add tests)
 
 	let pages = source
 		.get_page_list(manga, chapter)

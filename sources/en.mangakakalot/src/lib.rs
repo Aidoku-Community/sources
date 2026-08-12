@@ -11,8 +11,6 @@ impl Impl for MangaKakalot {
 		Self
 	}
 
-	// this only runs when the source is created, which is why the base url setting refreshes
-	// content: changing it has the app build a new source
 	fn params(&self) -> Params {
 		let base_url = defaults_get::<String>("url").unwrap_or_else(|| BASE_URL.into());
 		Params {
