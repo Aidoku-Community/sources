@@ -2,13 +2,14 @@
 	"info": {
 		"id": "en.mangakakalot",
 		"name": "MangaKakalot",
-		"version": 4,
+		"version": 5,
 		"urls": [
 			"https://www.mangakakalot.gg",
 			"https://www.mangakakalove.com"
 		],
 		"contentRating": 1,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	},
 	"listings": [
 		{
@@ -29,6 +30,7 @@
 		}
 	],
 	"config": {
+		"allowsBaseUrlSelect": true,
 		"supportsAuthorSearch": true,
 		"supportsTagSearch": true,
 		"hidesFiltersWhileSearching": true

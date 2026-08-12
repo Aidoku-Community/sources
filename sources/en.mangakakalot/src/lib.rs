@@ -1,5 +1,5 @@
 #![no_std]
-use aidoku::{prelude::*, Source};
+use aidoku::{Source, alloc::String, imports::defaults::defaults_get, prelude::*};
 use mangabox::{Impl, MangaBox, Params};
 
 const BASE_URL: &str = "https://www.mangakakalot.gg";
@@ -12,8 +12,9 @@ impl Impl for MangaKakalot {
 	}
 
 	fn params(&self) -> Params {
+		let base_url = defaults_get::<String>("url").unwrap_or_else(|| BASE_URL.into());
 		Params {
-			base_url: BASE_URL.into(),
+			base_url: base_url.into(),
 			..Default::default()
 		}
 	}
@@ -26,3 +27,6 @@ register_source!(
 	ImageRequestProvider,
 	DeepLinkHandler
 );
+
+#[cfg(test)]
+mod test;
