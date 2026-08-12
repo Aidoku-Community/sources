@@ -1,35 +1,38 @@
 {
-  "info": {
-    "id": "en.mangakakalot",
-    "name": "MangaKakalot",
-    "version": 5,
-    "urls": ["https://www.mangakakalot.gg", "https://www.mangakakalove.com"],
-    "contentRating": 1,
-    "languages": ["en"],
-    "minAppVersion": "0.7.1"
-  },
-  "listings": [
-    {
-      "id": "latest",
-      "name": "Latest Manga"
-    },
-    {
-      "id": "hot",
-      "name": "Hot Manga"
-    },
-    {
-      "id": "new",
-      "name": "New Manga"
-    },
-    {
-      "id": "completed",
-      "name": "Completed Manga"
-    }
-  ],
-  "config": {
-    "allowsBaseUrlSelect": true,
-    "supportsAuthorSearch": true,
-    "supportsTagSearch": true,
-    "hidesFiltersWhileSearching": true
-  }
+	"info": {
+		"id": "en.mangakakalot",
+		"name": "MangaKakalot",
+		"version": 5,
+		"urls": [
+			"https://www.mangakakalot.gg",
+			"https://www.mangakakalove.com"
+		],
+		"contentRating": 1,
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "Latest Manga"
+		},
+		{
+			"id": "hot",
+			"name": "Hot Manga"
+		},
+		{
+			"id": "new",
+			"name": "New Manga"
+		},
+		{
+			"id": "completed",
+			"name": "Completed Manga"
+		}
+	],
+	"config": {
+		"allowsBaseUrlSelect": true,
+		"supportsAuthorSearch": true,
+		"supportsTagSearch": true,
+		"hidesFiltersWhileSearching": true
+	}
 }
