@@ -1,5 +1,5 @@
 use super::*;
-use aidoku::{DeepLinkHandler, MangaPageResult, alloc::vec};
+use aidoku::{DeepLinkHandler, FilterValue, MangaPageResult, alloc::vec};
 use aidoku_test::aidoku_test;
 
 const SORT_UPDATED: i32 = 0;
@@ -47,8 +47,7 @@ fn leading_keys(result: &MangaPageResult) -> Vec<&String> {
 		.collect()
 }
 
-// The app sends no filter value until one is picked, so the fallback has to be
-// a real ordering rather than an out of range option.
+// the app sends no filter value until one is picked
 #[aidoku_test]
 fn test_sort_index_falls_back_to_the_first_option() {
 	assert_eq!(sort_index(&[]), SORT_UPDATED);
@@ -109,8 +108,8 @@ fn test_query_takes_precedence_over_sort() {
 	);
 }
 
-// The updates ordering starts at the site home page, which stacks a carousel
-// and a ranking block around the paginated list.
+// the updates ordering starts at the home page, which stacks a carousel and a
+// ranking block around the paginated list
 #[aidoku_test]
 fn test_updated_page_1_holds_only_the_paginated_block() {
 	let result = browse(SORT_UPDATED, 1);
@@ -218,6 +217,36 @@ fn test_chapter_list() {
 	);
 }
 
+// on the device `abs:href` collapses the raw utf-8 chapter segment to the series
+// page, which carries no window.MangaId. the runner resolves abs urls with the
+// `url` crate, which percent-encodes instead, so only the transformer itself can
+// be checked here
+#[aidoku_test]
+fn test_chapter_urls_are_encoded() {
+	assert_eq!(
+		(SpoilerPlus.params().chapter_url_transformer)("/HUNTER X HUNTER-raw-free/第417話/".into()),
+		"https://spoilerplus.tv/HUNTER%20X%20HUNTER-raw-free/%E7%AC%AC417%E8%A9%B1/"
+	);
+}
+
+// the app renders the number it is given, so a title repeating it shows twice
+#[aidoku_test]
+fn test_numbered_chapters_carry_no_title() {
+	let chapters = series().chapters.expect("series should have chapters");
+
+	for chapter in chapters.iter().take(20) {
+		if chapter.chapter_number.is_none() {
+			continue;
+		}
+		assert!(
+			chapter.title.is_none(),
+			"a numbered chapter should not repeat its number in the title, got {:?} / {:?}",
+			chapter.chapter_number,
+			chapter.title
+		);
+	}
+}
+
 #[aidoku_test]
 fn test_page_list() {
 	let chapters = series().chapters.expect("series should have chapters");
@@ -238,8 +267,7 @@ fn test_page_list() {
 			url.starts_with(IMG_CDN),
 			"page should be served from the image cdn, got {url}"
 		);
-		// the descrambling order travels with the page, so a missing key would
-		// silently ship scrambled images
+		// a missing key would silently ship scrambled images
 		assert!(
 			context
 				.as_ref()

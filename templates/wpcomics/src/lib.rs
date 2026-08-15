@@ -50,6 +50,9 @@ pub struct Params {
 	pub chapter_skip_first: bool,
 	pub chapter_date_selector: &'static str,
 	pub chapter_anchor_selector: &'static str,
+	pub chapter_anchor_attr: &'static str,
+	pub chapter_url_transformer: fn(String) -> String,
+	pub chapter_title_transformer: fn(Option<String>, Option<f32>) -> Option<String>,
 	pub chapter_parse_id: fn(String) -> String,
 
 	pub manga_viewer_page: &'static str,
@@ -181,6 +184,9 @@ impl Default for Params {
 
 			chapter_skip_first: false,
 			chapter_anchor_selector: "div.chapter > a",
+			chapter_anchor_attr: "abs:href",
+			chapter_url_transformer: |url| url,
+			chapter_title_transformer: |title, _| title,
 			chapter_date_selector: "div.col-xs-4",
 			chapter_parse_id: |url| url,
 

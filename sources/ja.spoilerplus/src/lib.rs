@@ -1,7 +1,7 @@
 #![no_std]
 use aidoku::{
-	Chapter, ContentRating, DeepLinkResult, FilterValue, ImageResponse, Manga, MangaStatus, Page,
-	PageContent, PageContext, Result, Source, Viewer,
+	Chapter, ContentRating, DeepLinkResult, ImageResponse, Manga, MangaStatus, Page, PageContent,
+	PageContext, Result, Source, Viewer,
 	alloc::{string::String, vec::Vec},
 	canvas::Rect,
 	helpers::uri::{decode_uri, encode_uri_component},
@@ -44,20 +44,29 @@ impl Impl for SpoilerPlus {
 			manga_details_authors_transformer: |authors| {
 				authors.into_iter().filter(|a| a != "更新中").collect()
 			},
-			// both the genre and the tag row are rendered as li.kind, and each value
-			// is its own anchor rather than a delimited string
+			// genre and tag rows are both li.kind, each value its own anchor
 			manga_details_tags: "ul.list-info > li.kind p.col-xs-8 > a",
 			manga_details_tags_splitter: "",
-			// the alternative titles row carries the same classes as the publication
-			// status row, and only the leading icon tells the two apart
+			// the alt titles row shares the status row's classes; only the icon differs
 			manga_details_status: "ul.list-info > li.row.status:has(i.fa-rss) > p.col-xs-8",
 			status_mapping: |status| match status.trim() {
 				"連載中" => MangaStatus::Ongoing,
 				"完結" | "完了" => MangaStatus::Completed,
-				// an unrecognised value is not a reason to claim the series is running
 				_ => MangaStatus::Unknown,
 			},
 
+			// the chapter segment of an href is raw utf-8, and `abs:href` collapses to
+			// the page's own url when the host resolver cannot parse it
+			chapter_anchor_attr: "href",
+			chapter_url_transformer: |href| {
+				to_key(&href).map(|key| url_for(&key)).unwrap_or_default()
+			},
+			// every title is the chapter number, which the app already renders.
+			// the template reports an unparsed number as -1.0 rather than as `None`
+			chapter_title_transformer: |title, number| match number {
+				Some(number) if number >= 0.0 => None,
+				_ => title,
+			},
 			chapter_parse_id: |url| to_key(&url).unwrap_or_default(),
 
 			datetime_format: "yyyy年MM月dd日",
@@ -68,16 +77,13 @@ impl Impl for SpoilerPlus {
 			page_list_page: |_, _, chapter| url_for(&chapter.key),
 
 			get_search_url: |params, query, page, filters| {
-				// searching has its own endpoint that the ordering paths cannot be
-				// applied to, so a query takes precedence over the sort filter, which
-				// the app hides while searching
+				// search has its own endpoint, so a query wins over the sort filter
 				if let Some(query) = query {
 					let query = encode_uri_component(query);
 					return Ok(format!("{}?s={query}&page={page}", params.base_url));
 				}
 
-				// the site has no sort parameter: each ordering is served from its own
-				// path
+				// no sort parameter: each ordering is served from its own path
 				Ok(match sort_index(&filters) {
 					1 => format!("{}/ranking/{page}/", params.base_url),
 					_ => format!("{}/page/{page}/", params.base_url),
@@ -117,15 +123,14 @@ impl Impl for SpoilerPlus {
 		let url = url_for(&chapter.key);
 		let html = self.create_request(cache, params, &url, None)?.html()?;
 
-		// the reader holds empty placeholders and asks for the image list over the
-		// api, keyed by the ids an inline script declares
+		// the reader is empty and pulls the image list from the api, keyed by ids
+		// an inline script declares
 		// e.g. <script>window.MangaId =  20466 ;window.CNumber =  417 </script>
 		let mut manga_id_opt: Option<String> = None;
 		let mut chapter_num_opt: Option<String> = None;
 		if let Some(scripts) = html.select("script") {
 			for script in scripts {
-				// the parser leaves a script node's data empty, so the body has to be
-				// read as inner html
+				// the parser leaves script node data empty; read the body as inner html
 				if let Some(data) = script.html() {
 					if let Some(id) = read_window_number(&data, "window.MangaId", false) {
 						manga_id_opt = Some(id);
@@ -163,8 +168,7 @@ impl Impl for SpoilerPlus {
 			bail!("No pages found");
 		}
 
-		// every page carries the same descrambling key, so it has to be copied into
-		// each page's context
+		// the descrambling key is per chapter, so every page context gets a copy
 		let pages = paths
 			.into_iter()
 			.map(|path| {
@@ -194,8 +198,8 @@ impl Impl for SpoilerPlus {
 			return Ok(response.image);
 		};
 
-		// the site scrambles each page into a square grid and hands the order out as
-		// hex bytes xored with its own domain
+		// pages are scrambled into a square grid, the order handed out as hex bytes
+		// xored with the domain
 		const XOR_KEY: &str = "spoilerplus.tv";
 
 		let order_bytes = order_key
@@ -264,13 +268,11 @@ impl Impl for SpoilerPlus {
 		let Some(path) = url.strip_prefix(params.base_url.as_ref()) else {
 			return Ok(None);
 		};
-		// keys are stored decoded, and a shared link carries the encoded form
+		// keys are stored decoded, shared links carry the encoded form
 		let key = decode_uri(path);
 
-		// series live at the site root, so the slug suffix is what separates them
-		// from the genre, tag and ranking paths
-		// Series:  /TITLE-raw-free/
-		// Chapter: /TITLE-raw-free/第N話/
+		// series live at the site root, so only the slug suffix separates them from
+		// the genre, tag and ranking paths: /TITLE-raw-free/[第N話/]
 		const SERIES_SUFFIX: &str = "-raw-free";
 
 		let trimmed = key.trim_end_matches('/');
@@ -290,26 +292,6 @@ impl Impl for SpoilerPlus {
 			Ok(Some(DeepLinkResult::Manga { key: manga_key }))
 		}
 	}
-}
-
-fn sort_index(filters: &[FilterValue]) -> i32 {
-	filters
-		.iter()
-		.find_map(|filter| match filter {
-			FilterValue::Sort { index, .. } => Some(*index),
-			_ => None,
-		})
-		.unwrap_or(0)
-}
-
-fn read_window_number(data: &str, name: &str, fractional: bool) -> Option<String> {
-	let after = &data[data.find(name)? + name.len()..];
-	let after_eq = after[after.find('=')? + 1..].trim_start();
-	let end = after_eq
-		.find(|c: char| !c.is_ascii_digit() && !(fractional && c == '.'))
-		.unwrap_or(after_eq.len());
-	let number = after_eq[..end].trim();
-	(!number.is_empty()).then(|| number.into())
 }
 
 register_source!(

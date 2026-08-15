@@ -261,9 +261,11 @@ pub trait Impl {
 					return None;
 				}
 
-				let chapter_url = chapter_node
-					.select_first(params.chapter_anchor_selector)?
-					.attr("abs:href")?;
+				let chapter_url = (params.chapter_url_transformer)(
+					chapter_node
+						.select_first(params.chapter_anchor_selector)?
+						.attr(params.chapter_anchor_attr)?,
+				);
 
 				let chapter_id = (params.chapter_parse_id)(chapter_url.clone());
 				let raw_chapter_title = chapter_node
@@ -316,20 +318,21 @@ pub trait Impl {
 						}
 					})
 					.or_else(|| Some(raw_chapter_title.trim().into()));
+				let chapter_number = if chapter_number < 0.0 && volume_number >= 0.0 {
+					None
+				} else {
+					Some(chapter_number)
+				};
 
 				Some(Chapter {
 					key: chapter_id,
-					title: chapter_title,
+					title: (params.chapter_title_transformer)(chapter_title, chapter_number),
 					volume_number: if volume_number < 0.0 {
 						None
 					} else {
 						Some(volume_number)
 					},
-					chapter_number: if chapter_number < 0.0 && volume_number >= 0.0 {
-						None
-					} else {
-						Some(chapter_number)
-					},
+					chapter_number,
 					date_uploaded: Some(date_updated),
 					url: Some(chapter_url),
 					..Default::default()
