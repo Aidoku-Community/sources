@@ -1,6 +1,6 @@
 use aidoku::alloc::string::String;
 
-/// Strip trailing "Raw Free" and similar suffixes from a title.
+// titles carry a trailing "Raw Free" and similar suffixes
 pub fn clean_title(title: String) -> String {
 	let suffixes = [" Raw Free", " Raw free", " raw free"];
 	for suffix in suffixes {
@@ -11,7 +11,7 @@ pub fn clean_title(title: String) -> String {
 	title
 }
 
-/// Extract chapter number from text like 【第N話】 -> N
+// chapter text looks like 【第N話】
 pub fn extract_ch_number(s: &str) -> Option<f32> {
 	let dai = '第';
 	let wa = '話';

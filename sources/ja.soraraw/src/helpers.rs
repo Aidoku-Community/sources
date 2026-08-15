@@ -12,26 +12,23 @@ use serde::de::DeserializeOwned;
 
 use crate::{BASE_URL, HEADER_BYTES, MAX_DRAWABLE_HEIGHT, THUMBNAIL_URL, models::NextData};
 
-/// Block size of the cipher the site encrypts image paths with.
 const BLOCK_SIZE: usize = 16;
 
 pub fn manga_url(slug: &str) -> String {
 	format!("{BASE_URL}/manga/{slug}")
 }
 
-/// Chapter paths repeat the slug of their manga, which the url they're reachable at doesn't.
+// chapter paths repeat the slug of their manga, which the url doesn't
 pub fn chapter_url(manga_slug: &str, path: &str) -> String {
 	let suffix = path.strip_prefix(&format!("{manga_slug}-")).unwrap_or(path);
 	format!("{BASE_URL}/manga/{manga_slug}/{suffix}")
 }
 
-/// Chapter keys hold both ids the image endpoint takes, so requesting pages never has to rely on
-/// the slug of a manga carrying its id.
+// both ids the image endpoint takes, so pages never rely on a slug carrying its id
 pub fn chapter_key(manga_id: i64, chapter_id: i64) -> String {
 	format!("{manga_id}/{chapter_id}")
 }
 
-/// Listing pages put the page number in the path, and only from the second page on.
 pub fn paginated(url: &str, page: i32) -> String {
 	if page > 1 {
 		format!("{url}/page/{page}")
@@ -40,7 +37,6 @@ pub fn paginated(url: &str, page: i32) -> String {
 	}
 }
 
-/// Reads the "__NEXT_DATA__" blob a page embeds, which holds everything it renders from.
 pub fn next_data<T: DeserializeOwned>(url: &str) -> Result<T> {
 	let html = Request::get(url)?.html()?;
 	// script contents are data nodes rather than text, so `text` would come back empty. `data` is
@@ -58,7 +54,7 @@ pub fn next_data<T: DeserializeOwned>(url: &str) -> Result<T> {
 		.map_err(|error| AidokuError::Message(format!("unexpected page data at {url}: {error}")))
 }
 
-/// Synopses hold inline markup, which the app doesn't render.
+// synopses hold inline markup, which the app doesn't render
 pub fn strip_html(text: &str) -> String {
 	// wrapped in an element of its own: reading the text off a bare fragment works in the app but
 	// not in the test runner, which only ever hands back elements a selector matched
@@ -71,7 +67,6 @@ pub fn strip_html(text: &str) -> String {
 		.into()
 }
 
-/// Reads the height of an image off its header, without pulling the whole file down.
 fn image_height(url: &str) -> Option<u32> {
 	let range = format!("bytes=0-{}", HEADER_BYTES - 1);
 	let head = Request::get(url)
@@ -82,15 +77,10 @@ fn image_height(url: &str) -> Option<u32> {
 	jpeg_height(&head)
 }
 
-/// Refuses an image the reader can't put on screen.
-///
-/// A few chapters ship as a single image stacking every page of them, standing 49152 pixels tall,
-/// which runs past the texture size the gpu takes. Cutting one into pages the reader can draw
-/// isn't something a source can do today: `Canvas::copy_image` and `draw_image` place the
-/// destination rect off the canvas whenever it is shorter than the image drawn from, so every
-/// slice comes back a flat colour (Aidoku/AidokuRunner#3). Saying so beats handing back a black
-/// page the reader can't tell apart from a download that failed. Once that lands, slicing becomes
-/// worth adding: the stacked images cut cleanly on 2048 pixel boundaries.
+// a few chapters ship as one image stacking every page, up to 49152 pixels tall. slicing those
+// isn't possible yet: `Canvas::copy_image` and `draw_image` place the destination rect off the
+// canvas when it is shorter than the source, so every slice comes back a flat colour
+// (Aidoku/AidokuRunner#3). failing beats handing back a blank page
 pub fn check_drawable(url: &str) -> Result<()> {
 	match image_height(url) {
 		Some(height) if height > MAX_DRAWABLE_HEIGHT => bail!(
@@ -100,10 +90,7 @@ pub fn check_drawable(url: &str) -> Result<()> {
 	}
 }
 
-/// Reads the height in pixels out of the header of a jpeg, given the opening bytes of the file.
-///
-/// Only jpeg needs measuring: webp caps a side at 16383 pixels, which the reader still handles, so
-/// a webp page can never be too tall to draw.
+// only jpeg needs measuring: webp caps a side at 16383 pixels, which the reader still draws
 pub fn jpeg_height(head: &[u8]) -> Option<u32> {
 	fn length(head: &[u8], at: usize) -> Option<usize> {
 		Some(usize::from(u16::from_be_bytes([
@@ -134,7 +121,7 @@ pub fn jpeg_height(head: &[u8]) -> Option<u32> {
 	None
 }
 
-/// Listings hand out either a full cover url or just the file name on the thumbnail host.
+// listings hand out either a full cover url or just the file name on the thumbnail host
 pub fn cover(thumbnail: Option<String>, image: Option<&str>) -> Option<String> {
 	thumbnail
 		.filter(|thumbnail| !thumbnail.is_empty())
@@ -145,7 +132,6 @@ pub fn cover(thumbnail: Option<String>, image: Option<&str>) -> Option<String> {
 		})
 }
 
-/// Authors come as a single comma separated field.
 pub fn authors(author: Option<&str>) -> Option<Vec<String>> {
 	let authors = author?
 		.split(',')
@@ -163,19 +149,11 @@ pub fn status(kind: Option<&str>) -> MangaStatus {
 	}
 }
 
-/// Picks the reader from the genres a series carries, which is the only field that tracks what the
-/// artwork actually is.
-///
-/// The `mode` field looks like the obvious input and isn't: it says how the site's own reader lays
-/// a series out, not what kind of comic it is. Measured across 31 series, every `horizontal` one
-/// held page-shaped art — but so did a third of the `vertical` ones, ordinary japanese manga that
-/// the app would otherwise open in a continuous scroll. The overseas genres track the content
-/// instead: across 8000 catalogue entries they appear on 2 of 7021 `horizontal` series and on 644
-/// of 979 `vertical` ones, which is the share of `vertical` series that really are webtoons.
-///
-/// Image proportions are deliberately not used either. Korean webtoons here are cut into
-/// page-shaped chunks about as often as into tall strips, so the shape of a page says nothing
-/// about whether the panels are meant to run together.
+// the `mode` field says how the site's own reader lays a series out, not what kind of comic it
+// is: a third of the `vertical` ones are ordinary manga. the overseas genres track the content
+// instead, appearing on 644 of 979 `vertical` entries and on 2 of 7021 `horizontal` ones.
+// image proportions don't work either, since webtoons here are as often cut into page-shaped
+// chunks as into tall strips
 pub fn viewer<'a>(genre_slugs: impl Iterator<Item = &'a str>) -> Viewer {
 	const OVERSEAS_GENRE: &str = "kaigai-manga";
 
@@ -188,12 +166,8 @@ pub fn viewer<'a>(genre_slugs: impl Iterator<Item = &'a str>) -> Viewer {
 	Viewer::RightToLeft
 }
 
-/// Every entry carries the flag the site sorts adult content by, which is what this follows.
-///
-/// Deriving anything further from the genres of a series was tried and dropped: genre names are
-/// not unique (41 of the 1834 the site lists are used by more than one genre), and the ones that
-/// read as suggestive are already flagged as adult by the site itself, so a name based guess
-/// disagreed with the site more often than it added anything.
+// deriving anything further from genres was tried and dropped: names are not unique (41 of the
+// 1834 listed are shared), and the suggestive ones are already flagged as adult by the site
 pub fn content_rating(is_adult: Option<&str>) -> ContentRating {
 	match is_adult {
 		Some("yes") => ContentRating::NSFW,
@@ -202,10 +176,8 @@ pub fn content_rating(is_adult: Option<&str>) -> ContentRating {
 	}
 }
 
-/// Case insensitive substring search that doesn't allocate.
-///
-/// Comparing bytes is safe for the utf-8 the catalogue holds: a multi-byte character can never
-/// match part of another one, so a byte window that compares equal is always a real substring.
+// comparing bytes is safe for utf-8: a multi-byte character can never match part of another one,
+// so a byte window that compares equal is always a real substring
 pub fn contains_ignore_ascii_case(haystack: &str, needle: &str) -> bool {
 	let needle = needle.as_bytes();
 	if needle.is_empty() {
@@ -217,8 +189,7 @@ pub fn contains_ignore_ascii_case(haystack: &str, needle: &str) -> bool {
 		.any(|window| window.eq_ignore_ascii_case(needle))
 }
 
-/// Decodes the base64 payload the image endpoint returns, accepting both the standard and the url
-/// safe alphabet and treating padding as optional, the same way the site's own decoder does.
+// both alphabets and optional padding are accepted, the same way the site's own decoder does
 pub fn decode_base64(input: &str) -> Option<Vec<u8>> {
 	let mut output = Vec::with_capacity(input.len() / 4 * 3);
 	let mut buffer = 0u32;
@@ -246,8 +217,7 @@ pub fn decode_base64(input: &str) -> Option<Vec<u8>> {
 	Some(output)
 }
 
-/// Turns the payload of the image endpoint back into the json it was built from. The site xors it
-/// with a fixed key, which is the only thing standing between the endpoint and a page list.
+// the image endpoint hands out its page list xored with a fixed key
 pub fn deobfuscate(payload: &str, key: &[u8]) -> Option<String> {
 	if key.is_empty() {
 		return None;
@@ -266,12 +236,9 @@ pub fn deobfuscate(payload: &str, key: &[u8]) -> Option<String> {
 	(!json.is_empty()).then(|| json.to_string())
 }
 
-/// Turns the encrypted path of a page entry back into the path its image is served at. The site
-/// xors the value with a fixed secret and encrypts what's left with aes-256-ctr, keyed on the uuid
-/// its chapter page carries.
-///
-/// Building the path out of the ids instead only holds for part of the site: the file extension
-/// varies per chapter, and guessing it leaves whole series answering 404.
+// page paths are xored with a fixed secret and encrypted with aes-256-ctr, keyed on the uuid the
+// chapter page carries. building the path out of the ids instead only holds for part of the site:
+// the file extension varies per chapter, and guessing it leaves whole series answering 404
 pub fn decrypt_path(payload: &str, uuid: &str, secret: &[u8]) -> Option<String> {
 	if secret.is_empty() {
 		return None;
@@ -307,7 +274,6 @@ pub fn decrypt_path(payload: &str, uuid: &str, secret: &[u8]) -> Option<String> 
 	String::from_utf8(path).ok().filter(|path| !path.is_empty())
 }
 
-/// Counts the counter block up the way the site's cipher does, as one big endian number.
 fn increment(counter: &mut [u8; BLOCK_SIZE]) {
 	for byte in counter.iter_mut().rev() {
 		*byte = byte.wrapping_add(1);

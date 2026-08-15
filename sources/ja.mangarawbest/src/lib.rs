@@ -159,7 +159,6 @@ impl Source for MangaRawBest {
 }
 
 impl MangaRawBest {
-	/// Requests a page of the browse grid with an already built query string.
 	fn fetch_manga_page(&self, query: &str, page: i32) -> Result<MangaPageResult> {
 		let html = Request::get(format!("{BASE_URL}/manga-list?{query}"))?.html()?;
 		Ok(parse_manga_page(&html, page))
@@ -234,7 +233,6 @@ mod test {
 	use aidoku::{ContentRating, alloc::vec};
 	use aidoku_test::aidoku_test;
 
-	/// A long-running series that is unlikely to disappear from the site.
 	const SERIES_KEY: &str = "tu-long-nobai";
 
 	fn assert_valid_entries(entries: &[Manga]) {

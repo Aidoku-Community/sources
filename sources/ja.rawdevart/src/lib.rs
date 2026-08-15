@@ -18,11 +18,11 @@ use helpers::*;
 use models::*;
 
 const BASE_URL: &str = "https://rawdevart.art";
-/// Page urls prefix numeric ids with two letters that the site ignores when routing.
+// the site ignores these two letters when routing
 const ID_PREFIX: &str = "ne";
 const DATE_FORMAT: &str = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX";
 
-/// Values of the `sort` query parameter, in the order of the options in "filters.json".
+// same order as the options in res/filters.json
 const SORTS: &[&str] = &["", "most_viewed", "most_viewed_today"];
 
 pub fn manga_url(key: &str) -> String {

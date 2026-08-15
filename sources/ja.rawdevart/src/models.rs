@@ -7,12 +7,12 @@ use serde::Deserialize;
 
 use crate::{DATE_FORMAT, chapter_url, manga_url};
 
-/// Response of the manga list endpoints (`/spa/latest-manga`, `/spa/genre/*` and `/spa/search`).
+// `/spa/latest-manga`, `/spa/genre/*` and `/spa/search`
 #[derive(Deserialize)]
 pub struct MangaListResponse {
 	pub manga_list: Vec<MangaEntry>,
 	pub pagi: Option<Pagination>,
-	/// Markup of the genre `<select>`, only returned by the genre endpoints.
+	// markup of the genre `<select>`, only returned by the genre endpoints
 	#[serde(rename = "genreOpt")]
 	pub genre_opt: Option<String>,
 }
@@ -24,11 +24,10 @@ pub struct Pagination {
 
 #[derive(Deserialize)]
 pub struct PaginationButton {
-	/// The next page number, or zero when the current page is the last one.
+	// zero on the last page
 	pub next: i32,
 }
 
-/// A manga as returned in a listing, holding just enough to display a cover.
 #[derive(Deserialize)]
 pub struct MangaEntry {
 	pub manga_id: i64,
@@ -51,10 +50,8 @@ impl From<MangaEntry> for Manga {
 	}
 }
 
-/// Response of `/spa/manga/{manga_id}`, holding both details and the chapter list.
-///
-/// Every field is optional: a single unexpected null anywhere in the response would otherwise
-/// fail the whole deserialization, leaving the entry with no chapters at all.
+// `/spa/manga/{manga_id}`. every field is optional: a single unexpected null would otherwise fail
+// the whole deserialization, leaving the entry with no chapters at all
 #[derive(Deserialize)]
 pub struct MangaDetailsResponse {
 	#[serde(default)]
@@ -71,7 +68,7 @@ pub struct MangaDetailsResponse {
 pub struct MangaEntryDetail {
 	pub manga_name: Option<String>,
 	pub manga_description: Option<String>,
-	/// Whether the series has finished publishing.
+	// true once the series has finished publishing
 	pub manga_status: Option<bool>,
 	pub manga_cover_img: Option<String>,
 	pub manga_cover_img_full: Option<String>,
@@ -89,14 +86,14 @@ pub struct Author {
 
 #[derive(Deserialize)]
 pub struct ChapterEntry {
-	/// Also used as the chapter key, since that's what the page endpoint takes.
+	// also the chapter key, since that's what the page endpoint takes
 	pub chapter_number: Option<f32>,
 	pub chapter_title: Option<String>,
 	pub chapter_date_published: Option<String>,
 }
 
 impl ChapterEntry {
-	/// Returns nothing when the entry has no number, since it can't be requested without one.
+	// an entry without a number can't be requested
 	pub fn into_chapter(self, manga_key: &str) -> Option<Chapter> {
 		let number = self.chapter_number?;
 		let key = number.to_string();
@@ -121,7 +118,7 @@ impl ChapterEntry {
 	}
 }
 
-/// Response of `/spa/manga/{manga_id}/{chapter_number}`.
+// `/spa/manga/{manga_id}/{chapter_number}`
 #[derive(Deserialize)]
 pub struct ChapterPagesResponse {
 	#[serde(default)]
@@ -130,11 +127,10 @@ pub struct ChapterPagesResponse {
 
 #[derive(Deserialize)]
 pub struct ChapterDetail {
-	/// Markup holding one lazily loaded `img` per page.
+	// markup holding one lazily loaded `img` per page
 	pub chapter_content: Option<String>,
-	/// Base url the page images are relative to.
+	// base url the page images are relative to, with `servers` holding its mirrors
 	pub server: Option<String>,
-	/// Mirrors of `server`, used when it isn't provided.
 	#[serde(default)]
 	pub slaves: Option<Vec<String>>,
 }

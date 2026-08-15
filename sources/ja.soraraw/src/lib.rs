@@ -15,31 +15,23 @@ use helpers::*;
 use models::*;
 
 const BASE_URL: &str = "https://soraraw.com";
-/// Host the cover images are served from.
 const THUMBNAIL_URL: &str = "https://i.mangaraw.lat";
-/// Endpoint holding the page list of a chapter, which no page of the site embeds.
 const IMAGE_API_URL: &str = "https://api.mangarawgo.site";
 const DATE_FORMAT: &str = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX";
-/// Key the site xors the payload of the image endpoint with.
 const PAYLOAD_KEY: &[u8] = b"/fuCkYou!!!";
-/// Secret the site xors an encrypted image path with before deciphering it.
 const PATH_SECRET: &[u8] = b"202508055d0db38bae2e86cc41649f90";
-/// How many images a chapter may hold before they're taken as one page each. A chapter served as
-/// a strip holds a handful of images at most, while a scanned one holds an image per page, so this
-/// keeps the request that measures them off the common case.
+// a strip holds a handful of images at most, a scanned chapter one per page, so this keeps the
+// request that measures them off the common case
 const STRIP_IMAGE_LIMIT: usize = 4;
-/// Tallest image the reader can put on screen, being the texture size the gpu takes.
+// the texture size the gpu takes
 const MAX_DRAWABLE_HEIGHT: u32 = 16384;
-/// How much of an image to read to find its size in. The size sits in the header, ahead of the
-/// scan data, so the opening kilobytes hold it unless the file leads with a large colour profile.
+// enough to reach the header unless the file leads with a large colour profile
 const HEADER_BYTES: usize = 16 * 1024;
-/// How many genres to offer as filter options. The site lists over 1800 of them, most holding a
-/// handful of entries, and hands them out sorted by how many series they hold.
+// the site lists over 1800 genres, sorted by how many series they hold
 const GENRE_LIMIT: usize = 100;
-/// How many matches to collect before leaving the rest of the catalogue alone.
 const SEARCH_RESULT_LIMIT: usize = 50;
-/// Upper bound on the catalogue pages a search walks. The dump held 13 at the time of writing and
-/// ends with a 404; this only guards against a host that stops answering with one.
+// the dump held 13 pages at the time of writing and ends with a 404; this only guards against a
+// host that stops answering with one
 const CATALOGUE_PAGE_LIMIT: i32 = 40;
 
 struct Soraraw;
@@ -205,18 +197,10 @@ impl Source for Soraraw {
 }
 
 impl Soraraw {
-	/// Searches the catalogue dump the site publishes, because nothing else on it can be queried.
-	///
-	/// An entry has to satisfy every term it is handed: "query" runs over the same fields the
-	/// site's own search does, while "author" narrows to the author alone. Both being `None` would
-	/// match the whole catalogue, so the caller only walks it once it holds one of them.
-	///
-	/// "/search?q=" renders a fixed batch that ignores the query entirely — the page it serves is
-	/// statically generated, and the browser filters a catalogue it downloads itself. The api host
-	/// the site is configured with does expose "/search", but it answers 500 for every query
-	/// (`Unknown column 'Manga.number_views' in 'ORDER BY'`), and its "/mangas" endpoint ignores
-	/// every query parameter it was tried with. That leaves walking the same dump, which is 13
-	/// pages of 2000 entries and around 4.7 MB over the wire with the gzip the host serves.
+	// nothing on the site can be queried: "/search?q=" is statically generated and renders a fixed
+	// batch, the api host answers 500 for every query (`Unknown column 'Manga.number_views' in
+	// 'ORDER BY'`), and its "/mangas" ignores every parameter tried. that leaves walking the dump
+	// the browser filters itself, 13 pages of 2000 entries and about 4.7 MB gzipped
 	fn search_catalogue(query: Option<&str>, author: Option<&str>) -> Result<Vec<Manga>> {
 		let mut entries = Vec::new();
 
