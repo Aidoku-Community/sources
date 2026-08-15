@@ -1,10 +1,10 @@
 #![no_std]
 use aidoku::{
 	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter,
-	FilterValue, Home, HomeLayout, ImageRequestProvider, ListingProvider, Manga, MangaPageResult,
-	MangaStatus, Page, PageContext, Result, Source, Viewer,
+	FilterValue, Home, HomeLayout, ImageRequestProvider, ImageResponse, ListingProvider, Manga,
+	MangaPageResult, MangaStatus, Page, PageContext, PageImageProcessor, Result, Source, Viewer,
 	alloc::{String, Vec, borrow::Cow},
-	imports::{html::Element, net::Request},
+	imports::{canvas::ImageRef, html::Element, net::Request},
 	prelude::*,
 };
 use core::cell::RefCell;
@@ -50,6 +50,9 @@ pub struct Params {
 	pub chapter_skip_first: bool,
 	pub chapter_date_selector: &'static str,
 	pub chapter_anchor_selector: &'static str,
+	pub chapter_anchor_attr: &'static str,
+	pub chapter_url_transformer: fn(String) -> String,
+	pub chapter_title_transformer: fn(Option<String>, Option<f32>) -> Option<String>,
 	pub chapter_parse_id: fn(String) -> String,
 
 	pub manga_viewer_page: &'static str,
@@ -181,6 +184,9 @@ impl Default for Params {
 
 			chapter_skip_first: false,
 			chapter_anchor_selector: "div.chapter > a",
+			chapter_anchor_attr: "abs:href",
+			chapter_url_transformer: |url| url,
+			chapter_title_transformer: |title, _| title,
 			chapter_date_selector: "div.col-xs-4",
 			chapter_parse_id: |url| url,
 
@@ -316,6 +322,17 @@ impl<T: Impl> ImageRequestProvider for WpComics<T> {
 		let mut cache = self.cache.borrow_mut();
 		self.inner
 			.get_image_request(&mut cache, &self.params, url, context)
+	}
+}
+
+impl<T: Impl> PageImageProcessor for WpComics<T> {
+	fn process_page_image(
+		&self,
+		response: ImageResponse,
+		context: Option<PageContext>,
+	) -> Result<ImageRef> {
+		self.inner
+			.process_page_image(&self.params, response, context)
 	}
 }
 
