@@ -2,20 +2,13 @@ use super::*;
 use aidoku::{AidokuError, ContentRating, FilterKind, MangaStatus, Viewer};
 use aidoku_test::aidoku_test;
 
-/// "Majo to Youhei", a long running series used to check parsing against.
 const MANGA_KEY: &str = "majo-to-youhei-57539";
-/// "Mattan Heishi ga Kunshu ni Naru made", a korean webtoon carrying the overseas genre.
 const WEBTOON_KEY: &str = "mattan-heishi-ga-kunshu-ni-naru-made-7194";
-/// "Blue Giant Momentum", ordinary manga the site marks as `vertical`. Reported as opening in a
-/// continuous scroll, which is what picking the reader from `mode` used to do to it.
+// both are marked `vertical` by the site while holding page-shaped art
 const PAGED_VERTICAL_KEY: &str = "blue-giant-momentum-buruu-jaianto-momentamu-60652";
-/// "Hard Worker Nakata", also marked `vertical` while holding page-shaped art.
 const ADULT_VERTICAL_KEY: &str = "haadowaakaa-nakata-740";
-/// "Tonari no Kurokawa-san", which holds one of the chapters stored as jpg.
 const JPG_MANGA_KEY: &str = "my-neighbor-ms-kurokawa-tonari-no-kurokawa-san-1";
 const JPG_CHAPTER_KEY: &str = "1/786104";
-/// "Kobayashi-san Chi no Maid Dragon", used to check that searching finds a series by both its
-/// japanese and its english title.
 const SEARCHED_KEY: &str = "kobayashi-san-chino-meidoragon-57605";
 
 fn listing(id: &str) -> Listing {
@@ -92,9 +85,8 @@ fn test_listing_pagination() {
 	assert!(!hot.has_next_page);
 }
 
-// searching walks the catalogue dump, because the site's own "/search" page answers with the same
-// fixed batch no matter what it is asked for. the series below is looked up by its japanese title
-// and by its romanised alternative one, which has to match regardless of case
+// the series below is looked up by its japanese title and by its romanised alternative one,
+// which has to match regardless of case
 #[aidoku_test]
 fn test_search() {
 	for query in ["小林さんちのメイドラゴン", "miss kobayashi"] {
@@ -145,9 +137,8 @@ fn test_search_by_author() {
 	assert!(!result.has_next_page);
 }
 
-// the author field narrows to the author column alone. the walk above cannot tell that apart from
-// one that ran over every field, since the plain query matches the author too — so the narrowing
-// is pinned here instead, where a title that only the query should match has to be rejected
+// the walk above can't tell the narrowing apart from a plain query, which matches the author too,
+// so it is pinned here: a title that only the query should match has to be rejected
 #[aidoku_test]
 fn test_matches_author() {
 	let entry = serde_json::from_str::<CatalogueEntry>(
@@ -256,9 +247,7 @@ fn test_manga_details() {
 	// parses on device
 }
 
-// the reader is picked from genres rather than from the `mode` field: the site marks plenty of
-// ordinary manga as `vertical`, and reading that flag as "webtoon" handed those to the continuous
-// scroll reader, which ran every page of a chapter together
+// reading `mode` as the reader handed ordinary manga marked `vertical` to the continuous scroll
 #[aidoku_test]
 fn test_viewer_and_content_rating() {
 	for (key, viewer, rating) in [
@@ -336,11 +325,8 @@ fn test_page_list() {
 	);
 }
 
-// at least chapters 66 to 70 of this series are each served as one image holding all 24 of
-// their pages stacked on top of each other, 49152 pixels tall. The reader can't draw that and
-// no cut a source can make reaches into it while Aidoku/AidokuRunner#3 stands, so the chapter
-// has to fail with a reason rather than hand back a page that renders blank. Getting as far as
-// the refusal also means the decrypted path resolved and its header read back
+// chapters 66 to 70 are each served as one image stacking all 24 pages, 49152 pixels tall.
+// reaching the refusal also proves the decrypted path resolved and its header read back
 #[aidoku_test]
 fn test_stacked_chapter_is_refused() {
 	let manga = Manga {
@@ -366,9 +352,8 @@ fn test_stacked_chapter_is_refused() {
 	assert!(reason.contains("49152"), "{reason}");
 }
 
-// stacked chapters are not one series' quirk: this one holds 21 pages in a single 800x24003
-// jpg, so it has to be refused the same way. The chapter has to come from the chapter list
-// rather than be built by hand — its url is where the key to the paths is read from
+// not one series' quirk: this one holds 21 pages in a single 800x24003 jpg. the chapter comes
+// from the chapter list rather than built by hand, since its url carries the key to the paths
 #[aidoku_test]
 fn test_stacked_chapter_of_another_series_is_refused() {
 	let manga = Manga {

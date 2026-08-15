@@ -7,8 +7,7 @@ use aidoku::{
 	prelude::*,
 };
 
-/// Sort values accepted by the `sort` query parameter, ordered to match the
-/// options declared in `filters.json`.
+// same order as the options in res/filters.json
 pub const SORT_VALUES: [&str; 8] = [
 	"-updated_at",
 	"-created_at",
@@ -20,16 +19,11 @@ pub const SORT_VALUES: [&str; 8] = [
 	"-name",
 ];
 
-/// Genres that mark a series as explicit.
 const NSFW_TAGS: [&str; 6] = ["成人向け", "成年", "アダルト", "hentai", "adult", "smut"];
 
-/// Genres that mark a series as suggestive but not explicit.
 const SUGGESTIVE_TAGS: [&str; 4] = ["ecchi", "mature", "巨乳", "エッチ"];
 
-/// Parses a Japanese relative date such as "6日前" into a unix timestamp.
-///
-/// The site renders every date through a `timeago` helper, so absolute dates
-/// are never present in the markup.
+// every date is rendered through a `timeago` helper, so the markup never carries an absolute one
 pub fn parse_relative_date(text: &str) -> Option<i64> {
 	let text = text.trim().strip_suffix('前')?;
 	let digits_end = text.find(|c: char| !c.is_ascii_digit())?;
@@ -49,7 +43,6 @@ pub fn parse_relative_date(text: &str) -> Option<i64> {
 	Some(current_date() - amount * seconds)
 }
 
-/// Extracts a chapter number from a title such as "第990話" or "第37.5話".
 pub fn parse_chapter_number(title: &str) -> Option<f32> {
 	// Chapter titles are consistently formatted as 第<number>話, but fall back
 	// to the first number in the string so unusual titles still get a number.
@@ -67,11 +60,7 @@ pub fn parse_chapter_number(title: &str) -> Option<f32> {
 	rest[..end].trim_end_matches('.').parse().ok()
 }
 
-/// Returns true when a chapter title carries nothing beyond the chapter number,
-/// such as "第41話".
-///
-/// Every chapter on this site is named that way, and the app already renders the
-/// number from `chapter_number`, so keeping the title would show it twice.
+// almost every chapter is named "第41話", which the app already renders from `chapter_number`
 pub fn is_plain_chapter_title(title: &str) -> bool {
 	let Some(number) = title
 		.trim()
@@ -84,10 +73,8 @@ pub fn is_plain_chapter_title(title: &str) -> bool {
 	!number.is_empty() && number.chars().all(|c| c.is_ascii_digit() || c == '.')
 }
 
-/// Maps the `filter[status]` value a series page links to onto a status.
-///
-/// The value is preferred over the label next to it ("進行中" / "完了") because
-/// it is what the site filters on, and so is not affected by wording changes.
+// the filter value is read rather than the label next to it ("進行中" / "完了"), which wording
+// changes would break
 pub fn parse_status_value(href: &str) -> Option<&'static str> {
 	// ex: /manga-list?sort=-updated_at&page=1&filter%5Bstatus%5D=2
 	let start = href.rfind('=')? + 1;
@@ -98,10 +85,8 @@ pub fn parse_status_value(href: &str) -> Option<&'static str> {
 	}
 }
 
-/// Derives a content rating from a series' genres.
-///
-/// The site has no rating of its own, but tags such as "成人向け" and "Ecchi"
-/// are assigned consistently enough to classify the explicit entries.
+// the site carries no rating of its own, but tags like "成人向け" and "Ecchi" are assigned
+// consistently enough to classify the explicit entries
 pub fn content_rating_from_tags(tags: &[String]) -> ContentRating {
 	let matches = |list: &[&str], tag: &str| {
 		let tag = tag.to_lowercase();
@@ -117,15 +102,14 @@ pub fn content_rating_from_tags(tags: &[String]) -> ContentRating {
 	}
 }
 
-/// Strips the " raw" suffix the site appends to some of its Japanese genres.
+// the site appends " raw" to some of its japanese genres
 pub fn clean_tag(tag: &str) -> Option<String> {
 	let tag = tag.trim();
 	let tag = tag.strip_suffix(" raw").unwrap_or(tag).trim();
 	(!tag.is_empty()).then(|| tag.to_string())
 }
 
-/// Rewrites a page image url for the given image server, mirroring the
-/// `switchImageServer` helper the site ships in its reader.
+// mirrors the `switchImageServer` helper the site ships in its reader
 pub fn build_image_url(server: &str, original: &str) -> String {
 	match server {
 		"2" => {
@@ -143,7 +127,6 @@ pub fn build_image_url(server: &str, original: &str) -> String {
 	}
 }
 
-/// Extracts the `page` query parameter from a pagination link.
 pub fn parse_page_param(href: &str) -> Option<i32> {
 	let start = href.find("page=")? + "page=".len();
 	let rest = &href[start..];
@@ -153,8 +136,7 @@ pub fn parse_page_param(href: &str) -> Option<i32> {
 	rest[..end].parse().ok()
 }
 
-/// Reduces a series url to its path, tolerating the scheme and host variations
-/// a shared link may use.
+// shared links vary in scheme and host
 pub fn strip_base_url(url: &str) -> Option<&str> {
 	let path = url
 		.strip_prefix("https://")
@@ -164,15 +146,13 @@ pub fn strip_base_url(url: &str) -> Option<&str> {
 	path.strip_prefix("mangaraw.best")
 }
 
-/// Appends `value` to `values` unless it is already present, preserving the
-/// order the site lists them in.
 pub fn push_unique(values: &mut Vec<String>, value: String) {
 	if !values.contains(&value) {
 		values.push(value);
 	}
 }
 
-/// Parses a manga grid page, shared by search, filtering and listings.
+// shared by search, filtering and listings
 pub fn parse_manga_page(html: &Document, page: i32) -> MangaPageResult {
 	let entries = html
 		.select(".manga-vertical")
@@ -226,11 +206,8 @@ pub fn parse_manga_page(html: &Document, page: i32) -> MangaPageResult {
 	}
 }
 
-/// Collects the genres listed on a series page.
-///
-/// Scoped to the genre row of the info block: the page also ends with an SEO
-/// keyword cloud that links to the same genres, but labels each one with the
-/// series title ("<title> Action") and would otherwise pollute the tags.
+// scoped to the genre row of the info block: the page also ends with an SEO keyword cloud linking
+// to the same genres, labelled with the series title ("<title> Action")
 pub fn parse_tags(html: &Document) -> Vec<String> {
 	let mut tags = Vec::new();
 
@@ -245,7 +222,6 @@ pub fn parse_tags(html: &Document) -> Vec<String> {
 	tags
 }
 
-/// Reads the publishing status from the series page.
 pub fn parse_status(html: &Document) -> MangaStatus {
 	let Some(element) = html.select_first("a[href*='status']") else {
 		return MangaStatus::Unknown;
@@ -265,7 +241,6 @@ pub fn parse_status(html: &Document) -> MangaStatus {
 	}
 }
 
-/// Collects the chapter list from a series page.
 pub fn parse_chapters(html: &Document) -> Vec<Chapter> {
 	html.select("#chapterList ul a")
 		.map(|elements| {

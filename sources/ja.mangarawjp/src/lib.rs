@@ -129,14 +129,14 @@ impl Source for MangaRawJP {
 		let url = format!("{BASE_URL}{}", chapter.key);
 		let html = Request::get(&url)?.html()?;
 
-		// Extract window.MangaId and window.CNumber from inline script tags
+		// the reader is empty and pulls the image list from the api, keyed by ids an inline
+		// script declares
 		// e.g. <script>window.MangaId =  133 ;window.CNumber =  10 </script>
 		let mut manga_id_opt: Option<String> = None;
 		let mut chapter_num_opt: Option<String> = None;
 		if let Some(scripts) = html.select("script") {
 			for script in scripts {
 				if let Some(data) = script.data() {
-					// Look for window.MangaId
 					if let Some(pos) = data.find("window.MangaId") {
 						let after = &data[pos + 14..]; // after "window.MangaId"
 						if let Some(eq_pos) = after.find('=') {
@@ -150,7 +150,6 @@ impl Source for MangaRawJP {
 							}
 						}
 					}
-					// Look for window.CNumber
 					if let Some(pos) = data.find("window.CNumber") {
 						let after = &data[pos + 14..]; // after "window.CNumber"
 						if let Some(eq_pos) = after.find('=') {
@@ -173,7 +172,6 @@ impl Source for MangaRawJP {
 		let manga_id = manga_id_opt.ok_or_else(|| error!("Manga ID not found"))?;
 		let chapter_num = chapter_num_opt.ok_or_else(|| error!("Chapter number not found"))?;
 
-		// Fetch image URL list via JSON API
 		let api_url = format!("{BASE_URL}/api/v1/get/c");
 		let body = format!("{{\"m\":{manga_id},\"n\":{chapter_num}}}");
 
@@ -203,7 +201,6 @@ impl Source for MangaRawJP {
 	}
 }
 
-/// The selected option of the sort filter, falling back to the first one.
 fn sort_index(filters: &[FilterValue]) -> i32 {
 	filters
 		.iter()
@@ -214,13 +211,9 @@ fn sort_index(filters: &[FilterValue]) -> i32 {
 		.unwrap_or(0)
 }
 
-/// Scrapes a paginated listing page into manga entries.
-///
-/// The first page of the updates ordering is the site home page, which stacks
-/// several ".post-list" blocks: the updates list, then the ranking and one block
-/// per featured genre. Only the first block is the paginated list, so entries
-/// are always scoped to it — scraping every block there mixes the rankings and
-/// genre picks into the updates order.
+// the updates ordering starts at the home page, which stacks several ".post-list" blocks: the
+// updates list, then the ranking and one per featured genre. entries are scoped to the first
+// block, since scraping every one of them mixes the rankings and genre picks into the order
 fn parse_listing_page(url: &str) -> Result<MangaPageResult> {
 	let html = Request::get(url)?.html()?;
 
@@ -347,14 +340,11 @@ impl DeepLinkHandler for MangaRawJP {
 		const SERIES_PATH: &str = "/manga-raw/";
 
 		if key.starts_with(SERIES_PATH) {
-			// Determine chapter vs series URL by path segment count
-			// Series:  /manga-raw/TITLE-raw-free/
-			// Chapter: /manga-raw/TITLE-raw-free/第N話/
+			// series: /manga-raw/TITLE-raw-free/, chapter: /manga-raw/TITLE-raw-free/第N話/
 			let trimmed = key.trim_end_matches('/');
 			let segments: Vec<&str> = trimmed.split('/').filter(|s| !s.is_empty()).collect();
 
 			if segments.len() > 2 {
-				// Chapter URL — derive manga key from parent path
 				let manga_key = segments[..2].join("/");
 				let manga_key = format!("/{manga_key}/");
 				Ok(Some(DeepLinkResult::Chapter {
@@ -362,7 +352,6 @@ impl DeepLinkHandler for MangaRawJP {
 					key: key.into(),
 				}))
 			} else {
-				// Series URL
 				Ok(Some(DeepLinkResult::Manga { key: key.into() }))
 			}
 		} else {
@@ -401,7 +390,6 @@ mod test {
 			.expect("browse request should succeed")
 	}
 
-	/// The leading keys of a result, which is what an ordering actually changes.
 	fn leading_keys(result: &MangaPageResult) -> Vec<&String> {
 		result
 			.entries
@@ -411,8 +399,7 @@ mod test {
 			.collect()
 	}
 
-	/// The app sends no filter value until one is picked, so the fallback has to
-	/// be a real ordering rather than an out of range option.
+	// the app sends no filter value until one is picked
 	#[aidoku_test]
 	fn test_sort_index_falls_back_to_the_first_option() {
 		assert_eq!(sort_index(&[]), SORT_UPDATED);
@@ -459,10 +446,8 @@ mod test {
 		assert!(!result.entries.is_empty(), "search should return entries");
 	}
 
-	/// The search endpoint takes no ordering, so a query has to win over whatever
-	/// sort value is still stored while the filter is hidden. Matching the query
-	/// against the titles would not catch a fallback, since the query is also the
-	/// top ranking entry, so the result is compared against the ranking page.
+	// the query is also the top ranking entry, so matching it against the titles wouldn't catch a
+	// fallback to the sort paths. the result is compared against the ranking page instead
 	#[aidoku_test]
 	fn test_query_takes_precedence_over_sort() {
 		let searched = MangaRawJP
@@ -477,8 +462,7 @@ mod test {
 		);
 	}
 
-	/// An empty query is not a search, so it has to fall through to the ordering
-	/// paths instead of hitting the search endpoint with nothing.
+	// an empty query has to fall through to the ordering paths
 	#[aidoku_test]
 	fn test_empty_query_falls_through_to_the_sort() {
 		let result = MangaRawJP
@@ -493,10 +477,7 @@ mod test {
 		);
 	}
 
-	/// The updates ordering starts at the site home page, which stacks the updates
-	/// block together with the ranking and featured genre blocks. Scraping every
-	/// ".post-list" there mixes all four into one page and repeats entries, so
-	/// guard against that regression.
+	// scraping every ".post-list" of the home page mixes all four blocks in and repeats entries
 	#[aidoku_test]
 	fn test_updated_page_1_holds_only_the_updates_block() {
 		let result = browse(SORT_UPDATED, 1);
@@ -518,8 +499,7 @@ mod test {
 		);
 	}
 
-	/// Keys are site-relative paths, which is what "/manga-raw/..." hrefs already
-	/// hold, while covers have to be joined into absolute urls to be fetchable.
+	// keys stay as the site-relative paths the hrefs hold, covers are joined into absolute urls
 	#[aidoku_test]
 	fn test_keys_stay_relative_and_covers_absolute() {
 		let result = browse(SORT_UPDATED, 1);
@@ -538,8 +518,6 @@ mod test {
 		}
 	}
 
-	/// Pages past the end return no entries, which is how the app learns to stop
-	/// paginating.
 	#[aidoku_test]
 	fn test_pagination_ends() {
 		let result = browse(SORT_UPDATED, 9999);
@@ -549,8 +527,7 @@ mod test {
 		);
 	}
 
-	/// Each option has to actually change the order, otherwise the filter is a
-	/// no-op and everything falls back to one ordering.
+	// an option that doesn't change the order means the filter is a no-op
 	#[aidoku_test]
 	fn test_sorts_return_different_orders() {
 		let updated = browse(SORT_UPDATED, 1);

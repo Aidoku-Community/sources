@@ -13,7 +13,6 @@ use crate::{
 	},
 };
 
-/// Wrapper of the "__NEXT_DATA__" blob every page embeds.
 #[derive(Deserialize)]
 pub struct NextData<T> {
 	pub props: Props<T>,
@@ -25,13 +24,12 @@ pub struct Props<T> {
 	pub page_props: T,
 }
 
-/// Page props of every page but the home page, which carries an extra list.
 #[derive(Deserialize)]
 pub struct DataProps<T> {
 	pub data: T,
 }
 
-/// Page props of "/", the only page holding both the popular and the trending lists.
+// "/" is the only page holding both the popular and the trending lists
 #[derive(Deserialize)]
 pub struct HomeProps {
 	pub data: ListData,
@@ -45,10 +43,10 @@ pub struct Trending {
 	pub mangas: Vec<MangaEntry>,
 }
 
-/// Data of the paginated listing pages ("/", "/newest" and "/genre/{slug}").
+// "/", "/newest" and "/genre/{slug}"
 #[derive(Deserialize)]
 pub struct ListData {
-	/// Popular entries, only filled in on the home page.
+	// only filled in on the home page
 	#[serde(default)]
 	pub hot: Vec<MangaEntry>,
 	#[serde(default)]
@@ -68,20 +66,14 @@ impl Pagination {
 	}
 }
 
-/// A manga as it appears in a listing or in the search results.
-///
-/// The listings don't all carry the same fields, so everything but the two the app needs to show
-/// a cover is optional here.
+// listings don't all carry the same fields, so everything but the two a cover needs is optional
 #[derive(Deserialize)]
 pub struct MangaEntry {
 	pub name: String,
 	pub slug: String,
 	pub author: Option<String>,
-	/// Cover file name on the thumbnail host.
 	pub image: Option<String>,
-	/// Full cover url, which only the home and genre listings provide.
 	pub thumbnail: Option<String>,
-	/// Publishing status, either "incomplete" or "complete".
 	#[serde(rename = "type")]
 	pub kind: Option<String>,
 	pub is_adult: Option<String>,
@@ -90,7 +82,7 @@ pub struct MangaEntry {
 impl From<MangaEntry> for Manga {
 	fn from(value: MangaEntry) -> Self {
 		// `viewer` is left unset: listings carry no genres, and the reader is picked from those.
-		// The app fills it in from `get_manga_update` before a chapter can be opened anyway
+		// the app fills it in from `get_manga_update` before a chapter can be opened anyway
 		Manga {
 			cover: cover(value.thumbnail, value.image.as_deref()),
 			title: value.name.trim().into(),
@@ -104,22 +96,20 @@ impl From<MangaEntry> for Manga {
 	}
 }
 
-/// One page of "/mangas_{n}.json", the catalogue dump the site searches through in the browser.
+// "/mangas_{n}.json", the catalogue dump the site searches through in the browser
 #[derive(Deserialize)]
 pub struct CataloguePage {
 	#[serde(default)]
 	pub list: Vec<CatalogueEntry>,
 }
 
-/// A catalogue entry, which names some of its fields differently from the listing entries.
 #[derive(Deserialize)]
 pub struct CatalogueEntry {
 	pub name: String,
 	pub slug: String,
-	/// Alternative titles, given as one comma separated field.
 	pub alt_names: Option<String>,
 	pub author: Option<String>,
-	/// Cover file name on the thumbnail host, called "img" here and "image" everywhere else.
+	// the cover file name, called "image" everywhere else
 	pub img: Option<String>,
 	#[serde(rename = "type")]
 	pub kind: Option<String>,
@@ -127,9 +117,8 @@ pub struct CatalogueEntry {
 }
 
 impl CatalogueEntry {
-	/// Matches the same three fields the site's own search runs over. It puts them through a
-	/// fuzzy matcher, which this doesn't reproduce: a plain substring match keeps the walk over
-	/// 24k entries allocation free, and japanese titles are searched by substring anyway.
+	// the same three fields the site's own search runs over. its fuzzy matcher isn't reproduced:
+	// a plain substring match keeps the walk over 24k entries allocation free
 	pub fn matches(&self, needle: &str) -> bool {
 		[
 			Some(self.name.as_str()),
@@ -141,7 +130,7 @@ impl CatalogueEntry {
 		.any(|field| contains_ignore_ascii_case(field, needle))
 	}
 
-	/// Matches the author alone, for the search field that "supportsAuthorSearch" enables.
+	// for the search field "supportsAuthorSearch" enables
 	pub fn matches_author(&self, needle: &str) -> bool {
 		self.author
 			.as_deref()
@@ -166,7 +155,7 @@ impl From<CatalogueEntry> for Manga {
 	}
 }
 
-/// Data of "/manga/{slug}".
+// "/manga/{slug}"
 #[derive(Deserialize)]
 pub struct MangaData {
 	pub manga: Option<MangaDetails>,
@@ -179,9 +168,8 @@ pub struct MangaDetails {
 	pub slug: String,
 	pub author: Option<String>,
 	pub image: Option<String>,
-	/// Always null in practice; the synopsis lives in "content" instead.
+	// always null in practice; the synopsis lives in "content" as an Editor.js document
 	pub description: Option<String>,
-	/// Editor.js document holding the synopsis.
 	pub content: Option<String>,
 	#[serde(rename = "type")]
 	pub kind: Option<String>,
@@ -205,8 +193,6 @@ impl MangaDetails {
 		authors(self.author.as_deref())
 	}
 
-	/// Reads the synopsis out of the Editor.js document the site stores it as, falling back to
-	/// the plain field for the entries that happen to fill it in.
 	pub fn description(&self) -> Option<String> {
 		if let Some(description) = self.description.as_deref().map(strip_html)
 			&& !description.is_empty()
@@ -239,7 +225,7 @@ impl MangaDetails {
 #[derive(Deserialize)]
 pub struct Genre {
 	pub name: String,
-	/// Stable identifier of the genre; names are not unique, so the reader is picked from this.
+	// names are not unique, so the reader is picked from the slug
 	pub slug: String,
 }
 
@@ -250,7 +236,6 @@ impl Genre {
 	}
 }
 
-/// A block document as produced by Editor.js, which the site stores synopses in.
 #[derive(Deserialize)]
 pub struct EditorDocument {
 	#[serde(default)]
@@ -264,17 +249,14 @@ pub struct EditorBlock {
 
 #[derive(Deserialize)]
 pub struct EditorBlockData {
-	/// Holds inline markup, so it can't be used as it is.
 	pub text: Option<String>,
 }
 
 #[derive(Deserialize)]
 pub struct ChapterEntry {
 	pub id: i64,
-	/// Chapter number, given as a number for most entries and as a string for a few.
 	pub name: Option<Number>,
 	pub title: Option<String>,
-	/// Slug of the chapter, prefixed with the slug of the manga it belongs to.
 	pub path: String,
 	pub published_at: Option<String>,
 }
@@ -299,7 +281,7 @@ impl ChapterEntry {
 	}
 }
 
-/// Data of "/manga/{slug}/{chapter}", read only to resolve deep links.
+// "/manga/{slug}/{chapter}", read only to resolve deep links
 #[derive(Deserialize)]
 pub struct ChapterData {
 	pub chapter: Option<ChapterDetails>,
@@ -309,31 +291,25 @@ pub struct ChapterData {
 pub struct ChapterDetails {
 	pub id: i64,
 	pub manga_id: i64,
-	/// Key the paths of the chapter's images are encrypted with. Only the chapter page carries it,
-	/// which is why requesting pages has to read one.
+	// the image paths are encrypted with this, and only the chapter page carries it
 	pub uuid: Option<String>,
-	/// Host the chapter's images are served from.
 	#[serde(rename = "_b")]
 	pub base: Option<String>,
 }
 
-/// Response of the image endpoint, which hands out the page list as an obfuscated payload.
 #[derive(Deserialize)]
 pub struct ImagePayload {
 	pub d: String,
 }
 
-/// A page as listed in the decoded payload.
 #[derive(Deserialize)]
 pub struct PageImage {
 	pub order: Number,
-	/// Path the image is served at, encrypted. Entries also carry a `d` naming the same file on the
-	/// mirror the site keeps on google drive, which is left unread: not every entry holds one, so
-	/// reading from it would leave some chapters short of pages.
+	// the encrypted image path. entries also carry a `d` naming the same file on the google drive
+	// mirror, which is left unread: not every entry holds one
 	pub b: String,
 }
 
-/// A value the site gives as either a number or a string, depending on the entry.
 #[derive(Deserialize)]
 #[serde(untagged)]
 pub enum Number {
@@ -350,7 +326,7 @@ impl Number {
 	}
 }
 
-/// An entry of "/genres.json", used to build the genre filter.
+// "/genres.json"
 #[derive(Deserialize)]
 pub struct GenreEntry {
 	pub name: String,
