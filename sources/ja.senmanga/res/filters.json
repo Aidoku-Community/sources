@@ -1,0 +1,23 @@
+[
+	{
+		"type": "sort",
+		"id": "order",
+		"title": "並び替え",
+		"canAscend": false,
+		"options": ["人気", "タイトル", "更新順", "評価"]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "状態",
+		"options": ["全て", "連載中", "完結", "休載", "打ち切り"],
+		"ids": ["", "Ongoing", "Completed", "Hiatus", "Cancelled"]
+	},
+	{
+		"type": "select",
+		"id": "type",
+		"title": "タイプ",
+		"options": ["全て", "Manga", "Manhwa", "Manhua"],
+		"ids": ["", "Manga", "Manhwa", "Manhua"]
+	}
+]

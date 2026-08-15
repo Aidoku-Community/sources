@@ -1,15 +1,15 @@
 // a source made by @c0ntens
-use crate::models::*;
 use crate::CuuTruyen;
+use crate::{helpers::rewrite_storage_url, models::*};
 use aidoku::{
-	alloc::{string::ToString, vec, String, Vec},
+	BaseUrlProvider, Chapter, Home, HomeComponent, HomeLayout, HomePartialResult, Link, Listing,
+	ListingKind, Manga, MangaWithChapter, Result,
+	alloc::{String, Vec, string::ToString, vec},
 	imports::{
 		net::{Request, RequestError, Response},
 		std::send_partial_result,
 	},
 	prelude::*,
-	BaseUrlProvider, Chapter, Home, HomeComponent, HomeLayout, HomePartialResult, Link, Listing,
-	ListingKind, Manga, MangaWithChapter, Result,
 };
 
 impl Home for CuuTruyen {
@@ -80,7 +80,7 @@ impl Home for CuuTruyen {
 				Some(
 					res.ok()?
 						.get_json::<CuuSearchResponse<CuuMangaDetails>>()
-						.unwrap()
+						.ok()?
 						.data
 						.into(),
 				)
@@ -119,7 +119,7 @@ impl Home for CuuTruyen {
 					manga: Manga {
 						key: value.id.to_string(),
 						title: value.name.to_string(),
-						cover: value.cover_url.clone(),
+						cover: value.cover_url.as_ref().map(rewrite_storage_url),
 						..Default::default()
 					},
 					chapter: Chapter {

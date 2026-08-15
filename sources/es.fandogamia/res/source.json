@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "es.fandogamia",
+		"name": "Fandogamia",
+		"version": 1,
+		"url": "https://fandogamia.com/fanternet",
+		"contentRating": 1,
+		"languages": [
+			"es"
+		],
+		"minAppVersion": "0.7.1"
+	}
+}

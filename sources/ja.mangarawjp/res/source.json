@@ -2,9 +2,12 @@
 	"info": {
 		"id": "ja.mangarawjp",
 		"name": "MangaRawJP",
-		"version": 1,
+		"version": 2,
 		"url": "https://mangarawjp.tv",
 		"contentRating": 2,
 		"languages": ["ja"]
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true
 	}
 }
