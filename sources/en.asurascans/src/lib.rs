@@ -199,16 +199,16 @@ impl Source for AsuraScans {
 					.filter_map(|obj| {
 						let obj = obj[1].as_object()?;
 
-						let locked =
-							!is_subscribed && obj["is_premium"][1].as_bool().unwrap_or_default();
+						let locked = !is_subscribed
+							&& obj.get("is_premium")?[1].as_bool().unwrap_or_default();
 						if skip_locked && locked {
 							return None;
 						}
 
-						let chapter_number = obj["number"][1].as_f64().map(|f| f as f32)?;
+						let chapter_number = obj.get("number")?[1].as_f64().map(|f| f as f32)?;
 						let key = chapter_number.to_string();
 						const DATE_FORMAT: &str = "yyyy-MM-dd'T'HH:mm:ss'Z'";
-						let date_uploaded = obj["published_at"][1].as_str().and_then(|s| {
+						let date_uploaded = obj.get("published_at")?[1].as_str().and_then(|s| {
 							if let Some((before_dot, _)) = s.split_once('.') {
 								parse_date(format!("{before_dot}Z"), DATE_FORMAT)
 							} else {
