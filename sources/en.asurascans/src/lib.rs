@@ -142,7 +142,7 @@ impl Source for AsuraScans {
 				.map(|els| els.filter_map(|el| el.text()).collect());
 			manga.status = html
 				.select_first(
-					"div.flex.gap-3.pt-4.border-t > div:nth-child(2) > div > span.text-base",
+					"div.flex.gap-3.pt-4.border-t > div:nth-child(1) > div > span.text-base",
 				)
 				.and_then(|el| el.text())
 				.map(|s| match s.as_str() {
@@ -200,7 +200,7 @@ impl Source for AsuraScans {
 						let obj = obj[1].as_object()?;
 
 						let locked =
-							!is_subscribed && obj["is_locked"][1].as_bool().unwrap_or_default();
+							!is_subscribed && obj["is_premium"][1].as_bool().unwrap_or_default();
 						if skip_locked && locked {
 							return None;
 						}
