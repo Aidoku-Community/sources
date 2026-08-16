@@ -142,7 +142,7 @@ impl Source for AsuraScans {
 				.map(|els| els.filter_map(|el| el.text()).collect());
 			manga.status = html
 				.select_first(
-					"div.flex.gap-3.pt-4.border-t > div:nth-child(1) > div > span.text-base",
+					"div.flex.gap-3.pt-4.border-t > div:nth-child(2) > div > span.text-base",
 				)
 				.and_then(|el| el.text())
 				.map(|s| match s.as_str() {
@@ -178,56 +178,53 @@ impl Source for AsuraScans {
 		}
 
 		if needs_chapters {
-			let island_props = html
-				.select_first(
-					"astro-island[component-url*=ChapterListReact], astro-island[opts*=ChapterListReact]",
-				)
-				.and_then(|el| el.attr("props"))
-				.ok_or_else(|| error!("Missing astro-island"))?;
+			// New HTML format: chapters are rendered as <a> tags, no more astro-island
+			// Filter out "Start Reading" buttons by selecting only chapter list items
+			let chapters = html
+				.select("a[href*='/chapter/'][data-astro-prefetch], a[href*='/chapter/'].group")
+				.map(|els| {
+					els.filter_map(|el| {
+						let href = el.attr("abs:href")?;
+					
+						// Extract chapter number from URL
+						let chapter_str = href.split("/chapter/").nth(1)?.split('?').next()?;
+						let chapter_number = chapter_str.parse::<f32>().ok()?;
 
-			let json = serde_json::from_str::<serde_json::Value>(&island_props)?;
-			let chapters_arr = json["chapters"][1]
-				.as_array()
-				.ok_or_else(|| error!("Missing chapters"))?;
+						// Date parsing
+						let date_str = el
+							.select_first("span.text-white\\/40, span.text-sm")
+							.and_then(|e| e.text());
 
-			let skip_locked = !defaults_get::<bool>("showLocked").unwrap_or(true);
-			let is_subscribed = auth::is_subscribed();
-
-			manga.chapters = Some(
-				chapters_arr
-					.iter()
-					.filter_map(|obj| {
-						let obj = obj[1].as_object()?;
-
-						let locked = !is_subscribed
-							&& obj.get("is_premium")?[1].as_bool().unwrap_or_default();
-						if skip_locked && locked {
-							return None;
-						}
-
-						let chapter_number = obj.get("number")?[1].as_f64().map(|f| f as f32)?;
-						let key = chapter_number.to_string();
-						const DATE_FORMAT: &str = "yyyy-MM-dd'T'HH:mm:ss'Z'";
-						let date_uploaded = obj.get("published_at")?[1].as_str().and_then(|s| {
-							if let Some((before_dot, _)) = s.split_once('.') {
-								parse_date(format!("{before_dot}Z"), DATE_FORMAT)
-							} else {
-								parse_date(s, DATE_FORMAT)
+						let date_uploaded = date_str.and_then(|s| {
+							const DATE_FORMATS: &[&str] = &[
+								"MMM dd, yyyy",
+								"MMM d, yyyy",
+								"yyyy-MM-dd",
+							];
+							for format in DATE_FORMATS {
+								if let Some(ts) = parse_date(&s, format) {
+									return Some(ts);
+								}
 							}
+							None
 						});
-						let url = helpers::get_chapter_url(&key, &manga.key);
+
+						let url = helpers::get_chapter_url(chapter_str, &manga.key);
 
 						Some(Chapter {
-							key,
+							key: chapter_str.to_string(),
 							chapter_number: Some(chapter_number),
 							date_uploaded,
 							url: Some(url),
-							locked,
+							locked: false, // Can't detect from HTML easily
 							..Default::default()
 						})
 					})
-					.collect(),
-			);
+					.collect()
+				})
+				.unwrap_or_default();
+
+			manga.chapters = Some(chapters);
 		}
 
 		Ok(manga)
@@ -281,13 +278,19 @@ impl Source for AsuraScans {
 		}
 		let html = req.html()?;
 
-		let island_props = html
+		// Try to get page data from astro-island
+		let island_result = html
 			.select_first(
 				"astro-island[component-url*=ChapterReader], astro-island[opts*=ChapterReader]",
 			)
-			.and_then(|el| el.attr("props"))
-			.ok_or_else(|| error!("Missing astro-island"))?;
-
+			.and_then(|el| el.attr("props"));
+	
+		// If astro-island not found, return empty pages instead of crashing
+		if island_result.is_none() {
+			return Ok(Vec::new());
+		}
+	
+		let island_props = island_result.unwrap();
 		let json = serde_json::from_str::<serde_json::Value>(&island_props)?;
 
 		let page_arr = json["pages"][1]
