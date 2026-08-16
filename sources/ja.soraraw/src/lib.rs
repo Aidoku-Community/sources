@@ -1,9 +1,15 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Listing,
-	ListingProvider, Manga, MangaPageResult, Page, PageContent, Result, SelectFilter, Source,
-	alloc::{String, Vec, borrow::Cow, vec},
-	imports::{net::Request, std::send_partial_result},
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, ImageResponse,
+	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext,
+	PageImageProcessor, Result, SelectFilter, Source,
+	alloc::{String, Vec, borrow::Cow, string::ToString, vec},
+	canvas::Rect,
+	imports::{
+		canvas::{Canvas, ImageRef},
+		net::Request,
+		std::send_partial_result,
+	},
 	prelude::*,
 };
 
@@ -23,8 +29,6 @@ const PATH_SECRET: &[u8] = b"202508055d0db38bae2e86cc41649f90";
 // a strip holds a handful of images at most, a scanned chapter one per page, so this keeps the
 // request that measures them off the common case
 const STRIP_IMAGE_LIMIT: usize = 4;
-// the texture size the gpu takes
-const MAX_DRAWABLE_HEIGHT: u32 = 16384;
 // enough to reach the header unless the file leads with a large colour profile
 const HEADER_BYTES: usize = 16 * 1024;
 // the site lists over 1800 genres, sorted by how many series they hold
@@ -178,21 +182,34 @@ impl Source for Soraraw {
 		// chapters number an inserted page as a fraction, so the order can't be taken as an integer
 		urls.sort_by(|(left, _), (right, _)| left.total_cmp(right));
 
-		// a chapter holding few enough images to be a strip gets measured before it's handed over,
-		// so one too tall to draw fails with a reason instead of turning up blank
-		if urls.len() <= STRIP_IMAGE_LIMIT {
-			for (_, url) in &urls {
-				check_drawable(url)?;
+		// a chapter holding few enough images to be a strip gets measured before it's handed over:
+		// some of them stack every page into one image, which the reader is handed a slice at a time
+		let measure = urls.len() <= STRIP_IMAGE_LIMIT;
+		let mut pages = Vec::with_capacity(urls.len());
+		for (_, url) in urls {
+			let slices = if measure { stacked_page_count(&url) } else { 1 };
+			if slices < 2 {
+				pages.push(Page {
+					content: PageContent::url(url),
+					..Default::default()
+				});
+				continue;
+			}
+			for slice in 0..slices {
+				let mut context = PageContext::new();
+				context.insert(String::from("slice"), slice.to_string());
+				context.insert(String::from("slices"), slices.to_string());
+				// the app caches a processed page under its url and a processor id that holds no
+				// context, so slices of one image collide and the reader repeats whichever landed
+				// first. the host ignores the query, which is only here to tell them apart
+				pages.push(Page {
+					content: PageContent::url_context(format!("{url}?slice={slice}"), context),
+					..Default::default()
+				});
 			}
 		}
 
-		Ok(urls
-			.into_iter()
-			.map(|(_, url)| Page {
-				content: PageContent::url(url),
-				..Default::default()
-			})
-			.collect())
+		Ok(pages)
 	}
 }
 
@@ -251,6 +268,46 @@ impl Soraraw {
 				.is_some_and(|pagination| pagination.has_next_page()),
 			entries: data.results.into_iter().map(Manga::from).collect(),
 		})
+	}
+}
+
+impl PageImageProcessor for Soraraw {
+	fn process_page_image(
+		&self,
+		response: ImageResponse,
+		context: Option<PageContext>,
+	) -> Result<ImageRef> {
+		let Some(context) = context else {
+			return Ok(response.image);
+		};
+		let number = |key: &str| context.get(key).and_then(|value| value.parse::<u32>().ok());
+		let (Some(slice), Some(slices)) = (number("slice"), number("slices")) else {
+			return Ok(response.image);
+		};
+		if slices < 2 || slice >= slices {
+			return Ok(response.image);
+		}
+
+		let width = response.image.width();
+		let height = response.image.height();
+		let slice_height = height / slices as f32;
+		let top = slice_height * slice as f32;
+		// the last page takes whatever the division left over
+		let slice_height = if slice + 1 == slices {
+			height - top
+		} else {
+			slice_height
+		};
+
+		// the canvas has to match the slice: app versions before the AidokuRunner fix in e44d774
+		// placed the destination rect off any canvas shorter than the image, drawing nothing
+		let mut canvas = Canvas::new(width, slice_height);
+		canvas.copy_image(
+			&response.image,
+			Rect::new(0.0, top, width, slice_height),
+			Rect::new(0.0, 0.0, width, slice_height),
+		);
+		Ok(canvas.get_image())
 	}
 }
 
@@ -341,4 +398,10 @@ impl DeepLinkHandler for Soraraw {
 	}
 }
 
-register_source!(Soraraw, ListingProvider, DynamicFilters, DeepLinkHandler);
+register_source!(
+	Soraraw,
+	ListingProvider,
+	DynamicFilters,
+	DeepLinkHandler,
+	PageImageProcessor
+);

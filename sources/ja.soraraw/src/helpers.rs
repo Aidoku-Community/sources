@@ -10,7 +10,7 @@ use aidoku::{
 };
 use serde::de::DeserializeOwned;
 
-use crate::{BASE_URL, HEADER_BYTES, MAX_DRAWABLE_HEIGHT, THUMBNAIL_URL, models::NextData};
+use crate::{BASE_URL, HEADER_BYTES, THUMBNAIL_URL, models::NextData};
 
 const BLOCK_SIZE: usize = 16;
 
@@ -67,31 +67,35 @@ pub fn strip_html(text: &str) -> String {
 		.into()
 }
 
-fn image_height(url: &str) -> Option<u32> {
+fn image_size(url: &str) -> Option<(u32, u32)> {
 	let range = format!("bytes=0-{}", HEADER_BYTES - 1);
 	let head = Request::get(url)
 		.ok()?
 		.header("Range", range.as_str())
 		.data()
 		.ok()?;
-	jpeg_height(&head)
+	jpeg_size(&head)
 }
 
-// a few chapters ship as one image stacking every page, up to 49152 pixels tall. slicing those
-// isn't possible yet: `Canvas::copy_image` and `draw_image` place the destination rect off the
-// canvas when it is shorter than the source, so every slice comes back a flat colour
-// (Aidoku/AidokuRunner#3). failing beats handing back a blank page
-pub fn check_drawable(url: &str) -> Result<()> {
-	match image_height(url) {
-		Some(height) if height > MAX_DRAWABLE_HEIGHT => bail!(
-			"{url} stands {height} pixels tall, past the {MAX_DRAWABLE_HEIGHT} the reader can draw"
-		),
-		_ => Ok(()),
+// a few chapters ship as one image stacking every page of the chapter, up to 49152 pixels tall.
+// the scans are b5, so one page stands its width times √2, and every stacked chapter measured
+// divides into a whole number of them
+pub fn stacked_page_count(url: &str) -> u32 {
+	let Some((width, height)) = image_size(url) else {
+		return 1;
+	};
+	let page_height = width as f32 * core::f32::consts::SQRT_2;
+	// a width of zero divides into infinity, which saturates to u32::MAX pages
+	if page_height < 1.0 {
+		return 1;
 	}
+	// `f32::round` is not in core
+	let count = ((height as f32 / page_height) + 0.5) as u32;
+	count.max(1)
 }
 
-// only jpeg needs measuring: webp caps a side at 16383 pixels, which the reader still draws
-pub fn jpeg_height(head: &[u8]) -> Option<u32> {
+// the site labels every image .webp and writes jpeg into it, so the magic bytes are what decides
+pub fn jpeg_size(head: &[u8]) -> Option<(u32, u32)> {
 	fn length(head: &[u8], at: usize) -> Option<usize> {
 		Some(usize::from(u16::from_be_bytes([
 			*head.get(at)?,
@@ -112,7 +116,9 @@ pub fn jpeg_height(head: &[u8]) -> Option<u32> {
 			0x01 | 0xD0..=0xD9 => index += 2,
 			// a frame header, which opens with the precision and then the size of the image
 			0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF => {
-				return length(head, index + 5)?.try_into().ok();
+				let height = length(head, index + 5)?.try_into().ok()?;
+				let width = length(head, index + 7)?.try_into().ok()?;
+				return Some((width, height));
 			}
 			_ => index += 2 + length(head, index + 2)?,
 		}

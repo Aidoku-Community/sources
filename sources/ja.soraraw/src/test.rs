@@ -1,5 +1,5 @@
 use super::*;
-use aidoku::{AidokuError, ContentRating, FilterKind, MangaStatus, Viewer};
+use aidoku::{ContentRating, FilterKind, MangaStatus, Viewer};
 use aidoku_test::aidoku_test;
 
 const MANGA_KEY: &str = "majo-to-youhei-57539";
@@ -37,6 +37,21 @@ fn page_urls(pages: &[Page]) -> Vec<&String> {
 				panic!("expected a page url");
 			};
 			url
+		})
+		.collect()
+}
+
+fn page_slices(pages: &[Page]) -> Vec<(&String, &String, &String)> {
+	pages
+		.iter()
+		.map(|page| {
+			let PageContent::Url(url, Some(context)) = &page.content else {
+				panic!("expected a page url carrying a slice");
+			};
+			let (Some(slice), Some(slices)) = (context.get("slice"), context.get("slices")) else {
+				panic!("expected a slice and a slice count");
+			};
+			(url, slice, slices)
 		})
 		.collect()
 }
@@ -325,10 +340,10 @@ fn test_page_list() {
 	);
 }
 
-// chapters 66 to 70 are each served as one image stacking all 24 pages, 49152 pixels tall.
-// reaching the refusal also proves the decrypted path resolved and its header read back
+// chapters 66 to 70 are each served as one image stacking all 24 pages, 1450x49152. splitting it
+// also proves the decrypted path resolved and its header read back
 #[aidoku_test]
-fn test_stacked_chapter_is_refused() {
+fn test_stacked_chapter_is_split() {
 	let manga = Manga {
 		key: String::from(PAGED_VERTICAL_KEY),
 		..Default::default()
@@ -344,18 +359,29 @@ fn test_stacked_chapter_is_refused() {
 		.find(|chapter| chapter.chapter_number == Some(70.0))
 		.expect("chapter 70");
 
-	let Err(AidokuError::Message(reason)) = Soraraw.get_page_list(manga, chapter) else {
-		panic!("an undrawable strip has to fail rather than hand back a blank page");
-	};
-	// the image measured 1450x49152 against the 1448x2048 the rest of the series holds
-	assert!(reason.contains(".jpg"), "{reason}");
-	assert!(reason.contains("49152"), "{reason}");
+	let pages = Soraraw.get_page_list(manga, chapter).expect("pages");
+	// 49152 / (1450 × √2) lands on the 24 pages the rest of the series holds one image each
+	let slices = page_slices(&pages);
+	assert_eq!(slices.len(), 24, "got {} pages", slices.len());
+	for (index, (url, slice, count)) in slices.iter().enumerate() {
+		let (image, query) = url.split_once('?').expect("a slice query");
+		assert!(image.ends_with(".jpg"), "{image} is not a jpg");
+		assert_eq!(
+			image,
+			slices[0].0.split_once('?').expect("a slice query").0,
+			"the slices come off one image"
+		);
+		// the urls have to differ, or the app hands the same processed slice to every page
+		assert_eq!(query, format!("slice={index}"), "{url} is out of order");
+		assert_eq!(slice.as_str(), index.to_string(), "{slice} is out of order");
+		assert_eq!(count.as_str(), "24", "{count} slices");
+	}
 }
 
 // not one series' quirk: this one holds 21 pages in a single 800x24003 jpg. the chapter comes
 // from the chapter list rather than built by hand, since its url carries the key to the paths
 #[aidoku_test]
-fn test_stacked_chapter_of_another_series_is_refused() {
+fn test_stacked_chapter_of_another_series_is_split() {
 	let manga = Manga {
 		key: String::from(JPG_MANGA_KEY),
 		..Default::default()
@@ -371,11 +397,9 @@ fn test_stacked_chapter_of_another_series_is_refused() {
 		.find(|chapter| chapter.key == JPG_CHAPTER_KEY)
 		.expect("the jpg chapter");
 
-	let Err(AidokuError::Message(reason)) = Soraraw.get_page_list(manga, chapter) else {
-		panic!("an undrawable strip has to fail rather than hand back a blank page");
-	};
-	assert!(reason.contains(".jpg"), "{reason}");
-	assert!(reason.contains("24003"), "{reason}");
+	let pages = Soraraw.get_page_list(manga, chapter).expect("pages");
+	let slices = page_slices(&pages);
+	assert_eq!(slices.len(), 21, "got {} pages", slices.len());
 }
 
 // a chapter numbered "74.2" has to survive the round trip into a page request
@@ -516,18 +540,18 @@ fn test_decrypt_path() {
 	assert_eq!(decrypt_path("QUJD", uuid, PATH_SECRET), None);
 }
 
-// the header of a jpeg is what refusing an undrawable chapter rests on, and a frame header sits
-// behind however many segments the encoder wrote ahead of it
+// the header of a jpeg is what counting the pages of a stacked chapter rests on, and a frame
+// header sits behind however many segments the encoder wrote ahead of it
 #[aidoku_test]
-fn test_jpeg_height() {
+fn test_jpeg_size() {
 	let head = [
 		0xFF, 0xD8, // start of image
 		0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00, // an app segment to skip over
 		0xFF, 0xC0, 0x00, 0x11, 0x08, 0xC0, 0x00, 0x05, 0xAA, // a frame of 1450 x 49152
 	];
-	assert_eq!(jpeg_height(&head), Some(49152));
+	assert_eq!(jpeg_size(&head), Some((1450, 49152)));
 
 	// anything that isn't a jpeg, and a header cut off ahead of the frame
-	assert_eq!(jpeg_height(b"RIFF\0\0\0\0WEBPVP8 "), None);
-	assert_eq!(jpeg_height(&head[..8]), None);
+	assert_eq!(jpeg_size(b"RIFF\0\0\0\0WEBPVP8 "), None);
+	assert_eq!(jpeg_size(&head[..8]), None);
 }
