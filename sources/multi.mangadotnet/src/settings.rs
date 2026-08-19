@@ -75,7 +75,7 @@ pub fn reset_filters() {
 pub fn set_next_cursor(cursor: Option<String>) {
 	defaults_set(
 		CURSOR_DATA_KEY,
-		cursor.map_or(DefaultValue::Null, |c| DefaultValue::String(c)),
+		cursor.map_or(DefaultValue::Null, DefaultValue::String),
 	);
 }
 
