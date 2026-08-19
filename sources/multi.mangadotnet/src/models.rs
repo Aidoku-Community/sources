@@ -66,10 +66,14 @@ pub struct ViewAllPageData {
 }
 
 #[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SearchPage {
+	pub payload: Option<SearchPayload>,
+}
+
+#[derive(Deserialize)]
+pub struct SearchPayload {
+	pub manga_list: Option<Vec<ShortMangaItem>>,
 	pub pagination: Option<Pagination>,
-	pub results: Option<Vec<ShortMangaItem>>,
 }
 
 #[derive(Deserialize)]
@@ -92,6 +96,7 @@ pub struct ListingSectionData {
 pub struct Pagination {
 	pub current_page: i32,
 	pub total_pages: i32,
+	pub next_cursor: Option<String>,
 }
 
 #[derive(Deserialize)]

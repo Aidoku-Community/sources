@@ -40,8 +40,6 @@ impl Source for Mangadotnet {
 			query_parameters.push("search", query.as_deref());
 		}
 
-		query_parameters.push("page", Some(&format!("{page}")));
-
 		for filter in filters {
 			match filter {
 				FilterValue::Text { id, value } => {
@@ -78,13 +76,28 @@ impl Source for Mangadotnet {
 					included,
 					excluded,
 				} => {
-					for include_id in included {
-						query_parameters.push(&id, Some(&include_id));
-					}
+					if page == 1 && (id == "genre" || id == "origin") {
+						for include_id in included {
+							query_parameters.push(&id, Some(&include_id));
+						}
 
-					for excluded_id in excluded {
-						let id = format!("-{excluded_id}");
-						query_parameters.push(&id, Some(&id));
+						for excluded_id in excluded {
+							let id = format!("-{excluded_id}");
+							query_parameters.push(&id, Some(&id));
+						}
+					} else {
+						let mut items = Vec::new();
+
+						for include_id in included {
+							items.push(include_id)
+						}
+
+						for excluded_id in excluded {
+							let id = format!("-{excluded_id}");
+							items.push(id)
+						}
+
+						query_parameters.push(&id, Some(&items.join(",")));
 					}
 				}
 
@@ -92,25 +105,57 @@ impl Source for Mangadotnet {
 			}
 		}
 
-		if !hide_nsfw() {
-			query_parameters.push("adult", Some("both"));
+		if page == 1 {
+			query_parameters.push("_routes", Some("pages/SearchPage"));
+
+			let search_response: SearchPage = get_page_container_json_data(&format!(
+				"{BASE_URL}/search.data?{query_parameters}"
+			))?;
+
+			if let Some(payload) = search_response.payload {
+				let mut has_next_page = false;
+
+				if let Some(pagination) = payload.pagination {
+					has_next_page = pagination.current_page < pagination.total_pages;
+					set_next_cursor(pagination.next_cursor);
+				} else {
+					set_next_cursor(None);
+				}
+
+				return Ok(MangaPageResult {
+					entries: payload
+						.manga_list
+						.map(|results| results.into_iter().map(Into::into).collect())
+						.unwrap_or_default(),
+					has_next_page,
+				});
+			}
+		} else {
+			// Requires new search api, or it doesn't work...
+			query_parameters.push("cursor", get_next_cursor().as_deref());
+
+			let payload: SearchPayload =
+				get_json_data(&format!("{BASE_URL}/api/search?{query_parameters}"))?;
+
+			let mut has_next_page = false;
+
+			if let Some(pagination) = payload.pagination {
+				has_next_page = pagination.current_page < pagination.total_pages;
+				set_next_cursor(pagination.next_cursor);
+			} else {
+				set_next_cursor(None);
+			}
+
+			return Ok(MangaPageResult {
+				entries: payload
+					.manga_list
+					.map(|results| results.into_iter().map(Into::into).collect())
+					.unwrap_or_default(),
+				has_next_page,
+			});
 		}
 
-		query_parameters.push("_routes", Some("pages/SearchPage"));
-
-		let search_response: SearchPage =
-			get_page_container_json_data(&format!("{BASE_URL}/search.data?{query_parameters}"))?;
-
-		Ok(MangaPageResult {
-			entries: search_response
-				.results
-				.map(|results| results.into_iter().map(Into::into).collect())
-				.unwrap_or_default(),
-			has_next_page: search_response
-				.pagination
-				.map(|p| p.current_page < p.total_pages)
-				.unwrap_or_default(),
-		})
+		Ok(MangaPageResult::default())
 	}
 
 	fn get_manga_update(
@@ -488,6 +533,15 @@ impl DeepLinkHandler for Mangadotnet {
 						}
 					}
 					None
+				}
+
+				"volume" => {
+					let json: MangaPage =
+						get_json_data(&format!("{BASE_URL}/api/uploads/{id}/images"))?;
+					return Ok(Some(DeepLinkResult::Chapter {
+						manga_key: json.manga.id.to_string(),
+						key: json.chapter.id.to_string(),
+					}));
 				}
 
 				_ => None,

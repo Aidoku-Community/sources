@@ -18,6 +18,8 @@ pub const NOTIFICATION_RESET_DEDUPED_GROUP_KEY: &str = "resetDeduplicateGroupLis
 const DEFAULT_CONTENT_TYPES_KEY: &str = "contentTypes";
 pub const NOTIFICATION_RESET_FILTERS_KEY: &str = "resetFilters";
 
+const CURSOR_DATA_KEY: &str = "cursorData";
+
 /* Not in use yet, but maybe we need to do some mapping once we get enough data on how the language field works.
 pub fn get_languages() -> Result<Vec<String>> {
 	defaults_get::<Vec<String>>(LANGUAGES_KEY)
@@ -68,4 +70,15 @@ pub fn get_default_content_types() -> Option<String> {
 
 pub fn reset_filters() {
 	defaults_set(DEFAULT_CONTENT_TYPES_KEY, DefaultValue::Null)
+}
+
+pub fn set_next_cursor(cursor: Option<String>) {
+	defaults_set(
+		CURSOR_DATA_KEY,
+		cursor.map_or(DefaultValue::Null, |c| DefaultValue::String(c)),
+	);
+}
+
+pub fn get_next_cursor() -> Option<String> {
+	defaults_get(CURSOR_DATA_KEY)
 }
