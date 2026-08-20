@@ -9,7 +9,7 @@ use aidoku::{
 	imports::std::send_partial_result,
 	prelude::*,
 };
-use core::{cmp::*, ops::Deref};
+use core::{cell::RefCell, cmp::*, ops::Deref};
 
 mod helpers;
 mod models;
@@ -21,11 +21,15 @@ use settings::*;
 
 const BASE_URL: &str = "https://mangadot.net";
 
-struct Mangadotnet;
+struct Mangadotnet {
+	cursor: RefCell<Option<String>>,
+}
 
 impl Source for Mangadotnet {
 	fn new() -> Self {
-		Self
+		Self {
+			cursor: RefCell::new(None),
+		}
 	}
 
 	fn get_search_manga_list(
@@ -117,9 +121,9 @@ impl Source for Mangadotnet {
 
 				if let Some(pagination) = payload.pagination {
 					has_next_page = pagination.current_page < pagination.total_pages;
-					set_next_cursor(pagination.next_cursor);
+					*self.cursor.borrow_mut() = pagination.next_cursor;
 				} else {
-					set_next_cursor(None);
+					*self.cursor.borrow_mut() = None;
 				}
 
 				return Ok(MangaPageResult {
@@ -132,7 +136,7 @@ impl Source for Mangadotnet {
 			}
 		} else {
 			// Requires new search api, or it doesn't work...
-			query_parameters.push("cursor", get_next_cursor().as_deref());
+			query_parameters.push("cursor", self.cursor.borrow().as_deref());
 
 			let payload: SearchPayload =
 				get_json_data(&format!("{BASE_URL}/api/search?{query_parameters}"))?;
@@ -141,9 +145,9 @@ impl Source for Mangadotnet {
 
 			if let Some(pagination) = payload.pagination {
 				has_next_page = pagination.current_page < pagination.total_pages;
-				set_next_cursor(pagination.next_cursor);
+				*self.cursor.borrow_mut() = pagination.next_cursor;
 			} else {
-				set_next_cursor(None);
+				*self.cursor.borrow_mut() = None;
 			}
 
 			return Ok(MangaPageResult {
