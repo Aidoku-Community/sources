@@ -1,11 +1,11 @@
-use crate::{helpers, models::*, Params};
+use crate::{Params, helpers, models::*};
 use aidoku::{
-	alloc::{string::ToString, vec, String, Vec},
+	Chapter, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue, HomeLayout, Manga,
+	MangaPageResult, Page, PageContent, PageContext, Result,
+	alloc::{String, Vec, string::ToString, vec},
 	helpers::{element::ElementHelpers, string::StripPrefixOrSelf, uri::QueryParameters},
 	imports::{html::Html, net::Request, std::send_partial_result},
 	prelude::*,
-	Chapter, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue, HomeLayout, Manga,
-	MangaPageResult, Page, PageContent, PageContext, Result,
 };
 
 const PER_PAGE: i32 = 18;
@@ -125,13 +125,7 @@ pub trait Impl {
 			.send()?;
 		let data = response.get_json::<ChapterResponse>()?;
 
-		if let Some(content) = data.chapter.content.and_then(|content| {
-			if content.is_empty() {
-				None
-			} else {
-				Some(content)
-			}
-		}) {
+		if let Some(content) = data.chapter.content.filter(|content| !content.is_empty()) {
 			// text content
 			let text = Html::parse_fragment(content)?
 				.select_first("body")
@@ -237,6 +231,17 @@ pub trait Impl {
 						Some(parent)
 					}
 				})
+				.and_then(|parent| {
+					let new_parent = parent.parent();
+					if new_parent
+						.as_ref()
+						.is_some_and(|p| p.tag_name().as_deref() == Some("astro-island"))
+					{
+						new_parent
+					} else {
+						Some(parent)
+					}
+				})
 				.and_then(|parent| parent.prev())
 				.and_then(|sibling| sibling.select_first("h1"))
 				.and_then(|h1| h1.text());
@@ -294,8 +299,13 @@ pub trait Impl {
 				{
 					let title = grid
 						.prev()
-						.and_then(|sibling| sibling.select_first("h1"))
-						.and_then(|h1| h1.text());
+						.or_else(|| grid.parent().and_then(|p| p.prev()))
+						.and_then(|sibling| {
+							sibling
+								.select_first("h1")
+								.or_else(|| sibling.select_first("h2"))
+						})
+						.and_then(|h| h.text());
 					components.push(HomeComponent {
 						title,
 						subtitle: None,
@@ -312,7 +322,7 @@ pub trait Impl {
 										Manga {
 											key,
 											title: el
-												.select_first("h1, a > p")
+												.select_first("h1, a > p, div.font-bold.text-base")
 												.and_then(|h1| h1.text())
 												.or_else(|| link.attr("title"))
 												.unwrap_or_default(),
