@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.hivescans",
 		"name": "Hive Scans",
-		"version": 1,
+		"version": 2,
 		"url": "https://hivetoons.org",
 		"contentRating": 0,
 		"languages": ["en"]
