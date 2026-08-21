@@ -172,47 +172,44 @@ pub fn base_url_join(uri: &str) -> String {
 
 fn is_official_like(chapter: &MangaChapter) -> bool {
 	let official_groups_names = [
-		"Official",
-		"Official?",
-		"Animate International",
-		"Comikey",
-		"Dark Horse Manga",
-		"FAKKU",
-		"J-Novel Club",
-		"K-Manga",
-		"K Manga",
-		"Kodansha USA",
-		"Kodansha Comics",
-		"Manga Plus",
-		"MangaPlus",
-		"Manga UP!",
-		"One Peace Books",
-		"Seven Seas Entertainment",
-		"Square Enix Manga",
-		"Viz Manga",
-		"VIZ Media",
-		"VIZ Shonen Jump",
-		"Yen Press",
-		"Manta",
-		"Tapas",
-		"TappyToon",
-		"LINE Webtoon",
-		"Toomics",
+		"official",
+		"official?",
+		"animate international",
+		"comikey",
+		"dark horse manga",
+		"fakku",
+		"j-novel club",
+		"k-manga",
+		"k manga",
+		"kodansha usa",
+		"kodansha comics",
+		"manga plus",
+		"mangaplus",
+		"manga up!",
+		"one peace books",
+		"seven seas entertainment",
+		"square enix manga",
+		"viz manga",
+		"viz media",
+		"viz shonen jump",
+		"yen press",
+		"manta",
+		"tapas",
+		"tappytoon",
+		"line webtoon",
+		"toomics",
 	];
 
 	let group_ids = chapter.groups.as_ref().is_some_and(|groups| {
-		groups.iter().any(|g| {
-			official_groups_names
-				.map(|name| name.to_lowercase())
-				.contains(&g.name.to_lowercase())
-		})
+		groups
+			.iter()
+			.any(|g| official_groups_names.contains(&g.name.to_lowercase().as_str()))
 	});
 
-	let scanlator_name = chapter.scanlator_name.as_ref().is_some_and(|name| {
-		official_groups_names
-			.iter()
-			.any(|s| s.to_lowercase() == name.to_lowercase())
-	});
+	let scanlator_name = chapter
+		.scanlator_name
+		.as_ref()
+		.is_some_and(|name| official_groups_names.contains(&name.to_lowercase().as_str()));
 
 	group_ids || scanlator_name
 }
