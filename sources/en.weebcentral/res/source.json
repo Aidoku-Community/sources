@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.weebcentral",
 		"name": "Weeb Central",
-		"version": 7,
+		"version": 8,
 		"url": "https://weebcentral.com",
 		"contentRating": 1,
 		"languages": ["en"]
