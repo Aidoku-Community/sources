@@ -7,6 +7,7 @@ use aidoku::{
 	prelude::*,
 };
 use core::fmt::{Display, Formatter, Result as FmtResult};
+use regex::Regex;
 
 #[derive(Clone)]
 pub enum Url {
@@ -46,12 +47,16 @@ impl Url {
 		let mut request = Request::get(url)?
 			.header("Origin", BASE_URL)
 			.header("Accept-Language", "zh-CN,zh;q=0.9")
-			.header("Cookie", "night=0");
+			.header("Cookie", "night=1");
 
-		// Add special referer for search requests
+		// Search requires a jieqi search ticket (mirrors mihon's ensureSearchTicket)
+		// plus a referer pointing at the search form.
 		if let Url::Search { query, .. } = self {
+			let ticket = ensure_search_ticket();
 			let referer = format!("{}/search.html?searchkey={}", BASE_URL, query);
-			request = request.header("Referer", &referer);
+			request = request
+				.header("Referer", &referer)
+				.header("Cookie", &ticket);
 		}
 
 		Ok(request)
@@ -251,16 +256,12 @@ impl Display for Url {
 			} => {
 				write!(
 					f,
-					"{}/filter/{}_{}_{}_{}_{}_{}_{}_{}_{}_0.html",
+					"{}/filter/{}_{}_{}_{}_{}_{}_{}_{}_{}_0_0_0.html",
 					BASE_URL, order, tagid, isfull, anime, rgroupid, sortid, update, quality, page
 				)
 			}
 			Url::Search { query, page } => {
-				if *page == 1 {
-					write!(f, "{}/search.html?searchkey={}", BASE_URL, query)
-				} else {
-					write!(f, "{}/search/{}_{}.html", BASE_URL, query, page)
-				}
+				write!(f, "{}/search/{}_{}.html", BASE_URL, query, page)
 			}
 			Url::Author { author } => {
 				write!(f, "{}/author/{}.html", BASE_URL, author)
@@ -279,4 +280,60 @@ impl Display for Url {
 			}
 		}
 	}
+}
+
+/// Append `name=value` pairs parsed from a `Set-Cookie` (or inline
+/// `document.cookie="..."`) string into the running cookie header, skipping
+/// the `night` flag which is already managed separately.
+fn append_cookies(cookie: &mut String, set_cookie: &str) {
+	for part in set_cookie.split(',') {
+		let nv = part.split(';').next().unwrap_or("").trim();
+		if nv.is_empty() || !nv.contains('=') {
+			continue;
+		}
+		let name = match nv.split('=').next() {
+			Some(n) => n,
+			None => continue,
+		};
+		if name == "night" {
+			continue;
+		}
+		if !cookie.contains(&format!("{}=", name)) {
+			cookie.push_str("; ");
+			cookie.push_str(nv);
+		}
+	}
+}
+
+fn run_guard(path: &str, cookie: &mut String) {
+	let req = match Request::get(format!("{}{}", BASE_URL, path)) {
+		Ok(r) => r,
+		Err(_) => return,
+	}
+	.header("Origin", BASE_URL)
+	.header("Accept-Language", "zh-CN,zh;q=0.9")
+	.header("Cookie", cookie.as_str());
+	if let Ok(resp) = req.send() {
+		if let Some(sc) = resp.get_header("Set-Cookie") {
+			append_cookies(cookie, &sc);
+		}
+		if path.contains("search_guard=js")
+			&& let Ok(body) = resp.get_string()
+			&& let Ok(re) = Regex::new("cookie=\"(.*?)\";")
+			&& let Some(c) = re.captures(&body).and_then(|c| c.get(1))
+		{
+			append_cookies(cookie, c.as_str());
+		}
+	}
+}
+
+/// Mirror of mihon's `ensureSearchTicket`: visit the search guard pages to
+/// obtain the `jieqiSearchTicket` cookies, returning a ready-to-send
+/// `Cookie` header value (always starts with `night=1`).
+fn ensure_search_ticket() -> String {
+	let mut cookie = String::from("night=1");
+	run_guard("/search.html?search_guard=css", &mut cookie);
+	run_guard("/search.html?search_guard=js", &mut cookie);
+	run_guard("/search.html?search_guard=redeem", &mut cookie);
+	cookie
 }
