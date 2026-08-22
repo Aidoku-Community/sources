@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.novelbuddy",
 		"name": "NovelBuddy",
-		"version": 4,
+		"version": 5,
 		"url": "https://novelbuddy.me",
 		"contentRating": 1,
 		"languages": ["en"],

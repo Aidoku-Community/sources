@@ -62,7 +62,7 @@ pub struct TitleDetail {
 	#[serde(default)]
 	pub tags: Vec<NamedSlug>,
 	#[serde(default)]
-	pub is_adult: i32,
+	pub is_adult: bool,
 }
 
 #[derive(Deserialize)]
