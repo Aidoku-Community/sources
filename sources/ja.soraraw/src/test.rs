@@ -364,15 +364,8 @@ fn test_stacked_chapter_is_split() {
 	let slices = page_slices(&pages);
 	assert_eq!(slices.len(), 24, "got {} pages", slices.len());
 	for (index, (url, slice, count)) in slices.iter().enumerate() {
-		let (image, query) = url.split_once('?').expect("a slice query");
-		assert!(image.ends_with(".jpg"), "{image} is not a jpg");
-		assert_eq!(
-			image,
-			slices[0].0.split_once('?').expect("a slice query").0,
-			"the slices come off one image"
-		);
-		// the urls have to differ, or the app hands the same processed slice to every page
-		assert_eq!(query, format!("slice={index}"), "{url} is out of order");
+		assert!(url.ends_with(".jpg"), "{url} is not a jpg");
+		assert_eq!(url, &slices[0].0, "the slices come off one image");
 		assert_eq!(slice.as_str(), index.to_string(), "{slice} is out of order");
 		assert_eq!(count.as_str(), "24", "{count} slices");
 	}

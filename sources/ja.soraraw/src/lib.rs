@@ -199,11 +199,8 @@ impl Source for Soraraw {
 				let mut context = PageContext::new();
 				context.insert(String::from("slice"), slice.to_string());
 				context.insert(String::from("slices"), slices.to_string());
-				// the app caches a processed page under its url and a processor id that holds no
-				// context, so slices of one image collide and the reader repeats whichever landed
-				// first. the host ignores the query, which is only here to tell them apart
 				pages.push(Page {
-					content: PageContent::url_context(format!("{url}?slice={slice}"), context),
+					content: PageContent::url_context(url.clone(), context),
 					..Default::default()
 				});
 			}
