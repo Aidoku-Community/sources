@@ -342,9 +342,10 @@ pub trait Impl {
 				}
 
 				// trending list
-				if let Some(list) = child.select_first(
-					"div.grid.gap-3:not(.grid-cols-1), div.grid.gap-4:not(.grid-cols-1)",
-				) {
+				if !params.hide_home_lists
+					&& let Some(list) = child.select_first(
+						"div.grid.gap-3:not(.grid-cols-1), div.grid.gap-4:not(.grid-cols-1)",
+					) {
 					let title = list
 						.parent()
 						.and_then(|parent| parent.prev())

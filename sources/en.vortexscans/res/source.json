@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.vortexscans",
 		"name": "Vortex Scans",
-		"version": 2,
+		"version": 3,
 		"url": "https://vortexscans.org",
 		"contentRating": 0,
 		"languages": ["en"]

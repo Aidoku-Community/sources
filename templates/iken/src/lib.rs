@@ -1,9 +1,9 @@
 #![no_std]
 use aidoku::{
-	alloc::{borrow::Cow, String, Vec},
-	imports::net::Request,
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeLayout, ImageRequestProvider,
 	Manga, MangaPageResult, Page, PageContext, Result, Source,
+	alloc::{String, Vec, borrow::Cow},
+	imports::net::Request,
 };
 
 mod helpers;
@@ -20,6 +20,7 @@ pub struct Params {
 	// the post endpoint doesn't contain all keys for the chapter objects
 	pub fetch_full_chapter_list: bool,
 	pub get_sort_value: fn(i32) -> Cow<'static, str>,
+	pub hide_home_lists: bool,
 }
 
 impl Default for Params {
@@ -30,6 +31,7 @@ impl Default for Params {
 			use_slug_series_keys: false,
 			fetch_full_chapter_list: false,
 			get_sort_value: |_| "".into(),
+			hide_home_lists: false,
 		}
 	}
 }
