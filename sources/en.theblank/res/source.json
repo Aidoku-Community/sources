@@ -1,0 +1,12 @@
+{
+	"info": {
+		"id": "en.theblank",
+		"name": "Theblank",
+		"version": 1,
+		"url": "https://theblank.net",
+		"contentRating": 1,
+		"languages": [
+			"en"
+		]
+	}
+}
