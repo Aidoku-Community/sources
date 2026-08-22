@@ -122,8 +122,8 @@ pub fn parse_status(value: &str) -> MangaStatus {
 	}
 }
 
-pub fn content_rating(is_adult: i32, tags: &[String]) -> ContentRating {
-	if is_adult != 0 {
+pub fn content_rating(is_adult: bool, tags: &[String]) -> ContentRating {
+	if is_adult {
 		return ContentRating::NSFW;
 	}
 	for tag in tags {
