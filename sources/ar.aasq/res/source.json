@@ -1,0 +1,11 @@
+{
+	"info": {
+		"id": "ar.aasq",
+		"name": "3asq",
+		"version": 2,
+		"url": "https://3asq.online",
+		"contentRating": 0,
+		"languages": ["ar"],
+		"minAppVersion": "0.7.1"
+	}
+}
