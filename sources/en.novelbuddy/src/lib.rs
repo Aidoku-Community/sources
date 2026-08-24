@@ -9,10 +9,12 @@ use aidoku::{
 };
 
 mod helpers;
+mod markdown;
 mod models;
 mod settings;
 
-use helpers::{fetch_chapter_list, html_to_markdown, request, resolve_slug};
+use helpers::{fetch_chapter_list, request, resolve_slug};
+use markdown::html_to_markdown;
 use models::{ChapterDetailData, ListData, TitleDetailData, TrendingData};
 
 pub const BASE_URL: &str = "https://novelbuddy.me";
@@ -290,8 +292,8 @@ mod tests {
 			key: "VYPGVZ8z".into(),
 			..Default::default()
 		};
-		// Resolve a real chapter key dynamically: hardcoded keys rot as the
-		// API re-publishes chapters.
+		// Resolve a chapter key from the live list rather than hardcoding
+		// one: the site occasionally removes or re-publishes chapters.
 		let chapters = fetch_chapter_list(&manga.key).expect("chapter list failed");
 		let key = chapters
 			.last()
