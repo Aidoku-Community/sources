@@ -10,6 +10,21 @@ use aidoku::{
 };
 use core::fmt::Write as _;
 
+/// Length of the longest consecutive backtick run in `text`.
+fn longest_backtick_run(text: &str) -> usize {
+	let mut longest = 0;
+	let mut current = 0;
+	for ch in text.chars() {
+		if ch == '`' {
+			current += 1;
+			longest = longest.max(current);
+		} else {
+			current = 0;
+		}
+	}
+	longest
+}
+
 /// Append an element's full descendant text without Markdown escaping:
 /// backslashes inside code spans and fenced blocks are literal output.
 fn append_raw_text(element: &Element, output: &mut String) {
@@ -78,14 +93,39 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 			}
 		}
 		"code" => {
-			output.push('`');
-			append_raw_text(element, output);
-			output.push('`');
+			let mut raw = String::default();
+			append_raw_text(element, &mut raw);
+			let ticks = longest_backtick_run(&raw) + 1;
+			for _ in 0..ticks {
+				output.push('`');
+			}
+			// Space-pad when the content itself starts or ends with a
+			// backtick, so the delimiter run stays recognizable.
+			if raw.starts_with('`') || raw.ends_with('`') {
+				output.push(' ');
+				output.push_str(&raw);
+				if raw.ends_with('`') {
+					output.push(' ');
+				}
+			} else {
+				output.push_str(&raw);
+			}
+			for _ in 0..ticks {
+				output.push('`');
+			}
 		}
 		"pre" => {
-			output.push_str("```\n");
-			append_raw_text(element, output);
-			output.push_str("\n```\n\n");
+			let mut raw = String::default();
+			append_raw_text(element, &mut raw);
+			let fence = "`".repeat(3.max(longest_backtick_run(&raw) + 1));
+			output.push_str(&fence);
+			output.push('\n');
+			output.push_str(&raw);
+			if !raw.ends_with('\n') {
+				output.push('\n');
+			}
+			output.push_str(&fence);
+			output.push_str("\n\n");
 		}
 		"img" => {
 			if let Some(src) = element.attr("src") {
@@ -286,6 +326,24 @@ mod tests {
 		let out = html_to_markdown(html);
 		assert!(out.contains("`a_b-c *x*`"), "code span: {out}");
 		assert!(out.contains("let s = \"a_b\";"), "fenced block: {out}");
+	}
+
+	#[aidoku_test]
+	fn widens_code_delimiters_past_embedded_backticks() {
+		let html = "<p><code>a`b</code> and <code>`padded`</code></p>";
+		let out = html_to_markdown(html);
+		assert!(out.contains("``a`b``"), "inline code: {out}");
+		assert!(out.contains("`` `padded` ``"), "padded span: {out}");
+	}
+
+	#[aidoku_test]
+	fn widens_fences_past_embedded_backtick_runs() {
+		let html = "<pre>```rust\nfn main() {}\n```</pre>";
+		let out = html_to_markdown(html);
+		assert!(
+			out.contains("````\n```rust\nfn main() {}\n```\n````"),
+			"fenced block: {out}"
+		);
 	}
 
 	#[aidoku_test]
