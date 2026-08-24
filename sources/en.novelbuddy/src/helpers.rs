@@ -79,7 +79,11 @@ impl From<TitleDetail> for Manga {
 				tags.push(tag);
 			}
 		}
-		let rating = content_rating(detail.is_adult, &tags);
+		let rating = if detail.is_adult {
+			ContentRating::NSFW
+		} else {
+			ContentRating::Safe
+		};
 		Manga {
 			key: detail.id,
 			title: detail.name,
@@ -120,21 +124,6 @@ pub fn parse_status(value: &str) -> MangaStatus {
 		"cancelled" | "canceled" => MangaStatus::Cancelled,
 		_ => MangaStatus::Unknown,
 	}
-}
-
-pub fn content_rating(is_adult: bool, tags: &[String]) -> ContentRating {
-	if is_adult {
-		return ContentRating::NSFW;
-	}
-	for tag in tags {
-		match tag.as_str() {
-			"Adult" | "Smut" | "Mature" | "Ecchi" | "Lolicon" | "Yaoi" | "Yuri" => {
-				return ContentRating::Suggestive;
-			}
-			_ => {}
-		}
-	}
-	ContentRating::Safe
 }
 
 pub fn absolute_url(path_or_url: &str) -> String {
