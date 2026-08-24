@@ -144,12 +144,14 @@ pub fn absolute_url(path_or_url: &str) -> String {
 pub fn parse_iso_date(value: &str) -> Option<i64> {
 	// The API returns e.g. "2024-01-02T03:04:05.000Z". The repo-proven way
 	// to handle the trailing "Z" is a quoted literal token (asurascans,
-	// ezmanga, kagane). As a last resort, strip the zone designator and
-	// fractional seconds and parse naively as UTC.
+	// ezmanga, kagane). As a last resort, strip the fractional seconds and
+	// any trailing zone designator, then parse naively as UTC. The naive
+	// pattern keeps "T" unquoted on purpose: date parsers that do not
+	// implement Unicode quoted literals treat it as a plain character.
 	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
 		.or_else(|| parse_date(value, "yyyy-MM-dd'T'HH:mm:ss'Z'"))
 		.or_else(|| {
-			let naive = value.split('.').next()?;
+			let naive = value.split('.').next()?.trim_end_matches('Z');
 			parse_date(naive, "yyyy-MM-ddTHH:mm:ss")
 		})
 }
@@ -516,6 +518,13 @@ mod tests {
 		let html = "<blockquote>cite</blockquote>";
 		let out = html_to_markdown(html);
 		assert_eq!(out, "> cite");
+	}
+
+	#[aidoku_test]
+	fn parses_timestamps_without_zone_via_fallback() {
+		assert!(parse_iso_date("2024-01-02T03:04:05.000Z").is_some());
+		// Zone-less input exercises the naive fallback directly.
+		assert!(parse_iso_date("2024-01-02T03:04:05").is_some());
 	}
 
 	#[aidoku_test]
