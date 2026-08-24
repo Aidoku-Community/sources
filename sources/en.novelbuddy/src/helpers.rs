@@ -137,14 +137,23 @@ pub fn absolute_url(path_or_url: &str) -> String {
 }
 
 pub fn parse_iso_date(value: &str) -> Option<i64> {
-	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
+	// The API returns e.g. "2024-01-02T03:04:05.000Z". The repo-proven way
+	// to handle the trailing "Z" is a quoted literal token (asurascans,
+	// ezmanga, kagane). As a last resort, strip the zone designator and
+	// fractional seconds and parse naively as UTC.
+	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+		.or_else(|| parse_date(value, "yyyy-MM-dd'T'HH:mm:ss'Z'"))
+		.or_else(|| {
+			let naive = value.split('.').next()?;
+			parse_date(naive, "yyyy-MM-ddTHH:mm:ss")
+		})
 }
 
 pub fn parse_chapter_number(name: &str) -> Option<f32> {
 	// Chapter-name formats vary across titles ("Chapter 5", "Chapter: 5",
 	// "Chapter ’5", "Chapter 12.5"), but the number is always the first numeric
 	// run. Keep a single '.' for decimal (bonus) chapters.
-	let mut num = String::new();
+	let mut num = String::default();
 	let mut seen_dot = false;
 	for ch in name.chars() {
 		if ch.is_ascii_digit() {

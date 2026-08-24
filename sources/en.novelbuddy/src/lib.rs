@@ -270,6 +270,12 @@ mod tests {
 			"expected >100 chapters, got {}",
 			chapters.len()
 		);
+		// The ISO-8601 format string must keep matching the API's timestamps;
+		// a silent mismatch would leave every chapter without an upload date.
+		assert!(
+			chapters.iter().any(|c| c.date_uploaded.is_some()),
+			"expected at least one parsed upload date"
+		);
 	}
 
 	#[aidoku_test]
