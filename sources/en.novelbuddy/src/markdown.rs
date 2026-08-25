@@ -99,14 +99,13 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 			for _ in 0..ticks {
 				output.push('`');
 			}
-			// Space-pad when the content itself starts or ends with a
-			// backtick, so the delimiter run stays recognizable.
+			// Space-pad whenever the content touches a delimiter boundary:
+			// CommonMark strips one space from both sides when they are
+			// present, which restores the original text verbatim.
 			if raw.starts_with('`') || raw.ends_with('`') {
 				output.push(' ');
 				output.push_str(&raw);
-				if raw.ends_with('`') {
-					output.push(' ');
-				}
+				output.push(' ');
 			} else {
 				output.push_str(&raw);
 			}
@@ -334,6 +333,14 @@ mod tests {
 		let out = html_to_markdown(html);
 		assert!(out.contains("``a`b``"), "inline code: {out}");
 		assert!(out.contains("`` `padded` ``"), "padded span: {out}");
+	}
+
+	#[aidoku_test]
+	fn pads_code_spans_touching_delimiter_boundaries() {
+		let html = "<p><code>`left</code> and <code>right`</code></p>";
+		let out = html_to_markdown(html);
+		assert!(out.contains("`` `left ``"), "leading backtick: {out}");
+		assert!(out.contains("`` right` ``"), "trailing backtick: {out}");
 	}
 
 	#[aidoku_test]
