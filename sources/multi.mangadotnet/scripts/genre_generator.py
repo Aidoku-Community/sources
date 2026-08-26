@@ -34,7 +34,7 @@ def resolve_ptr_table_json(table: list, index: int):
 
 with requests.Session() as mangadot_session:
     mangadot_session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:153.0) Gecko/20100101 Firefox/153.0',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:154.0) Gecko/20100101 Firefox/154.0',
     })
     cookies: Dict[str, str] = {
         'cf_clearance': ''
@@ -43,7 +43,6 @@ with requests.Session() as mangadot_session:
 
     response = mangadot_session.get(f'{BASE_URL}/search.data', params={
         '_routes': 'pages/SearchPage',
-        'adult': 'both',
     })
     response.raise_for_status()
     json_ptr = response.json()

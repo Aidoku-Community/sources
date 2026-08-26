@@ -171,46 +171,45 @@ pub fn base_url_join(uri: &str) -> String {
 }
 
 fn is_official_like(chapter: &MangaChapter) -> bool {
-	let official_group_ids = [
-		17423, // Official
-		18142, // Animate International
-		3521,  // Comikey
-		18516, // Dark Horse Manga
-		5952,  // FAKKU
-		3891,  // J-Novel Club
-		9438,  // Kodansha USA
-		18039, // Kodansha Comics
-		10712, // Manga Plus
-		18036, // Manga UP!
-		18180, // One Peace Books
-		18052, // Seven Seas Entertainment
-		18234, // Square Enix Manga
-		16861, // Viz Manga
-		17842, // VIZ Media
-		17841, // VIZ Shonen Jump
-		13541, // Yen Press
-		10887, // Manta
-		16168, // Tapas
-		16170, // TappyToon
-		10110, // LINE Webtoon
-		16424, // Toomics
+	let official_groups_names = [
+		"official",
+		"official?",
+		"animate international",
+		"comikey",
+		"dark horse manga",
+		"fakku",
+		"j-novel club",
+		"k-manga",
+		"k manga",
+		"kodansha usa",
+		"kodansha comics",
+		"manga plus",
+		"mangaplus",
+		"manga up!",
+		"one peace books",
+		"seven seas entertainment",
+		"square enix manga",
+		"viz manga",
+		"viz media",
+		"viz shonen jump",
+		"yen press",
+		"manta",
+		"tapas",
+		"tappytoon",
+		"line webtoon",
+		"toomics",
 	];
 
-	// There are probably others but tbh, they have not standardized this properly so this is
-	// only a small chunk that I know of. Wait for the site to mature better before optimizing
-	// this function. (And this only works for maybe 1% of the manga available)
-	let official_scanlator_names = ["Official", "Official?", "MangaPlus", "Comikey", "K-Manga"];
-
-	let group_ids = chapter
-		.groups
-		.as_ref()
-		.is_some_and(|groups| groups.iter().any(|g| official_group_ids.contains(&g.id)));
-
-	let scanlator_name = chapter.scanlator_name.as_ref().is_some_and(|name| {
-		official_scanlator_names
+	let group_ids = chapter.groups.as_ref().is_some_and(|groups| {
+		groups
 			.iter()
-			.any(|s| s.to_lowercase() == name.to_lowercase())
+			.any(|g| official_groups_names.contains(&g.name.to_lowercase().as_str()))
 	});
+
+	let scanlator_name = chapter
+		.scanlator_name
+		.as_ref()
+		.is_some_and(|name| official_groups_names.contains(&name.to_lowercase().as_str()));
 
 	group_ids || scanlator_name
 }
@@ -221,11 +220,9 @@ fn find_personal_group_preference_index(chapter: &MangaChapter) -> Option<usize>
 
 	if let Some(groups) = chapter.groups.as_ref() {
 		groups.iter().for_each(|g| {
-			index.push(
-				deduped_group_list
-					.iter()
-					.position(|p| p.eq(&g.id.to_string()) || p.eq(&g.name)),
-			);
+			index.push(deduped_group_list.iter().position(|p| {
+				p.eq(&g.id.to_string()) || p.to_lowercase().eq(&g.name.to_lowercase())
+			}));
 		});
 	}
 
