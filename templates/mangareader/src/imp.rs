@@ -1,7 +1,10 @@
-use super::{helper::ElementImageAttr, parser, Params};
+use super::{Params, helper::ElementImageAttr, parser};
 use aidoku::{
-	alloc::{borrow::Cow, String, Vec},
-	helpers::uri::{encode_uri_component, QueryParameters},
+	Chapter, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue, HomeLayout,
+	ImageResponse, Listing, Manga, MangaPageResult, MangaWithChapter, Page, PageContent,
+	PageContext, Result,
+	alloc::{String, Vec, borrow::Cow},
+	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
 		canvas::ImageRef,
 		error::AidokuError,
@@ -10,9 +13,6 @@ use aidoku::{
 		std::send_partial_result,
 	},
 	prelude::*,
-	Chapter, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue, HomeLayout,
-	ImageResponse, Listing, Manga, MangaPageResult, MangaWithChapter, Page, PageContent,
-	PageContext, Result,
 };
 
 pub trait Impl {
@@ -212,7 +212,7 @@ pub trait Impl {
 								title: link.attr("title")?,
 								cover: el
 									.select_first(".deslide-poster img")
-									.and_then(|e| e.attr("src")),
+									.and_then(|e| e.img_attr()),
 								description: el
 									.select_first(".sc-detail > .scd-item")
 									.and_then(|e| e.text()),
@@ -247,7 +247,9 @@ pub trait Impl {
 										title: e
 											.select_first(".anime-name, .manga-name")?
 											.text()?,
-										cover: e.select_first(".manga-poster img")?.attr("src"),
+										cover: e
+											.select_first(".manga-poster img")
+											.and_then(|img| img.img_attr()),
 										..Default::default()
 									}
 									.into(),
@@ -294,7 +296,9 @@ pub trait Impl {
 												.map(|s| s.into())
 												.unwrap_or(link_href),
 											title: e.select_first(".manga-name")?.text()?,
-											cover: e.select_first(".manga-poster img")?.attr("src"),
+											cover: e
+												.select_first(".manga-poster img")
+												.and_then(|img| img.img_attr()),
 											..Default::default()
 										},
 										chapter: Chapter {
@@ -348,7 +352,9 @@ pub trait Impl {
 												.strip_prefix(params.base_url.as_ref())?
 												.into(),
 											title: e.select_first(".manga-name")?.text()?,
-											cover: e.select_first(".manga-poster img")?.attr("src"),
+											cover: e
+												.select_first(".manga-poster img")
+												.and_then(|img| img.img_attr()),
 											..Default::default()
 										}
 										.into(),
