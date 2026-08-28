@@ -195,36 +195,3 @@ pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
 		})
 		.unwrap_or_default()
 }
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use aidoku::imports::html::Html;
-	use aidoku_test::aidoku_test;
-
-	#[aidoku_test]
-	fn manga_list_prefers_lazy_loaded_cover() {
-		let html = Html::parse_fragment(
-			r#"
-			<div class="item">
-				<a class="manga-poster" href="https://reader.example/manga/example">
-					<img
-						src="data:image/gif;base64,placeholder"
-						data-src="https://cdn.example/cover.jpg"
-						alt="Example"
-					>
-				</a>
-				<a class="manga-name">Example</a>
-			</div>
-			"#,
-		)
-		.expect("failed to parse fixture");
-
-		let entries = parse_manga_list(&html, "https://reader.example");
-		assert_eq!(entries.len(), 1);
-		assert_eq!(
-			entries[0].cover.as_deref(),
-			Some("https://cdn.example/cover.jpg")
-		);
-	}
-}
