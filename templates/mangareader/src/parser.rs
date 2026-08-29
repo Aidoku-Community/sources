@@ -1,9 +1,9 @@
-use crate::{helper::ElementImageAttr, Params};
+use crate::{Params, helper::ElementImageAttr};
 use aidoku::{
-	alloc::{borrow::ToOwned, String, Vec},
+	AidokuError, Chapter, ContentRating, Manga, MangaStatus, Result, Viewer,
+	alloc::{String, Vec, borrow::ToOwned},
 	imports::html::Document,
 	prelude::*,
-	AidokuError, Chapter, ContentRating, Manga, MangaStatus, Result, Viewer,
 };
 
 pub fn parse_response<T: AsRef<str>>(
@@ -21,7 +21,7 @@ pub fn parse_response<T: AsRef<str>>(
 					.unwrap_or(href);
 				let img = element.select_first("img")?;
 				let title = img.attr("alt")?;
-				let cover = img.attr("abs:src");
+				let cover = img.img_attr();
 
 				Some(Manga {
 					key,
@@ -185,7 +185,9 @@ pub fn parse_manga_list(html: &Document, base_url: &str) -> Vec<Manga> {
 						.map(|s| s.into())
 						.unwrap_or(link_href),
 					title: e.select_first(".manga-name")?.text()?,
-					cover: e.select_first(".manga-poster img")?.attr("src"),
+					cover: e
+						.select_first(".manga-poster img")
+						.and_then(|img| img.img_attr()),
 					..Default::default()
 				})
 			})
