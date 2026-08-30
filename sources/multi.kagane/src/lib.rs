@@ -17,13 +17,6 @@ mod models;
 use helpers::*;
 use models::*;
 
-// Sort param by filter index (from filters.json options order).
-const SORT_PARAMS: &[&str] = &[
-	"total_views", // 0: Popular (Total Views)
-	"updated_at",  // 1: Recently Updated
-	"created_at",  // 2: Recently Added
-];
-
 struct Kagane;
 
 impl Source for Kagane {
@@ -67,13 +60,14 @@ impl Source for Kagane {
 			}
 		}
 
-		let sort = SORT_PARAMS.get(sort_idx).unwrap_or(&"total_views");
-		let url = format!(
-			"{API_BASE}/search/series?page={}&size=35&sort={},desc",
-			page - 1,
-			sort
+		let url = search_url(query.as_deref(), page, sort_idx);
+		let body = build_search_body(
+			query.as_deref(),
+			&statuses,
+			&formats,
+			&genres_inc,
+			&genres_exc,
 		);
-		let body = build_search_body(query.as_deref(), &statuses, &formats, &genres_inc, &genres_exc);
 		let resp: SearchResponse = api_post(&url, body)?.json_owned()?;
 
 		let has_next_page = !resp.last;
