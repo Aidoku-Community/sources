@@ -7,6 +7,32 @@ use aidoku::{
 pub const BASE_URL: &str = "https://kagane.to";
 pub const API_BASE: &str = "https://kagane.to/api/v2";
 
+/// Sort field by the position of the option in `res/filters.json`.
+pub const SORT_PARAMS: &[&str] = &[
+	"",                // 0: Relevance
+	"total_views",     // 1: Popular (Total Views)
+	"avg_views",       // 2: Popular (Average Views)
+	"avg_views_today", // 3: Popular (Today)
+	"avg_views_week",  // 4: Popular (Week)
+	"avg_views_month", // 5: Popular (Month)
+	"updated_at",      // 6: Recently Updated
+	"series_name",     // 7: By Name
+	"books_count",     // 8: Books Count
+	"created_at",      // 9: Recently Added
+];
+
+pub fn search_url(query: Option<&str>, page: i32, sort_idx: usize) -> String {
+	let query = query.filter(|q| !q.is_empty());
+	let mut url = format!("{API_BASE}/search/series?page={}&size=35", page - 1);
+	let sort = SORT_PARAMS.get(sort_idx).copied().unwrap_or_default();
+	if !sort.is_empty() {
+		url.push_str(&format!("&sort={sort},desc"));
+	} else if query.is_none() {
+		url.push_str("&sort=total_views,desc");
+	}
+	url
+}
+
 pub fn api_get(url: &str) -> Result<Request> {
 	Ok(Request::get(url)?
 		.header("Origin", BASE_URL)

@@ -79,7 +79,11 @@ impl From<TitleDetail> for Manga {
 				tags.push(tag);
 			}
 		}
-		let rating = content_rating(detail.is_adult, &tags);
+		let rating = if detail.is_adult {
+			ContentRating::NSFW
+		} else {
+			ContentRating::Safe
+		};
 		Manga {
 			key: detail.id,
 			title: detail.name,
@@ -122,21 +126,6 @@ pub fn parse_status(value: &str) -> MangaStatus {
 	}
 }
 
-pub fn content_rating(is_adult: i32, tags: &[String]) -> ContentRating {
-	if is_adult != 0 {
-		return ContentRating::NSFW;
-	}
-	for tag in tags {
-		match tag.as_str() {
-			"Adult" | "Smut" | "Mature" | "Ecchi" | "Lolicon" | "Yaoi" | "Yuri" => {
-				return ContentRating::Suggestive;
-			}
-			_ => {}
-		}
-	}
-	ContentRating::Safe
-}
-
 pub fn absolute_url(path_or_url: &str) -> String {
 	if path_or_url.starts_with("http") {
 		path_or_url.into()
@@ -148,14 +137,25 @@ pub fn absolute_url(path_or_url: &str) -> String {
 }
 
 pub fn parse_iso_date(value: &str) -> Option<i64> {
-	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSXXX")
+	// The API returns e.g. "2024-01-02T03:04:05.000Z". The repo-proven way
+	// to handle the trailing "Z" is a quoted literal token (asurascans,
+	// ezmanga, kagane). As a last resort, strip the fractional seconds and
+	// any trailing zone designator, then parse naively as UTC. The naive
+	// pattern keeps "T" unquoted on purpose: date parsers that do not
+	// implement Unicode quoted literals treat it as a plain character.
+	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+		.or_else(|| parse_date(value, "yyyy-MM-dd'T'HH:mm:ss'Z'"))
+		.or_else(|| {
+			let naive = value.split('.').next()?.trim_end_matches('Z');
+			parse_date(naive, "yyyy-MM-ddTHH:mm:ss")
+		})
 }
 
 pub fn parse_chapter_number(name: &str) -> Option<f32> {
 	// Chapter-name formats vary across titles ("Chapter 5", "Chapter: 5",
 	// "Chapter ’5", "Chapter 12.5"), but the number is always the first numeric
 	// run. Keep a single '.' for decimal (bonus) chapters.
-	let mut num = String::new();
+	let mut num = String::default();
 	let mut seen_dot = false;
 	for ch in name.chars() {
 		if ch.is_ascii_digit() {
@@ -180,13 +180,12 @@ pub fn parse_id_from_canonical(new_url: &str) -> Option<String> {
 	}
 }
 
-/// Convert NovelBuddy's chapter/description HTML to plain text for
-/// `PageContent::Text`. The API wraps prose in `<p>` paragraphs alongside
-/// empty ad-placement divs; selecting `p` ignores the latter, and the HTML
-/// parser handles entity decoding and nested inline tags.
+/// Convert a description to plain text. Descriptions should not contain
+/// Markdown markers, since they are displayed as metadata rather than as a
+/// `PageContent` body.
 pub fn html_to_text(html: &str) -> String {
 	let Ok(doc) = Html::parse_fragment(html) else {
-		return String::new();
+		return String::default();
 	};
 	doc.select("p")
 		.map(|els| {
@@ -222,10 +221,9 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn strips_inner_tags() {
-		let html = "<p>A <em>bold</em> claim</p>";
-		let out = html_to_text(html);
-		assert_eq!(out, "A bold claim");
+	fn descriptions_remain_plain_text() {
+		let html = "<p>A <strong>bold</strong> description</p>";
+		assert_eq!(html_to_text(html), "A bold description");
 	}
 
 	#[aidoku_test]
@@ -254,9 +252,16 @@ mod tests {
 			Some(2234.0)
 		);
 		assert_eq!(
-			parse_chapter_number("Chapter ’2362 Hunter and Prey"),
+			parse_chapter_number("Chapter '2362 Hunter and Prey"),
 			Some(2362.0)
 		);
 		assert_eq!(parse_chapter_number("Chapter One"), None);
+	}
+
+	#[aidoku_test]
+	fn parses_timestamps_without_zone_via_fallback() {
+		assert!(parse_iso_date("2024-01-02T03:04:05.000Z").is_some());
+		// Zone-less input exercises the naive fallback directly.
+		assert!(parse_iso_date("2024-01-02T03:04:05").is_some());
 	}
 }

@@ -16,6 +16,7 @@ impl Impl for MagusManga {
 		Params {
 			base_url: BASE_URL.into(),
 			api_url: Some(API_URL.into()),
+			fetch_full_chapter_list: true,
 			..Default::default()
 		}
 	}

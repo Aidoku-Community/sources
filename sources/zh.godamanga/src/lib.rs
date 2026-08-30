@@ -5,18 +5,18 @@ mod json;
 mod net;
 
 use aidoku::{
+	Chapter, DeepLinkHandler, DeepLinkResult, ImageRequestProvider, Listing, ListingProvider,
+	Manga, MangaPageResult, Page, Result, Source,
 	alloc::{String, Vec},
 	imports::net::Request,
 	prelude::*,
-	Chapter, DeepLinkHandler, DeepLinkResult, ImageRequestProvider, Listing, ListingProvider,
-	Manga, MangaPageResult, Page, Result, Source,
 };
 use html::MangaPage as _;
 use net::Url;
 
 pub const BASE_URL: &str = "https://godamh.com";
 pub const API_URL: &str = "https://api-get-v3.mgsearcher.com";
-pub const IMG_URL: &str = "https://f40-1-4.g-mh.online";
+pub const IMG_URL: &str = "https://c-nd2-1.6wm.top";
 
 fn handle_cover_url(url: String) -> String {
 	if url.contains("url=") {

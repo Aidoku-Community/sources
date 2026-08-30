@@ -1,5 +1,5 @@
 #![no_std]
-use aidoku::{prelude::*, Source};
+use aidoku::{Source, prelude::*};
 use iken::{Iken, Impl, Params};
 
 const BASE_URL: &str = "https://vortexscans.org";
@@ -17,6 +17,7 @@ impl Impl for VortexScans {
 			base_url: BASE_URL.into(),
 			api_url: Some(API_URL.into()),
 			fetch_full_chapter_list: true,
+			hide_home_lists: true,
 			..Default::default()
 		}
 	}

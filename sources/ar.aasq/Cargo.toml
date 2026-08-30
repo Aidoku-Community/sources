@@ -1,18 +1,18 @@
 [package]
-name = "readcomiconline"
+name = "aasq"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
-serde_json = { version = "1.0.145", default-features = false, features = ["alloc"] }
+madara = { path = "../../templates/madara" }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
 aidoku-test = { git = "https://github.com/Aidoku/aidoku-rs.git" }
-
-[lib]
-crate-type = ["cdylib"]
 
 [profile.dev]
 panic = "abort"

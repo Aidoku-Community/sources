@@ -4,7 +4,18 @@
 		"id": "sort",
 		"title": "Sort By",
 		"canAscend": false,
-		"options": ["Popular (Total Views)", "Recently Updated", "Recently Added"],
+		"options": [
+			"Relevance",
+			"Popular (Total Views)",
+			"Popular (Average Views)",
+			"Popular (Today)",
+			"Popular (Week)",
+			"Popular (Month)",
+			"Recently Updated",
+			"By Name",
+			"Books Count",
+			"Recently Added"
+		],
 		"default": { "index": 0, "ascending": false }
 	},
 	{

@@ -1,13 +1,13 @@
-use crate::{handle_cover_url, BASE_URL};
+use crate::{BASE_URL, handle_cover_url};
 use aidoku::{
-	alloc::{string::ToString as _, vec, String, Vec},
+	Manga, MangaPageResult, MangaStatus, Result, Viewer,
+	alloc::{String, Vec, string::ToString as _, vec},
 	error,
 	imports::{
 		html::{Document, ElementList},
 		net::Request,
 	},
 	prelude::*,
-	Manga, MangaPageResult, MangaStatus, Result, Viewer,
 };
 
 pub trait MangaPage {
@@ -151,4 +151,3 @@ impl TrySelect for Document {
 			.ok_or_else(|| error!("No element found for selector: `{}`", css_query.as_ref()))
 	}
 }
-

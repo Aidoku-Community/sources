@@ -130,21 +130,20 @@ impl MangaPage for Document {
 			.filter_map(|a| a.text())
 			.collect::<Vec<String>>();
 		manga.tags = Some(tags);
-		manga.status = match self
-			.try_select_first(".book-layout-inline")?
-			.text()
-			.unwrap_or_default()
-			.trim()
-			.split("|")
-			.map(|a| a.trim().to_string())
-			.collect::<Vec<String>>()
-			.first()
-			.map(|s| s.as_str())
-			.unwrap_or("")
-		{
-			"連載" => MangaStatus::Ongoing,
-			"完結" => MangaStatus::Completed,
-			_ => MangaStatus::Unknown,
+		manga.status = {
+			// Status lives in `.book-meta em` (e.g. "連載中"/"已完結"), joined by
+			// "·"; mirror mihon's partition by 收藏|推薦|連載中|已完結.
+			let meta: Vec<String> = self
+				.select(".book-meta em")
+				.map(|els| els.filter_map(|e| e.text()).collect())
+				.unwrap_or_default();
+			let status_re = Regex::new("收藏|推薦|連載|已完結").unwrap();
+			let main: Vec<&String> = meta.iter().filter(|t| status_re.is_match(t)).collect();
+			match main.last() {
+				Some(s) if s.contains("連載") => MangaStatus::Ongoing,
+				Some(s) if s.contains("已完結") => MangaStatus::Completed,
+				_ => MangaStatus::Unknown,
+			}
 		};
 		let tags = manga.tags.as_deref().unwrap_or(&[]);
 		manga.viewer = if tags
@@ -231,6 +230,29 @@ impl MangaPage for Document {
 	}
 }
 
+/// Fetch a volume's detail page and return its chapter `href`s **in order**.
+/// Uses `select` (returns `Option`) so a missing/blocked page yields `None`
+/// instead of failing the whole chapter list. The list order matches the
+/// catalog's `.chapter-li-a` order for the same volume, so a placeholder
+/// chapter's position maps directly onto its real URL here.
+fn fetch_volume_chapter_map(vol_href: &str) -> Option<Vec<String>> {
+	let vol_url = format!("{}{}", BASE_URL, vol_href);
+	let doc = Request::get(vol_url)
+		.ok()?
+		.header("Origin", BASE_URL)
+		.html()
+		.ok()?;
+	let links = doc.select(".catalog-volume .chapter-li-a")?;
+	let mut hrefs: Vec<String> = Vec::new();
+	for link in links {
+		let href = link.attr("href").unwrap_or_default();
+		if !href.is_empty() {
+			hrefs.push(href);
+		}
+	}
+	Some(hrefs)
+}
+
 pub trait ChapterPage {
 	fn chapters(&self, manga_id: &str) -> Result<Vec<aidoku::Chapter>>;
 }
@@ -240,60 +262,72 @@ impl ChapterPage for Document {
 		let volumes = self.try_select(".catalog-volume")?;
 		let mut chapters: Vec<aidoku::Chapter> = Vec::new();
 
+		// Cache the resolved (title -> real href) map of a volume's detail page
+		// so we only fetch it once per volume that actually needs it.
+		let mut cached_vol_href: Option<String> = None;
+		let mut cached_map: Vec<String> = Vec::new();
+
 		for volume in volumes {
 			let volume_title = volume
 				.select("h3")
 				.and_then(|h3| h3.text())
 				.unwrap_or_default();
 			let volume_num = extract_chapter_number(&volume_title).unwrap_or(-1.0);
-			let chapter_links = volume.select(".chapter-li-a");
+			let volume_thumbnail = volume
+				.select_first(".volume-cover-img img")
+				.and_then(|img| img.attr("data-src"));
 
-			if let Some(chapter_links) = chapter_links
-				&& !chapter_links.is_empty()
+			let links = match volume.select(".chapter-li-a") {
+				Some(l) if !l.is_empty() => l.collect::<Vec<Element>>(),
+				_ => continue,
+			};
+
+			// Only the volumes that contain a `javascript:cid(...)` placeholder
+			// need the detail page; fetch + cache it lazily per volume.
+			let has_javascript = links
+				.iter()
+				.any(|l| l.attr("href").is_some_and(|h| h.starts_with("javascript:")));
+			if has_javascript
+				&& let Some(vol_href) = volume
+					.select_first(".volume-cover-img")
+					.and_then(|v| v.attr("href"))
+				&& !vol_href.is_empty()
+				&& cached_vol_href.as_deref() != Some(vol_href.as_str())
 			{
-				let mut has_javascript_link = false;
-				let mut i = 0;
-				while let Some(link) = chapter_links.get(i) {
-					if link
-						.attr("href")
-						.is_some_and(|href| href.starts_with("javascript:"))
-					{
-						has_javascript_link = true;
-						break;
-					}
-					i += 1;
-				}
-				let volume_thumbnail = volume
-					.select_first(".volume-cover-img img")
-					.and_then(|img| img.attr("data-src"));
+				cached_vol_href = Some(vol_href.clone());
+				cached_map = fetch_volume_chapter_map(&vol_href).unwrap_or_default();
+			}
 
-				let chapter_items = if has_javascript_link {
-					let vol_href = volume
-						.select_first(".volume-cover-img")
-						.and_then(|v| v.attr("href"))
-						.unwrap_or_default();
-					let vol_url = format!("{}{}", BASE_URL, vol_href);
-					let vol_html = Request::get(vol_url)?.header("Origin", BASE_URL).html()?;
-					vol_html.try_select(".catalog-volume .chapter-li-a")?
+			// Resolve each chapter individually: keep the catalog's real href
+			// for normal links, and only substitute the single placeholder
+			// chapter's URL from the (cached) detail page. The detail page
+			// lists the same volume's chapters in the same order, so the
+			// placeholder's index within this volume maps directly onto its
+			// real URL there.
+			for (idx, link) in links.iter().enumerate() {
+				let chapter_href = link.attr("href").unwrap_or_default();
+				let title = link
+					.select_first("span")
+					.and_then(|span| span.text())
+					.unwrap_or_default();
+
+				let resolved_href = if chapter_href.starts_with("javascript:") {
+					match cached_map.get(idx) {
+						Some(h) => h.clone(),
+						None => continue,
+					}
 				} else {
-					chapter_links
+					chapter_href
 				};
 
-				for item in chapter_items {
-					let chapter_href = item.attr("href").unwrap_or_default();
-					let title = item
-						.select_first("span")
-						.and_then(|span| span.text())
-						.unwrap_or_default();
-					let chapter = create_chapter(
-						chapter_href,
-						title,
-						volume_num,
-						chapters.len(),
-						volume_thumbnail.clone(),
-					);
-					chapters.push(chapter);
-				}
+				let chapter = create_chapter(
+					resolved_href,
+					title,
+					volume_num,
+					chapters.len(),
+					volume_thumbnail.clone(),
+				);
+				chapters.push(chapter);
 			}
 		}
 		chapters.reverse();
@@ -308,7 +342,7 @@ pub trait PageList {
 impl PageList for Document {
 	fn pages(&self) -> Result<Vec<Page>> {
 		let mut pages: Vec<Page> = Vec::new();
-		for item in self.try_select("#acontentz>img")? {
+		for item in self.try_select(".imagecontent")? {
 			let url = item.attr("data-src").unwrap_or_default().trim().to_string();
 			pages.push(Page {
 				content: aidoku::PageContent::Url(url, None),

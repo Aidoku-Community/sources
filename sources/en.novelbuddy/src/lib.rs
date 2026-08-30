@@ -9,10 +9,12 @@ use aidoku::{
 };
 
 mod helpers;
+mod markdown;
 mod models;
 mod settings;
 
 use helpers::{fetch_chapter_list, request, resolve_slug};
+use markdown::html_to_markdown;
 use models::{ChapterDetailData, ListData, TitleDetailData, TrendingData};
 
 pub const BASE_URL: &str = "https://novelbuddy.me";
@@ -135,7 +137,7 @@ impl Source for NovelBuddy {
 			.chapter
 			.content
 			.as_deref()
-			.map(helpers::html_to_text)
+			.map(html_to_markdown)
 			.unwrap_or_default();
 		let text = if body.is_empty() {
 			"(empty chapter)".to_string()
@@ -228,7 +230,12 @@ impl NotificationHandler for NovelBuddy {
 	}
 }
 
-register_source!(NovelBuddy, ListingProvider, DeepLinkHandler, NotificationHandler);
+register_source!(
+	NovelBuddy,
+	ListingProvider,
+	DeepLinkHandler,
+	NotificationHandler
+);
 
 #[cfg(test)]
 mod tests {
@@ -270,6 +277,12 @@ mod tests {
 			"expected >100 chapters, got {}",
 			chapters.len()
 		);
+		// The ISO-8601 format string must keep matching the API's timestamps;
+		// a silent mismatch would leave every chapter without an upload date.
+		assert!(
+			chapters.iter().any(|c| c.date_uploaded.is_some()),
+			"expected at least one parsed upload date"
+		);
 	}
 
 	#[aidoku_test]
@@ -279,8 +292,15 @@ mod tests {
 			key: "VYPGVZ8z".into(),
 			..Default::default()
 		};
+		// Resolve a chapter key from the live list rather than hardcoding
+		// one: the site occasionally removes or re-publishes chapters.
+		let chapters = fetch_chapter_list(&manga.key).expect("chapter list failed");
+		let key = chapters
+			.last()
+			.map(|c| c.key.clone())
+			.expect("no chapters returned");
 		let chapter = Chapter {
-			key: "2ZejwbQD".into(),
+			key,
 			..Default::default()
 		};
 		let pages = source
@@ -289,11 +309,7 @@ mod tests {
 		assert_eq!(pages.len(), 1);
 		match &pages[0].content {
 			PageContent::Text(text) => {
-				assert!(!text.is_empty());
-				assert!(
-					text.to_lowercase().contains("sunny"),
-					"expected chapter text to mention 'Sunny'"
-				);
+				assert!(!text.is_empty(), "expected non-empty chapter text");
 			}
 			_ => panic!("expected PageContent::Text"),
 		}

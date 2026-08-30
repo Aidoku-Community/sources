@@ -1,17 +1,5 @@
 [
 	{
-		"id": "author",
-		"type": "text",
-		"title": "Author",
-		"placeholder": "Author name"
-	},
-	{
-		"id": "artist",
-		"type": "text",
-		"title": "Artist",
-		"placeholder": "Artist name"
-	},
-	{
 		"id": "sortBy",
 		"type": "sort",
 		"title": "Sort",
@@ -27,29 +15,8 @@
 		],
 		"default": {
 			"index": 0,
-			"ascending": true
+			"ascending": false
 		}
-	},
-	{
-		"id": "status",
-		"type": "select",
-		"title": "Status",
-		"options": [
-			"Any",
-			"Ongoing",
-			"Completed",
-			"Hiatus"
-		]
-	},
-	{
-		"id": "volumes",
-		"type": "select",
-		"title": "Volume",
-		"options": [
-			"Any",
-			"Has Volumes",
-			"No Volumes"
-		]
 	},
 	{
 		"id": "origin",
@@ -68,6 +35,44 @@
 			"CN",
 			"ONESHOT"
 		]
+	},
+	{
+		"id": "status",
+		"type": "select",
+		"title": "Status",
+		"options": [
+			"Any",
+			"Ongoing",
+			"Completed",
+			"Hiatus"
+		]
+	},
+	{
+		"id": "scanlator",
+		"type": "select",
+		"title": "Scanlator",
+		"options": [
+			"Any",
+			"Scanlator Group",
+			"No Scanlator Group"
+		],
+		"ids": [
+			"any",
+			"with",
+			"without"
+		]
+	},
+	{
+		"id": "author",
+		"type": "text",
+		"title": "Author",
+		"placeholder": "Author name"
+	},
+	{
+		"id": "artist",
+		"type": "text",
+		"title": "Artist",
+		"placeholder": "Artist name"
 	},
 	{
 		"id": "genre",
@@ -172,6 +177,7 @@
 			"Police",
 			"Politics",
 			"Post-Apocalyptic",
+			"Regression",
 			"Reincarnation",
 			"Revenge",
 			"Reverse Harem",
@@ -196,10 +202,88 @@
 			"Virtual Reality",
 			"War",
 			"Webtoon",
+			"Workplace",
 			"Wuxia",
 			"Yaoi",
 			"Yuri",
 			"Zombies"
+		]
+	},
+	{
+		"id": "content_rating",
+		"type": "multi-select",
+		"title": "Content Rating",
+		"canExclude": true,
+		"options": [
+			"Safe",
+			"Suggestive",
+			"Erotica",
+			"Pornographic"
+		],
+		"ids": [
+			"safe",
+			"suggestive",
+			"erotica",
+			"pronographic"
+		],
+		"defaultIncluded": [
+			"safe",
+			"suggestive"
+		]
+	},
+	{
+		"id": "min_rating",
+		"type": "select",
+		"title": "Rating",
+		"options": [
+			"Any",
+			"5+",
+			"6+",
+			"7+",
+			"8+",
+			"9+"
+		],
+		"ids": [
+			"any",
+			"5",
+			"6",
+			"7",
+			"8",
+			"9"
+		]
+	},
+	{
+		"id": "min_chapters",
+		"type": "select",
+		"title": "Chapters",
+		"options": [
+			"Any",
+			"10+",
+			"25+",
+			"50+",
+			"100+"
+		],
+		"ids": [
+			"any",
+			"10",
+			"25",
+			"50",
+			"100"
+		]
+	},
+	{
+		"id": "volumes",
+		"type": "select",
+		"title": "Volume",
+		"options": [
+			"Any",
+			"Has Volumes",
+			"No Volumes"
+		],
+		"ids": [
+			"any",
+			"with",
+			"without"
 		]
 	}
 ]

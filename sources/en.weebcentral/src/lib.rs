@@ -4,7 +4,11 @@ use aidoku::{
 	HomeComponent, HomeLayout, ImageRequestProvider, Listing, ListingProvider, Manga,
 	MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source, Viewer,
 	alloc::{String, Vec, borrow::ToOwned, vec},
-	imports::{html::Element, net::Request, std::send_partial_result},
+	imports::{
+		html::Element,
+		net::{Request, TimeUnit, set_rate_limit},
+		std::send_partial_result,
+	},
 	prelude::*,
 };
 
@@ -20,6 +24,9 @@ struct WeebCentral;
 
 impl Source for WeebCentral {
 	fn new() -> Self {
+		// 1 request per second
+		// note: it may need to be adjusted (https://github.com/keiyoushi/extensions-source/pull/13628)
+		set_rate_limit(1, 1, TimeUnit::Seconds);
 		Self
 	}
 
@@ -90,18 +97,18 @@ impl Source for WeebCentral {
 		if needs_details {
 			let html = Request::get(&manga_url)?.html()?;
 
-			let elements = html.select("section[x-data] > section");
-			let (info_element, title_element) = match elements.as_ref() {
-				Some(els) if !els.is_empty() => {
+			let (info_element, title_element) = html
+				.select("section[x-data] > section")
+				.as_ref()
+				.and_then(|els| {
 					let info = els.first();
 					let title = els.last();
 					match (info, title) {
-						(Some(info), Some(title)) => (info, title),
-						_ => return Err(AidokuError::Unimplemented),
+						(Some(info), Some(title)) => Some((info, title)),
+						_ => None,
 					}
-				}
-				_ => return Err(AidokuError::Unimplemented),
-			};
+				})
+				.ok_or_else(|| error!("Missing elements"))?;
 
 			let get_text = |el: &Element, sel: &str| el.select_first(sel).and_then(|e| e.text());
 
@@ -160,7 +167,7 @@ impl Source for WeebCentral {
 			let url = manga_url
 				.rfind('/')
 				.map(|pos| format!("{}/full-chapter-list", &manga_url[..pos]))
-				.unwrap_or_else(|| manga_url.clone());
+				.unwrap_or_else(|| manga_url);
 
 			let html = Request::get(&url)?.html()?;
 
@@ -295,7 +302,7 @@ impl Home for WeebCentral {
 			let cover = el.select_first("img")?.attr("src");
 			let title = el.select_first(".text-lg")?.text()?;
 			let chapter_number = chapter_link
-				.select_first("div.flex")?
+				.select_first("div.flex > span")?
 				.text()
 				.as_ref()
 				.and_then(|t| t.rsplit(' ').next())

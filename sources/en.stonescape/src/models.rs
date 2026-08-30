@@ -191,6 +191,7 @@ pub struct ChapterData {
 	pub chapter_number: String,
 	pub title: Option<String>,
 	pub created_at: Option<String>,
+	pub thumbnail_url: Option<String>,
 }
 
 impl ChapterData {
@@ -208,12 +209,18 @@ impl ChapterData {
 			.and_then(|dt| chrono::DateTime::parse_from_rfc3339(&dt).ok())
 			.map(|d| d.timestamp());
 
+		let thumbnail = self
+			.thumbnail_url
+			.as_ref()
+            .map(|url| format!("{}{}", BASE_URL, url));
+
 		Chapter {
 			key: self.chapter_id,
 			title,
 			chapter_number,
 			date_uploaded,
 			url: Some(url),
+			thumbnail,
 			..Default::default()
 		}
 	}

@@ -142,7 +142,7 @@ impl Source for AsuraScans {
 				.map(|els| els.filter_map(|el| el.text()).collect());
 			manga.status = html
 				.select_first(
-					"div.flex.gap-3.pt-4.border-t > div:nth-child(2) > div > span.text-base",
+					"div.flex.gap-3.pt-4.border-t > div:nth-child(1) > div > span.text-base",
 				)
 				.and_then(|el| el.text())
 				.map(|s| match s.as_str() {
@@ -199,16 +199,16 @@ impl Source for AsuraScans {
 					.filter_map(|obj| {
 						let obj = obj[1].as_object()?;
 
-						let locked =
-							!is_subscribed && obj["is_locked"][1].as_bool().unwrap_or_default();
+						let locked = !is_subscribed
+							&& obj.get("is_premium")?[1].as_bool().unwrap_or_default();
 						if skip_locked && locked {
 							return None;
 						}
 
-						let chapter_number = obj["number"][1].as_f64().map(|f| f as f32)?;
+						let chapter_number = obj.get("number")?[1].as_f64().map(|f| f as f32)?;
 						let key = chapter_number.to_string();
 						const DATE_FORMAT: &str = "yyyy-MM-dd'T'HH:mm:ss'Z'";
-						let date_uploaded = obj["published_at"][1].as_str().and_then(|s| {
+						let date_uploaded = obj.get("published_at")?[1].as_str().and_then(|s| {
 							if let Some((before_dot, _)) = s.split_once('.') {
 								parse_date(format!("{before_dot}Z"), DATE_FORMAT)
 							} else {

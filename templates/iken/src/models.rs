@@ -1,10 +1,10 @@
 use crate::Params;
 use aidoku::{
-	alloc::{string::ToString, vec, String, Vec},
+	Chapter, Manga, MangaStatus, Viewer,
+	alloc::{String, Vec, string::ToString, vec},
 	helpers::element::ElementHelpers,
 	imports::html::Html,
 	prelude::*,
-	Chapter, Manga, MangaStatus, Viewer,
 };
 use serde::Deserialize;
 
@@ -56,7 +56,7 @@ pub struct IkenChapter<'a> {
 	id: i32,
 	slug: &'a str,
 	number: f32,
-	title: Option<&'a str>,
+	title: Option<String>,
 	created_by: Option<Author<'a>>,
 	created_at: &'a str,
 	// chapter_status: &'a str,
@@ -157,12 +157,11 @@ impl Post<'_> {
 		}
 	}
 
-	pub fn chapters(&self, base_url: &str) -> Vec<Chapter> {
+	pub fn chapters(self, base_url: &str) -> Vec<Chapter> {
 		self.chapters
-			.as_ref()
 			.map(|chapters| {
 				chapters
-					.iter()
+					.into_iter()
 					.map(|c| c.parse_chapter(base_url, self.slug))
 					.collect()
 			})
@@ -171,12 +170,11 @@ impl Post<'_> {
 }
 
 impl PostWithOnlyChapters<'_> {
-	pub fn chapters(&self, base_url: &str, slug: &str) -> Vec<Chapter> {
+	pub fn chapters(self, base_url: &str, slug: &str) -> Vec<Chapter> {
 		self.chapters
-			.as_ref()
 			.map(|chapters| {
 				chapters
-					.iter()
+					.into_iter()
 					.map(|c| c.parse_chapter(base_url, slug))
 					.collect()
 			})
@@ -185,16 +183,10 @@ impl PostWithOnlyChapters<'_> {
 }
 
 impl IkenChapter<'_> {
-	fn parse_chapter(&self, base_url: &str, manga_slug: &str) -> Chapter {
+	fn parse_chapter(self, base_url: &str, manga_slug: &str) -> Chapter {
 		Chapter {
 			key: self.id.to_string(),
-			title: self.title.and_then(|title| {
-				if title.is_empty() {
-					None
-				} else {
-					Some(title.into())
-				}
-			}),
+			title: self.title.filter(|title| !title.is_empty()),
 			chapter_number: Some(self.number),
 			volume_number: None,
 			date_uploaded: chrono::DateTime::parse_from_rfc3339(self.created_at)

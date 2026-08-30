@@ -138,9 +138,9 @@ impl Impl for ReadComicsOnline {
 	fn get_search_manga_list(
 		&self,
 		params: &Params,
-		query: Option<aidoku::alloc::string::String>,
+		query: Option<String>,
 		page: i32,
-		filters: Vec<aidoku::FilterValue>,
+		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let mut status_id: Option<String> = None;
 		let mut type_id: Option<String> = None;
@@ -157,33 +157,18 @@ impl Impl for ReadComicsOnline {
 			}
 		}
 
-		let filters_page = self
-			.modify_request(
-				params,
-				Request::get(format!("{}/advanced-search", params.base_url))?
-					.header("Referer", &format!("{}/", params.base_url)),
-			)?
-			.html()?;
-		let token = filters_page
-			.select_first("input[name=_token]")
-			.and_then(|el| el.attr("value"));
-		let mut body = format!(
+		let qs = format!(
 			"name={}&status_id={}&type_id={}&category={}&page={page}",
 			query.map(encode_uri_component).unwrap_or_default(),
 			status_id.as_deref().unwrap_or_default(),
 			type_id.as_deref().unwrap_or_default(),
 			category.as_deref().unwrap_or_default()
 		);
-		if let Some(token) = token {
-			body.push_str(&format!("&_token={}", encode_uri_component(&token)));
-		}
 		let html = self
 			.modify_request(
 				params,
-				Request::post(format!("{}/advanced-search", params.base_url))?
-					.header("Content-Type", "application/x-www-form-urlencoded")
-					.header("Referer", &format!("{}/advanced-search", params.base_url))
-					.body(body),
+				Request::get(format!("{}/advanced-search?{qs}", params.base_url))?
+					.header("Referer", &format!("{}/", params.base_url)),
 			)?
 			.html()?;
 		Ok(self.parse_manga_page(params, &html))
