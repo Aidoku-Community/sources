@@ -186,7 +186,7 @@ impl MangaDetails {
 	}
 
 	pub fn viewer(&self) -> Viewer {
-		viewer(self.genres.iter().map(|genre| genre.slug.as_str()))
+		viewer(self.genres.iter().filter_map(|genre| genre.slug.as_deref()))
 	}
 
 	pub fn authors(&self) -> Option<Vec<String>> {
@@ -222,16 +222,17 @@ impl MangaDetails {
 	}
 }
 
+// a few series hold genre rows the site never filled in, every field but the id null
 #[derive(Deserialize)]
 pub struct Genre {
-	pub name: String,
+	pub name: Option<String>,
 	// names are not unique, so the reader is picked from the slug
-	pub slug: String,
+	pub slug: Option<String>,
 }
 
 impl Genre {
 	pub fn into_tag(self) -> Option<String> {
-		let tag = String::from(self.name.trim());
+		let tag = String::from(self.name?.trim());
 		(!tag.is_empty()).then_some(tag)
 	}
 }
