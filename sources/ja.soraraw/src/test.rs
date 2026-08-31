@@ -9,6 +9,7 @@ const PAGED_VERTICAL_KEY: &str = "blue-giant-momentum-buruu-jaianto-momentamu-60
 const ADULT_VERTICAL_KEY: &str = "haadowaakaa-nakata-740";
 const JPG_MANGA_KEY: &str = "my-neighbor-ms-kurokawa-tonari-no-kurokawa-san-1";
 const JPG_CHAPTER_KEY: &str = "1/786104";
+const WEBP_MANGA_KEY: &str = "one-night-morning-62659";
 const SEARCHED_KEY: &str = "kobayashi-san-chino-meidoragon-57605";
 
 fn listing(id: &str) -> Listing {
@@ -395,6 +396,33 @@ fn test_stacked_chapter_of_another_series_is_split() {
 	assert_eq!(slices.len(), 21, "got {} pages", slices.len());
 }
 
+// the stacked images are not all jpeg: this chapter is one 1133x16000 webp, which counted as a
+// single page for as long as only the jpeg header was read
+#[aidoku_test]
+fn test_stacked_webp_chapter_is_split() {
+	let manga = Manga {
+		key: String::from(WEBP_MANGA_KEY),
+		..Default::default()
+	};
+	let mut manga = Soraraw
+		.get_manga_update(manga, false, true)
+		.expect("chapters");
+	let chapter = manga
+		.chapters
+		.take()
+		.expect("chapters")
+		.into_iter()
+		.find(|chapter| chapter.chapter_number == Some(120.0))
+		.expect("chapter 120");
+
+	let pages = Soraraw.get_page_list(manga, chapter).expect("pages");
+	let slices = page_slices(&pages);
+	assert_eq!(slices.len(), 10, "got {} pages", slices.len());
+	for (url, _, _) in &slices {
+		assert!(url.ends_with(".webp"), "{url} is not a webp");
+	}
+}
+
 // a chapter numbered "74.2" has to survive the round trip into a page request
 #[aidoku_test]
 fn test_decimal_chapter_pages() {
@@ -547,4 +575,25 @@ fn test_jpeg_size() {
 	// anything that isn't a jpeg, and a header cut off ahead of the frame
 	assert_eq!(jpeg_size(b"RIFF\0\0\0\0WEBPVP8 "), None);
 	assert_eq!(jpeg_size(&head[..8]), None);
+}
+
+// a webp keeps its frame size behind the start code, in 14 bits of each little endian half word
+#[aidoku_test]
+fn test_webp_size() {
+	let head = [
+		b'R', b'I', b'F', b'F', 0x00, 0x00, 0x00, 0x00, // the riff length, which is not read
+		b'W', b'E', b'B', b'P', b'V', b'P', b'8', b' ', //
+		0x00, 0x00, 0x00, 0x00, // the chunk length, likewise
+		0x00, 0x00, 0x00, // frame tag
+		0x9D, 0x01, 0x2A, // start code
+		0x6D, 0x04, 0x80, 0x3E, // a frame of 1133 x 16000
+	];
+	assert_eq!(webp_size(&head), Some((1133, 16000)));
+
+	// a lossless webp, whose size is packed differently, and a header cut off ahead of the frame
+	let mut lossless = head;
+	lossless[15] = b'L';
+	assert_eq!(webp_size(&lossless), None);
+	assert_eq!(webp_size(&head[..24]), None);
+	assert_eq!(webp_size(&[0xFF, 0xD8, 0xFF, 0xDB]), None);
 }

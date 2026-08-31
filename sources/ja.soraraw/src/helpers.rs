@@ -74,7 +74,7 @@ fn image_size(url: &str) -> Option<(u32, u32)> {
 		.header("Range", range.as_str())
 		.data()
 		.ok()?;
-	jpeg_size(&head)
+	jpeg_size(&head).or_else(|| webp_size(&head))
 }
 
 // a few chapters ship as one image stacking every page of the chapter, up to 49152 pixels tall.
@@ -94,7 +94,7 @@ pub fn stacked_page_count(url: &str) -> u32 {
 	count.max(1)
 }
 
-// the site labels every image .webp and writes jpeg into it, so the magic bytes are what decides
+// neither extension says what the container is, so the magic bytes are what decides
 pub fn jpeg_size(head: &[u8]) -> Option<(u32, u32)> {
 	fn length(head: &[u8], at: usize) -> Option<usize> {
 		Some(usize::from(u16::from_be_bytes([
@@ -125,6 +125,26 @@ pub fn jpeg_size(head: &[u8]) -> Option<(u32, u32)> {
 	}
 
 	None
+}
+
+// only the simple lossy form is read: a webp canvas stops at 16383 pixels, so the stacked images
+// tall enough to need slicing are written as jpeg, and every webp the site serves is a `VP8 `
+pub fn webp_size(head: &[u8]) -> Option<(u32, u32)> {
+	if !head.starts_with(b"RIFF")
+		|| head.get(8..12)? != b"WEBP".as_slice()
+		|| head.get(12..16)? != b"VP8 ".as_slice()
+		// the keyframe start code, which the frame size sits behind
+		|| head.get(23..26)? != [0x9D, 0x01, 0x2A].as_slice()
+	{
+		return None;
+	}
+
+	// 14 bits of size and 2 of upscaling, which says nothing about how large the frame is
+	let size = |at: usize| -> Option<u32> {
+		let value = u16::from_le_bytes([*head.get(at)?, *head.get(at + 1)?]);
+		Some(u32::from(value & 0x3FFF))
+	};
+	Some((size(26)?, size(28)?))
 }
 
 // listings hand out either a full cover url or just the file name on the thumbnail host
