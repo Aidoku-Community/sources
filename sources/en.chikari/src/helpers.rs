@@ -355,37 +355,9 @@ pub fn fetch_chapters(slug: &str, content_type: ContentType) -> Result<Vec<Chapt
 }
 
 pub fn parse_iso_date(value: &str) -> Option<i64> {
-	// Parse the base datetime as UTC, then apply any embedded timezone offset so the result is
-	// normalized to UTC (e.g. 2026-02-21T22:08:14-05:00 -> 03:08:14 UTC).
-	let base = parse_date(value.get(..19)?, "yyyy-MM-ddTHH:mm:ss")?;
-	// Remaining part after the base datetime: optional fractional seconds and/or timezone offset.
-	let offset = value
-		.get(19..)?
-		.trim_start_matches(|c: char| c.is_ascii_digit() || c == '.');
-	if offset.is_empty() || offset == "Z" {
-		return Some(base);
-	}
-	if !offset.is_ascii() {
-		return None;
-	}
-	let (sign, magnitude) = offset.split_at(1);
-	let sign = match sign {
-		"+" => 1i64,
-		"-" => -1i64,
-		_ => return None,
-	};
-	let (hours, minutes) = match magnitude.len() {
-		// ISO 8601 offsets use a colon separator (e.g. +05:00); reject any other character.
-		5 if magnitude.as_bytes()[2] == b':' => (&magnitude[..2], &magnitude[3..]),
-		4 => (&magnitude[..2], &magnitude[2..]),
-		_ => return None,
-	};
-	let hours: i64 = hours.parse().ok()?;
-	let minutes: i64 = minutes.parse().ok()?;
-	if hours > 23 || minutes > 59 {
-		return None;
-	}
-	Some(base - sign * (hours * 3600 + minutes * 60))
+	// Chikari API always returns: "2026-09-01T15:48:38.782596+00:00"
+	// Format: yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX (microseconds + timezone offset)
+	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX")
 }
 
 pub fn valid_slug(value: &str) -> bool {
@@ -467,15 +439,15 @@ mod tests {
 	#[aidoku_test]
 	fn parses_timezone_offset_timestamp() {
 		// A non-UTC offset must be normalized to UTC, not truncated and treated as UTC.
-		let utc = parse_iso_date("2026-02-21T22:08:14+00:00").unwrap();
-		let minus_five = parse_iso_date("2026-02-21T22:08:14-05:00").unwrap();
+		let utc = parse_iso_date("2026-02-21T22:08:14.000000+00:00").unwrap();
+		let minus_five = parse_iso_date("2026-02-21T22:08:14.000000-05:00").unwrap();
 		assert_eq!(minus_five, utc + 5 * 3600);
 	}
 
 	#[aidoku_test]
 	fn rejects_invalid_timezone_separator() {
 		// A five-character offset must use a colon separator (e.g. -05:00), not any character.
-		assert!(parse_iso_date("2026-02-21T22:08:14-05x00").is_none());
+		assert!(parse_iso_date("2026-02-21T22:08:14.000000-05x00").is_none());
 	}
 
 	#[aidoku_test]
@@ -696,7 +668,7 @@ mod tests {
 
 	#[aidoku_test]
 	fn rejects_non_ascii_timezone_offset() {
-		assert!(parse_iso_date("2026-02-21T22:08:14\u{2014}05:00").is_none());
+		assert!(parse_iso_date("2026-02-21T22:08:14.000000\u{2014}05:00").is_none());
 	}
 
 	#[aidoku_test]
