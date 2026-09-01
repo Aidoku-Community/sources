@@ -305,23 +305,22 @@ pub fn parse_status(status: &str) -> MangaStatus {
 		_ => MangaStatus::Unknown,
 	}
 }
+
 pub fn chapter_key(number: f32) -> String {
 	number.to_string()
 }
+
 pub fn chapter_from_item(item: ChapterItem) -> Chapter {
 	let key = chapter_key(item.number);
 	Chapter {
 		key,
-		title: Some(
-			item.title
-				.filter(|s| !s.trim().is_empty())
-				.unwrap_or_else(|| format!("Chapter {}", item.number)),
-		),
+		title: item.title.filter(|s| !s.trim().is_empty()),
 		chapter_number: Some(item.number),
 		date_uploaded: item.created_at.as_deref().and_then(parse_iso_date),
 		..Default::default()
 	}
 }
+
 pub fn fetch_chapters(slug: &str, content_type: ContentType) -> Result<Vec<Chapter>> {
 	const CHAPTER_PAGE_SIZE: u32 = 500;
 	let mut result = Vec::new();
@@ -354,6 +353,7 @@ pub fn fetch_chapters(slug: &str, content_type: ContentType) -> Result<Vec<Chapt
 	}
 	Ok(result)
 }
+
 pub fn parse_iso_date(value: &str) -> Option<i64> {
 	// Parse the base datetime as UTC, then apply any embedded timezone offset so the result is
 	// normalized to UTC (e.g. 2026-02-21T22:08:14-05:00 -> 03:08:14 UTC).
@@ -387,12 +387,14 @@ pub fn parse_iso_date(value: &str) -> Option<i64> {
 	}
 	Some(base - sign * (hours * 3600 + minutes * 60))
 }
+
 pub fn valid_slug(value: &str) -> bool {
 	!value.is_empty()
 		&& value
 			.chars()
 			.all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
+
 pub fn valid_number(value: &str) -> bool {
 	let mut has_dot = false;
 	let mut digits = 0;
@@ -633,20 +635,20 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn empty_chapter_titles_fallback_to_chapter_number() {
+	fn empty_chapter_titles_are_none() {
 		let empty = chapter_from_item(crate::models::ChapterItem {
 			number: 1.0,
 			title: Some("  ".into()),
 			created_at: None,
 		});
-		assert_eq!(empty.title.as_deref(), Some("Chapter 1"));
+		assert!(empty.title.is_none());
 
 		let missing = chapter_from_item(crate::models::ChapterItem {
 			number: 2.0,
 			title: None,
 			created_at: None,
 		});
-		assert_eq!(missing.title.as_deref(), Some("Chapter 2"));
+		assert!(missing.title.is_none());
 
 		let present = chapter_from_item(crate::models::ChapterItem {
 			number: 3.0,
