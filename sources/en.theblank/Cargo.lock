@@ -140,6 +140,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "hmac-sha256"
+version = "1.1.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec9d92d097f4749b64e8cc33d924d9f40a2d4eb91402b458014b781f5733d60f"
+
+[[package]]
 name = "itoa"
 version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -318,6 +324,7 @@ version = "0.1.0"
 dependencies = [
  "aidoku",
  "aidoku-test",
+ "hmac-sha256",
  "serde",
  "serde_json",
 ]
