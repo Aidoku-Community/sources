@@ -11,6 +11,7 @@ const JPG_MANGA_KEY: &str = "my-neighbor-ms-kurokawa-tonari-no-kurokawa-san-1";
 const JPG_CHAPTER_KEY: &str = "1/786104";
 const WEBP_MANGA_KEY: &str = "one-night-morning-62659";
 const SEARCHED_KEY: &str = "kobayashi-san-chino-meidoragon-57605";
+const NULL_GENRE_KEY: &str = "majime-fumajime-maji-koiji-64273";
 
 fn listing(id: &str) -> Listing {
 	Listing {
@@ -261,6 +262,21 @@ fn test_manga_details() {
 	// date_uploaded isn't checked here: the test runner doesn't implement the quoting,
 	// fractional seconds or ISO 8601 zones that DATE_FORMAT relies on, so it only ever
 	// parses on device
+}
+
+// two of its genre rows come back with every field but the id null, which used to fail the whole
+// details request
+#[aidoku_test]
+fn test_null_genres() {
+	let manga = Manga {
+		key: String::from(NULL_GENRE_KEY),
+		..Default::default()
+	};
+	let manga = Soraraw
+		.get_manga_update(manga, true, true)
+		.expect("manga details");
+
+	assert!(manga.tags.is_some_and(|tags| !tags.is_empty()));
 }
 
 // reading `mode` as the reader handed ordinary manga marked `vertical` to the continuous scroll
