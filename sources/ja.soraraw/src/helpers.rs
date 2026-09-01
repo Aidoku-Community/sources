@@ -10,7 +10,7 @@ use aidoku::{
 };
 use serde::de::DeserializeOwned;
 
-use crate::{BASE_URL, HEADER_BYTES, THUMBNAIL_URL, models::NextData};
+use crate::{BASE_URL, HEADER_BYTES, STACKED_PAGE_LIMIT, THUMBNAIL_URL, models::NextData};
 
 const BLOCK_SIZE: usize = 16;
 
@@ -85,12 +85,11 @@ pub fn stacked_page_count(url: &str) -> u32 {
 		return 1;
 	};
 	let page_height = width as f32 * core::f32::consts::SQRT_2;
-	// a width of zero divides into infinity, which saturates to u32::MAX pages
-	if page_height < 1.0 {
+	// `f32::round` is not in core. a width of zero divides into infinity, which saturates
+	let count = ((height as f32 / page_height) + 0.5) as u32;
+	if count > STACKED_PAGE_LIMIT {
 		return 1;
 	}
-	// `f32::round` is not in core
-	let count = ((height as f32 / page_height) + 0.5) as u32;
 	count.max(1)
 }
 

@@ -12,6 +12,7 @@ const JPG_CHAPTER_KEY: &str = "1/786104";
 const WEBP_MANGA_KEY: &str = "one-night-morning-62659";
 const SEARCHED_KEY: &str = "kobayashi-san-chino-meidoragon-57605";
 const NULL_GENRE_KEY: &str = "majime-fumajime-maji-koiji-64273";
+const SHORT_CHAPTER_KEY: &str = "fusago-han-61986";
 
 fn listing(id: &str) -> Listing {
 	Listing {
@@ -436,6 +437,35 @@ fn test_stacked_webp_chapter_is_split() {
 	assert_eq!(slices.len(), 10, "got {} pages", slices.len());
 	for (url, _, _) in &slices {
 		assert!(url.ends_with(".webp"), "{url} is not a webp");
+	}
+}
+
+// ordinary chapters reach the measurement too: this one holds four page-shaped scans, and a page
+// standing its width times √2 divides into one page rather than into slices
+#[aidoku_test]
+fn test_short_ordinary_chapter_is_not_split() {
+	let manga = Manga {
+		key: String::from(SHORT_CHAPTER_KEY),
+		..Default::default()
+	};
+	let mut manga = Soraraw
+		.get_manga_update(manga, false, true)
+		.expect("chapters");
+	let chapter = manga
+		.chapters
+		.take()
+		.expect("chapters")
+		.into_iter()
+		.find(|chapter| chapter.chapter_number == Some(206.0))
+		.expect("chapter 206");
+
+	let pages = Soraraw.get_page_list(manga, chapter).expect("pages");
+	assert_eq!(pages.len(), 4, "got {} pages", pages.len());
+	for page in &pages {
+		let PageContent::Url(url, context) = &page.content else {
+			panic!("expected a page url");
+		};
+		assert!(context.is_none(), "{url} came back sliced");
 	}
 }
 
