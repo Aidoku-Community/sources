@@ -1,8 +1,7 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, DynamicSettings, FilterValue, Listing,
-	ListingProvider, Manga, MangaPageResult, Page, PageContent, Result, SelectSetting, Setting,
-	Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider, Manga,
+	MangaPageResult, Page, PageContent, Result, Source,
 	alloc::{String, Vec, vec},
 	imports::std::send_partial_result,
 	prelude::*,
@@ -10,13 +9,15 @@ use aidoku::{
 mod helpers;
 mod models;
 use helpers::{
-	CONTENT_TYPE_SETTING, ContentType, body_to_text, content_type_from_setting, decode_manga_key,
-	deep_link_manga_key, fetch_chapters, list_url, manga_from_detail, manga_page_result, request,
-	valid_number, valid_slug,
+	ContentType, body_to_text, content_type_from_setting, decode_manga_key, deep_link_manga_key,
+	fetch_chapters, list_url, manga_from_detail, manga_page_result, request, valid_number,
+	valid_slug,
 };
 use models::{ChapterBody, ListResponse, SeriesChapterBody};
+
 pub const BASE_URL: &str = "https://chikari.moe";
 pub const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1";
+
 const SORTS: &[&str] = &[
 	"popular",
 	"trending",
@@ -25,9 +26,12 @@ const SORTS: &[&str] = &[
 	"added",
 	"most_bookmarked",
 ];
+
 const LIST_PAGE_SIZE: u32 = 60;
 const SEARCH_PAGE_SIZE: u32 = 36;
+
 struct Chikari;
+
 impl Source for Chikari {
 	fn new() -> Self {
 		Self
@@ -147,23 +151,6 @@ impl ListingProvider for Chikari {
 	}
 }
 
-impl DynamicSettings for Chikari {
-	fn get_dynamic_settings(&self) -> Result<Vec<Setting>> {
-		Ok(vec![
-			SelectSetting {
-				key: CONTENT_TYPE_SETTING.into(),
-				title: "Content Type".into(),
-				values: vec!["novels".into(), "series".into()],
-				titles: Some(vec!["Novels".into(), "Series".into()]),
-				default: Some("novels".into()),
-				refreshes: Some(vec!["listings".into()]),
-				..Default::default()
-			}
-			.into(),
-		])
-	}
-}
-
 impl DeepLinkHandler for Chikari {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		let path = url.split(['?', '#']).next().unwrap_or("");
@@ -203,7 +190,7 @@ impl DeepLinkHandler for Chikari {
 		Ok(None)
 	}
 }
-register_source!(Chikari, ListingProvider, DynamicSettings, DeepLinkHandler);
+register_source!(Chikari, ListingProvider, DeepLinkHandler);
 
 #[cfg(test)]
 mod tests {
@@ -222,6 +209,7 @@ mod tests {
 				.any(|m| m.title.to_ascii_lowercase().contains("shadow slave"))
 		);
 	}
+
 	#[aidoku_test]
 	fn details_fetch_all_chapters() {
 		let manga = Chikari
@@ -248,6 +236,7 @@ mod tests {
 				> chapters.last().and_then(|chapter| chapter.chapter_number)
 		);
 	}
+
 	#[aidoku_test]
 	fn chapter_one_is_text() {
 		let pages = Chikari
@@ -268,6 +257,7 @@ mod tests {
 			_ => panic!("expected text"),
 		}
 	}
+
 	#[aidoku_test]
 	fn series_deep_link_update_preserves_typed_key() {
 		let manga = Chikari
@@ -289,6 +279,7 @@ mod tests {
 			Some("https://chikari.moe/series/alya-sometimes-hides-her-feelings-in-russian")
 		);
 	}
+
 	#[aidoku_test]
 	fn series_deep_link_fetches_image_pages_without_url() {
 		let pages = Chikari
@@ -310,6 +301,7 @@ mod tests {
 				.any(|page| matches!(&page.content, PageContent::Url(_, _)))
 		);
 	}
+
 	#[aidoku_test]
 	fn deep_links_resolve() {
 		assert!(
@@ -330,29 +322,5 @@ mod tests {
 				.unwrap()
 				.is_none()
 		);
-	}
-
-	#[aidoku_test]
-	fn content_type_setting_refreshes_listings() {
-		let settings = Chikari.get_dynamic_settings().expect("settings failed");
-		assert_eq!(settings.len(), 1);
-		assert_eq!(settings[0].key, "content_type");
-		assert_eq!(
-			settings[0].refreshes.as_ref().unwrap()[0].as_ref(),
-			"listings"
-		);
-		match &settings[0].value {
-			aidoku::SettingValue::Select {
-				values,
-				titles: Some(titles),
-				default,
-				..
-			} => {
-				assert_eq!(values.len(), 2);
-				assert_eq!(titles.len(), 2);
-				assert_eq!(default.as_deref(), Some("novels"));
-			}
-			_ => panic!("expected content type select setting"),
-		}
 	}
 }
