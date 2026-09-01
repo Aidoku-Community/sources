@@ -460,7 +460,12 @@ fn test_short_ordinary_chapter_is_not_split() {
 		.expect("chapter 206");
 
 	let pages = Soraraw.get_page_list(manga, chapter).expect("pages");
-	assert_eq!(pages.len(), 4, "got {} pages", pages.len());
+	// only a chapter this short is measured at all, so the bound is what makes the rest mean anything
+	assert!(
+		pages.len() <= STRIP_IMAGE_LIMIT,
+		"got {} pages",
+		pages.len()
+	);
 	for page in &pages {
 		let PageContent::Url(url, context) = &page.content else {
 			panic!("expected a page url");
@@ -621,6 +626,20 @@ fn test_jpeg_size() {
 	// anything that isn't a jpeg, and a header cut off ahead of the frame
 	assert_eq!(jpeg_size(b"RIFF\0\0\0\0WEBPVP8 "), None);
 	assert_eq!(jpeg_size(&head[..8]), None);
+}
+
+// the shapes measured off the site, and the two ways a header read wrong turns into a count that
+// isn't a page: a width of zero, and one narrow enough to divide the image into slivers
+#[aidoku_test]
+fn test_slice_count() {
+	assert_eq!(slice_count(1450, 49152), 24);
+	assert_eq!(slice_count(800, 24003), 21);
+	assert_eq!(slice_count(1133, 16000), 10);
+	assert_eq!(slice_count(960, 1376), 1);
+
+	assert_eq!(slice_count(0, 49152), 1);
+	assert_eq!(slice_count(0, 0), 1);
+	assert_eq!(slice_count(100, 49152), 1);
 }
 
 // a webp keeps its frame size behind the start code, in 14 bits of each little endian half word

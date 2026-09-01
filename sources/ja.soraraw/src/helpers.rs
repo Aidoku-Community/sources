@@ -84,8 +84,13 @@ pub fn stacked_page_count(url: &str) -> u32 {
 	let Some((width, height)) = image_size(url) else {
 		return 1;
 	};
+	slice_count(width, height)
+}
+
+pub fn slice_count(width: u32, height: u32) -> u32 {
 	let page_height = width as f32 * core::f32::consts::SQRT_2;
-	// `f32::round` is not in core. a width of zero divides into infinity, which saturates
+	// `f32::round` is not in core. a width of zero divides into infinity, which saturates to
+	// `u32::MAX` and falls past the limit below rather than wrapping
 	let count = ((height as f32 / page_height) + 0.5) as u32;
 	if count > STACKED_PAGE_LIMIT {
 		return 1;

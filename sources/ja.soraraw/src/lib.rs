@@ -29,8 +29,9 @@ const PATH_SECRET: &[u8] = b"202508055d0db38bae2e86cc41649f90";
 // a strip holds a handful of images at most, a scanned chapter one per page, so this keeps the
 // request that measures them off the common case
 const STRIP_IMAGE_LIMIT: usize = 4;
-// the tallest stacked image seen holds 24 pages. a count past this comes from a misread header
-// rather than an image that deep, and slicing on it would hand the reader hundreds of slivers
+// the tallest image seen is 49152 and the narrowest 800, which divide into 43 pages. a count past
+// this comes from a misread header rather than an image that deep, and slicing on it would hand
+// the reader hundreds of slivers
 const STACKED_PAGE_LIMIT: u32 = 64;
 // enough to reach the header unless the file leads with a large colour profile
 const HEADER_BYTES: usize = 16 * 1024;
