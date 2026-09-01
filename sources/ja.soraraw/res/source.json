@@ -2,13 +2,13 @@
 	"info": {
 		"id": "ja.soraraw",
 		"name": "Soraraw",
-		"version": 2,
+		"version": 3,
 		"url": "https://soraraw.com",
 		"contentRating": 2,
 		"languages": [
 			"ja"
 		],
-		"minAppVersion": "0.7.1"
+		"minAppVersion": "0.8.5"
 	},
 	"listings": [
 		{
