@@ -184,7 +184,7 @@ pub fn manga_from_list(item: NovelListItem, content_type: ContentType) -> Manga 
 			.status
 			.as_deref()
 			.map(parse_status)
-			.unwrap_or(MangaStatus::Unknown),
+			.unwrap_or_default(),
 		..Default::default()
 	}
 }
@@ -245,7 +245,7 @@ pub fn manga_from_detail(detail: NovelDetail, content_type: ContentType) -> Mang
 			.status
 			.as_deref()
 			.map(parse_status)
-			.unwrap_or(MangaStatus::Unknown),
+			.unwrap_or_default(),
 		content_rating,
 		viewer: viewer_for_series(detail.reading_mode.as_deref(), detail.kind.as_deref()),
 		..Default::default()
