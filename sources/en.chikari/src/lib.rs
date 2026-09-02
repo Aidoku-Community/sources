@@ -190,6 +190,7 @@ impl DeepLinkHandler for Chikari {
 		Ok(None)
 	}
 }
+
 register_source!(Chikari, ListingProvider, DeepLinkHandler);
 
 #[cfg(test)]

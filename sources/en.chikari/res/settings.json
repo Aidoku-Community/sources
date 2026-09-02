@@ -15,6 +15,7 @@
 					"Novels",
 					"Series"
 				],
+				"refreshes": ["content"],
 				"default": "novels"
 			}
 		]
