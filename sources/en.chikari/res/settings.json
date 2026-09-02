@@ -1,0 +1,23 @@
+[
+	{
+		"type": "group",
+		"title": "Content",
+		"items": [
+			{
+				"type": "select",
+				"key": "content_type",
+				"title": "Content Type",
+				"values": [
+					"novels",
+					"series"
+				],
+				"titles": [
+					"Novels",
+					"Series"
+				],
+				"refreshes": ["content"],
+				"default": "novels"
+			}
+		]
+	}
+]
