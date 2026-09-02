@@ -8,6 +8,7 @@ use aidoku::{
 	HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, MangaStatus, Page, PageContent,
 	Result, Source, Viewer,
 	alloc::{String, Vec, format, vec},
+	helpers::uri::QueryParameters,
 	imports::std::current_date,
 	prelude::*,
 };
@@ -37,16 +38,12 @@ impl From<LibrarySerie> for Manga {
 			key: s.link,
 			title: s.title,
 			cover: Some(abs_url(&s.image)),
-			tags: Some(s.genres),
-			status: manga_status(&s.status),
-			content_rating: ContentRating::NSFW,
-			viewer: Viewer::Webtoon,
 			..Default::default()
 		}
 	}
 }
 
-/// Wrapper so we can carry the serie_slug into the chapter From impl.
+/// Wrapper to carry serie_slug into the Chapter From impl.
 pub struct ChapterWithSlug<'a> {
 	pub chapter: SerieChapter,
 	pub serie_slug: &'a str,
@@ -62,7 +59,6 @@ impl<'a> From<ChapterWithSlug<'a>> for Chapter {
 			chapter_number: Some(c.chapter_number),
 			date_uploaded: parse_chapter_date(&c.created_at),
 			thumbnail: c.thumbnail.map(|t| abs_url(&t)),
-			language: Some(String::from("en")),
 			url: Some(format!(
 				"{BASE_URL}/serie/{}/chapter/{}",
 				w.serie_slug, c.slug
@@ -74,9 +70,9 @@ impl<'a> From<ChapterWithSlug<'a>> for Chapter {
 
 // ─── Source ───────────────────────────────────────────────────────────────────
 
-struct Theblank;
+struct TheBlank;
 
-impl Source for Theblank {
+impl Source for TheBlank {
 	fn new() -> Self {
 		Self
 	}
@@ -87,22 +83,21 @@ impl Source for Theblank {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let mut url = format!("{BASE_URL}/library?page={page}");
+		let mut params = QueryParameters::new();
+		params.push_encoded("page", Some(&format!("{page}")));
 
-		if let Some(q) = &query
-			&& !q.is_empty()
-		{
-			url = format!("{url}&search={q}");
+		if let Some(q) = &query {
+			params.push("search", Some(q));
 		}
 
 		for filter in &filters {
 			match filter {
 				FilterValue::Select { id, value } => match id.as_str() {
 					"orderby" => {
-						url = format!("{url}&orderby={value}");
+						params.push_encoded("orderby", Some(value));
 					}
 					"status" if !value.is_empty() => {
-						url = format!("{url}&status[]={value}");
+						params.push_encoded("status[]", Some(value));
 					}
 					_ => {}
 				},
@@ -112,27 +107,28 @@ impl Source for Theblank {
 					excluded,
 				} if id == "genres" => {
 					for g in included {
-						url = format!("{url}&include_genres[]={g}");
+						params.push_encoded("include_genres[]", Some(g));
 					}
 					for g in excluded {
-						url = format!("{url}&exclude_genres[]={g}");
+						params.push_encoded("exclude_genres[]", Some(g));
 					}
 				}
 				_ => {}
 			}
 		}
 
+		let url = format!("{BASE_URL}/library?{params}");
 		let html = fetch_html(&url)?;
 		let props: LibraryProps = parse_inertia(&html).ok_or(AidokuError::Message(
 			String::from("failed to parse library"),
 		))?;
 
-		let has_next = props.series.meta.current_page < props.series.meta.last_page;
+		let has_next_page = props.series.meta.current_page < props.series.meta.last_page;
 		let entries = props.series.data.into_iter().map(Into::into).collect();
 
 		Ok(MangaPageResult {
 			entries,
-			has_next_page: has_next,
+			has_next_page,
 		})
 	}
 
@@ -142,10 +138,6 @@ impl Source for Theblank {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		if !needs_details && !needs_chapters {
-			return Ok(manga);
-		}
-
 		let url = format!("{BASE_URL}{}", manga.key);
 		let html = fetch_html(&url)?;
 		let props: SerieDetailProps = parse_inertia(&html).ok_or(AidokuError::Message(
@@ -153,7 +145,29 @@ impl Source for Theblank {
 		))?;
 
 		let s = props.serie;
-		let tags: Vec<String> = s.genres.into_iter().map(|g| g.name).collect();
+
+		let (cover, description, authors, tags, status, content_rating, viewer) = if needs_details {
+			let tags: Vec<String> = s.genres.into_iter().map(|g| g.name).collect();
+			(
+				Some(abs_url(&s.cover_image)),
+				Some(s.description),
+				Some(vec![s.author]),
+				Some(tags),
+				manga_status(&s.status),
+				ContentRating::NSFW,
+				Viewer::Webtoon,
+			)
+		} else {
+			(
+				None,
+				None,
+				None,
+				None,
+				MangaStatus::Unknown,
+				ContentRating::Safe,
+				Viewer::default(),
+			)
+		};
 
 		let chapters = if needs_chapters {
 			Some(
@@ -175,13 +189,13 @@ impl Source for Theblank {
 		Ok(Manga {
 			key: manga.key,
 			title: s.name,
-			cover: Some(abs_url(&s.cover_image)),
-			description: Some(s.description),
-			authors: Some(vec![s.author]),
-			tags: Some(tags),
-			status: manga_status(&s.status),
-			content_rating: ContentRating::NSFW,
-			viewer: Viewer::Webtoon,
+			cover,
+			description,
+			authors,
+			tags,
+			status,
+			content_rating,
+			viewer,
 			chapters,
 			..Default::default()
 		})
@@ -208,16 +222,13 @@ impl Source for Theblank {
 		let token = d.chapter_token;
 		let ts = current_date();
 
-		// Generate a random 8-byte nonce using the current timestamp as a seed
-		// (wasm32 has no OS RNG; we derive entropy from ts XOR page index)
 		let pages = (1..=d.page_count)
 			.map(|i| {
 				let mut nonce = [0u8; 8];
 				let seed = (ts as u64)
 					.wrapping_add(i as u64)
 					.wrapping_mul(0x9e3779b97f4a7c15);
-				let bytes = seed.to_le_bytes();
-				nonce.copy_from_slice(&bytes);
+				nonce.copy_from_slice(&seed.to_le_bytes());
 				Page {
 					content: PageContent::url(build_page_url(
 						&sr_slug, &ch_slug, &token, i, ts, &nonce,
@@ -233,7 +244,7 @@ impl Source for Theblank {
 
 // ─── Listing provider ─────────────────────────────────────────────────────────
 
-impl ListingProvider for Theblank {
+impl ListingProvider for TheBlank {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let orderby = match listing.id.as_str() {
 			"trending" => "trending",
@@ -248,19 +259,19 @@ impl ListingProvider for Theblank {
 			String::from("failed to parse library"),
 		))?;
 
-		let has_next = props.series.meta.current_page < props.series.meta.last_page;
+		let has_next_page = props.series.meta.current_page < props.series.meta.last_page;
 		let entries = props.series.data.into_iter().map(Into::into).collect();
 
 		Ok(MangaPageResult {
 			entries,
-			has_next_page: has_next,
+			has_next_page,
 		})
 	}
 }
 
 // ─── Home ─────────────────────────────────────────────────────────────────────
 
-impl Home for Theblank {
+impl Home for TheBlank {
 	fn get_home(&self) -> Result<HomeLayout> {
 		Err(AidokuError::Unimplemented)
 	}
@@ -268,7 +279,7 @@ impl Home for Theblank {
 
 // ─── Deep link ────────────────────────────────────────────────────────────────
 
-impl DeepLinkHandler for Theblank {
+impl DeepLinkHandler for TheBlank {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		let path = url.strip_prefix(BASE_URL).unwrap_or(url.as_str());
 
@@ -290,4 +301,4 @@ impl DeepLinkHandler for Theblank {
 	}
 }
 
-register_source!(Theblank, ListingProvider, Home, DeepLinkHandler);
+register_source!(TheBlank, ListingProvider, Home, DeepLinkHandler);
