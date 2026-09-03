@@ -1,0 +1,80 @@
+[
+	{
+		"type": "group",
+		"title": "Content",
+		"footer": "Choose which content types and ratings appear in Discover and search.",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "contentTypes",
+				"title": "Content Types",
+				"values": [
+					"manga",
+					"manhwa",
+					"manhua",
+					"other",
+					"oel",
+					"novel"
+				],
+				"titles": [
+					"Manga",
+					"Manhwa",
+					"Manhua",
+					"Other",
+					"OEL",
+					"Novel"
+				],
+				"default": [
+					"manga",
+					"manhwa",
+					"manhua",
+					"other",
+					"oel",
+					"novel"
+				],
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "multi-select",
+				"key": "contentRatings",
+				"title": "Content Ratings",
+				"values": [
+					"safe",
+					"suggestive",
+					"erotica",
+					"pornographic"
+				],
+				"titles": [
+					"Safe",
+					"Suggestive",
+					"Erotica",
+					"Pornographic"
+				],
+				"default": [
+					"safe",
+					"suggestive",
+					"erotica",
+					"pornographic"
+				],
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Chapters",
+		"footer": "Off shows every scanlator's upload. On asks the site for one chapter per number, which hides the rest.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "deduplicateChapters",
+				"title": "Deduplicate Chapter List",
+				"default": false
+			}
+		]
+	}
+]

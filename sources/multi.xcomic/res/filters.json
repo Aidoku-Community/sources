@@ -1,0 +1,221 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"canAscend": false,
+		"options": [
+			"Rating Score",
+			"Latest Update",
+			"Recently Added",
+			"Name A-Z",
+			"Name Z-A",
+			"Most Chapters",
+			"Most Follows",
+			"Most Reviews",
+			"Most Comments",
+			"Most Views (All Time)",
+			"Most Views (360 Days)",
+			"Most Views (180 Days)",
+			"Most Views (90 Days)",
+			"Most Views (30 Days)",
+			"Most Views (7 Days)",
+			"Most Views (24 Hours)",
+			"Most Views (12 Hours)",
+			"Most Views (6 Hours)",
+			"Most Views (1 Hour)"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "types",
+		"title": "Types",
+		"canExclude": false,
+		"options": [
+			"Manga",
+			"Manhwa",
+			"Manhua",
+			"Other",
+			"OEL",
+			"Novel"
+		],
+		"ids": [
+			"manga",
+			"manhwa",
+			"manhua",
+			"other",
+			"oel",
+			"novel"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "demographics",
+		"title": "Demographics",
+		"canExclude": false,
+		"options": [
+			"Shounen",
+			"Seinen",
+			"Shoujo",
+			"Josei",
+			"Kodomo",
+			"Male Demographic with Female Lead",
+			"Male Demographic with Female Author",
+			"Female Demographic with Male Lead",
+			"Male Oriented",
+			"Female Oriented"
+		],
+		"ids": [
+			"shounen",
+			"seinen",
+			"shoujo",
+			"josei",
+			"kodomo",
+			"male_demographic_with_female_lead",
+			"male_demographic_with_female_author",
+			"female_demographic_with_male_lead",
+			"male_oriented",
+			"female_oriented"
+		]
+	},
+	{
+		"type": "select",
+		"id": "include_mode",
+		"title": "Include Genres Mode",
+		"options": [
+			"AND",
+			"OR"
+		],
+		"ids": [
+			"and",
+			"or"
+		]
+	},
+	{
+		"type": "select",
+		"id": "exclude_mode",
+		"title": "Exclude Genres Mode",
+		"options": [
+			"OR",
+			"AND"
+		],
+		"ids": [
+			"or",
+			"and"
+		]
+	},
+	{
+		"type": "select",
+		"id": "original_status",
+		"title": "Original Work Status",
+		"options": [
+			"Any",
+			"Releasing",
+			"Completed",
+			"Hiatus",
+			"Cancelled",
+			"Upcoming",
+			"Unknown"
+		],
+		"ids": [
+			"",
+			"releasing",
+			"completed",
+			"hiatus",
+			"cancelled",
+			"upcoming",
+			"unknown"
+		]
+	},
+	{
+		"type": "select",
+		"id": "upload_status",
+		"title": "Upload Status",
+		"options": [
+			"Any",
+			"Releasing",
+			"Completed",
+			"Hiatus",
+			"Cancelled",
+			"Upcoming",
+			"Unknown"
+		],
+		"ids": [
+			"",
+			"releasing",
+			"completed",
+			"hiatus",
+			"cancelled",
+			"upcoming",
+			"unknown"
+		]
+	},
+	{
+		"type": "select",
+		"id": "chapter_count",
+		"title": "Chapter Count",
+		"options": [
+			"Any",
+			"0",
+			"1+",
+			"10+",
+			"20+",
+			"30+",
+			"40+",
+			"50+",
+			"60+",
+			"70+",
+			"80+",
+			"90+",
+			"100+",
+			"200+",
+			"300+",
+			"1-9",
+			"10-19",
+			"20-29",
+			"30-39",
+			"40-49",
+			"50-59",
+			"60-69",
+			"70-79",
+			"80-89",
+			"90-99",
+			"100-199",
+			"200-299"
+		],
+		"ids": [
+			"",
+			"0",
+			"1",
+			"10",
+			"20",
+			"30",
+			"40",
+			"50",
+			"60",
+			"70",
+			"80",
+			"90",
+			"100",
+			"200",
+			"300",
+			"1-9",
+			"10-19",
+			"20-29",
+			"30-39",
+			"40-49",
+			"50-59",
+			"60-69",
+			"70-79",
+			"80-89",
+			"90-99",
+			"100-199",
+			"200-299"
+		]
+	},
+	{
+		"type": "text",
+		"id": "year",
+		"title": "Release Year",
+		"placeholder": "e.g. 2020 or 2018-2022"
+	}
+]
