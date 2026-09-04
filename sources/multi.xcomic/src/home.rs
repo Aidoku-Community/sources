@@ -125,7 +125,7 @@ impl Home for XComic {
 					subtitle: None,
 					value: HomeComponentValue::MangaList {
 						ranking: true,
-						page_size: Some(10),
+						page_size: Some(5),
 						entries: most_viewed,
 						listing: listing("views_d030", "Most Viewed (30 Days)"),
 					},
@@ -134,7 +134,7 @@ impl Home for XComic {
 					title: Some("Latest Update".into()),
 					subtitle: None,
 					value: HomeComponentValue::MangaChapterList {
-						page_size: Some(10),
+						page_size: Some(5),
 						entries: latest,
 						listing: listing("field_update", "Latest Update"),
 					},
@@ -152,7 +152,7 @@ impl Home for XComic {
 					subtitle: None,
 					value: HomeComponentValue::MangaList {
 						ranking: true,
-						page_size: Some(10),
+						page_size: Some(5),
 						entries: most_chapters,
 						listing: listing("field_chapter", "Most Chapters"),
 					},

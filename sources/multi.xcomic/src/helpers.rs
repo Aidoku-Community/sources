@@ -304,6 +304,7 @@ pub fn manga_from_data(mut comic: ComicData, base_url: &str) -> Manga {
 		.url_path
 		.take()
 		.map(|url| absolute_url(base_url, &url))
+		.filter(|url| !url.is_empty())
 		.unwrap_or_else(|| format!("{base_url}/comic/{}", comic.id));
 	let authors = comic
 		.author_nodes
@@ -512,6 +513,15 @@ pub fn chapter_from_data(
 	let language = language
 		.map(Into::into)
 		.or_else(|| language_from_path(data.url_path.as_deref()));
+	// An absent or blank path would otherwise leave the web view nothing to open.
+	// `_` stands in for the comic, which is the shape the site's own url rewriter
+	// produces when it only has a chapter id.
+	let url = data
+		.url_path
+		.take()
+		.map(|url| absolute_url(base_url, &url))
+		.filter(|url| !url.is_empty())
+		.unwrap_or_else(|| format!("{base_url}/comic/_/{}", data.id));
 	Some(Chapter {
 		key: data.id,
 		chapter_number: data.cha_num.or(data.serial).map(|number| number as f32),
@@ -524,7 +534,7 @@ pub fn chapter_from_data(
 		}
 		.and_then(unix_seconds),
 		scanlators: (!scanlators.is_empty()).then_some(scanlators),
-		url: data.url_path.map(|url| absolute_url(base_url, &url)),
+		url: Some(url),
 		language,
 		..Default::default()
 	})
