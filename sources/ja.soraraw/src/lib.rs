@@ -290,15 +290,12 @@ impl PageImageProcessor for Soraraw {
 		}
 
 		let width = response.image.width();
-		let height = response.image.height();
-		let slice_height = height / slices as f32;
-		let top = slice_height * slice as f32;
-		// the last page takes whatever the division left over
-		let slice_height = if slice + 1 == slices {
-			height - top
-		} else {
-			slice_height
-		};
+		let height = response.image.height() as u32;
+		// whole pixel rows: the app's crop rounds a fractional rect, which would draw a row twice
+		// or drop it at the boundary between two slices
+		let top = height * slice / slices;
+		let bottom = height * (slice + 1) / slices;
+		let (top, slice_height) = (top as f32, (bottom - top) as f32);
 
 		// the canvas has to match the slice: app versions before the AidokuRunner fix in e44d774
 		// placed the destination rect off any canvas shorter than the image, drawing nothing
