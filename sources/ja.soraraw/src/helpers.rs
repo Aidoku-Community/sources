@@ -10,7 +10,7 @@ use aidoku::{
 };
 use serde::de::DeserializeOwned;
 
-use crate::{BASE_URL, HEADER_BYTES, MAX_DRAWABLE_HEIGHT, THUMBNAIL_URL, models::NextData};
+use crate::{BASE_URL, HEADER_BYTES, STACKED_PAGE_LIMIT, THUMBNAIL_URL, models::NextData};
 
 const BLOCK_SIZE: usize = 16;
 
@@ -67,31 +67,39 @@ pub fn strip_html(text: &str) -> String {
 		.into()
 }
 
-fn image_height(url: &str) -> Option<u32> {
+fn image_size(url: &str) -> Option<(u32, u32)> {
 	let range = format!("bytes=0-{}", HEADER_BYTES - 1);
 	let head = Request::get(url)
 		.ok()?
 		.header("Range", range.as_str())
 		.data()
 		.ok()?;
-	jpeg_height(&head)
+	jpeg_size(&head).or_else(|| webp_size(&head))
 }
 
-// a few chapters ship as one image stacking every page, up to 49152 pixels tall. slicing those
-// isn't possible yet: `Canvas::copy_image` and `draw_image` place the destination rect off the
-// canvas when it is shorter than the source, so every slice comes back a flat colour
-// (Aidoku/AidokuRunner#3). failing beats handing back a blank page
-pub fn check_drawable(url: &str) -> Result<()> {
-	match image_height(url) {
-		Some(height) if height > MAX_DRAWABLE_HEIGHT => bail!(
-			"{url} stands {height} pixels tall, past the {MAX_DRAWABLE_HEIGHT} the reader can draw"
-		),
-		_ => Ok(()),
+// a few chapters ship as one image stacking every page of the chapter, up to 49152 pixels tall.
+// the scans are b5, so one page stands its width times √2, and every stacked chapter measured
+// divides into a whole number of them
+pub fn stacked_page_count(url: &str) -> u32 {
+	let Some((width, height)) = image_size(url) else {
+		return 1;
+	};
+	slice_count(width, height)
+}
+
+pub fn slice_count(width: u32, height: u32) -> u32 {
+	let page_height = width as f32 * core::f32::consts::SQRT_2;
+	// `f32::round` is not in core. a width of zero divides into infinity, which saturates to
+	// `u32::MAX` and falls past the limit below rather than wrapping
+	let count = ((height as f32 / page_height) + 0.5) as u32;
+	if count > STACKED_PAGE_LIMIT {
+		return 1;
 	}
+	count.max(1)
 }
 
-// only jpeg needs measuring: webp caps a side at 16383 pixels, which the reader still draws
-pub fn jpeg_height(head: &[u8]) -> Option<u32> {
+// neither extension says what the container is, so the magic bytes are what decides
+pub fn jpeg_size(head: &[u8]) -> Option<(u32, u32)> {
 	fn length(head: &[u8], at: usize) -> Option<usize> {
 		Some(usize::from(u16::from_be_bytes([
 			*head.get(at)?,
@@ -112,13 +120,35 @@ pub fn jpeg_height(head: &[u8]) -> Option<u32> {
 			0x01 | 0xD0..=0xD9 => index += 2,
 			// a frame header, which opens with the precision and then the size of the image
 			0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF => {
-				return length(head, index + 5)?.try_into().ok();
+				let height = length(head, index + 5)?.try_into().ok()?;
+				let width = length(head, index + 7)?.try_into().ok()?;
+				return Some((width, height));
 			}
 			_ => index += 2 + length(head, index + 2)?,
 		}
 	}
 
 	None
+}
+
+// only the simple lossy form is read: a webp canvas stops at 16383 pixels, so the stacked images
+// tall enough to need slicing are written as jpeg, and every webp the site serves is a `VP8 `
+pub fn webp_size(head: &[u8]) -> Option<(u32, u32)> {
+	if !head.starts_with(b"RIFF")
+		|| head.get(8..12)? != b"WEBP".as_slice()
+		|| head.get(12..16)? != b"VP8 ".as_slice()
+		// the keyframe start code, which the frame size sits behind
+		|| head.get(23..26)? != [0x9D, 0x01, 0x2A].as_slice()
+	{
+		return None;
+	}
+
+	// 14 bits of size and 2 of upscaling, which says nothing about how large the frame is
+	let size = |at: usize| -> Option<u32> {
+		let value = u16::from_le_bytes([*head.get(at)?, *head.get(at + 1)?]);
+		Some(u32::from(value & 0x3FFF))
+	};
+	Some((size(26)?, size(28)?))
 }
 
 // listings hand out either a full cover url or just the file name on the thumbnail host

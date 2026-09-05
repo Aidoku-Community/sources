@@ -1,5 +1,5 @@
 use super::*;
-use aidoku::{AidokuError, ContentRating, FilterKind, MangaStatus, Viewer};
+use aidoku::{ContentRating, FilterKind, MangaStatus, Viewer};
 use aidoku_test::aidoku_test;
 
 const MANGA_KEY: &str = "majo-to-youhei-57539";
@@ -9,8 +9,10 @@ const PAGED_VERTICAL_KEY: &str = "blue-giant-momentum-buruu-jaianto-momentamu-60
 const ADULT_VERTICAL_KEY: &str = "haadowaakaa-nakata-740";
 const JPG_MANGA_KEY: &str = "my-neighbor-ms-kurokawa-tonari-no-kurokawa-san-1";
 const JPG_CHAPTER_KEY: &str = "1/786104";
+const WEBP_MANGA_KEY: &str = "one-night-morning-62659";
 const SEARCHED_KEY: &str = "kobayashi-san-chino-meidoragon-57605";
 const NULL_GENRE_KEY: &str = "majime-fumajime-maji-koiji-64273";
+const SHORT_CHAPTER_KEY: &str = "fusago-han-61986";
 
 fn listing(id: &str) -> Listing {
 	Listing {
@@ -38,6 +40,21 @@ fn page_urls(pages: &[Page]) -> Vec<&String> {
 				panic!("expected a page url");
 			};
 			url
+		})
+		.collect()
+}
+
+fn page_slices(pages: &[Page]) -> Vec<(&String, &String, &String)> {
+	pages
+		.iter()
+		.map(|page| {
+			let PageContent::Url(url, Some(context)) = &page.content else {
+				panic!("expected a page url carrying a slice");
+			};
+			let (Some(slice), Some(slices)) = (context.get("slice"), context.get("slices")) else {
+				panic!("expected a slice and a slice count");
+			};
+			(url, slice, slices)
 		})
 		.collect()
 }
@@ -341,10 +358,10 @@ fn test_page_list() {
 	);
 }
 
-// chapters 66 to 70 are each served as one image stacking all 24 pages, 49152 pixels tall.
-// reaching the refusal also proves the decrypted path resolved and its header read back
+// chapters 66 to 70 are each served as one image stacking all 24 pages, 1450x49152. splitting it
+// also proves the decrypted path resolved and its header read back
 #[aidoku_test]
-fn test_stacked_chapter_is_refused() {
+fn test_stacked_chapter_is_split() {
 	let manga = Manga {
 		key: String::from(PAGED_VERTICAL_KEY),
 		..Default::default()
@@ -360,18 +377,22 @@ fn test_stacked_chapter_is_refused() {
 		.find(|chapter| chapter.chapter_number == Some(70.0))
 		.expect("chapter 70");
 
-	let Err(AidokuError::Message(reason)) = Soraraw.get_page_list(manga, chapter) else {
-		panic!("an undrawable strip has to fail rather than hand back a blank page");
-	};
-	// the image measured 1450x49152 against the 1448x2048 the rest of the series holds
-	assert!(reason.contains(".jpg"), "{reason}");
-	assert!(reason.contains("49152"), "{reason}");
+	let pages = Soraraw.get_page_list(manga, chapter).expect("pages");
+	// 49152 / (1450 × √2) lands on the 24 pages the rest of the series holds one image each
+	let slices = page_slices(&pages);
+	assert_eq!(slices.len(), 24, "got {} pages", slices.len());
+	for (index, (url, slice, count)) in slices.iter().enumerate() {
+		assert!(url.ends_with(".jpg"), "{url} is not a jpg");
+		assert_eq!(url, &slices[0].0, "the slices come off one image");
+		assert_eq!(slice.as_str(), index.to_string(), "{slice} is out of order");
+		assert_eq!(count.as_str(), "24", "{count} slices");
+	}
 }
 
 // not one series' quirk: this one holds 21 pages in a single 800x24003 jpg. the chapter comes
 // from the chapter list rather than built by hand, since its url carries the key to the paths
 #[aidoku_test]
-fn test_stacked_chapter_of_another_series_is_refused() {
+fn test_stacked_chapter_of_another_series_is_split() {
 	let manga = Manga {
 		key: String::from(JPG_MANGA_KEY),
 		..Default::default()
@@ -387,11 +408,70 @@ fn test_stacked_chapter_of_another_series_is_refused() {
 		.find(|chapter| chapter.key == JPG_CHAPTER_KEY)
 		.expect("the jpg chapter");
 
-	let Err(AidokuError::Message(reason)) = Soraraw.get_page_list(manga, chapter) else {
-		panic!("an undrawable strip has to fail rather than hand back a blank page");
+	let pages = Soraraw.get_page_list(manga, chapter).expect("pages");
+	let slices = page_slices(&pages);
+	assert_eq!(slices.len(), 21, "got {} pages", slices.len());
+}
+
+// the stacked images are not all jpeg: this chapter is one 1133x16000 webp, which counted as a
+// single page for as long as only the jpeg header was read
+#[aidoku_test]
+fn test_stacked_webp_chapter_is_split() {
+	let manga = Manga {
+		key: String::from(WEBP_MANGA_KEY),
+		..Default::default()
 	};
-	assert!(reason.contains(".jpg"), "{reason}");
-	assert!(reason.contains("24003"), "{reason}");
+	let mut manga = Soraraw
+		.get_manga_update(manga, false, true)
+		.expect("chapters");
+	let chapter = manga
+		.chapters
+		.take()
+		.expect("chapters")
+		.into_iter()
+		.find(|chapter| chapter.chapter_number == Some(120.0))
+		.expect("chapter 120");
+
+	let pages = Soraraw.get_page_list(manga, chapter).expect("pages");
+	let slices = page_slices(&pages);
+	assert_eq!(slices.len(), 10, "got {} pages", slices.len());
+	for (url, _, _) in &slices {
+		assert!(url.ends_with(".webp"), "{url} is not a webp");
+	}
+}
+
+// ordinary chapters reach the measurement too: this one holds four page-shaped scans, and a page
+// standing its width times √2 divides into one page rather than into slices
+#[aidoku_test]
+fn test_short_ordinary_chapter_is_not_split() {
+	let manga = Manga {
+		key: String::from(SHORT_CHAPTER_KEY),
+		..Default::default()
+	};
+	let mut manga = Soraraw
+		.get_manga_update(manga, false, true)
+		.expect("chapters");
+	let chapter = manga
+		.chapters
+		.take()
+		.expect("chapters")
+		.into_iter()
+		.find(|chapter| chapter.chapter_number == Some(206.0))
+		.expect("chapter 206");
+
+	let pages = Soraraw.get_page_list(manga, chapter).expect("pages");
+	// only a chapter this short is measured at all, so the bound is what makes the rest mean anything
+	assert!(
+		pages.len() <= STRIP_IMAGE_LIMIT,
+		"got {} pages",
+		pages.len()
+	);
+	for page in &pages {
+		let PageContent::Url(url, context) = &page.content else {
+			panic!("expected a page url");
+		};
+		assert!(context.is_none(), "{url} came back sliced");
+	}
 }
 
 // a chapter numbered "74.2" has to survive the round trip into a page request
@@ -532,18 +612,53 @@ fn test_decrypt_path() {
 	assert_eq!(decrypt_path("QUJD", uuid, PATH_SECRET), None);
 }
 
-// the header of a jpeg is what refusing an undrawable chapter rests on, and a frame header sits
-// behind however many segments the encoder wrote ahead of it
+// the header of a jpeg is what counting the pages of a stacked chapter rests on, and a frame
+// header sits behind however many segments the encoder wrote ahead of it
 #[aidoku_test]
-fn test_jpeg_height() {
+fn test_jpeg_size() {
 	let head = [
 		0xFF, 0xD8, // start of image
 		0xFF, 0xE0, 0x00, 0x04, 0x00, 0x00, // an app segment to skip over
 		0xFF, 0xC0, 0x00, 0x11, 0x08, 0xC0, 0x00, 0x05, 0xAA, // a frame of 1450 x 49152
 	];
-	assert_eq!(jpeg_height(&head), Some(49152));
+	assert_eq!(jpeg_size(&head), Some((1450, 49152)));
 
 	// anything that isn't a jpeg, and a header cut off ahead of the frame
-	assert_eq!(jpeg_height(b"RIFF\0\0\0\0WEBPVP8 "), None);
-	assert_eq!(jpeg_height(&head[..8]), None);
+	assert_eq!(jpeg_size(b"RIFF\0\0\0\0WEBPVP8 "), None);
+	assert_eq!(jpeg_size(&head[..8]), None);
+}
+
+// the shapes measured off the site, and the two ways a header read wrong turns into a count that
+// isn't a page: a width of zero, and one narrow enough to divide the image into slivers
+#[aidoku_test]
+fn test_slice_count() {
+	assert_eq!(slice_count(1450, 49152), 24);
+	assert_eq!(slice_count(800, 24003), 21);
+	assert_eq!(slice_count(1133, 16000), 10);
+	assert_eq!(slice_count(960, 1376), 1);
+
+	assert_eq!(slice_count(0, 49152), 1);
+	assert_eq!(slice_count(0, 0), 1);
+	assert_eq!(slice_count(100, 49152), 1);
+}
+
+// a webp keeps its frame size behind the start code, in 14 bits of each little endian half word
+#[aidoku_test]
+fn test_webp_size() {
+	let head = [
+		b'R', b'I', b'F', b'F', 0x00, 0x00, 0x00, 0x00, // the riff length, which is not read
+		b'W', b'E', b'B', b'P', b'V', b'P', b'8', b' ', //
+		0x00, 0x00, 0x00, 0x00, // the chunk length, likewise
+		0x00, 0x00, 0x00, // frame tag
+		0x9D, 0x01, 0x2A, // start code
+		0x6D, 0x04, 0x80, 0x3E, // a frame of 1133 x 16000
+	];
+	assert_eq!(webp_size(&head), Some((1133, 16000)));
+
+	// a lossless webp, whose size is packed differently, and a header cut off ahead of the frame
+	let mut lossless = head;
+	lossless[15] = b'L';
+	assert_eq!(webp_size(&lossless), None);
+	assert_eq!(webp_size(&head[..24]), None);
+	assert_eq!(webp_size(&[0xFF, 0xD8, 0xFF, 0xDB]), None);
 }
