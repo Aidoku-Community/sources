@@ -270,6 +270,18 @@ impl Soraraw {
 			entries: data.results.into_iter().map(Manga::from).collect(),
 		})
 	}
+
+	// a ranking arrives as one json holding every entry, leaving no page for the app to ask for
+	fn parse_top(period: &str) -> Result<MangaPageResult> {
+		let top = Request::get(format!("{BASE_URL}/top/{period}.json"))?.json_owned::<TopList>()?;
+		if top.mangas.is_empty() {
+			bail!("the {period} ranking came back empty");
+		}
+		Ok(MangaPageResult {
+			entries: top.mangas.into_iter().map(Manga::from).collect(),
+			has_next_page: false,
+		})
+	}
 }
 
 impl PageImageProcessor for Soraraw {
@@ -312,23 +324,10 @@ impl PageImageProcessor for Soraraw {
 impl ListingProvider for Soraraw {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		match listing.id.as_str() {
-			// both lists are embedded in the home page as a single batch, with no page to follow
-			"hot" | "trending" => {
-				let props = next_data::<HomeProps>(BASE_URL)?;
-				let entries = if listing.id == "hot" {
-					props.data.hot
-				} else {
-					props
-						.initial_trending
-						.map(|trending| trending.mangas)
-						.unwrap_or_default()
-				};
-
-				Ok(MangaPageResult {
-					entries: entries.into_iter().map(Manga::from).collect(),
-					has_next_page: false,
-				})
-			}
+			"rising" => Self::parse_top("rising"),
+			// the id is kept from before the rankings were split by period
+			"trending" => Self::parse_top("last30Days"),
+			"lifetime" => Self::parse_top("lifetime"),
 			_ => Self::parse_list(&paginated(&format!("{BASE_URL}/newest"), page)),
 		}
 	}

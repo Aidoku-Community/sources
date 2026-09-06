@@ -61,7 +61,7 @@ fn page_slices(pages: &[Page]) -> Vec<(&String, &String, &String)> {
 
 #[aidoku_test]
 fn test_listings() {
-	for id in ["newest", "hot", "trending"] {
+	for id in ["newest", "rising", "trending", "lifetime"] {
 		let result = Soraraw.get_manga_list(listing(id), 1).expect("listing");
 		assert!(!result.entries.is_empty(), "{id} returned no entries");
 
@@ -85,7 +85,7 @@ fn test_listings() {
 	}
 }
 
-// only the paginated listing walks pages; the other two hand out a single batch
+// only the paginated listing walks pages; the rankings hand out a single batch
 #[aidoku_test]
 fn test_listing_pagination() {
 	let first = Soraraw
@@ -99,8 +99,16 @@ fn test_listing_pagination() {
 	assert!(!second.entries.is_empty());
 	assert_ne!(first.entries[0].key, second.entries[0].key);
 
-	let hot = Soraraw.get_manga_list(listing("hot"), 1).expect("hot");
-	assert!(!hot.has_next_page);
+	// the rankings were read off the home page before, which embeds ten of them at most
+	for id in ["rising", "trending", "lifetime"] {
+		let result = Soraraw.get_manga_list(listing(id), 1).expect(id);
+		assert!(!result.has_next_page);
+		assert!(
+			result.entries.len() > 100,
+			"{id} returned {} entries",
+			result.entries.len()
+		);
+	}
 }
 
 // the series below is looked up by its japanese title and by its romanised alternative one,

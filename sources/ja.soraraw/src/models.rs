@@ -29,26 +29,16 @@ pub struct DataProps<T> {
 	pub data: T,
 }
 
-// "/" is the only page holding both the popular and the trending lists
+// "/top/{period}.json", the ranking lists the site fetches from the browser
 #[derive(Deserialize)]
-pub struct HomeProps {
-	pub data: ListData,
-	#[serde(rename = "initialTrending")]
-	pub initial_trending: Option<Trending>,
-}
-
-#[derive(Deserialize)]
-pub struct Trending {
+pub struct TopList {
 	#[serde(default)]
 	pub mangas: Vec<MangaEntry>,
 }
 
-// "/", "/newest" and "/genre/{slug}"
+// "/newest" and "/genre/{slug}"
 #[derive(Deserialize)]
 pub struct ListData {
-	// only filled in on the home page
-	#[serde(default)]
-	pub hot: Vec<MangaEntry>,
 	#[serde(default)]
 	pub results: Vec<MangaEntry>,
 	pub pagination: Option<Pagination>,

@@ -2,7 +2,7 @@
 	"info": {
 		"id": "ja.soraraw",
 		"name": "Soraraw",
-		"version": 3,
+		"version": 4,
 		"url": "https://soraraw.com",
 		"contentRating": 2,
 		"languages": [
@@ -16,12 +16,16 @@
 			"name": "新着"
 		},
 		{
-			"id": "hot",
-			"name": "人気"
+			"id": "rising",
+			"name": "急上昇"
 		},
 		{
 			"id": "trending",
 			"name": "ランキング"
+		},
+		{
+			"id": "lifetime",
+			"name": "殿堂入り"
 		}
 	],
 	"config": {
