@@ -86,8 +86,8 @@ impl Source for TheBlank {
 		let mut params = QueryParameters::new();
 		params.push_encoded("page", Some(&format!("{page}")));
 
-		if let Some(q) = &query {
-			params.push("search", Some(q));
+		if query.is_some() {
+			params.push("search", query.as_deref());
 		}
 
 		for filter in &filters {
