@@ -117,7 +117,7 @@ pub fn abs_url(path: &str) -> String {
 /// Fetch a URL with a mobile User-Agent to avoid Cloudflare blocks.
 pub fn fetch_html(url: &str) -> Result<String> {
 	Request::get(url)
-		.map_err(|e| AidokuError::Message(format!("request error: {:?}", e)))?
+		.map_err(|e| error!("request error: {:?}", e))?
 		.header(
 			"User-Agent",
 			"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) \
