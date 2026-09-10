@@ -1,8 +1,8 @@
 #![no_std]
 use aidoku::{Source, prelude::*};
-use mangathemesia::{Impl, MangaThemesia, Params};
+use vinetheme::{Impl, Params, VineTheme};
 
-const BASE_URL: &str = "https://drakecomic.org";
+const BASE_URL: &str = "https://drakecomic.net";
 
 struct DrakeScans;
 
@@ -14,15 +14,8 @@ impl Impl for DrakeScans {
 	fn params(&self) -> Params {
 		Params {
 			base_url: BASE_URL.into(),
-			chapter_list_selector: "#chapterlist li:not(.locked)".into(),
-			..Default::default()
 		}
 	}
 }
 
-register_source!(
-	MangaThemesia<DrakeScans>,
-	Home,
-	ImageRequestProvider,
-	DeepLinkHandler
-);
+register_source!(VineTheme<DrakeScans>, Home, DeepLinkHandler);

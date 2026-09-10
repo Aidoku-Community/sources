@@ -1,12 +1,63 @@
 [
 	{
+		"type": "sort",
+		"id": "sort",
+		"title": "Sort",
+		"canAscend": false,
+		"options": [
+			"Latest",
+			"Popular",
+			"Trending",
+			"Views",
+			"Rating",
+			"Longest",
+			"Newest"
+		]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"All",
+			"Ongoing",
+			"Completed",
+			"Hiatus",
+			"Dropped",
+			"Discontinued",
+			"Upcoming"
+		],
+		"ids": [
+			"",
+			"Ongoing",
+			"Completed",
+			"Hiatus",
+			"Dropped",
+			"Discontinued",
+			"Upcoming"
+		]
+	},
+	{
+		"type": "select",
+		"id": "type",
+		"title": "Type",
+		"options": ["All", "Manhwa", "Manhua", "Manga"],
+		"ids": ["", "MANHWA", "MANHUA", "MANGA"]
+	},
+	{
+		"type": "select",
+		"id": "origin",
+		"title": "Origin",
+		"options": ["All", "Korean", "Japanese", "Chinese", "Other"],
+		"ids": ["", "KOREAN", "JAPANESE", "CHINESE", "OTHER"]
+	},
+	{
 		"type": "multi-select",
-		"id": "genre[]",
+		"id": "genre",
 		"title": "Genre",
 		"isGenre": true,
 		"canExclude": false,
 		"options": [
-			"a",
 			"Action",
 			"Adventure",
 			"Apocalypse",
@@ -31,56 +82,34 @@
 			"Seinen",
 			"Shounen",
 			"Supernatural",
-			"System",
-			"Time Travel"
+			"System"
 		],
 		"ids": [
-			"76",
-			"10",
-			"6",
-			"77",
-			"11",
-			"57",
-			"12",
-			"13",
-			"7",
-			"14",
-			"46",
-			"21",
-			"66",
-			"50",
-			"17",
-			"15",
-			"67",
-			"51",
-			"47",
-			"72",
-			"48",
-			"49",
-			"18",
-			"8",
-			"22",
-			"58",
-			"53"
+			"action",
+			"adventure",
+			"apocalypse",
+			"comedy",
+			"cultivation",
+			"drama",
+			"ecchi",
+			"fantasy",
+			"harem",
+			"historical",
+			"horror",
+			"isekai",
+			"magic",
+			"martial-arts",
+			"mature",
+			"monster-girls",
+			"monsters",
+			"mystery",
+			"reincarnation",
+			"romance",
+			"school-life",
+			"seinen",
+			"shounen",
+			"supernatural",
+			"system"
 		]
-	},
-	{
-		"type": "select",
-		"id": "status",
-		"title": "Status",
-		"options": ["All", "Ongoing", "Completed", "Hiatus"],
-		"ids": ["", "ongoing", "completed", "hiatus"]
-	},
-	{
-		"type": "select",
-		"id": "type",
-		"title": "Type",
-		"options": ["All", "Manga", "Manhwa", "Manhua", "MangaToon", "Novel"]
-	},
-	{
-		"type": "sort",
-		"id": "order",
-		"canAscend": false,
-		"options": ["Default", "A-Z", "Z-A", "Update", "Added", "Popular"]
 	}
 ]

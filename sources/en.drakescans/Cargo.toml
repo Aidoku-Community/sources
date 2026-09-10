@@ -8,7 +8,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
-mangathemesia = { path = "../../templates/mangathemesia" }
+vinetheme = { path = "../../templates/vinetheme" }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }

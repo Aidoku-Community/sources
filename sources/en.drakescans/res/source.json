@@ -2,9 +2,10 @@
 	"info": {
 		"id": "en.drakescans",
 		"name": "Drake Scans",
-		"version": 1,
-		"url": "https://drakecomic.org",
+		"version": 2,
+		"url": "https://drakecomic.net",
 		"contentRating": 1,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	}
 }
