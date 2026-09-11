@@ -44,7 +44,7 @@ jobs:
           set -euo pipefail
 
           for source in sources/*; do
-            [[ -d "$source/Cargo.toml" ]] || continue
+            [[ -f "$source/Cargo.toml" ]] || continue
 
             echo "::group::Packaging $source"
             (
