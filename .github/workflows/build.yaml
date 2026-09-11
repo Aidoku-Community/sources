@@ -1,4 +1,4 @@
-name: Build sources
+name: Build source list
 on:
   push:
     branches:
@@ -6,22 +6,26 @@ on:
     paths:
       - "sources/**"
       - "templates/**"
+      - ".github/actions/install-aidoku-cli/**"
       - ".github/workflows/build.yaml"
 
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   build:
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_CACHE_SIZE: 2G
-      SCCACHE_VERSION: 0.3.0
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: google/wireit@setup-github-actions-caching/v1
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
       - name: Cache rust stuff
         uses: actions/cache@v4
         with:
@@ -29,42 +33,31 @@ jobs:
             ~/.cargo/registry/index
             ~/.cargo/registry/cache
             ~/.cargo/git/db
-            ~/.cargo/bin
             sources/**/target/
-          key: ${{ runner.os }}-cargo3-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo3-
-      - name: sccache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/sccache
-          key: ${{ runner.os }}-sccache-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-sccache-
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
-          target: wasm32-unknown-unknown
-      - name: Install build dependencies
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y sccache
-          if ! command -v aidoku >/dev/null 2>&1; then
-            cargo install --git https://github.com/Aidoku/aidoku-rs aidoku-cli
-          fi
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - uses: ./.github/actions/install-aidoku-cli
+
       - name: Build sources
         run: |
-          for src in ./sources/*; do
+          set -euo pipefail
+
+          for source in sources/*; do
+            [[ -d "$source/Cargo.toml" ]] || continue
+
+            echo "::group::Packaging $source"
             (
-              cd "$src"
+              cd "$source"
               aidoku package
             )
+            echo "::endgroup::"
           done
+
       - name: Build source list
         run: |
           aidoku build sources/*/package.aix --name "Aidoku Community Sources"
+
       - name: Deploy to GitHub Pages
         uses: JamesIves/github-pages-deploy-action@v4.7.2
         if: ${{ github.ref == 'refs/heads/main' }}
@@ -75,17 +68,10 @@ jobs:
           git-config-email: github-actions[bot]@users.noreply.github.com
           commit-message: Update source list
           single-commit: true
+
       - name: Uploading packages as artifact
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: packages
           path: public/sources/*.aix
-          if-no-files-found: ignore
-      - name: Uploading gh-pages deployment as artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: gh-pages
-          path: public
           if-no-files-found: ignore
