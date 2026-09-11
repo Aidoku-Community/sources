@@ -1,0 +1,46 @@
+name: Install Aidoku CLI
+description: Resolve, cache, and install the latest Aidoku CLI revision.
+
+outputs:
+  revision:
+    description: Resolved Git revision installed by this action.
+    value: ${{ steps.revision.outputs.revision }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve latest Aidoku CLI revision
+      id: revision
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        revision="$(git ls-remote https://github.com/Aidoku/aidoku-rs.git HEAD | awk '{print $1}')"
+        test -n "$revision"
+
+        echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Aidoku CLI
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/aidoku-cli
+        key: aidoku-cli-${{ runner.os }}-${{ steps.revision.outputs.revision }}
+
+    - name: Add Aidoku CLI to PATH
+      shell: bash
+      run: echo "$HOME/.local/aidoku-cli/bin" >> "$GITHUB_PATH"
+
+    - name: Install Aidoku CLI
+      shell: bash
+      env:
+        AIDOKU_REVISION: ${{ steps.revision.outputs.revision }}
+      run: |
+        set -euo pipefail
+
+        if [[ ! -x "$HOME/.local/aidoku-cli/bin/aidoku" ]]; then
+          cargo install \
+            --git https://github.com/Aidoku/aidoku-rs \
+            --rev "$AIDOKU_REVISION" \
+            --root "$HOME/.local/aidoku-cli" \
+            aidoku-cli
+        fi
