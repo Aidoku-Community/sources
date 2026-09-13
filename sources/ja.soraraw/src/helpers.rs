@@ -4,13 +4,17 @@ use aes::{
 };
 use aidoku::{
 	AidokuError, ContentRating, MangaStatus, Result, Viewer,
-	alloc::{String, Vec, string::ToString},
+	alloc::{String, Vec, string::ToString, vec},
 	imports::{html::Html, net::Request},
 	prelude::*,
 };
 use serde::de::DeserializeOwned;
+use sha2::{Digest, Sha256};
 
-use crate::{BASE_URL, HEADER_BYTES, STACKED_PAGE_LIMIT, THUMBNAIL_URL, models::NextData};
+use crate::{
+	BASE_URL, HEADER_BYTES, SCRAMBLE_GRID, SCRAMBLE_SECRET, STACKED_PAGE_LIMIT, THUMBNAIL_URL,
+	models::NextData,
+};
 
 const BLOCK_SIZE: usize = 16;
 
@@ -310,6 +314,102 @@ fn increment(counter: &mut [u8; BLOCK_SIZE]) {
 		if *byte != 0 {
 			break;
 		}
+	}
+}
+
+pub struct Tile {
+	pub x: u32,
+	pub y: u32,
+	pub width: u32,
+	pub height: u32,
+	// the tile whose pixels belong here, turned clockwise this many quarters
+	pub source: usize,
+	pub turns: u8,
+}
+
+// the plan the site's wasm `unscramble` restores `canva2` chapters with
+pub fn scramble_plan(width: u32, height: u32, seed: &str) -> Option<Vec<Tile>> {
+	// the wasm refuses these as well
+	if width < SCRAMBLE_GRID || height < SCRAMBLE_GRID {
+		return None;
+	}
+
+	let key = Sha256::digest(format!("{seed}{SCRAMBLE_SECRET}"))
+		.iter()
+		.map(|byte| format!("{byte:02x}"))
+		.collect::<String>();
+	let digest = Sha256::digest(format!("{key}:nxn:{SCRAMBLE_GRID}:{width}x{height}"));
+	let mut random = Mulberry32(u32::from_be_bytes([
+		digest[0], digest[1], digest[2], digest[3],
+	]));
+
+	let mut tiles = Vec::new();
+	for (y, tile_height) in spans(height, SCRAMBLE_GRID) {
+		for (x, tile_width) in spans(width, SCRAMBLE_GRID) {
+			tiles.push(Tile {
+				x,
+				y,
+				width: tile_width,
+				height: tile_height,
+				source: tiles.len(),
+				turns: 0,
+			});
+		}
+	}
+
+	// tiles only trade places with others of the same size
+	let mut groups: Vec<Vec<usize>> = Vec::new();
+	for (index, tile) in tiles.iter().enumerate() {
+		let group = groups.iter_mut().find(|group| {
+			let first = &tiles[group[0]];
+			first.width == tile.width && first.height == tile.height
+		});
+		match group {
+			Some(group) => group.push(index),
+			None => groups.push(vec![index]),
+		}
+	}
+	for group in groups {
+		let mut order = (0..group.len()).collect::<Vec<usize>>();
+		for index in (2..=group.len()).rev() {
+			order.swap(index - 1, (random.next() * index as f64) as usize);
+		}
+		let square = tiles[group[0]].width == tiles[group[0]].height;
+		for (index, &tile) in group.iter().enumerate() {
+			tiles[tile].source = group[order[index]];
+			tiles[tile].turns = if square {
+				(random.next() * 4.0) as u8
+			} else if random.next() < 0.5 {
+				0
+			} else {
+				2
+			};
+		}
+	}
+
+	Some(tiles)
+}
+
+fn spans(length: u32, count: u32) -> Vec<(u32, u32)> {
+	let (size, remainder) = (length / count, length % count);
+	let mut offset = 0;
+	(0..count)
+		.map(|index| {
+			let span = (offset, size + u32::from(index < remainder));
+			offset += span.1;
+			span
+		})
+		.collect()
+}
+
+struct Mulberry32(u32);
+
+impl Mulberry32 {
+	fn next(&mut self) -> f64 {
+		self.0 = self.0.wrapping_add(0x6D2B_79F5);
+		let mut value = (self.0 ^ (self.0 >> 15)).wrapping_mul(self.0 | 1);
+		value ^= value.wrapping_add((value ^ (value >> 7)).wrapping_mul(value | 61));
+		f64::from(value ^ (value >> 14)) / 4_294_967_296.0
 	}
 }
 

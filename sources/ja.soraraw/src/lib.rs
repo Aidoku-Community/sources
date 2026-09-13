@@ -4,7 +4,7 @@ use aidoku::{
 	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext,
 	PageImageProcessor, Result, SelectFilter, Source,
 	alloc::{String, Vec, borrow::Cow, string::ToString, vec},
-	canvas::Rect,
+	canvas::{Rect, Transform},
 	imports::{
 		canvas::{Canvas, ImageRef},
 		net::Request,
@@ -26,6 +26,8 @@ const IMAGE_API_URL: &str = "https://api.mangarawgo.site";
 const DATE_FORMAT: &str = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX";
 const PAYLOAD_KEY: &[u8] = b"/fuCkYou!!!";
 const PATH_SECRET: &[u8] = b"202508055d0db38bae2e86cc41649f90";
+const SCRAMBLE_SECRET: &str = "6a0248ad1ca4208275aed64d336e81595ecb149422a8e621f70e23b9f01b9c1c";
+const SCRAMBLE_GRID: u32 = 8;
 // a strip holds a handful of images at most, a scanned chapter one per page, so this keeps the
 // request that measures them off the common case
 const STRIP_IMAGE_LIMIT: usize = 4;
@@ -157,6 +159,7 @@ impl Source for Soraraw {
 		let (Some(uuid), Some(host)) = (details.uuid, details.base) else {
 			bail!("chapter {chapter_id} hands out no image key");
 		};
+		let scrambled = details.mode.as_deref() == Some("canva2");
 
 		let payload = Request::get(format!("{IMAGE_API_URL}/{manga_id}/{chapter_id}.json"))?
 			.json_owned::<ImagePayload>()?;
@@ -191,6 +194,16 @@ impl Source for Soraraw {
 		let measure = urls.len() <= STRIP_IMAGE_LIMIT;
 		let mut pages = Vec::with_capacity(urls.len());
 		for (_, url) in urls {
+			// the tile plan covers the whole image, so these can't be sliced
+			if scrambled {
+				let mut context = PageContext::new();
+				context.insert(String::from("seed"), chapter_id.to_string());
+				pages.push(Page {
+					content: PageContent::url_context(url, context),
+					..Default::default()
+				});
+				continue;
+			}
 			let slices = if measure { stacked_page_count(&url) } else { 1 };
 			if slices < 2 {
 				pages.push(Page {
@@ -282,6 +295,40 @@ impl Soraraw {
 			has_next_page: false,
 		})
 	}
+
+	fn unscramble(image: &ImageRef, seed: &str) -> Option<ImageRef> {
+		let (width, height) = (image.width(), image.height());
+		let tiles = scramble_plan(width as u32, height as u32, seed)?;
+
+		// only a bare rotation is set: the app applies a translation in a different order than the
+		// sdk splits it out for, so tiles are placed through the dst rect instead
+		let mut canvas = Canvas::new(width, height);
+		for turns in 0..4 {
+			match turns {
+				1 => canvas.set_transform(&Transform::new(0.0, -1.0, 1.0, 0.0, 0.0, 0.0)),
+				2 => canvas.set_transform(&Transform::new(-1.0, 0.0, 0.0, -1.0, 0.0, 0.0)),
+				3 => canvas.set_transform(&Transform::new(0.0, 1.0, -1.0, 0.0, 0.0, 0.0)),
+				_ => {}
+			}
+			for tile in tiles.iter().filter(|tile| tile.turns == turns) {
+				let source = &tiles[tile.source];
+				let (x, y) = (tile.x as f32, tile.y as f32);
+				let (width, height) = (tile.width as f32, tile.height as f32);
+				let (dst_x, dst_y) = match turns {
+					1 => (-(y + height), x),
+					2 => (-(x + width), -(y + height)),
+					3 => (y, -(x + width)),
+					_ => (x, y),
+				};
+				canvas.copy_image(
+					image,
+					Rect::new(source.x as f32, source.y as f32, width, height),
+					Rect::new(dst_x, dst_y, width, height),
+				);
+			}
+		}
+		Some(canvas.get_image())
+	}
 }
 
 impl PageImageProcessor for Soraraw {
@@ -293,6 +340,9 @@ impl PageImageProcessor for Soraraw {
 		let Some(context) = context else {
 			return Ok(response.image);
 		};
+		if let Some(seed) = context.get("seed") {
+			return Ok(Self::unscramble(&response.image, seed).unwrap_or(response.image));
+		}
 		let number = |key: &str| context.get(key).and_then(|value| value.parse::<u32>().ok());
 		let (Some(slice), Some(slices)) = (number("slice"), number("slices")) else {
 			return Ok(response.image);

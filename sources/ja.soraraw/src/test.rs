@@ -9,6 +9,7 @@ const PAGED_VERTICAL_KEY: &str = "blue-giant-momentum-buruu-jaianto-momentamu-60
 const ADULT_VERTICAL_KEY: &str = "haadowaakaa-nakata-740";
 const JPG_MANGA_KEY: &str = "my-neighbor-ms-kurokawa-tonari-no-kurokawa-san-1";
 const JPG_CHAPTER_KEY: &str = "1/786104";
+const SCRAMBLED_CHAPTER_KEY: &str = "57539/843507";
 const WEBP_MANGA_KEY: &str = "one-night-morning-62659";
 const SEARCHED_KEY: &str = "kobayashi-san-chino-meidoragon-57605";
 const NULL_GENRE_KEY: &str = "majime-fumajime-maji-koiji-64273";
@@ -510,6 +511,38 @@ fn test_decimal_chapter_pages() {
 	assert!(!pages.is_empty());
 }
 
+// the restore itself can't run here: the test runner has no `copy_image`
+#[aidoku_test]
+fn test_scrambled_chapter_pages() {
+	let manga = Manga {
+		key: String::from(MANGA_KEY),
+		..Default::default()
+	};
+	let mut manga = Soraraw
+		.get_manga_update(manga, false, true)
+		.expect("chapters");
+	let chapter = manga
+		.chapters
+		.take()
+		.expect("chapters")
+		.into_iter()
+		.find(|chapter| chapter.key == SCRAMBLED_CHAPTER_KEY)
+		.expect("chapter 77.1");
+
+	let pages = Soraraw.get_page_list(manga, chapter).expect("pages");
+	assert!(!pages.is_empty());
+	for page in &pages {
+		let PageContent::Url(url, Some(context)) = &page.content else {
+			panic!("expected a page url carrying a seed");
+		};
+		assert_eq!(
+			context.get("seed").map(String::as_str),
+			Some("843507"),
+			"{url}"
+		);
+	}
+}
+
 #[aidoku_test]
 fn test_deep_link() {
 	let manga = Soraraw
@@ -669,4 +702,56 @@ fn test_webp_size() {
 	assert_eq!(webp_size(&lossless), None);
 	assert_eq!(webp_size(&head[..24]), None);
 	assert_eq!(webp_size(&[0xFF, 0xD8, 0xFF, 0xDB]), None);
+}
+
+// expected plans come from a port of the site's wasm that matched it byte for byte
+#[aidoku_test]
+fn test_scramble_plan() {
+	let plan = |width, height, seed| {
+		let tiles = scramble_plan(width, height, seed).expect("plan");
+		let sources = tiles.iter().map(|tile| tile.source).collect::<Vec<usize>>();
+		let turns = tiles.iter().map(|tile| tile.turns).collect::<Vec<u8>>();
+		(sources, turns)
+	};
+
+	let (sources, turns) = plan(1125, 1600, "843507");
+	assert_eq!(
+		sources,
+		[
+			12, 43, 32, 35, 49, 45, 22, 37, 16, 4, 56, 59, 25, 63, 23, 6, 2, 33, 60, 19, 44, 54,
+			61, 39, 11, 36, 9, 24, 42, 62, 13, 29, 28, 34, 3, 0, 58, 30, 7, 15, 51, 41, 1, 57, 10,
+			47, 21, 55, 40, 52, 20, 27, 50, 53, 46, 14, 8, 26, 18, 48, 17, 31, 38, 5
+		]
+	);
+	assert_eq!(
+		turns,
+		[
+			0, 2, 0, 2, 2, 2, 2, 2, 0, 0, 2, 2, 0, 2, 2, 2, 2, 0, 0, 2, 0, 0, 2, 0, 2, 0, 2, 2, 2,
+			2, 2, 0, 2, 0, 0, 0, 0, 0, 2, 0, 2, 0, 2, 2, 0, 0, 2, 2, 0, 2, 2, 2, 2, 2, 0, 0, 0, 0,
+			2, 0, 2, 2, 2, 0
+		]
+	);
+
+	// square tiles are the only ones turned by a quarter
+	let (sources, turns) = plan(64, 64, "1");
+	assert_eq!(
+		sources,
+		[
+			10, 27, 57, 4, 1, 49, 22, 32, 62, 52, 17, 5, 51, 28, 45, 0, 53, 30, 44, 12, 43, 42, 46,
+			59, 40, 39, 50, 37, 41, 19, 7, 3, 29, 11, 35, 48, 26, 55, 23, 36, 21, 33, 18, 24, 61,
+			6, 16, 63, 15, 2, 54, 58, 38, 31, 34, 47, 60, 20, 13, 14, 56, 25, 9, 8
+		]
+	);
+	assert_eq!(
+		turns,
+		[
+			1, 3, 2, 0, 1, 1, 2, 1, 0, 3, 2, 0, 0, 2, 2, 3, 1, 0, 2, 1, 1, 3, 2, 2, 1, 3, 0, 2, 2,
+			2, 3, 0, 0, 1, 1, 3, 1, 2, 1, 1, 2, 0, 3, 1, 1, 0, 1, 1, 2, 0, 0, 2, 0, 3, 1, 1, 2, 1,
+			2, 0, 1, 3, 0, 0
+		]
+	);
+
+	// narrower than the grid
+	assert!(scramble_plan(7, 1600, "843507").is_none());
+	assert!(scramble_plan(1125, 7, "843507").is_none());
 }
