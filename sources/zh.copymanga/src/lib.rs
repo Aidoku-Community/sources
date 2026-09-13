@@ -1,21 +1,27 @@
 #![no_std]
 
+mod auth;
+mod favorites;
+mod home;
 mod html;
 mod json;
 mod net;
+mod tests;
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Manga,
-	MangaPageResult, Page, Result, Source,
+	BasicLoginHandler, Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter,
+	FilterValue, Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler, Page,
+	Result, Source,
 	alloc::{String, Vec},
+	bail, error,
 	imports::std::send_partial_result,
-	register_source,
+	println, register_source,
 };
 use html::{ChapterPage as _, FiltersPage as _, GenresPage as _, KeyPage as _, MangaPage as _};
 use json::{chapter_list, search};
 use net::Url;
 
-struct Copymanga;
+pub(crate) struct Copymanga;
 
 impl Source for Copymanga {
 	fn new() -> Self {
@@ -48,6 +54,14 @@ impl Source for Copymanga {
 		if needs_details {
 			manga_page.update_details(&mut manga)?;
 
+			// 簡介收藏按鈕：Markdown 鏈接，點擊經 deep link 路由回 source 執行收藏
+			if let Some(description) = favorites::decorate_description(
+				&manga.key,
+				manga.description.as_deref().unwrap_or_default(),
+			) {
+				manga.description = Some(description);
+			}
+
 			if needs_chapters {
 				send_partial_result(&manga);
 			} else {
@@ -73,8 +87,37 @@ impl Source for Copymanga {
 	}
 }
 
+/// 解析簡介收藏按鈕的 deep link：`/__fav/{add|remove}/{path_word}`。
+/// App 传入形态为 "https:host/path"（无 //，NSURL.resourceSpecifier 拼接），
+/// 也兼容完整 "https://host/path"；先取动作段、再取漫画 ID 段。
+fn parse_fav_deep_link(url: &str) -> Option<(String, bool)> {
+	let rest = url.split("/__fav/").nth(1)?;
+	let (action, remainder) = rest.split_once('/')?;
+	let add = match action {
+		"add" => true,
+		"remove" => false,
+		_ => return None,
+	};
+	let path_word = remainder
+		.split('/')
+		.next()
+		.unwrap_or_default()
+		.split('?')
+		.next()
+		.unwrap_or_default();
+	if path_word.is_empty() || !path_word.chars().all(|c| c.is_ascii_alphanumeric()) {
+		return None;
+	}
+	Some((String::from(path_word), add))
+}
+
 impl DeepLinkHandler for Copymanga {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
+		// 簡介收藏按鈕：/__fav/{add|remove}/{path_word}
+		if let Some((path_word, add)) = parse_fav_deep_link(&url) {
+			return favorites::deep_link_favorite(&path_word, add);
+		}
+
 		let mut splits = url.split('/').skip(3);
 		let deep_link_result = match splits.next() {
 			Some("comic") => match (splits.next(), splits.next(), splits.next()) {
@@ -112,4 +155,54 @@ impl DynamicFilters for Copymanga {
 	}
 }
 
-register_source!(Copymanga, DeepLinkHandler, DynamicFilters);
+impl ListingProvider for Copymanga {
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		match listing.id.as_str() {
+			"f:fav" => favorites::collect_page(page),
+			_ => Err(error!("未知的列表: {}", listing.name)),
+		}
+	}
+}
+
+impl BasicLoginHandler for Copymanga {
+	fn handle_basic_login(&self, key: String, username: String, password: String) -> Result<bool> {
+		if key != "login" {
+			bail!("登錄入口無效");
+		}
+		match auth::login(&username, &password) {
+			Ok(_) => {
+				println!("copymanga: login succeeded");
+				auth::set_just_logged_in();
+				Ok(true)
+			}
+			Err(err) => {
+				println!("copymanga: login failed ({err:?})");
+				Ok(false)
+			}
+		}
+	}
+}
+
+impl NotificationHandler for Copymanga {
+	fn handle_notification(&self, notification: String) {
+		if notification == "login" {
+			// 登录时 App 先调 handle_basic_login（置 justLoggedIn），随后才发通知；
+			// 登出时没有 handle_basic_login，直接清掉本地 token。
+			if auth::take_just_logged_in() {
+				auth::clear_just_logged_in();
+			} else {
+				auth::clear_auth();
+			}
+		}
+	}
+}
+
+register_source!(
+	Copymanga,
+	DeepLinkHandler,
+	DynamicFilters,
+	ListingProvider,
+	BasicLoginHandler,
+	NotificationHandler,
+	Home
+);

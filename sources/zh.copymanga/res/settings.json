@@ -1,6 +1,34 @@
 [
 	{
 		"type": "group",
+		"title": "賬號",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"title": "登錄",
+				"logoutTitle": "登出",
+				"method": "basic",
+				"notification": "login",
+				"refreshes": ["listings", "content"]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "簡介按鈕",
+		"items": [
+			{
+				"type": "switch",
+				"key": "favButtons.inDetail",
+				"title": "顯示詳情頁收藏按鈕",
+				"default": true,
+				"refreshes": ["content"]
+			}
+		]
+	},
+	{
+		"type": "group",
 		"title": "圖片",
 		"items": [
 			{
