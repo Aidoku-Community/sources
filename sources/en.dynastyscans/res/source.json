@@ -1,0 +1,14 @@
+{
+	"info": {
+		"id": "en.dynastyscans",
+		"name": "Dynasty Scans",
+		"version": 4,
+		"url": "https://dynasty-scans.com",
+		"contentRating": 2,
+		"languages": ["en"],
+		"minAppVersion": "0.9"
+	},
+	"config": {
+		"breakingChangeVersion": 4
+	}
+}

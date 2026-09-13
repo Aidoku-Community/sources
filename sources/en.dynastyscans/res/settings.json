@@ -1,0 +1,15 @@
+[
+	{
+		"type": "group",
+		"title": "SETTINGS",
+		"footer": "Enabling this option will skip the extra network requests required for loading cover images.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "skipImages",
+				"title": "Skip Cover Images",
+				"refreshes": ["content"]
+			}
+		]
+	}
+]
