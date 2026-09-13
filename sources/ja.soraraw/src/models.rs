@@ -286,6 +286,7 @@ pub struct ChapterDetails {
 	pub uuid: Option<String>,
 	#[serde(rename = "_b")]
 	pub base: Option<String>,
+	pub mode: Option<String>,
 }
 
 #[derive(Deserialize)]
