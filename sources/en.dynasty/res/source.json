@@ -1,0 +1,26 @@
+{
+	"info": {
+		"id": "en.dynasty",
+		"name": "Dynasty Scans",
+		"altNames": [
+			"Dynasty Reader"
+		],
+		"version": 12,
+		"url": "https://dynasty-scans.com",
+		"contentRating": 2,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{
+			"id": "added",
+			"name": "Recently Added"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true,
+		"maximumParallelRequests": 1
+	}
+}
