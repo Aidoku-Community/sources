@@ -9,7 +9,6 @@ use aidoku::{
 		net::Request,
 		std::current_date,
 	},
-	println,
 	serde::Deserialize,
 };
 
@@ -75,7 +74,7 @@ struct LoginResults {
 	nickname: Option<String>,
 }
 
-/// 用账号密码向网站登录，成功时保存 token 并返回昵称（仅日志用）。
+/// 用账号密码向网站登录，成功时保存 token 并返回昵称供界面显示。
 pub fn login(username: &str, password: &str) -> Result<String> {
 	let salt = current_date().rem_euclid(900_000) + 100_000;
 	let encoded = encode_password(password, salt)?;
@@ -121,7 +120,6 @@ pub fn try_relogin() -> bool {
 	let Some(password) = defaults_get::<String>("login.password").filter(|p| !p.is_empty()) else {
 		return false;
 	};
-	println!("copymanga: relogin after token expiry");
 	login(&username, &password).is_ok()
 }
 

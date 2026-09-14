@@ -11,7 +11,6 @@ use aidoku::{
 		error::AidokuError,
 		net::{Request, Response},
 	},
-	println,
 	serde::Deserialize,
 };
 
@@ -150,14 +149,9 @@ pub(crate) fn merge_collect_pages(
 	mut free: MangaPageResult,
 	charged: Result<MangaPageResult>,
 ) -> Result<MangaPageResult> {
-	match charged {
-		Ok(charged) => {
-			free.has_next_page = free.has_next_page || charged.has_next_page;
-			free.entries.extend(charged.entries);
-		}
-		Err(err) => {
-			println!("copymanga: charged collect failed ({err:?})");
-		}
+	if let Ok(charged) = charged {
+		free.has_next_page = free.has_next_page || charged.has_next_page;
+		free.entries.extend(charged.entries);
 	}
 	Ok(free)
 }
@@ -283,20 +277,15 @@ fn is_collected(path_word: &str) -> Option<bool> {
 					return Some(false);
 				}
 			}
-			Err(err) => {
-				println!("copymanga: collect scan failed ({err:?})");
-				return None;
-			}
+			Err(_) => return None,
 		}
 	}
-	println!("copymanga: collect scan hit page cap (not found in first {MAX_PAGES} pages)");
 	Some(false)
 }
 
 /// 簡介收藏按鈕入口（handle_deep_link 路由 /__fav/{add|remove}/{path_word}）。
 /// 执行写操作并记录状态，返回当前漫画让 App 刷新详情页展示结果。
 pub fn deep_link_favorite(path_word: &str, add: bool) -> Result<Option<DeepLinkResult>> {
-	println!("copymanga: description button (add={add}, {path_word})");
 	let action = if add { "加入書架" } else { "取消收藏" };
 
 	let result = favorite_with_state(path_word, add);
@@ -309,11 +298,9 @@ pub fn deep_link_favorite(path_word: &str, add: bool) -> Result<Option<DeepLinkR
 				"✅"
 			};
 			set_fav_msg(path_word, &format!("{mark} {message}"));
-			println!("copymanga: description button done ({mark} {message})");
 		}
 		Err(err) => {
 			set_fav_msg(path_word, &format!("❌ {action}失敗: {}", error_text(err)));
-			println!("copymanga: description button failed");
 		}
 	}
 	// 无论如何返回当前漫画：App 会重新拉取详情并推入刷新页，用户即可看到状态
@@ -353,7 +340,7 @@ pub fn decorate_description(path_word: &str, description: &str) -> Option<String
 	// 按钮专用域名：大写变体仅本源在 source.json 声明，deep link 前缀匹配（大小写敏感）
 	// 因此无论设备装了多少个同站副本、字典顺序如何，路由都确定命中本源。
 	// DNS/HTTP 对 host 大小写不敏感，该域名本身可正常访问。
-	const BUTTON_HOST: &str = "https://WWW.copy3000.com";
+	const BUTTON_HOST: &str = "https://WWW.copy5000.com";
 	let base = BUTTON_HOST;
 	let mut lines: Vec<String> = Vec::new();
 	// 一次性结果横幅（只在动作后的刷新页出现一次，之后不再出现）
@@ -389,9 +376,7 @@ pub fn decorate_description(path_word: &str, description: &str) -> Option<String
 
 /// 收藏动作的详情页核心路径。
 fn favorite_core(path_word: &str, add: bool) -> Result<String> {
-	println!("copymanga: parsed path_word={path_word}");
 	let uuid = resolve_comic_uuid(path_word)?;
-	println!("copymanga: uuid resolved");
 	set_collect(&uuid, add)?;
 	let status = format!(
 		"{}{path_word}",
@@ -402,7 +387,6 @@ fn favorite_core(path_word: &str, add: bool) -> Result<String> {
 		}
 	);
 	set_collected_state(path_word, add);
-	println!("copymanga: favorite action ok ({status})");
 	Ok(status)
 }
 
@@ -412,7 +396,7 @@ fn favorite_core(path_word: &str, add: bool) -> Result<String> {
 /// v21 失败原因：www 主域对部分 /api 路径返回 HTTP 200 的「服務器升級中」HTML 拦截页
 /// （评论接口同病），旧实现只检查 401，把拦截页当成功。现在：
 /// 依次尝试 H5 核心 API 域与当前所选主域；解析响应 JSON 的 code/message；
-/// 非 JSON（拦截页）视为该域名失败继续尝试；全程打日志（不含敏感数据）。
+/// 非 JSON（拦截页）视为该域名失败并继续尝试下一个候选域名。
 pub fn set_collect(comic_uuid: &str, collect: bool) -> Result<()> {
 	const COLLECT_PATH: &str = "/api/v2/web/collect";
 	let body = format!(
@@ -424,14 +408,9 @@ pub fn set_collect(comic_uuid: &str, collect: bool) -> Result<()> {
 	let mut last_error = None;
 	for host in &hosts {
 		let url = format!("{host}{COLLECT_PATH}");
-		println!("copymanga: collect write -> {host}");
 		match set_collect_once(&url, &body) {
-			Ok(()) => {
-				println!("copymanga: collect write ok via {host}");
-				return Ok(());
-			}
+			Ok(()) => return Ok(()),
 			Err(err) => {
-				println!("copymanga: collect write failed via {host} ({err:?})");
 				last_error = Some(err);
 			}
 		}
@@ -462,11 +441,11 @@ fn set_collect_once(url: &str, body: &str) -> Result<()> {
 
 	let token = crate::auth::token().ok_or_else(|| error!("請先在設置中登錄"))?;
 	let mut response = send(url.into(), &token)?;
-	if response.status_code() == 401 && try_relogin() {
-		println!("copymanga: relogin ok, retry collect write");
-		if let Some(fresh) = crate::auth::token() {
-			response = send(url.into(), &fresh)?;
-		}
+	if response.status_code() == 401
+		&& try_relogin()
+		&& let Some(fresh) = crate::auth::token()
+	{
+		response = send(url.into(), &fresh)?;
 	}
 	if response.status_code() == 401 {
 		return Err(error!(

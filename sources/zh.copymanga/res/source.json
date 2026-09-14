@@ -2,8 +2,10 @@
 	"info": {
 		"id": "zh.copymanga",
 		"name": "拷貝漫畫",
-		"version": 20,
+		"version": 21,
 		"urls": [
+			"https://www.copy5000.com",
+			"https://www.copy4000.com",
 			"https://www.copy3000.com",
 			"https://copy3000.com",
 			"https://www.2026copy.com",

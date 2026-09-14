@@ -6,6 +6,7 @@ mod home;
 mod html;
 mod json;
 mod net;
+#[cfg(test)]
 mod tests;
 
 use aidoku::{
@@ -15,7 +16,7 @@ use aidoku::{
 	alloc::{String, Vec},
 	bail, error,
 	imports::std::send_partial_result,
-	println, register_source,
+	register_source,
 };
 use html::{ChapterPage as _, FiltersPage as _, GenresPage as _, KeyPage as _, MangaPage as _};
 use json::{chapter_list, search};
@@ -171,14 +172,10 @@ impl BasicLoginHandler for Copymanga {
 		}
 		match auth::login(&username, &password) {
 			Ok(_) => {
-				println!("copymanga: login succeeded");
 				auth::set_just_logged_in();
 				Ok(true)
 			}
-			Err(err) => {
-				println!("copymanga: login failed ({err:?})");
-				Ok(false)
-			}
+			Err(_) => Ok(false),
 		}
 	}
 }
