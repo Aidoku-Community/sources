@@ -1,0 +1,21 @@
+{
+	"info": {
+		"id": "en.omegascans",
+		"name": "Omega Scans",
+		"version": 1,
+		"url": "https://omegascans.org",
+		"contentRating": 2,
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "Latest"
+		},
+		{
+			"id": "popular",
+			"name": "Popular"
+		}
+	]
+}
