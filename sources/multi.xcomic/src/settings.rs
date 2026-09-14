@@ -39,9 +39,14 @@ pub fn get_content_ratings() -> Vec<String> {
 	stored_list("contentRatings", ALL_RATINGS)
 }
 
-/// Off by default: the deduplicated list drops alternate scanlator uploads.
+pub fn show_source_in_title() -> bool {
+	defaults_get::<bool>("showSourceInTitle").unwrap_or(true)
+}
+
+/// On by default: a title with hundreds of sources pages its full list far enough
+/// to draw a 429, which loses the list entirely.
 pub fn deduplicate_chapters() -> bool {
-	defaults_get::<bool>("deduplicateChapters").unwrap_or(false)
+	defaults_get::<bool>("deduplicateChapters").unwrap_or(true)
 }
 
 pub fn get_excluded_genres() -> Vec<String> {
