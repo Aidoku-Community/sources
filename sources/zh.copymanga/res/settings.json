@@ -1,12 +1,13 @@
 [
 	{
 		"type": "group",
-		"title": "賬號",
+		"title": "账号",
+		"footer": "登录后可查看收藏，并使用收藏功能。",
 		"items": [
 			{
 				"type": "login",
 				"key": "login",
-				"title": "登錄",
+				"title": "登录",
 				"logoutTitle": "登出",
 				"method": "basic",
 				"notification": "login",
@@ -16,12 +17,20 @@
 	},
 	{
 		"type": "group",
-		"title": "簡介按鈕",
+		"title": "简介按钮",
+		"footer": "已加入 Aidoku 书架的漫画，刷新详情后才会显示按钮。收藏功能可能响应较慢，请不要连续点击。",
 		"items": [
 			{
 				"type": "switch",
+				"key": "commentButtons.inDetail",
+				"title": "显示详情页评论区按钮",
+				"default": true,
+				"refreshes": ["content"]
+			},
+			{
+				"type": "switch",
 				"key": "favButtons.inDetail",
-				"title": "顯示詳情頁收藏按鈕",
+				"title": "显示详情页收藏漫画按钮",
 				"default": true,
 				"refreshes": ["content"]
 			}
@@ -29,12 +38,12 @@
 	},
 	{
 		"type": "group",
-		"title": "圖片",
+		"title": "图片",
 		"items": [
 			{
 				"type": "select",
 				"key": "image.quality",
-				"title": "畫質",
+				"title": "画质",
 				"titles": ["低", "中", "高"],
 				"values": ["c800x", "c1200x", "c1500x"],
 				"default": "c1500x"
@@ -43,7 +52,7 @@
 				"type": "select",
 				"key": "image.format",
 				"title": "格式",
-				"titles": ["高效率", "最相容"],
+				"titles": ["高效率", "最兼容"],
 				"values": ["webp", "jpg"],
 				"default": "webp"
 			}

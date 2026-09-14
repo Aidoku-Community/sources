@@ -19,12 +19,12 @@ use aidoku::{
 };
 use html::{
 	ChapterPage as _, CollectButtonPage as _, FiltersPage as _, GenresPage as _, KeyPage as _,
-	MangaPage as _,
+	MangaPage as _, NewestPage as _,
 };
 use json::{chapter_list, search};
 use net::Url;
 
-pub(crate) struct Copymanga;
+struct Copymanga;
 
 impl Source for Copymanga {
 	fn new() -> Self {
@@ -56,11 +56,12 @@ impl Source for Copymanga {
 		let manga_page = Url::manga(&manga.key).request()?.html()?;
 		if needs_details {
 			manga_page.update_details(&mut manga)?;
-
-			// 簡介收藏按鈕：Markdown 鏈接，點擊經 deep link 路由回 source 執行收藏
+			let comic_uuid = manga_page
+				.collect_uuid()
+				.or_else(|| favorites::resolve_comic_uuid(&manga.key).ok());
 			if let Some(description) = favorites::decorate_description(
 				&manga.key,
-				manga_page.collect_uuid().as_deref(),
+				comic_uuid.as_deref(),
 				manga.description.as_deref().unwrap_or_default(),
 			) {
 				manga.description = Some(description);
@@ -162,7 +163,7 @@ impl DynamicFilters for Copymanga {
 fn listings(is_logged_in: bool) -> Vec<Listing> {
 	let mut listings = Vec::from([Listing {
 		id: String::from("recent"),
-		name: String::from("最近更新"),
+		name: String::from("全新上架"),
 		kind: ListingKind::Default,
 	}]);
 	if is_logged_in {
@@ -184,9 +185,12 @@ impl DynamicListings for Copymanga {
 impl ListingProvider for Copymanga {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		match listing.id.as_str() {
-			"recent" => self.get_search_manga_list(None, page, Vec::new()),
+			"recent" => Url::newest(page)
+				.request()?
+				.html()?
+				.newest_manga_page_result(),
 			"f:fav" => favorites::collect_page(page),
-			_ => Err(error!("未知的列表: {}", listing.name)),
+			_ => Err(error!("未知的列表：{}", listing.name)),
 		}
 	}
 }
@@ -194,7 +198,7 @@ impl ListingProvider for Copymanga {
 impl BasicLoginHandler for Copymanga {
 	fn handle_basic_login(&self, key: String, username: String, password: String) -> Result<bool> {
 		if key != "login" {
-			bail!("登錄入口無效");
+			bail!("登录入口无效");
 		}
 		match auth::login(&username, &password) {
 			Ok(()) => {

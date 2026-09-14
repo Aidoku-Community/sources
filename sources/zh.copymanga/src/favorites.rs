@@ -2,6 +2,13 @@ use crate::{
 	auth::{AuthedRequest as _, try_relogin},
 	net::{Url, base_url, manga_url},
 };
+
+const BUTTON_HOST: &str = "https://www.copy5000.com";
+
+#[cfg(test)]
+pub(crate) const fn button_host() -> &'static str {
+	BUTTON_HOST
+}
 use aidoku::{
 	DeepLinkResult, Manga, MangaPageResult, MangaStatus, Result,
 	alloc::{String, Vec, format, vec},
@@ -111,15 +118,15 @@ fn fetch_collect_page(page: i32, collect_type: CollectType) -> Result<MangaPageR
 		response = Request::get(&url)?.authed()?.send()?;
 	}
 	if response.status_code() == 401 {
-		return Err(error!("登錄已失效，請重新在設置中登錄"));
+		bail!("登录已失效，请重新在设置中登录");
 	}
 
 	let body = response.get_string()?;
 	let parsed: CollectResponse =
-		serde_json::from_str(&body).map_err(|_| error!("收藏響應解析失敗"))?;
+		serde_json::from_str(&body).map_err(|_| error!("收藏响应解析失败"))?;
 	let results = parsed
 		.results
-		.ok_or_else(|| error!("收藏響應缺少 results"))?;
+		.ok_or_else(|| error!("收藏响应缺少 results"))?;
 
 	let entries = results
 		.list
@@ -168,15 +175,15 @@ pub fn resolve_comic_uuid(path_word: &str) -> Result<String> {
 	let html = Url::manga(path_word).request()?.string()?;
 	let marker = "collect('";
 	let Some(start) = html.find(marker) else {
-		bail!("詳情頁中未找到收藏標識，漫畫可能不存在");
+		bail!("详情页中未找到收藏标识，漫画可能不存在");
 	};
 	let rest = &html[start + marker.len()..];
 	let Some(end) = rest.find('\'') else {
-		bail!("詳情頁收藏標識解析失敗");
+		bail!("详情页收藏标识解析失败");
 	};
 	let uuid = &rest[..end];
 	if uuid.is_empty() {
-		bail!("詳情頁收藏標識為空");
+		bail!("详情页收藏标识为空");
 	}
 	Ok(uuid.into())
 }
@@ -286,7 +293,7 @@ fn is_collected(path_word: &str) -> Option<bool> {
 /// 簡介收藏按鈕入口（handle_deep_link 路由 /__fav/{add|remove}/{path_word}）。
 /// 执行写操作并记录状态，返回当前漫画让 App 刷新详情页展示结果。
 pub fn deep_link_favorite(path_word: &str, add: bool) -> Result<Option<DeepLinkResult>> {
-	let action = if add { "加入書架" } else { "取消收藏" };
+	let action = if add { "收藏漫画" } else { "取消收藏" };
 
 	let result = favorite_with_state(path_word, add);
 
@@ -300,7 +307,7 @@ pub fn deep_link_favorite(path_word: &str, add: bool) -> Result<Option<DeepLinkR
 			set_fav_msg(path_word, &format!("{mark} {message}"));
 		}
 		Err(err) => {
-			set_fav_msg(path_word, &format!("❌ {action}失敗: {}", error_text(err)));
+			set_fav_msg(path_word, &format!("❌ {action}失败：{}", error_text(err)));
 		}
 	}
 	// 无论如何返回当前漫画：App 会重新拉取详情并推入刷新页，用户即可看到状态
@@ -324,27 +331,38 @@ fn favorite_with_state(path_word: &str, add: bool) -> Result<String> {
 	}
 	set_collected_state(path_word, collected);
 	Ok(if collected {
-		String::from("已在書架（無需重複添加）")
+		String::from("已收藏（无需重复操作）")
 	} else {
-		String::from("尚未收藏（無需取消）")
+		String::from("尚未收藏（无需取消）")
 	})
 }
 
-/// 簡介頂部注入收藏按鈕與評論鏈接（Markdown）。
-/// 收藏按鈕受登入和設定控制；評論鏈接只要詳情頁有 UUID 就始終顯示。
+/// 将详情页的收藏与评论入口合成一行，避免它们在简介顶部显得零散。
+pub(crate) fn detail_action_line(favorite: Option<&str>, uuid: Option<&str>) -> Option<String> {
+	let mut actions = Vec::new();
+	if let Some(uuid) = uuid.filter(|uuid| !uuid.is_empty()) {
+		actions.push(format!(
+			"[💬 评论区](https://www.copy5000.com/h5/commentList?comicId={uuid})"
+		));
+	}
+	if let Some(favorite) = favorite {
+		actions.push(String::from(favorite));
+	}
+	(!actions.is_empty()).then(|| actions.join(" · "))
+}
+
+/// 簡介頂部注入收藏按鈕與評論區鏈接（Markdown）。
+/// 收藏按鈕受登入和設定控制；評論區只要詳情頁有 UUID 且設定開啟就顯示。
 pub fn decorate_description(
 	path_word: &str,
 	uuid: Option<&str>,
 	description: &str,
 ) -> Option<String> {
-	let enabled = defaults_get::<bool>("favButtons.inDetail").unwrap_or(true);
-	// 按钮专用域名：大写变体仅本源在 source.json 声明，deep link 前缀匹配（大小写敏感）
-	// 因此无论设备装了多少个同站副本、字典顺序如何，路由都确定命中本源。
-	// DNS/HTTP 对 host 大小写不敏感，该域名本身可正常访问。
-	const BUTTON_HOST: &str = "https://WWW.copy5000.com";
+	let favorite_enabled = defaults_get::<bool>("favButtons.inDetail").unwrap_or(true);
+	let comment_enabled = defaults_get::<bool>("commentButtons.inDetail").unwrap_or(true);
 	let mut lines: Vec<String> = Vec::new();
 
-	if enabled && crate::auth::is_logged_in() {
+	let favorite = if favorite_enabled && crate::auth::is_logged_in() {
 		// 一次性结果横幅（只在动作后的刷新页出现一次，之后不再出现）
 		if let Some(message) = take_fav_msg(path_word) {
 			lines.push(format!("## {message}"));
@@ -364,20 +382,21 @@ pub fn decorate_description(
 			},
 		};
 		if collected {
-			lines.push(format!(
+			Some(format!(
 				"[✖ 取消收藏]({BUTTON_HOST}/__fav/remove/{path_word})"
-			));
+			))
 		} else {
-			lines.push(format!(
-				"[➕ 加入書架]({BUTTON_HOST}/__fav/add/{path_word})"
-			));
+			Some(format!(
+				"[➕ 收藏漫画]({BUTTON_HOST}/__fav/add/{path_word})"
+			))
 		}
-	}
+	} else {
+		None
+	};
 
-	if let Some(uuid) = uuid.filter(|uuid| !uuid.is_empty()) {
-		lines.push(format!(
-			"[💬 評論](https://www.copy5000.com/h5/commentList?comicId={uuid})"
-		));
+	let comment_uuid = comment_enabled.then_some(uuid).flatten();
+	if let Some(actions) = detail_action_line(favorite.as_deref(), comment_uuid) {
+		lines.push(actions);
 	}
 
 	if lines.is_empty() {
@@ -398,7 +417,7 @@ fn favorite_core(path_word: &str, add: bool) -> Result<String> {
 	let status = format!(
 		"{}{path_word}",
 		if add {
-			"已加入書架: "
+			"已收藏漫画: "
 		} else {
 			"已取消收藏: "
 		}
@@ -432,7 +451,7 @@ pub fn set_collect(comic_uuid: &str, collect: bool) -> Result<()> {
 			}
 		}
 	}
-	Err(last_error.unwrap_or_else(|| error!("收藏寫入失敗：所有接口均不可用")))
+	Err(last_error.unwrap_or_else(|| error!("收藏写入失败：所有接口均不可用")))
 }
 
 /// 收藏写接口候选域：H5 应用核心域优先，回退当前所选主域。
@@ -456,7 +475,7 @@ fn set_collect_once(url: &str, body: &str) -> Result<()> {
 			.send()?)
 	};
 
-	let token = crate::auth::token().ok_or_else(|| error!("請先在設置中登錄"))?;
+	let token = crate::auth::token().ok_or_else(|| error!("请先在设置中登录"))?;
 	let mut response = send(url.into(), &token)?;
 	if response.status_code() == 401
 		&& try_relogin()
@@ -466,7 +485,7 @@ fn set_collect_once(url: &str, body: &str) -> Result<()> {
 	}
 	if response.status_code() == 401 {
 		return Err(error!(
-			"登錄已失效，請在設置中重新登錄（會自動續期，無需網頁登入）"
+			"登录已失效，请在设置中重新登录（会自动续期，无需网页登录）"
 		));
 	}
 	if response.status_code() != 200 {
@@ -475,14 +494,14 @@ fn set_collect_once(url: &str, body: &str) -> Result<()> {
 	let resp_body = response.get_string()?;
 	// 「服務器升級中」拦截页是 HTTP 200 + HTML → JSON 解析失败视为该域名不可用
 	let value: serde_json::Value = serde_json::from_str(&resp_body)
-		.map_err(|_| error!("響應非 JSON（可能被主域攔截頁接管）"))?;
+		.map_err(|_| error!("响应不是 JSON（可能被主域拦截页接管）"))?;
 	let code = value.get("code").and_then(|v| v.as_i64()).unwrap_or(0);
 	if code != 200 {
 		let message = value
 			.get("message")
 			.and_then(|v| v.as_str())
-			.unwrap_or("未知錯誤");
-		return Err(error!("網站返回 {code}: {message}"));
+			.unwrap_or("未知错误");
+		return Err(error!("网站返回 {code}：{message}"));
 	}
 	Ok(())
 }

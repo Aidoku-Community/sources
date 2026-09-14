@@ -88,14 +88,14 @@ pub fn login(username: &str, password: &str) -> Result<()> {
 
 	let body = response.get_string()?;
 	let login: LoginResponse =
-		serde_json::from_str(&body).map_err(|_| error!("登錄響應解析失敗"))?;
+		serde_json::from_str(&body).map_err(|_| error!("登录响应解析失败"))?;
 	if login.code != 200 {
 		let message = login
 			.message
 			.unwrap_or_else(|| format!("HTTP {}", response.status_code()));
-		bail!("登錄失敗：{message}");
+		bail!("登录失败：{message}");
 	}
-	let results = login.results.ok_or_else(|| error!("登錄響應缺少 token"))?;
+	let results = login.results.ok_or_else(|| error!("登录响应缺少 token"))?;
 
 	defaults_set(TOKEN_KEY, DefaultValue::String(results.token));
 	Ok(())
@@ -119,7 +119,7 @@ pub trait AuthedRequest {
 
 impl AuthedRequest for Request {
 	fn authed(self) -> Result<Request> {
-		let token = token().ok_or_else(|| error!("請先在設置中登錄"))?;
+		let token = token().ok_or_else(|| error!("请先在设置中登录"))?;
 		Ok(self.header("Authorization", &format!("Token {token}")))
 	}
 }
