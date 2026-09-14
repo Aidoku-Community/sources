@@ -16,12 +16,13 @@
 				"type": "select",
 				"key": "authMode",
 				"title": "Auth Mode",
-				"values": ["auto", "none", "basic_auth", "simple_login"],
+				"values": ["auto", "none", "basic_auth", "simple_login", "ui_login"],
 				"titles": [
 					"Auto",
 					"None",
 					"Basic Auth",
-					"Simple Login"
+					"Simple Login",
+					"UI Login"
 				],
 				"default": "auto",
 				"refreshes": ["content"]
