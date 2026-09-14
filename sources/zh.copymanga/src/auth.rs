@@ -16,7 +16,6 @@ use aidoku::{
 // 我们自己的 token 存在 `auth.token`，并在收到 login 通知且非刚登录时手动清除（登出）。
 const LOGIN_USERNAME_KEY: &str = "login.username";
 const TOKEN_KEY: &str = "auth.token";
-const NICKNAME_KEY: &str = "auth.nickname";
 const JUST_LOGGED_IN_KEY: &str = "auth.justLoggedIn";
 
 pub fn token() -> Option<String> {
@@ -29,13 +28,8 @@ pub fn is_logged_in() -> bool {
 	defaults_get::<String>(LOGIN_USERNAME_KEY).is_some_and(|u| !u.is_empty()) && token().is_some()
 }
 
-pub fn nickname() -> Option<String> {
-	defaults_get::<String>(NICKNAME_KEY)
-}
-
 pub fn clear_auth() {
 	defaults_set(TOKEN_KEY, DefaultValue::Null);
-	defaults_set(NICKNAME_KEY, DefaultValue::Null);
 	// 换号/登出时清收藏状态缓存，避免新账号看到旧账号的按钮状态
 	crate::favorites::clear_all_state();
 }
@@ -70,12 +64,10 @@ struct LoginResponse {
 #[derive(Deserialize)]
 struct LoginResults {
 	token: String,
-	#[serde(default)]
-	nickname: Option<String>,
 }
 
-/// 用账号密码向网站登录，成功时保存 token 并返回昵称供界面显示。
-pub fn login(username: &str, password: &str) -> Result<String> {
+/// 用账号密码向网站登录，成功时保存 token。
+pub fn login(username: &str, password: &str) -> Result<()> {
 	let salt = current_date().rem_euclid(900_000) + 100_000;
 	let encoded = encode_password(password, salt)?;
 	let body = format!(
@@ -105,10 +97,8 @@ pub fn login(username: &str, password: &str) -> Result<String> {
 	}
 	let results = login.results.ok_or_else(|| error!("登錄響應缺少 token"))?;
 
-	let nickname = results.nickname.unwrap_or_default();
 	defaults_set(TOKEN_KEY, DefaultValue::String(results.token));
-	defaults_set(NICKNAME_KEY, DefaultValue::String(nickname.clone()));
-	Ok(nickname)
+	Ok(())
 }
 
 /// token 失效（401）时利用 App 保存的凭据静默重登一次。

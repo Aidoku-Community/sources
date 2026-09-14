@@ -2,7 +2,6 @@
 
 mod auth;
 mod favorites;
-mod home;
 mod html;
 mod json;
 mod net;
@@ -10,9 +9,9 @@ mod net;
 mod tests;
 
 use aidoku::{
-	BasicLoginHandler, Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter,
-	FilterValue, Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler, Page,
-	Result, Source,
+	BasicLoginHandler, Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, DynamicListings,
+	Filter, FilterValue, Listing, ListingKind, ListingProvider, Manga, MangaPageResult,
+	NotificationHandler, Page, Result, Source,
 	alloc::{String, Vec},
 	bail, error,
 	imports::std::send_partial_result,
@@ -160,9 +159,32 @@ impl DynamicFilters for Copymanga {
 	}
 }
 
+fn listings(is_logged_in: bool) -> Vec<Listing> {
+	let mut listings = Vec::from([Listing {
+		id: String::from("recent"),
+		name: String::from("最近更新"),
+		kind: ListingKind::Default,
+	}]);
+	if is_logged_in {
+		listings.push(Listing {
+			id: String::from("f:fav"),
+			name: String::from("我的收藏"),
+			kind: ListingKind::List,
+		});
+	}
+	listings
+}
+
+impl DynamicListings for Copymanga {
+	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
+		Ok(listings(auth::is_logged_in()))
+	}
+}
+
 impl ListingProvider for Copymanga {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		match listing.id.as_str() {
+			"recent" => self.get_search_manga_list(None, page, Vec::new()),
 			"f:fav" => favorites::collect_page(page),
 			_ => Err(error!("未知的列表: {}", listing.name)),
 		}
@@ -175,7 +197,7 @@ impl BasicLoginHandler for Copymanga {
 			bail!("登錄入口無效");
 		}
 		match auth::login(&username, &password) {
-			Ok(_) => {
+			Ok(()) => {
 				auth::set_just_logged_in();
 				Ok(true)
 			}
@@ -202,8 +224,8 @@ register_source!(
 	Copymanga,
 	DeepLinkHandler,
 	DynamicFilters,
+	DynamicListings,
 	ListingProvider,
 	BasicLoginHandler,
-	NotificationHandler,
-	Home
+	NotificationHandler
 );
