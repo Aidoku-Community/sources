@@ -120,6 +120,26 @@ impl MangaPage for Document {
 	}
 }
 
+/// 詳情頁收藏按鈕上的漫畫 UUID（`onclick="collect('…')"`），
+/// 供評論鏈接使用（網站評論區以 UUID 為鍵）。
+pub trait CollectButtonPage {
+	fn collect_uuid(&self) -> Option<String>;
+}
+
+impl CollectButtonPage for Document {
+	fn collect_uuid(&self) -> Option<String> {
+		let onclick = self
+			.try_select("[onclick*='collect']")
+			.ok()?
+			.find_map(|element| {
+				let attr = element.attr("onclick")?;
+				attr.contains("collect(").then_some(attr)
+			})?;
+		let uuid = onclick.split("collect('").nth(1)?.split('\'').next()?;
+		(!uuid.is_empty()).then_some(uuid.into())
+	}
+}
+
 pub trait KeyPage {
 	fn key(&self) -> Result<String>;
 }

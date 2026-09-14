@@ -1,6 +1,21 @@
 use aidoku::alloc::String;
 
 #[aidoku_test::aidoku_test]
+fn collect_button_page_extracts_nonempty_uuid() {
+	use crate::html::CollectButtonPage as _;
+	use aidoku::imports::html::Html;
+
+	let document = Html::parse(r#"<button onclick="collect('comic-uuid')"></button>"#).unwrap();
+	assert_eq!(document.collect_uuid(), Some(String::from("comic-uuid")));
+
+	let empty = Html::parse(r#"<button onclick="collect('')"></button>"#).unwrap();
+	assert_eq!(empty.collect_uuid(), None);
+
+	let missing = Html::parse("<button></button>").unwrap();
+	assert_eq!(missing.collect_uuid(), None);
+}
+
+#[aidoku_test::aidoku_test]
 fn favorite_deep_links_require_a_known_operation_and_comic_id() {
 	use crate::parse_fav_deep_link;
 

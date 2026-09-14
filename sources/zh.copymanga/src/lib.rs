@@ -18,7 +18,10 @@ use aidoku::{
 	imports::std::send_partial_result,
 	register_source,
 };
-use html::{ChapterPage as _, FiltersPage as _, GenresPage as _, KeyPage as _, MangaPage as _};
+use html::{
+	ChapterPage as _, CollectButtonPage as _, FiltersPage as _, GenresPage as _, KeyPage as _,
+	MangaPage as _,
+};
 use json::{chapter_list, search};
 use net::Url;
 
@@ -58,6 +61,7 @@ impl Source for Copymanga {
 			// 簡介收藏按鈕：Markdown 鏈接，點擊經 deep link 路由回 source 執行收藏
 			if let Some(description) = favorites::decorate_description(
 				&manga.key,
+				manga_page.collect_uuid().as_deref(),
 				manga.description.as_deref().unwrap_or_default(),
 			) {
 				manga.description = Some(description);

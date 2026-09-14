@@ -330,41 +330,58 @@ fn favorite_with_state(path_word: &str, add: bool) -> Result<String> {
 	})
 }
 
-/// 簡介頂部注入收藏按鈕（Markdown 鏈接，點擊經 deep link 路由回 source 執行）。
-/// 開關關閉或未登入時返回 None（保持原簡介）。
-pub fn decorate_description(path_word: &str, description: &str) -> Option<String> {
+/// 簡介頂部注入收藏按鈕與評論鏈接（Markdown）。
+/// 收藏按鈕受登入和設定控制；評論鏈接只要詳情頁有 UUID 就始終顯示。
+pub fn decorate_description(
+	path_word: &str,
+	uuid: Option<&str>,
+	description: &str,
+) -> Option<String> {
 	let enabled = defaults_get::<bool>("favButtons.inDetail").unwrap_or(true);
-	if !enabled || !crate::auth::is_logged_in() {
-		return None;
-	}
 	// 按钮专用域名：大写变体仅本源在 source.json 声明，deep link 前缀匹配（大小写敏感）
 	// 因此无论设备装了多少个同站副本、字典顺序如何，路由都确定命中本源。
 	// DNS/HTTP 对 host 大小写不敏感，该域名本身可正常访问。
 	const BUTTON_HOST: &str = "https://WWW.copy5000.com";
-	let base = BUTTON_HOST;
 	let mut lines: Vec<String> = Vec::new();
-	// 一次性结果横幅（只在动作后的刷新页出现一次，之后不再出现）
-	if let Some(message) = take_fav_msg(path_word) {
-		lines.push(format!("## {message}"));
+
+	if enabled && crate::auth::is_logged_in() {
+		// 一次性结果横幅（只在动作后的刷新页出现一次，之后不再出现）
+		if let Some(message) = take_fav_msg(path_word) {
+			lines.push(format!("## {message}"));
+		}
+		// 按当前收藏状态只显示一个按钮。
+		// 状态未知（首次打开该漫画）时实时扫描書架判断（逻辑图第一步「先判断该漫画有没有被收藏」），
+		// 结果写入缓存后不再重复扫描。
+		let collected = match get_collected_state(path_word) {
+			Some(state) => state,
+			None => match is_collected(path_word) {
+				Some(state) => {
+					set_collected_state(path_word, state);
+					state
+				}
+				// 扫描失败：不缓存，按未收藏展示，下次打开重试
+				None => false,
+			},
+		};
+		if collected {
+			lines.push(format!(
+				"[✖ 取消收藏]({BUTTON_HOST}/__fav/remove/{path_word})"
+			));
+		} else {
+			lines.push(format!(
+				"[➕ 加入書架]({BUTTON_HOST}/__fav/add/{path_word})"
+			));
+		}
 	}
-	// 按当前收藏状态只显示一个按钮。
-	// 状态未知（首次打开该漫画）时实时扫描書架判断（逻辑图第一步「先判断该漫画有没有被收藏」），
-	// 结果写入缓存后不再重复扫描。
-	let collected = match get_collected_state(path_word) {
-		Some(state) => state,
-		None => match is_collected(path_word) {
-			Some(state) => {
-				set_collected_state(path_word, state);
-				state
-			}
-			// 扫描失败：不缓存，按未收藏展示，下次打开重试
-			None => false,
-		},
-	};
-	if collected {
-		lines.push(format!("[✖ 取消收藏]({base}/__fav/remove/{path_word})"));
-	} else {
-		lines.push(format!("[➕ 加入書架]({base}/__fav/add/{path_word})"));
+
+	if let Some(uuid) = uuid.filter(|uuid| !uuid.is_empty()) {
+		lines.push(format!(
+			"[💬 評論](https://www.copy5000.com/h5/commentList?comicId={uuid})"
+		));
+	}
+
+	if lines.is_empty() {
+		return None;
 	}
 	let mut out = lines.join("\n\n");
 	if !description.is_empty() {
