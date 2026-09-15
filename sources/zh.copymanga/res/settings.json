@@ -24,14 +24,14 @@
 				"type": "switch",
 				"key": "commentButtons.inDetail",
 				"title": "显示详情页评论区按钮",
-				"default": true,
+				"default": false,
 				"refreshes": ["content"]
 			},
 			{
 				"type": "switch",
 				"key": "favButtons.inDetail",
 				"title": "显示详情页收藏漫画按钮",
-				"default": true,
+				"default": false,
 				"refreshes": ["content"]
 			}
 		]

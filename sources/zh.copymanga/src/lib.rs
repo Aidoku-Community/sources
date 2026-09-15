@@ -13,9 +13,8 @@ use aidoku::{
 	Filter, FilterValue, Listing, ListingKind, ListingProvider, Manga, MangaPageResult,
 	NotificationHandler, Page, Result, Source,
 	alloc::{String, Vec},
-	bail, error,
 	imports::std::send_partial_result,
-	register_source,
+	prelude::*,
 };
 use html::{
 	ChapterPage as _, CollectButtonPage as _, FiltersPage as _, GenresPage as _, KeyPage as _,
@@ -202,6 +201,7 @@ impl BasicLoginHandler for Copymanga {
 		}
 		match auth::login(&username, &password) {
 			Ok(()) => {
+				favorites::clear_all_state();
 				auth::set_just_logged_in();
 				Ok(true)
 			}
@@ -213,13 +213,7 @@ impl BasicLoginHandler for Copymanga {
 impl NotificationHandler for Copymanga {
 	fn handle_notification(&self, notification: String) {
 		if notification == "login" {
-			// 登录时 App 先调 handle_basic_login（置 justLoggedIn），随后才发通知；
-			// 登出时没有 handle_basic_login，直接清掉本地 token。
-			if auth::take_just_logged_in() {
-				auth::clear_just_logged_in();
-			} else {
-				auth::clear_auth();
-			}
+			auth::handle_login_notification();
 		}
 	}
 }

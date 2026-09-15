@@ -1,7 +1,8 @@
 {
 	"info": {
 		"id": "zh.copymanga",
-		"name": "拷贝漫画",
+		"name": "拷貝漫畫",
+		"altNames": ["拷贝漫画"],
 		"version": 20,
 		"urls": [
 			"https://www.copy5000.com",

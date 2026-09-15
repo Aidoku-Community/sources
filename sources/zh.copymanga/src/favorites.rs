@@ -1,16 +1,9 @@
 use crate::{
 	auth::{AuthedRequest as _, try_relogin},
-	net::{Url, base_url, manga_url},
+	net::{Url, base_url},
 };
-
-const BUTTON_HOST: &str = "https://www.copy5000.com";
-
-#[cfg(test)]
-pub(crate) const fn button_host() -> &'static str {
-	BUTTON_HOST
-}
 use aidoku::{
-	DeepLinkResult, Manga, MangaPageResult, MangaStatus, Result,
+	DeepLinkResult, Manga, MangaPageResult, Result,
 	alloc::{String, Vec, format, vec},
 	bail, error,
 	imports::{
@@ -21,22 +14,20 @@ use aidoku::{
 	serde::Deserialize,
 };
 
+const BUTTON_HOST: &str = "https://www.copy5000.com";
+
 const PAGE_LIMIT: i32 = 50;
 
-/// free_type: 网站书架的「免費」(1) 与「付費」(2) 两个标签页。
-#[derive(Clone, Copy)]
-pub enum CollectType {
-	Free,
-	Charged,
+fn collect_page_url(base_url: &str, page: i32) -> String {
+	let offset = (page - 1).max(0) * PAGE_LIMIT;
+	format!(
+		"{base_url}/api/v3/member/collect/comics?limit={PAGE_LIMIT}&offset={offset}&ordering=-datetime_created",
+	)
 }
 
-impl CollectType {
-	pub fn param(self) -> &'static str {
-		match self {
-			Self::Free => "1",
-			Self::Charged => "2",
-		}
-	}
+fn has_next_collection_page(total: i32, offset: i32, limit: i32, item_count: usize) -> bool {
+	let reported_next_page = limit > 0 && offset.saturating_add(limit) < total;
+	reported_next_page || item_count >= PAGE_LIMIT as usize
 }
 
 #[derive(Deserialize)]
@@ -71,47 +62,20 @@ struct CollectComic {
 	name: String,
 	#[serde(default)]
 	cover: Option<String>,
-	#[serde(default)]
-	status: Option<u8>,
-	#[serde(default)]
-	author: Option<Vec<Author>>,
-}
-
-#[derive(Deserialize)]
-struct Author {
-	#[serde(default)]
-	name: String,
 }
 
 fn to_manga(comic: CollectComic) -> Manga {
-	let url = manga_url(&comic.path_word).ok();
-	let status = match comic.status {
-		Some(0) => MangaStatus::Ongoing,
-		Some(1 | 2) => MangaStatus::Completed,
-		_ => MangaStatus::Unknown,
-	};
 	let cover = comic.cover.map(|cover| cover.replace(".328x422.jpg", ""));
-	let authors = comic
-		.author
-		.map(|authors| authors.into_iter().map(|a| a.name).collect());
 	Manga {
 		key: comic.path_word,
 		title: comic.name,
 		cover,
-		authors,
-		url,
-		status,
 		..Default::default()
 	}
 }
 
-fn fetch_collect_page(page: i32, collect_type: CollectType) -> Result<MangaPageResult> {
-	let offset = (page - 1).max(0) * PAGE_LIMIT;
-	let url = format!(
-		"{}/api/v3/member/collect/comics?limit={PAGE_LIMIT}&offset={offset}&free_type={}&ordering=-datetime_created",
-		base_url()?,
-		collect_type.param(),
-	);
+fn fetch_collect_page(page: i32) -> Result<MangaPageResult> {
+	let url = collect_page_url(&base_url()?, page);
 
 	let mut response = Request::get(&url)?.authed()?.send()?;
 	if response.status_code() == 401 && try_relogin() {
@@ -128,6 +92,9 @@ fn fetch_collect_page(page: i32, collect_type: CollectType) -> Result<MangaPageR
 		.results
 		.ok_or_else(|| error!("收藏响应缺少 results"))?;
 
+	let item_count = results.list.len();
+	let has_next_page =
+		has_next_collection_page(results.total, results.offset, results.limit, item_count);
 	let entries = results
 		.list
 		.into_iter()
@@ -136,36 +103,20 @@ fn fetch_collect_page(page: i32, collect_type: CollectType) -> Result<MangaPageR
 		.map(to_manga)
 		.collect();
 
-	let has_next_page = results.offset + results.limit < results.total;
-
 	Ok(MangaPageResult {
 		entries,
 		has_next_page,
 	})
 }
 
-/// 拉取一页账号收藏（免費+付費合并，各取同页码后拼接）。
-/// 每次调用都实时请求网站，收藏变化无需缓存失效逻辑。
+/// 拉取一页账号收藏。
 pub fn collect_page(page: i32) -> Result<MangaPageResult> {
-	let free = fetch_collect_page(page, CollectType::Free)?;
-	merge_collect_pages(free, fetch_collect_page(page, CollectType::Charged))
+	fetch_collect_page(page)
 }
 
-/// 合并免费、付费书架。免费请求已成功时，付费请求失败不能将其替换为错误。
-pub(crate) fn merge_collect_pages(
-	mut free: MangaPageResult,
-	charged: Result<MangaPageResult>,
-) -> Result<MangaPageResult> {
-	if let Ok(charged) = charged {
-		free.has_next_page = free.has_next_page || charged.has_next_page;
-		free.entries.extend(charged.entries);
-	}
-	Ok(free)
-}
-
-fn error_text(err: &AidokuError) -> String {
+fn error_text(err: AidokuError) -> String {
 	match err {
-		AidokuError::Message(message) => message.clone(),
+		AidokuError::Message(message) => message,
 		other => format!("{other:?}"),
 	}
 }
@@ -268,26 +219,28 @@ pub(crate) fn take_fav_msg(path_word: &str) -> Option<String> {
 	message
 }
 
-/// 检查漫画是否已在網站書架（按用户设定：只扫免費书架，最多 10 页 / 500 条；
-/// 付费书架不扫——本源收藏的漫画均在免费列表）。
+/// 检查漫画是否已收藏，最多扫描 10 页 / 500 条。
 /// 返回：Some(true/false)=扫描结论；None=扫描失败（调用方不应缓存该结果）。
 /// 新添加的漫画按收藏时间倒序排在最前，通常第 1 页即可命中。
 fn is_collected(path_word: &str) -> Option<bool> {
 	const MAX_PAGES: i32 = 10;
-	for page in 1..=MAX_PAGES {
-		match fetch_collect_page(page, CollectType::Free) {
-			Ok(result) => {
-				if result.entries.iter().any(|m| m.key == path_word) {
-					return Some(true);
-				}
-				if !result.has_next_page {
-					return Some(false);
-				}
-			}
-			Err(_) => return None,
+	scan_collected_pages(path_word, (1..=MAX_PAGES).map(fetch_collect_page))
+}
+
+fn scan_collected_pages<I>(path_word: &str, pages: I) -> Option<bool>
+where
+	I: Iterator<Item = Result<MangaPageResult>>,
+{
+	for result in pages {
+		let result = result.ok()?;
+		if result.entries.iter().any(|m| m.key == path_word) {
+			return Some(true);
+		}
+		if !result.has_next_page {
+			return Some(false);
 		}
 	}
-	Some(false)
+	None
 }
 
 /// 簡介收藏按鈕入口（handle_deep_link 路由 /__fav/{add|remove}/{path_word}）。
@@ -297,7 +250,7 @@ pub fn deep_link_favorite(path_word: &str, add: bool) -> Result<Option<DeepLinkR
 
 	let result = favorite_with_state(path_word, add);
 
-	match &result {
+	match result {
 		Ok(message) => {
 			let mark = if message.starts_with("已在") || message.starts_with("尚未") {
 				"ℹ️"
@@ -338,7 +291,7 @@ fn favorite_with_state(path_word: &str, add: bool) -> Result<String> {
 }
 
 /// 将详情页的收藏与评论入口合成一行，避免它们在简介顶部显得零散。
-pub(crate) fn detail_action_line(favorite: Option<&str>, uuid: Option<&str>) -> Option<String> {
+fn detail_action_line(favorite: Option<&str>, uuid: Option<&str>) -> Option<String> {
 	let mut actions = Vec::new();
 	if let Some(uuid) = uuid.filter(|uuid| !uuid.is_empty()) {
 		actions.push(format!(
@@ -358,8 +311,8 @@ pub fn decorate_description(
 	uuid: Option<&str>,
 	description: &str,
 ) -> Option<String> {
-	let favorite_enabled = defaults_get::<bool>("favButtons.inDetail").unwrap_or(true);
-	let comment_enabled = defaults_get::<bool>("commentButtons.inDetail").unwrap_or(true);
+	let favorite_enabled = defaults_get::<bool>("favButtons.inDetail").unwrap_or(false);
+	let comment_enabled = defaults_get::<bool>("commentButtons.inDetail").unwrap_or(false);
 	let mut lines: Vec<String> = Vec::new();
 
 	let favorite = if favorite_enabled && crate::auth::is_logged_in() {
@@ -445,10 +398,11 @@ pub fn set_collect(comic_uuid: &str, collect: bool) -> Result<()> {
 	for host in &hosts {
 		let url = format!("{host}{COLLECT_PATH}");
 		match set_collect_once(&url, &body) {
-			Ok(()) => return Ok(()),
-			Err(err) => {
+			CollectWriteAttempt::Success => return Ok(()),
+			CollectWriteAttempt::RetryOnOtherHost(err) => {
 				last_error = Some(err);
 			}
+			CollectWriteAttempt::Stop(err) => return Err(err),
 		}
 	}
 	Err(last_error.unwrap_or_else(|| error!("收藏写入失败：所有接口均不可用")))
@@ -459,7 +413,21 @@ fn collect_hosts() -> Result<Vec<String>> {
 	Ok(vec![String::from("https://api.copy4000.com"), base_url()?])
 }
 
-fn set_collect_once(url: &str, body: &str) -> Result<()> {
+enum CollectWriteAttempt {
+	Success,
+	RetryOnOtherHost(AidokuError),
+	Stop(AidokuError),
+}
+
+fn should_retry_on_other_host(status_code: i32, body: &str) -> bool {
+	let body = body.trim_start();
+	status_code == 404
+		|| (status_code == 200
+			&& (body.starts_with("<!doctype html") || body.starts_with("<html"))
+			&& body.contains("服務器升級中"))
+}
+
+fn set_collect_once(url: &str, body: &str) -> CollectWriteAttempt {
 	// 单登录设计：使用 API 登录 token 的 Authorization 头和 Cookie 双通道；401 时用
 	// App 保存的账密静默重登续期。
 	let send = |url: String, token: &str| -> Result<Response> {
@@ -475,33 +443,163 @@ fn set_collect_once(url: &str, body: &str) -> Result<()> {
 			.send()?)
 	};
 
-	let token = crate::auth::token().ok_or_else(|| error!("请先在设置中登录"))?;
-	let mut response = send(url.into(), &token)?;
+	let Some(token) = crate::auth::token() else {
+		return CollectWriteAttempt::Stop(error!("请先在设置中登录"));
+	};
+	let mut response = match send(url.into(), &token) {
+		Ok(response) => response,
+		Err(_) => {
+			return CollectWriteAttempt::Stop(error!(
+				"收藏请求未得到响应，结果未知；请刷新详情或到网站书架确认"
+			));
+		}
+	};
 	if response.status_code() == 401
 		&& try_relogin()
 		&& let Some(fresh) = crate::auth::token()
 	{
-		response = send(url.into(), &fresh)?;
+		response = match send(url.into(), &fresh) {
+			Ok(response) => response,
+			Err(_) => {
+				return CollectWriteAttempt::Stop(error!(
+					"收藏请求未得到响应，结果未知；请刷新详情或到网站书架确认"
+				));
+			}
+		};
 	}
 	if response.status_code() == 401 {
-		return Err(error!(
+		return CollectWriteAttempt::Stop(error!(
 			"登录已失效，请在设置中重新登录（会自动续期，无需网页登录）"
 		));
 	}
-	if response.status_code() != 200 {
-		return Err(error!("HTTP {}", response.status_code()));
+	if response.status_code() == 404 {
+		return CollectWriteAttempt::RetryOnOtherHost(error!("HTTP {}", response.status_code()));
 	}
-	let resp_body = response.get_string()?;
-	// 「服務器升級中」拦截页是 HTTP 200 + HTML → JSON 解析失败视为该域名不可用
-	let value: serde_json::Value = serde_json::from_str(&resp_body)
-		.map_err(|_| error!("响应不是 JSON（可能被主域拦截页接管）"))?;
+	if response.status_code() != 200 {
+		return CollectWriteAttempt::Stop(error!("HTTP {}", response.status_code()));
+	}
+	let resp_body = match response.get_string() {
+		Ok(body) => body,
+		Err(_) => {
+			return CollectWriteAttempt::Stop(error!(
+				"收藏响应读取失败，结果未知；请刷新详情或到网站书架确认"
+			));
+		}
+	};
+	if should_retry_on_other_host(200, &resp_body) {
+		return CollectWriteAttempt::RetryOnOtherHost(error!("网站拦截页阻止了收藏请求"));
+	}
+	let value: serde_json::Value = match serde_json::from_str(&resp_body) {
+		Ok(value) => value,
+		Err(_) => return CollectWriteAttempt::Stop(error!("收藏响应不是预期 JSON，结果未知")),
+	};
 	let code = value.get("code").and_then(|v| v.as_i64()).unwrap_or(0);
 	if code != 200 {
 		let message = value
 			.get("message")
 			.and_then(|v| v.as_str())
 			.unwrap_or("未知错误");
-		return Err(error!("网站返回 {code}：{message}"));
+		return CollectWriteAttempt::Stop(error!("网站返回 {code}：{message}"));
 	}
-	Ok(())
+	CollectWriteAttempt::Success
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{
+		CollectComic, collect_page_url, detail_action_line, has_next_collection_page,
+		scan_collected_pages, should_retry_on_other_host, to_manga,
+	};
+	use aidoku::MangaPageResult;
+
+	#[aidoku_test::aidoku_test]
+	fn favorite_list_items_defer_optional_metadata_to_details() {
+		let comic = serde_json::from_str::<CollectComic>(
+			r#"{
+				"path_word":"example-comic",
+				"name":"示例漫画",
+				"cover":"https://img.example/cover.328x422.jpg",
+				"status":1,
+				"author":[{"name":"作者甲"}]
+			}"#,
+		)
+		.unwrap();
+
+		let manga = to_manga(comic);
+		assert_eq!(manga.key, "example-comic");
+		assert_eq!(manga.title, "示例漫画");
+		assert_eq!(manga.authors, None);
+		assert_eq!(manga.url, None);
+	}
+
+	#[aidoku_test::aidoku_test]
+	fn favorite_list_uses_all_categories_and_second_page_offset() {
+		assert_eq!(
+			collect_page_url("https://www.copy5000.com", 1),
+			"https://www.copy5000.com/api/v3/member/collect/comics?limit=50&offset=0&ordering=-datetime_created",
+		);
+		assert_eq!(
+			collect_page_url("https://www.copy5000.com", 2),
+			"https://www.copy5000.com/api/v3/member/collect/comics?limit=50&offset=50&ordering=-datetime_created",
+		);
+	}
+
+	#[aidoku_test::aidoku_test]
+	fn favorite_list_continues_after_the_first_fifty_of_fifty_one_items() {
+		assert!(has_next_collection_page(51, 0, 50, 50));
+		assert!(!has_next_collection_page(51, 50, 50, 1));
+		assert!(has_next_collection_page(0, 0, 0, 50));
+	}
+
+	#[aidoku_test::aidoku_test]
+	fn detail_actions_keep_favorite_and_comment_section_on_one_line() {
+		let actions = detail_action_line(
+			Some("[➕ 收藏漫画](https://example.com/add)"),
+			Some("comic-uuid"),
+		)
+		.expect("actions should be present");
+		assert_eq!(
+			actions,
+			"[💬 评论区](https://www.copy5000.com/h5/commentList?comicId=comic-uuid) · [➕ 收藏漫画](https://example.com/add)"
+		);
+	}
+
+	#[aidoku_test::aidoku_test]
+	fn collection_scan_returns_unknown_when_page_limit_ends_with_next_page() {
+		let pages = (0..10).map(|_| -> aidoku::Result<MangaPageResult> {
+			Ok(MangaPageResult {
+				entries: Default::default(),
+				has_next_page: true,
+			})
+		});
+
+		assert_eq!(scan_collected_pages("older-favorite", pages), None);
+	}
+
+	#[aidoku_test::aidoku_test]
+	fn collection_scan_returns_not_collected_after_the_final_page() {
+		let pages = core::iter::once(Ok::<_, aidoku::imports::error::AidokuError>(
+			MangaPageResult {
+				entries: Default::default(),
+				has_next_page: false,
+			},
+		));
+
+		assert_eq!(scan_collected_pages("absent-comic", pages), Some(false));
+	}
+
+	#[aidoku_test::aidoku_test]
+	fn fallback_only_uses_an_unambiguously_unavailable_host() {
+		assert!(should_retry_on_other_host(404, "",));
+		assert!(should_retry_on_other_host(
+			200,
+			"<!doctype html><title>服務器升級中</title>",
+		));
+		assert!(!should_retry_on_other_host(
+			200,
+			r#"{"code":200,"message":"服務器升級中"}"#,
+		));
+		assert!(!should_retry_on_other_host(200, "{}"));
+		assert!(!should_retry_on_other_host(503, ""));
+	}
 }

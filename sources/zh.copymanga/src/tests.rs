@@ -34,24 +34,6 @@ fn collect_button_page_extracts_nonempty_uuid() {
 }
 
 #[aidoku_test::aidoku_test]
-fn detail_actions_keep_favorite_and_comment_section_on_one_line() {
-	let actions = crate::favorites::detail_action_line(
-		Some("[➕ 收藏漫画](https://example.com/add)"),
-		Some("comic-uuid"),
-	)
-	.expect("actions should be present");
-	assert_eq!(
-		actions,
-		"[💬 评论区](https://www.copy5000.com/h5/commentList?comicId=comic-uuid) · [➕ 收藏漫画](https://example.com/add)"
-	);
-}
-
-#[aidoku_test::aidoku_test]
-fn favorite_buttons_use_the_normal_copy5000_domain() {
-	assert_eq!(crate::favorites::button_host(), "https://www.copy5000.com");
-}
-
-#[aidoku_test::aidoku_test]
 fn newest_page_reads_the_discovery_page_cards() {
 	use crate::html::NewestPage as _;
 	use aidoku::imports::html::Html;
@@ -71,6 +53,7 @@ fn newest_page_reads_the_discovery_page_cards() {
 		page.entries[0].cover.as_deref(),
 		Some("https://img.example/cover.jpg")
 	);
+	assert_eq!(page.entries[0].authors, None);
 	assert!(page.has_next_page);
 }
 

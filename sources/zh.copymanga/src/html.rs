@@ -88,16 +88,10 @@ impl NewestPage for Document {
 					.select_first("img[data-src]")?
 					.attr("data-src")?
 					.replace(".328x422.jpg", "");
-				let authors = card
-					.select("span a")?
-					.filter_map(|author| author.text())
-					.collect();
 				Some(Manga {
 					key,
 					title,
 					cover: Some(cover),
-					authors: Some(authors),
-					status: MangaStatus::Unknown,
 					..Default::default()
 				})
 			})

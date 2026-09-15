@@ -151,10 +151,6 @@ pub fn base_url() -> Result<String> {
 		.ok_or_else(|| error!("Default not exist or not string for key: `url`"))
 }
 
-pub fn manga_url(path_word: &str) -> Result<String> {
-	Ok(format!("{}/comic/{path_word}", base_url()?))
-}
-
 pub struct FiltersQuery(QueryParameters);
 
 impl FiltersQuery {

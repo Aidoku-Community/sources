@@ -22,14 +22,19 @@ pub fn token() -> Option<String> {
 	defaults_get::<String>(TOKEN_KEY).filter(|t| !t.is_empty())
 }
 
+fn has_app_username() -> bool {
+	defaults_get::<String>(LOGIN_USERNAME_KEY).is_some_and(|username| !username.is_empty())
+}
+
 /// App 登出只会清掉 login.username/password，token 需要我们自己跟进；
 /// 因此判断登录态必须以 App 存储的用户名为准。
 pub fn is_logged_in() -> bool {
-	defaults_get::<String>(LOGIN_USERNAME_KEY).is_some_and(|u| !u.is_empty()) && token().is_some()
+	has_app_username() && token().is_some()
 }
 
 pub fn clear_auth() {
 	defaults_set(TOKEN_KEY, DefaultValue::Null);
+	clear_just_logged_in();
 	// 换号/登出时清收藏状态缓存，避免新账号看到旧账号的按钮状态
 	crate::favorites::clear_all_state();
 }
@@ -44,6 +49,30 @@ pub fn take_just_logged_in() -> bool {
 
 pub fn clear_just_logged_in() {
 	defaults_set(JUST_LOGGED_IN_KEY, DefaultValue::Null);
+}
+
+#[derive(Debug, PartialEq)]
+enum LoginNotificationAction {
+	KeepAuthentication,
+	ClearAuthentication,
+}
+
+fn login_notification_action(
+	just_logged_in: bool,
+	has_app_username: bool,
+) -> LoginNotificationAction {
+	if just_logged_in && has_app_username {
+		LoginNotificationAction::KeepAuthentication
+	} else {
+		LoginNotificationAction::ClearAuthentication
+	}
+}
+
+pub fn handle_login_notification() {
+	match login_notification_action(take_just_logged_in(), has_app_username()) {
+		LoginNotificationAction::KeepAuthentication => clear_just_logged_in(),
+		LoginNotificationAction::ClearAuthentication => clear_auth(),
+	}
 }
 
 /// 网站前端登录算法：password 字段 = base64(明文密码 + "-" + salt)，salt 为 6 位整数。
@@ -121,5 +150,26 @@ impl AuthedRequest for Request {
 	fn authed(self) -> Result<Request> {
 		let token = token().ok_or_else(|| error!("请先在设置中登录"))?;
 		Ok(self.header("Authorization", &format!("Token {token}")))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{LoginNotificationAction, login_notification_action};
+
+	#[aidoku_test::aidoku_test]
+	fn login_notification_only_keeps_auth_for_a_pending_login_with_an_app_account() {
+		assert_eq!(
+			login_notification_action(true, true),
+			LoginNotificationAction::KeepAuthentication
+		);
+		assert_eq!(
+			login_notification_action(true, false),
+			LoginNotificationAction::ClearAuthentication
+		);
+		assert_eq!(
+			login_notification_action(false, false),
+			LoginNotificationAction::ClearAuthentication
+		);
 	}
 }
