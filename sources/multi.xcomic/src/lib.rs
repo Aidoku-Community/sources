@@ -15,7 +15,11 @@ use aidoku::{
 	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext, Result,
 	Source,
 	alloc::{String, Vec, vec},
-	imports::{defaults::defaults_get, net::Request, std::send_partial_result},
+	imports::{
+		defaults::defaults_get,
+		net::{Request, TimeUnit, set_rate_limit},
+		std::send_partial_result,
+	},
 	prelude::*,
 };
 use graphql::BrowseParams;
@@ -39,19 +43,23 @@ impl XComic {
 			*self.latest_cursor.borrow()
 		};
 		for _ in 0..10 {
-			let response = graphql::latest_uploads_request(base_url, before)?.send()?;
-			let (entries, next_cursor) = graphql::parse_latest_uploads(response, params)?;
+			let response =
+				graphql::latest_uploads_request(base_url, before, graphql::LATEST_PAGE_SIZE)?
+					.send()?;
+			let (entries, cursor) = graphql::parse_latest_uploads(response, params)?;
 			// Only the home page pairs these with their chapter.
 			let comics: Vec<models::ComicData> =
 				entries.into_iter().map(|(comic, _)| comic).collect();
-			let has_next_page = next_cursor.is_some();
+			// The cursor must move backwards, or the feed repeats the page just read.
+			let next_cursor = cursor.filter(|cursor| before.is_none_or(|before| *cursor < before));
 			*self.latest_cursor.borrow_mut() = next_cursor;
-			if !comics.is_empty() || !has_next_page {
-				return Ok((comics, has_next_page));
+			if !comics.is_empty() || next_cursor.is_none() {
+				return Ok((comics, next_cursor.is_some()));
 			}
 			before = next_cursor;
 		}
-		Ok((Vec::new(), self.latest_cursor.borrow().is_some()))
+		// Advertising a cursor after ten empty walks pages the reader forever.
+		Ok((Vec::new(), false))
 	}
 
 	/// One page of browse results, shared by search and listings.
@@ -75,6 +83,8 @@ impl XComic {
 
 impl Source for XComic {
 	fn new() -> Self {
+		// Unpaced, a long chapter list draws 429s with empty bodies.
+		set_rate_limit(3, 1, TimeUnit::Seconds);
 		Self {
 			latest_cursor: RefCell::new(None),
 		}
@@ -147,8 +157,11 @@ impl Source for XComic {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let base_url = self.get_base_url()?;
+		// A chapters-only refresh never fetches the comic, so it has no team to name.
+		let mut team = None;
 		if needs_details {
 			let comic = graphql::fetch_comic(&base_url, &manga.key)?;
+			team = helpers::team_of(&comic);
 			let chapters = manga.chapters.take();
 			manga = manga_from_data(comic, &base_url);
 			manga.chapters = chapters;
@@ -160,7 +173,9 @@ impl Source for XComic {
 			manga.chapters = Some(
 				graphql::fetch_chapters(&base_url, &manga.key)?
 					.into_iter()
-					.filter_map(|chapter| chapter_from_data(chapter, &base_url, None, false))
+					.filter_map(|chapter| {
+						chapter_from_data(chapter, &base_url, None, team.as_deref(), false)
+					})
 					.collect(),
 			);
 		}

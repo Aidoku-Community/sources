@@ -37,6 +37,8 @@ pub struct Summary {
 pub struct ComicData {
 	pub id: String,
 	pub name: String,
+	/// The scanlation team behind this edition, which the site badges it with.
+	pub sub_name: Option<String>,
 	#[serde(rename = "type")]
 	pub kind: Option<String>,
 	pub demographics: Option<Vec<String>>,
@@ -62,13 +64,12 @@ pub struct BrowseResponse {
 }
 
 /// A latest-uploads entry: the comic, plus the chapter that was uploaded.
-pub type LatestEntry = (ComicData, Option<ChapterData>);
+pub type LatestEntry = (ComicData, ChapterData);
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
 pub struct LatestUploadsItem {
-	pub comic: Option<Node<Option<ComicData>>>,
-	/// The upload this feed entry is for, as `chapters(amount: 1)`.
+	/// The title's newest uploads, each carrying the comic it belongs to.
 	pub chapters: Option<Vec<Node<ChapterData>>>,
 }
 
@@ -82,7 +83,7 @@ pub struct LatestUploadsResult {
 #[derive(Deserialize, Default)]
 #[serde(default)]
 pub struct LatestUploadsResponse {
-	#[serde(rename = "get_comic_latestUploads")]
+	#[serde(rename = "get_title_latestUploads")]
 	pub latest_uploads: Option<LatestUploadsResult>,
 }
 
@@ -123,12 +124,15 @@ pub struct ChapterData {
 	pub src_name: Option<String>,
 	pub profile_nodes: Option<Vec<Node<Option<NamedData>>>>,
 	pub group_nodes: Option<Vec<Node<Option<NamedData>>>>,
+	/// Only the latest-uploads feed sets this.
+	pub comic_node: Option<Node<Option<ComicData>>>,
 }
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
 pub struct Paging {
-	pub pages: Option<i64>,
+	pub next: Option<i64>,
+	pub total: Option<i64>,
 }
 
 #[derive(Deserialize, Default)]

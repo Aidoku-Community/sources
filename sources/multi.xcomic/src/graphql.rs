@@ -16,6 +16,10 @@ use aidoku::{
 use serde::de::DeserializeOwned;
 
 pub const PAGE_SIZE: i32 = 48;
+/// Each title here carries up to three chapters, so a browse page is overkill.
+pub const HOME_LATEST_SIZE: i32 = 20;
+/// A browse page's worth of comics, once those three chapters are flattened.
+pub const LATEST_PAGE_SIZE: i32 = PAGE_SIZE / 3;
 const RECENTLY_ADDED_SIZE: i32 = 50;
 const CHAPTER_PAGE_SIZE: i32 = 100;
 const UNIQUE_CHAPTER_PAGE_SIZE: i32 = 1000;
@@ -48,7 +52,7 @@ const BROWSE_QUERY: &str = r#"
 query get_comic_browse_items($select: Comic_Browse_Select) {
   get_comic_browse_items(select: $select) {
     data {
-      id name urlPath urlCover
+      id name subName urlPath urlCover
       contentRating originalStatus uploadStatus
     }
   }
@@ -60,7 +64,7 @@ const SCROLLER_QUERY: &str = r#"
 query get_comic_browse_items($select: Comic_Browse_Select) {
   get_comic_browse_items(select: $select) {
     data {
-      id name urlPath urlCover
+      id name subName urlPath urlCover
       contentRating originalStatus uploadStatus
       genres summary { text }
     }
@@ -75,7 +79,7 @@ query get_comic_recentlyAdded($select: Comic_RecentlyAdded_Select) {
   get_comic_recentlyAdded(select: $select) {
     items {
       data {
-        id name urlPath urlCover translatedLanguage
+        id name subName urlPath urlCover translatedLanguage
         type contentRating genres
       }
     }
@@ -83,19 +87,24 @@ query get_comic_recentlyAdded($select: Comic_RecentlyAdded_Select) {
 }
 "#;
 
+// `get_comic_latestUploads` validates but answers empty; three chapters per title
+// reach its other editions.
 const LATEST_UPLOADS_QUERY: &str = r#"
-query get_comic_latestUploads($select: Comic_LatestUploads_Select) {
-  get_comic_latestUploads(select: $select) {
+query get_title_latestUploads($select: Title_LatestUploads_Select) {
+  get_title_latestUploads(select: $select) {
     before
     items {
-      comic {
+      chapters(amount: 3) {
         data {
-          id name urlPath urlCover translatedLanguage
-          type contentRating genres
+          id serial chaNum dname urlPath dbStatus
+          datePublic dateCreate dateModify
+          comicNode {
+            data {
+              id name subName urlPath urlCover translatedLanguage
+              type contentRating genres
+            }
+          }
         }
-      }
-      chapters(amount: 1) {
-        data { id serial chaNum dname datePublic dateCreate dateModify }
       }
     }
   }
@@ -106,7 +115,7 @@ const COMIC_QUERY: &str = r#"
 query get_comicNode($id: ID!) {
   get_comicNode(id: $id) {
     data {
-      id name type demographics contentRating genres tags
+      id name subName type demographics contentRating genres tags
       originalStatus uploadStatus readDirection translatedLanguage
       authorNodes { data { name } }
       artistNodes { data { name } }
@@ -123,7 +132,7 @@ query get_comicNode($id: ID!) {
 const CHAPTERS_QUERY: &str = r#"
 query get_comic_chapterList_fullList($select: Select_Comic_ChapterList) {
   chapterList: get_comic_chapterList_fullList(select: $select) {
-    paging { pages }
+    paging { next total }
     items {
       data {
         id dbStatus serial chaNum volNum dname title urlPath
@@ -139,7 +148,7 @@ query get_comic_chapterList_fullList($select: Select_Comic_ChapterList) {
 const UNIQUE_CHAPTERS_QUERY: &str = r#"
 query get_comic_chapterList_uniqList($select: Select_Comic_ChapterList_UniqList) {
   chapterList: get_comic_chapterList_uniqList(select: $select) {
-    paging { pages }
+    paging { next total }
     items {
       data {
         id dbStatus serial chaNum volNum dname title urlPath
@@ -365,16 +374,16 @@ pub fn parse_recently_added(response: Response, params: &BrowseParams) -> Result
 		.collect())
 }
 
-pub fn latest_uploads_request(base_url: &str, before: Option<i64>) -> Result<Request> {
+pub fn latest_uploads_request(base_url: &str, before: Option<i64>, limit: i32) -> Result<Request> {
+	// Pages by cursor, not the `size` browse selects take.
+	let mut select = serde_json::json!({ "first": 0, "limit": limit });
+	if let Some(before) = before {
+		select["before"] = before.into();
+	}
 	graphql_request(
 		base_url,
 		LATEST_UPLOADS_QUERY,
-		serde_json::json!({
-			"select": {
-				"size": PAGE_SIZE,
-				"before": before
-			}
-		}),
+		serde_json::json!({ "select": select }),
 	)
 }
 
@@ -384,19 +393,33 @@ pub fn parse_latest_uploads(
 ) -> Result<(Vec<LatestEntry>, Option<i64>)> {
 	let response: LatestUploadsResponse = parse_graphql(response)?;
 	let LatestUploadsResult { before, items } = response.latest_uploads.unwrap_or_default();
-	let mut seen: Vec<String> = Vec::new();
-	let comics = items
+
+	// Items are titles, and arrive grouped by title rather than newest first.
+	let mut chapters: Vec<ChapterData> = items
 		.into_iter()
-		.filter_map(|item| {
-			let comic = item.comic.and_then(|node| node.data)?;
-			let chapter = item
-				.chapters
-				.and_then(|chapters| chapters.into_iter().next())
-				.map(|node| node.data);
-			Some((comic, chapter))
+		.filter_map(|item| item.chapters)
+		.flatten()
+		.map(|node| node.data)
+		.filter(|chapter| chapter.db_status.as_deref().unwrap_or("normal") == "normal")
+		.collect();
+	chapters.sort_by_key(|chapter| {
+		core::cmp::Reverse(
+			chapter
+				.date_public
+				.or(chapter.date_modify)
+				.or(chapter.date_create)
+				.unwrap_or_default(),
+		)
+	});
+
+	let mut seen: Vec<String> = Vec::new();
+	let comics = chapters
+		.into_iter()
+		.filter_map(|mut chapter| {
+			let comic = chapter.comic_node.take().and_then(|node| node.data)?;
+			params.allows(&comic).then_some((comic, chapter))
 		})
-		.filter(|(comic, _)| params.allows(comic))
-		// The feed lists one entry per upload, so a comic repeats per new chapter.
+		// Three chapters per title can share a comic, so keep only its newest.
 		.filter(|(comic, _)| {
 			let unseen = !seen.contains(&comic.id);
 			if unseen {
@@ -434,24 +457,41 @@ pub fn fetch_chapters(base_url: &str, comic_id: &str) -> Result<Vec<ChapterData>
 	};
 	let first: ChapterListResponse =
 		graphql(base_url, query, chapter_variables(comic_id, 1, size))?;
-	let pages = first
+	let paging = first
 		.chapter_list
 		.as_ref()
-		.and_then(|result| result.paging.as_ref())
-		.and_then(|paging| paging.pages)
-		.unwrap_or(1);
+		.and_then(|result| result.paging.as_ref());
+	let total = paging.and_then(|paging| paging.total);
+	let has_next = paging.and_then(|paging| paging.next).unwrap_or_default() != 0;
 	let mut chapters: Vec<ChapterData> = first
 		.chapter_list
 		.map(|result| result.items.into_iter().map(|node| node.data).collect())
 		.unwrap_or_default();
-	for page in 2..=pages {
-		let response: ChapterListResponse = graphql(
-			base_url,
-			query,
-			chapter_variables(comic_id, page as i32, size),
-		)?;
-		if let Some(result) = response.chapter_list {
-			chapters.extend(result.items.into_iter().map(|node| node.data));
+
+	let total = total.unwrap_or(chapters.len() as i64);
+	let pages = if has_next && total > size as i64 {
+		(total + size as i64 - 1) / size as i64
+	} else {
+		1
+	};
+	// More than three pages at once and the site answers 429, losing the list.
+	let remaining: Vec<i64> = (2..=pages).collect();
+	for batch in remaining.chunks(3) {
+		let requests = batch
+			.iter()
+			.map(|page| {
+				graphql_request(
+					base_url,
+					query,
+					chapter_variables(comic_id, *page as i32, size),
+				)
+			})
+			.collect::<Result<Vec<Request>>>()?;
+		for response in Request::send_all(requests) {
+			let response: ChapterListResponse = parse_graphql(response?)?;
+			if let Some(result) = response.chapter_list {
+				chapters.extend(result.items.into_iter().map(|node| node.data));
+			}
 		}
 	}
 	Ok(chapters)

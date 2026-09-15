@@ -1,10 +1,11 @@
 use crate::{
 	XComic,
 	graphql::{
-		BrowseParams, PAGE_SIZE, browse_request, latest_uploads_request, parse_browse,
-		parse_latest_uploads, parse_recently_added, recently_added_request, scroller_request,
+		BrowseParams, HOME_LATEST_SIZE, PAGE_SIZE, browse_request, latest_uploads_request,
+		parse_browse, parse_latest_uploads, parse_recently_added, recently_added_request,
+		scroller_request,
 	},
-	helpers::{chapter_from_data, manga_from_data},
+	helpers::{chapter_from_data, manga_from_data, team_of},
 	models::{ComicData, LatestEntry},
 	settings,
 };
@@ -47,7 +48,14 @@ fn chapter_entries(items: Vec<LatestEntry>, base_url: &str, limit: usize) -> Vec
 				.translated_language
 				.as_deref()
 				.and_then(settings::normalize_language);
-			let chapter = chapter_from_data(chapter?, base_url, language.as_deref(), true)?;
+			let team = team_of(&comic);
+			let chapter = chapter_from_data(
+				chapter,
+				base_url,
+				language.as_deref(),
+				team.as_deref(),
+				true,
+			)?;
 			Some(MangaWithChapter {
 				manga: visible(comic, base_url)?,
 				chapter,
@@ -68,7 +76,7 @@ impl Home for XComic {
 		let responses: [core::result::Result<Response, RequestError>; 5] = Request::send_all([
 			scroller_request(&base_url, &top_rated_params)?,
 			browse_request(&base_url, &most_viewed_params)?,
-			latest_uploads_request(&base_url, None)?,
+			latest_uploads_request(&base_url, None, HOME_LATEST_SIZE)?,
 			recently_added_request(&base_url)?,
 			browse_request(&base_url, &most_chapters_params)?,
 		])

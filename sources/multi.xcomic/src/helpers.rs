@@ -1,6 +1,6 @@
 use crate::{
 	models::{ChapterData, ComicData, NamedData, Node},
-	settings::{get_languages, normalize_language},
+	settings::{self, get_languages, normalize_language},
 };
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaStatus, Result, Viewer,
@@ -203,6 +203,16 @@ fn title_case(value: &str) -> String {
 	output
 }
 
+fn people(nodes: Option<Vec<Node<Option<NamedData>>>>) -> Option<Vec<String>> {
+	nodes.map(node_names).filter(|names| !names.is_empty())
+}
+
+/// Resolves a path the API gave against the current mirror, dropping blanks.
+fn site_url(base_url: &str, path: Option<String>) -> Option<String> {
+	path.map(|url| absolute_url(base_url, &url))
+		.filter(|url| !url.is_empty())
+}
+
 fn node_names(nodes: Vec<Node<Option<NamedData>>>) -> Vec<String> {
 	nodes
 		.into_iter()
@@ -263,6 +273,22 @@ fn viewer(read_direction: Option<&str>, kind: Option<&str>, genres: &[String]) -
 	}
 }
 
+/// The team behind an edition: its `subName`, or the bracketed suffix that older
+/// records carry in the name instead.
+pub fn team_of(comic: &ComicData) -> Option<String> {
+	if let Some(team) = comic
+		.sub_name
+		.as_deref()
+		.map(str::trim)
+		.filter(|team| !team.is_empty())
+	{
+		return Some(team.into());
+	}
+	let team = comic.name.trim_end().strip_suffix(']')?.rsplit_once('[')?.1;
+	let team = team.trim();
+	(!team.is_empty()).then(|| team.into())
+}
+
 /// Maps whatever the query returned; absent fields simply stay empty.
 pub fn manga_from_data(mut comic: ComicData, base_url: &str) -> Manga {
 	let mut raw_tags = comic.genres.take().unwrap_or_default();
@@ -295,27 +321,11 @@ pub fn manga_from_data(mut comic: ComicData, base_url: &str) -> Manga {
 		.map(|tag| title_case(&tag))
 		.collect();
 
-	let cover = comic
-		.url_cover
-		.take()
-		.map(|url| absolute_url(base_url, &url))
-		.filter(|url| !url.is_empty());
-	let url = comic
-		.url_path
-		.take()
-		.map(|url| absolute_url(base_url, &url))
-		.filter(|url| !url.is_empty())
+	let cover = site_url(base_url, comic.url_cover.take());
+	let url = site_url(base_url, comic.url_path.take())
 		.unwrap_or_else(|| format!("{base_url}/comic/{}", comic.id));
-	let authors = comic
-		.author_nodes
-		.take()
-		.map(node_names)
-		.filter(|names| !names.is_empty());
-	let artists = comic
-		.artist_nodes
-		.take()
-		.map(node_names)
-		.filter(|names| !names.is_empty());
+	let authors = people(comic.author_nodes.take());
+	let artists = people(comic.artist_nodes.take());
 	let description = comic
 		.summary
 		.take()
@@ -326,7 +336,14 @@ pub fn manga_from_data(mut comic: ComicData, base_url: &str) -> Manga {
 		comic.original_status.as_deref(),
 		comic.upload_status.as_deref(),
 	);
-	let title = clean(&comic.name);
+	let mut title = clean(&comic.name);
+	// Editions of one title are identical on a shelf without the team's name.
+	if settings::show_source_in_title()
+		&& let Some(team) = team_of(&comic)
+		&& !title.contains(team.as_str())
+	{
+		title = format!("{title} [{team}]");
+	}
 
 	Manga {
 		key: comic.id,
@@ -468,6 +485,7 @@ pub fn chapter_from_data(
 	mut data: ChapterData,
 	base_url: &str,
 	language: Option<&str>,
+	team: Option<&str>,
 	published_first: bool,
 ) -> Option<Chapter> {
 	if data.db_status.as_deref().unwrap_or("normal") != "normal" {
@@ -491,13 +509,21 @@ pub fn chapter_from_data(
 		(None, Some(extra_title)) => Some(extra_title),
 		_ => None,
 	};
-	let mut scanlators = data
-		.src_name
-		.take()
-		.map(|name| title_case(&name))
-		.filter(|name| !name.is_empty())
-		.map(|name| vec![name])
+	// `srcName` is only the aggregator the upload came through.
+	let mut scanlators = team
+		.map(str::trim)
+		.filter(|team| !team.is_empty())
+		.map(|team| vec![team.into()])
 		.unwrap_or_default();
+	if scanlators.is_empty() {
+		scanlators = data
+			.src_name
+			.take()
+			.map(|name| title_case(&name))
+			.filter(|name| !name.is_empty())
+			.map(|name| vec![name])
+			.unwrap_or_default();
+	}
 	if scanlators.is_empty() {
 		scanlators = data
 			.profile_nodes
@@ -516,11 +542,7 @@ pub fn chapter_from_data(
 	// An absent or blank path would otherwise leave the web view nothing to open.
 	// `_` stands in for the comic, which is the shape the site's own url rewriter
 	// produces when it only has a chapter id.
-	let url = data
-		.url_path
-		.take()
-		.map(|url| absolute_url(base_url, &url))
-		.filter(|url| !url.is_empty())
+	let url = site_url(base_url, data.url_path.take())
 		.unwrap_or_else(|| format!("{base_url}/comic/_/{}", data.id));
 	Some(Chapter {
 		key: data.id,
