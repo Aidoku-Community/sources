@@ -31,8 +31,8 @@ impl GenresPage for Document {
 		ids.insert(0, "".into());
 
 		Ok(SelectFilter {
-			id: "題材".into(),
-			title: Some("題材".into()),
+			id: "题材".into(),
+			title: Some("题材".into()),
 			is_genre: true,
 			uses_tag_style: true,
 			options,
@@ -63,6 +63,45 @@ impl FiltersPage for Document {
 			.next_back()
 			.ok_or_else(|| error!("No element found for selector: `li.page-all-item`"))?
 			.has_class("active");
+
+		Ok(MangaPageResult {
+			entries,
+			has_next_page,
+		})
+	}
+}
+
+/// 网站发现页「全新上架」的作品卡片。
+pub trait NewestPage {
+	fn newest_manga_page_result(&self) -> Result<MangaPageResult>;
+}
+
+impl NewestPage for Document {
+	fn newest_manga_page_result(&self) -> Result<MangaPageResult> {
+		let entries = self
+			.try_select("div.exemptComic_Item")?
+			.filter_map(|card| {
+				let link = card.select_first("a[href^='/comic/']")?;
+				let key = link.attr("href")?.strip_prefix("/comic/")?.into();
+				let title = card.select_first("p")?.text()?;
+				let cover = card
+					.select_first("img[data-src]")?
+					.attr("data-src")?
+					.replace(".328x422.jpg", "");
+				Some(Manga {
+					key,
+					title,
+					cover: Some(cover),
+					..Default::default()
+				})
+			})
+			.collect();
+
+		let has_next_page = self
+			.try_select("li.page-all-item")?
+			.next_back()
+			.map(|item| !item.has_class("active"))
+			.unwrap_or(false);
 
 		Ok(MangaPageResult {
 			entries,
@@ -117,6 +156,26 @@ impl MangaPage for Document {
 		};
 
 		Ok(())
+	}
+}
+
+/// 詳情頁收藏按鈕上的漫畫 UUID（`onclick="collect('…')"`），
+/// 供評論鏈接使用（網站評論區以 UUID 為鍵）。
+pub trait CollectButtonPage {
+	fn collect_uuid(&self) -> Option<String>;
+}
+
+impl CollectButtonPage for Document {
+	fn collect_uuid(&self) -> Option<String> {
+		let onclick = self
+			.try_select("[onclick*='collect']")
+			.ok()?
+			.find_map(|element| {
+				let attr = element.attr("onclick")?;
+				attr.contains("collect(").then_some(attr)
+			})?;
+		let uuid = onclick.split("collect('").nth(1)?.split('\'').next()?;
+		(!uuid.is_empty()).then_some(uuid.into())
 	}
 }
 

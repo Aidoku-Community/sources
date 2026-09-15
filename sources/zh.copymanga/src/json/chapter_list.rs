@@ -39,30 +39,15 @@ struct Results {
 
 impl From<Results> for Option<Vec<Chapter>> {
 	fn from(results: Results) -> Self {
-		let mut groups = results
-			.groups
-			.into_values()
-			.map(|group| group.into_chapters(&results.build.path_word));
-		let mut chapters = groups.next()?;
-		chapters.reverse();
-
-		#[expect(clippy::arithmetic_side_effects)]
-		for mut group in groups {
-			let mut index = 0;
-
-			while let Some(chapter) = group.pop() {
-				while chapters.get(index).is_some_and(|sorted_chapter| {
-					sorted_chapter.date_uploaded.unwrap_or_default()
-						>= chapter.date_uploaded.unwrap_or_default()
-				}) {
-					index += 1;
-				}
-
-				chapters.insert(index, chapter);
-
-				index += 1;
-			}
-		}
+		let mut groups = results.groups.into_values();
+		let mut chapters = groups.next()?.into_chapters(&results.build.path_word);
+		chapters.extend(groups.flat_map(|group| group.into_chapters(&results.build.path_word)));
+		chapters.sort_by(|left, right| {
+			right
+				.date_uploaded
+				.cmp(&left.date_uploaded)
+				.then_with(|| left.key.cmp(&right.key))
+		});
 
 		Some(chapters)
 	}
@@ -169,4 +154,54 @@ fn parse(r#type: u8, title: &str) -> (Option<f32>, Option<f32>, Option<String>) 
 		chapter_num,
 		(!real_title.is_empty()).then_some(real_title),
 	)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::Results;
+	use aidoku::{Chapter, alloc::Vec};
+
+	#[aidoku_test::aidoku_test]
+	fn chapters_are_sorted_globally_by_upload_time_newest_first() {
+		let results = serde_json::from_str::<Results>(
+			r#"{
+				"build": { "path_word": "example-comic" },
+				"groups": {
+					"edition-a": {
+						"name": "版本 A",
+						"chapters": [
+							{ "type": 1, "name": "第 2 话", "id": "018f0f4b-0000-7000-8000-000000000001" },
+							{ "type": 1, "name": "第 1 话", "id": "018f0f4a-0000-7000-8000-000000000001" }
+						]
+					},
+					"edition-b": {
+						"name": "版本 B",
+						"chapters": [
+							{ "type": 1, "name": "第 3 话", "id": "018f0f4c-0000-7000-8000-000000000001" }
+						]
+					}
+				}
+			}"#,
+		)
+		.unwrap();
+
+		let chapters: Vec<Chapter> = Option::<Vec<Chapter>>::from(results).unwrap();
+		let keys = chapters
+			.iter()
+			.map(|chapter| chapter.key.as_str())
+			.collect::<Vec<_>>();
+
+		assert_eq!(
+			keys,
+			[
+				"018f0f4c-0000-7000-8000-000000000001",
+				"018f0f4b-0000-7000-8000-000000000001",
+				"018f0f4a-0000-7000-8000-000000000001",
+			]
+		);
+		assert_eq!(
+			chapters[0].scanlators.as_deref(),
+			Some(&["版本 B".into()][..])
+		);
+	}
 }

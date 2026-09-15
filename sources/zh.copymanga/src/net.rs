@@ -15,6 +15,8 @@ pub enum Url<'a> {
 	GenresPage,
 	#[strum(to_string = "/comics?{0}")]
 	Filters(FiltersQuery),
+	#[strum(to_string = "/newest?{0}")]
+	Newest(NewestQuery),
 	#[strum(to_string = "/search")]
 	SearchPage,
 	#[strum(to_string = "{api}?{query}")]
@@ -87,9 +89,9 @@ impl Url<'_> {
 				},
 
 				FilterValue::Select { ref id, ref value } => match id.as_str() {
-					"地區" => r#type = value,
-					"狀態" => status = value,
-					"題材" => genre = value.into(),
+					"地区" => r#type = value,
+					"状态" => status = value,
+					"题材" => genre = value.into(),
 					"genre" => {
 						let genres = Self::GenresPage.request()?.html()?.filter()?;
 						let genre_id = genres
@@ -131,6 +133,10 @@ impl<'a> Url<'a> {
 		Self::Manga { key }
 	}
 
+	pub fn newest(page: i32) -> Self {
+		Self::Newest(NewestQuery::new(page))
+	}
+
 	pub const fn chapter_list(manga_key: &'a str) -> Self {
 		Self::ChapterList { manga_key }
 	}
@@ -138,6 +144,11 @@ impl<'a> Url<'a> {
 	pub const fn chapter(manga_key: &'a str, key: &'a str) -> Self {
 		Self::Chapter { manga_key, key }
 	}
+}
+
+pub fn base_url() -> Result<String> {
+	defaults_get::<String>("url")
+		.ok_or_else(|| error!("Default not exist or not string for key: `url`"))
 }
 
 pub struct FiltersQuery(QueryParameters);
@@ -172,6 +183,25 @@ impl FiltersQuery {
 }
 
 impl Display for FiltersQuery {
+	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+		write!(f, "{}", self.0)
+	}
+}
+
+pub struct NewestQuery(QueryParameters);
+
+impl NewestQuery {
+	fn new(page: i32) -> Self {
+		let mut query = QueryParameters::new();
+		let limit = 60;
+		let offset = Offset::new(page, limit).to_string();
+		query.push_encoded("offset", Some(&offset));
+		query.push_encoded("limit", Some(&limit.to_string()));
+		Self(query)
+	}
+}
+
+impl Display for NewestQuery {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{}", self.0)
 	}
