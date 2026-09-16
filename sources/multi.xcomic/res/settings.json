@@ -9,28 +9,34 @@
 				"key": "contentTypes",
 				"title": "Content Types",
 				"values": [
+					"cartoon",
+					"imageset",
 					"manga",
-					"manhwa",
 					"manhua",
-					"other",
+					"manhwa",
 					"oel",
-					"novel"
+					"other",
+					"western"
 				],
 				"titles": [
+					"Cartoon",
+					"Imageset",
 					"Manga",
-					"Manhwa",
 					"Manhua",
-					"Other",
+					"Manhwa",
 					"OEL",
-					"Novel"
+					"Other",
+					"Western"
 				],
 				"default": [
+					"cartoon",
+					"imageset",
 					"manga",
-					"manhwa",
 					"manhua",
-					"other",
+					"manhwa",
 					"oel",
-					"novel"
+					"other",
+					"western"
 				],
 				"refreshes": [
 					"content"
@@ -75,7 +81,9 @@
 				"title": "Show Source in Title",
 				"subtitle": "Tag duplicate titles with the team that uploaded them.",
 				"default": true,
-				"refreshes": ["content"]
+				"refreshes": [
+					"content"
+				]
 			}
 		]
 	},
@@ -89,7 +97,9 @@
 				"key": "deduplicateChapters",
 				"title": "Deduplicate Chapter List",
 				"default": true,
-				"refreshes": ["content"]
+				"refreshes": [
+					"content"
+				]
 			}
 		]
 	}

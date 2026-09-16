@@ -9,10 +9,9 @@ use aidoku::{
 	imports::net::Request,
 };
 
-/// `(id, title)` pairs in the form [`MultiSelectFilter`] takes.
 type Options = Vec<(Cow<'static, str>, Cow<'static, str>)>;
 
-fn borrowed(list: &'static [(&'static str, &'static str)]) -> Options {
+fn options(list: &'static [(&'static str, &'static str)]) -> Options {
 	list.iter()
 		.map(|(id, title)| (Cow::Borrowed(*id), Cow::Borrowed(*title)))
 		.collect()
@@ -76,7 +75,7 @@ fn multi_select(
 /// Live where possible, so the filter and the exclusion setting cannot drift
 /// from each other or from the site.
 fn genres(base_url: &str) -> Options {
-	fetch_genres(base_url).unwrap_or_else(|| borrowed(GENRES))
+	fetch_genres(base_url).unwrap_or_else(|| options(GENRES))
 }
 
 impl DynamicFilters for XComic {
@@ -91,7 +90,7 @@ impl DynamicFilters for XComic {
 				"Original Languages",
 				false,
 				false,
-				borrowed(LANGUAGES),
+				options(LANGUAGES),
 			),
 		])
 	}

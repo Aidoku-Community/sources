@@ -13,7 +13,6 @@ pub struct GraphQlError {
 	pub message: String,
 }
 
-/// The API wraps almost every payload in a `data` object.
 #[derive(Deserialize, Default)]
 #[serde(default, bound = "T: Default + Deserialize<'de>")]
 pub struct Node<T> {
@@ -49,35 +48,43 @@ pub struct ComicData {
 	pub artist_nodes: Option<Vec<Node<Option<NamedData>>>>,
 	pub tag_nodes: Option<Vec<Node<Option<NamedData>>>>,
 	pub summary: Option<Summary>,
+	/// Browse spells the synopsis flat, where the comic endpoint nests it in `summary`.
+	pub description: Option<String>,
 	pub url_path: Option<String>,
 	pub url_cover: Option<String>,
 	pub original_status: Option<String>,
 	pub upload_status: Option<String>,
 	pub read_direction: Option<String>,
 	pub translated_language: Option<String>,
+	/// Chapters on this edition, which ranks the editions of one title.
+	#[serde(rename = "chaps_normal")]
+	pub chapter_count: Option<i64>,
+}
+
+/// A work and its editions; the edition carries the id the source is keyed by.
+#[derive(Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct TitleNode {
+	pub data: ComicData,
+	pub comic_nodes: Option<Vec<Node<Option<ComicData>>>>,
 }
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
 pub struct BrowseResponse {
-	pub get_comic_browse_items: Vec<Node<ComicData>>,
+	pub items: Option<Vec<TitleNode>>,
 }
-
-/// A latest-uploads entry: the comic, plus the chapter that was uploaded.
-pub type LatestEntry = (ComicData, ChapterData);
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
 pub struct LatestUploadsItem {
-	/// The title's newest uploads, each carrying the comic it belongs to.
 	pub chapters: Option<Vec<Node<ChapterData>>>,
 }
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
 pub struct LatestUploadsResult {
-	pub before: Option<i64>,
-	pub items: Vec<LatestUploadsItem>,
+	pub items: Option<Vec<LatestUploadsItem>>,
 }
 
 #[derive(Deserialize, Default)]
@@ -90,13 +97,13 @@ pub struct LatestUploadsResponse {
 #[derive(Deserialize, Default)]
 #[serde(default)]
 pub struct RecentlyAddedResult {
-	pub items: Vec<Node<ComicData>>,
+	pub items: Option<Vec<TitleNode>>,
 }
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
 pub struct RecentlyAddedResponse {
-	#[serde(rename = "get_comic_recentlyAdded")]
+	#[serde(rename = "get_title_recentlyAdded")]
 	pub recently_added: Option<RecentlyAddedResult>,
 }
 
@@ -139,7 +146,7 @@ pub struct Paging {
 #[serde(default)]
 pub struct ChapterListResult {
 	pub paging: Option<Paging>,
-	pub items: Vec<Node<ChapterData>>,
+	pub items: Option<Vec<Node<ChapterData>>>,
 }
 
 #[derive(Deserialize, Default)]
@@ -152,7 +159,7 @@ pub struct ChapterListResponse {
 #[derive(Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ChapterPageData {
-	pub image_urls: Vec<String>,
+	pub image_urls: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Default)]

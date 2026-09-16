@@ -130,12 +130,12 @@
 			"name": "Recently Added"
 		},
 		{
-			"id": "field_chapter",
-			"name": "Most Chapters"
+			"id": "field_follow",
+			"name": "Most Followed"
 		},
 		{
-			"id": "views_d030",
-			"name": "Most Viewed (30 Days)"
+			"id": "field_chapter",
+			"name": "Most Chapters"
 		}
 	],
 	"config": {

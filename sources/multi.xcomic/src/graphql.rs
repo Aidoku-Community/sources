@@ -1,15 +1,14 @@
 use crate::{
-	helpers::{PORNOGRAPHIC_GENRES, is_pornographic},
+	helpers::{editions_of, is_pornographic},
 	models::{
 		BrowseResponse, ChapterData, ChapterListResponse, ChapterPagesResponse, ComicData,
-		ComicNodeResponse, GraphQlResponse, LatestEntry, LatestUploadsResponse,
-		LatestUploadsResult, RecentlyAddedResponse,
+		ComicNodeResponse, GraphQlResponse, LatestUploadsResponse, RecentlyAddedResponse,
 	},
 	settings,
 };
 use aidoku::{
 	Result,
-	alloc::{String, Vec, string::ToString},
+	alloc::{String, Vec, format, string::ToString, vec},
 	imports::net::{Request, Response},
 	prelude::*,
 };
@@ -18,9 +17,8 @@ use serde::de::DeserializeOwned;
 pub const PAGE_SIZE: i32 = 48;
 /// Each title here carries up to three chapters, so a browse page is overkill.
 pub const HOME_LATEST_SIZE: i32 = 20;
-/// A browse page's worth of comics, once those three chapters are flattened.
-pub const LATEST_PAGE_SIZE: i32 = PAGE_SIZE / 3;
 const RECENTLY_ADDED_SIZE: i32 = 50;
+const RANDOM_AMOUNT: i32 = 12;
 const CHAPTER_PAGE_SIZE: i32 = 100;
 const UNIQUE_CHAPTER_PAGE_SIZE: i32 = 1000;
 
@@ -30,69 +28,80 @@ pub const SORT_IDS: &[&str] = &[
 	"field_create",
 	"field_name_asc",
 	"field_name_desc",
-	"field_chapter",
 	"field_follow",
 	"field_review",
 	"field_comment",
-	"views_d000",
-	"views_d360",
-	"views_d180",
-	"views_d090",
-	"views_d030",
-	"views_d007",
-	"views_h024",
-	"views_h012",
-	"views_h006",
-	"views_h001",
+	"field_chapter",
 ];
 
-// Browse takes every filter server side, so a search card needs nothing beyond
-// what it displays; `get_manga_update` fills in the rest.
+// Browse is keyed by title; a title carries its editions as `comicNodes`, which keeps
+// the key a comic id.
 const BROWSE_QUERY: &str = r#"
-query get_comic_browse_items($select: Comic_Browse_Select) {
-  get_comic_browse_items(select: $select) {
+query get_title_browse_items($select: Title_Browse_Select) {
+  items: get_title_browse_items(select: $select) {
     data {
-      id name subName urlPath urlCover
-      contentRating originalStatus uploadStatus
+      name: title
+      urlCover: cover_local_url
+      contentRating: content_rating_id
+      originalStatus: status
     }
+    comicNodes { data { id name subName urlPath translatedLanguage chaps_normal } }
   }
 }
 "#;
 
 // The big scroller is the one component that renders a description and tags.
 const SCROLLER_QUERY: &str = r#"
-query get_comic_browse_items($select: Comic_Browse_Select) {
-  get_comic_browse_items(select: $select) {
+query get_title_browse_items($select: Title_Browse_Select) {
+  items: get_title_browse_items(select: $select) {
     data {
-      id name subName urlPath urlCover
-      contentRating originalStatus uploadStatus
-      genres summary { text }
+      name: title
+      urlCover: cover_local_url
+      contentRating: content_rating_id
+      originalStatus: status
+      genres: genre_ids
+      description
     }
+    comicNodes { data { id name subName urlPath translatedLanguage chaps_normal } }
   }
 }
 "#;
 
-// The site has its own recently-added feed. Browse sorted by creation date is a
-// different set, which is why this section never matched other clients.
+// A random title answers a narrower set than browse does.
+const RANDOM_QUERY: &str = r#"
+query get_title_randomList($select: Title_RandomList_Select) {
+  items: get_title_randomList(select: $select) {
+    data {
+      urlCover: cover_local_url
+      contentRating: content_rating_id
+    }
+    comicNodes { data { id name subName urlPath translatedLanguage chaps_normal } }
+  }
+}
+"#;
+
 const RECENTLY_ADDED_QUERY: &str = r#"
-query get_comic_recentlyAdded($select: Comic_RecentlyAdded_Select) {
-  get_comic_recentlyAdded(select: $select) {
+query get_title_recentlyAdded($select: Title_RecentlyAdded_Select) {
+  get_title_recentlyAdded(select: $select) {
     items {
       data {
-        id name subName urlPath urlCover translatedLanguage
-        type contentRating genres
+        id
+        name: title
+        urlCover: cover_local_url
+        contentRating: content_rating_id
+        type: type_id
+        genres: genre_ids
       }
+      comicNodes { data { id name subName urlPath translatedLanguage chaps_normal } }
     }
   }
 }
 "#;
 
-// `get_comic_latestUploads` validates but answers empty; three chapters per title
-// reach its other editions.
+// Three chapters per title reach its other editions.
 const LATEST_UPLOADS_QUERY: &str = r#"
 query get_title_latestUploads($select: Title_LatestUploads_Select) {
   get_title_latestUploads(select: $select) {
-    before
     items {
       chapters(amount: 3) {
         data {
@@ -183,26 +192,25 @@ pub struct BrowseParams {
 	pub original_languages: Vec<String>,
 	pub translated_languages: Vec<String>,
 	pub original_status: String,
-	pub upload_status: String,
 	pub chapter_count: String,
 	pub year_min: Option<i64>,
 	pub year_max: Option<i64>,
 }
 
 impl BrowseParams {
-	pub fn new(sortby: &str, page: i32) -> Result<Self> {
-		Ok(Self {
+	pub fn new(sortby: &str, page: i32, size: i32) -> Self {
+		Self {
 			page,
-			size: PAGE_SIZE,
+			size,
 			sortby: sortby.into(),
 			include_mode: "and".into(),
 			exclude_mode: "or".into(),
-			excluded_genres: settings::get_excluded_genres(),
-			types: settings::get_content_types(),
-			content_ratings: settings::get_content_ratings(),
-			translated_languages: settings::get_languages()?,
+			excluded_genres: settings::excluded_genres(),
+			types: settings::content_types(),
+			content_ratings: settings::content_ratings(),
+			translated_languages: settings::languages(),
 			..Default::default()
-		})
+		}
 	}
 
 	fn allows_pornographic(&self) -> bool {
@@ -211,51 +219,47 @@ impl BrowseParams {
 			.any(|value| value == "pornographic")
 	}
 
-	/// A selection covering every option constrains nothing, and sending it anyway
-	/// would drop everything the site has not classified yet — which is most of
-	/// what a recently-added listing is.
-	fn narrowing<'a>(selected: &'a [String], all: &[&str]) -> &'a [String] {
-		if selected.len() >= all.len() {
+	fn select(&self) -> serde_json::Value {
+		// An empty list is not "every rating" here: the site answers one with its own
+		// safe default, which drops everything erotica and above.
+		let content_ratings: Vec<&str> = if self.content_ratings.is_empty() {
+			vec!["safe"]
+		} else {
+			self.content_ratings.iter().map(String::as_str).collect()
+		};
+		let excluded_genres: Vec<&str> = self.excluded_genres.iter().map(String::as_str).collect();
+		let types: &[String] = if self.types.len() >= settings::CONTENT_TYPES.len() {
 			&[]
 		} else {
-			selected
-		}
-	}
-
-	fn select(&self) -> serde_json::Value {
-		let mut excluded_genres: Vec<&str> =
-			self.excluded_genres.iter().map(String::as_str).collect();
-		if !self.allows_pornographic() {
-			for genre in PORNOGRAPHIC_GENRES {
-				if !excluded_genres.contains(genre) {
-					excluded_genres.push(genre);
-				}
-			}
-		}
-		serde_json::json!({
+			&self.types
+		};
+		let mut select = serde_json::json!({
 			"where": "browse",
 			"page": self.page,
 			"size": self.size,
-			"init": (self.page - 1) * self.size,
 			"sortby": self.sortby,
-			"word": self.word,
 			"incOLangs": self.original_languages,
 			"incTLangs": self.translated_languages,
 			"incGenres": self.included_genres,
 			"excGenres": excluded_genres,
 			"incGenresMode": self.include_mode,
 			"excGenresMode": self.exclude_mode,
-			"incTypes": Self::narrowing(&self.types, settings::ALL_TYPES),
+			"incTypes": types,
 			"incDemographics": self.demographics,
-			"incContentRatings": Self::narrowing(&self.content_ratings, settings::ALL_RATINGS),
+			"incContentRatings": content_ratings,
 			"releaseYearMin": self.year_min,
 			"releaseYearMax": self.year_max,
 			"origStatus": (!self.original_status.is_empty()).then_some(&self.original_status),
-			"siteStatus": (!self.upload_status.is_empty()).then_some(&self.upload_status),
-			"chapCount": (!self.chapter_count.is_empty()).then_some(&self.chapter_count)
-			// The ignoreGlobal* flags stay off. Turning off the site's own blocklist
-			// let unapproved uploads through, which lands hardest on the newest ones.
-		})
+			"chapCount": (!self.chapter_count.is_empty()).then_some(&self.chapter_count),
+			// Off, as the site sends them: its blocklist hides unapproved uploads.
+			"ignoreGlobalULangs": false,
+			"ignoreGlobalGenres": false,
+			"ignoreGlobalBlocks": false
+		});
+		if !self.word.is_empty() {
+			select["word"] = self.word.as_str().into();
+		}
+		select
 	}
 
 	/// Only the two feeds need this: they take no filters of their own, where
@@ -280,27 +284,10 @@ impl BrowseParams {
 			&& (self.allows_pornographic()
 				|| !is_pornographic(comic.content_rating.as_deref(), comic.genres.as_deref()))
 	}
-
-	pub fn can_use_latest_uploads(&self) -> bool {
-		self.sortby == "field_update"
-			&& self.word.is_empty()
-			&& self.included_genres.is_empty()
-			&& self.demographics.is_empty()
-			&& self.original_languages.is_empty()
-			&& self.original_status.is_empty()
-			&& self.upload_status.is_empty()
-			&& self.chapter_count.is_empty()
-			&& self.year_min.is_none()
-			&& self.year_max.is_none()
-	}
 }
 
-pub fn graphql_request(
-	base_url: &str,
-	query: &str,
-	variables: serde_json::Value,
-) -> Result<Request> {
-	let languages = settings::get_languages()?;
+fn graphql_request(base_url: &str, query: &str, variables: serde_json::Value) -> Result<Request> {
+	let languages = settings::languages();
 	let accept_language = if languages.is_empty() {
 		"en".into()
 	} else {
@@ -354,6 +341,14 @@ pub fn scroller_request(base_url: &str, params: &BrowseParams) -> Result<Request
 	)
 }
 
+pub fn random_request(base_url: &str) -> Result<Request> {
+	graphql_request(
+		base_url,
+		RANDOM_QUERY,
+		serde_json::json!({ "select": { "amount": RANDOM_AMOUNT } }),
+	)
+}
+
 pub fn recently_added_request(base_url: &str) -> Result<Request> {
 	graphql_request(
 		base_url,
@@ -368,35 +363,34 @@ pub fn parse_recently_added(response: Response, params: &BrowseParams) -> Result
 		.recently_added
 		.unwrap_or_default()
 		.items
+		.unwrap_or_default()
 		.into_iter()
-		.map(|node| node.data)
+		.flat_map(|title| editions_of(title, &params.translated_languages, false))
 		.filter(|comic| params.allows(comic))
 		.collect())
 }
 
-pub fn latest_uploads_request(base_url: &str, before: Option<i64>, limit: i32) -> Result<Request> {
-	// Pages by cursor, not the `size` browse selects take.
-	let mut select = serde_json::json!({ "first": 0, "limit": limit });
-	if let Some(before) = before {
-		select["before"] = before.into();
-	}
+pub fn latest_uploads_request(base_url: &str, limit: i32) -> Result<Request> {
 	graphql_request(
 		base_url,
 		LATEST_UPLOADS_QUERY,
-		serde_json::json!({ "select": select }),
+		serde_json::json!({ "select": { "first": 0, "limit": limit } }),
 	)
 }
 
 pub fn parse_latest_uploads(
 	response: Response,
 	params: &BrowseParams,
-) -> Result<(Vec<LatestEntry>, Option<i64>)> {
+) -> Result<Vec<(ComicData, ChapterData)>> {
 	let response: LatestUploadsResponse = parse_graphql(response)?;
-	let LatestUploadsResult { before, items } = response.latest_uploads.unwrap_or_default();
 
 	// Items are titles, and arrive grouped by title rather than newest first.
-	let mut chapters: Vec<ChapterData> = items
+	let mut chapters: Vec<ChapterData> = response
+		.latest_uploads
+		.unwrap_or_default()
+		.items
 		.into_iter()
+		.flatten()
 		.filter_map(|item| item.chapters)
 		.flatten()
 		.map(|node| node.data)
@@ -415,8 +409,12 @@ pub fn parse_latest_uploads(
 	let mut seen: Vec<String> = Vec::new();
 	let comics = chapters
 		.into_iter()
-		.filter_map(|mut chapter| {
-			let comic = chapter.comic_node.take().and_then(|node| node.data)?;
+		.filter_map(|chapter| {
+			let comic = chapter.comic_node.and_then(|node| node.data)?;
+			let chapter = ChapterData {
+				comic_node: None,
+				..chapter
+			};
 			params.allows(&comic).then_some((comic, chapter))
 		})
 		// Three chapters per title can share a comic, so keep only its newest.
@@ -428,15 +426,24 @@ pub fn parse_latest_uploads(
 			unseen
 		})
 		.collect();
-	Ok((comics, before))
+	Ok(comics)
+}
+
+pub fn parse_titles(response: Response, params: &BrowseParams) -> Result<(Vec<ComicData>, usize)> {
+	let response: BrowseResponse = parse_graphql(response)?;
+	let titles = response.items.unwrap_or_default();
+	let served = titles.len();
+	let comics = titles
+		.into_iter()
+		.flat_map(|title| editions_of(title, &params.translated_languages, !params.word.is_empty()))
+		.collect();
+	Ok((comics, served))
 }
 
 pub fn parse_browse(response: Response, params: &BrowseParams) -> Result<(Vec<ComicData>, bool)> {
-	let response: BrowseResponse = parse_graphql(response)?;
-	let items = response.get_comic_browse_items;
-	let has_next_page = items.len() as i32 >= params.size;
-	let comics = items.into_iter().map(|node| node.data).collect();
-	Ok((comics, has_next_page))
+	let (comics, served) = parse_titles(response, params)?;
+	// Counted over the titles served, which the cards may expand past.
+	Ok((comics, served as i32 >= params.size))
 }
 
 pub fn fetch_comic(base_url: &str, id: &str) -> Result<ComicData> {
@@ -465,7 +472,14 @@ pub fn fetch_chapters(base_url: &str, comic_id: &str) -> Result<Vec<ChapterData>
 	let has_next = paging.and_then(|paging| paging.next).unwrap_or_default() != 0;
 	let mut chapters: Vec<ChapterData> = first
 		.chapter_list
-		.map(|result| result.items.into_iter().map(|node| node.data).collect())
+		.map(|result| {
+			result
+				.items
+				.unwrap_or_default()
+				.into_iter()
+				.map(|node| node.data)
+				.collect()
+		})
 		.unwrap_or_default();
 
 	let total = total.unwrap_or(chapters.len() as i64);
@@ -490,7 +504,13 @@ pub fn fetch_chapters(base_url: &str, comic_id: &str) -> Result<Vec<ChapterData>
 		for response in Request::send_all(requests) {
 			let response: ChapterListResponse = parse_graphql(response?)?;
 			if let Some(result) = response.chapter_list {
-				chapters.extend(result.items.into_iter().map(|node| node.data));
+				chapters.extend(
+					result
+						.items
+						.unwrap_or_default()
+						.into_iter()
+						.map(|node| node.data),
+				);
 			}
 		}
 	}
@@ -517,6 +537,6 @@ pub fn fetch_page_urls(base_url: &str, chapter_id: &str) -> Result<Vec<String>> 
 	Ok(response
 		.chapter
 		.and_then(|node| node.data)
-		.map(|data| data.image_urls)
+		.and_then(|data| data.image_urls)
 		.unwrap_or_default())
 }
