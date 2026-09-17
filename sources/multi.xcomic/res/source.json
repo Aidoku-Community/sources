@@ -2,7 +2,7 @@
 	"info": {
 		"id": "multi.xcomic",
 		"name": "XCOMIC",
-		"version": 2,
+		"version": 3,
 		"urls": [
 			"https://xcomic.me",
 			"https://xcomic.net",
@@ -130,12 +130,12 @@
 			"name": "Recently Added"
 		},
 		{
-			"id": "field_chapter",
-			"name": "Most Chapters"
+			"id": "field_follow",
+			"name": "Most Followed"
 		},
 		{
-			"id": "views_d030",
-			"name": "Most Viewed (30 Days)"
+			"id": "field_chapter",
+			"name": "Most Chapters"
 		}
 	],
 	"config": {

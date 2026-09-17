@@ -1,8 +1,6 @@
 #![no_std]
 extern crate alloc;
 
-use core::cell::RefCell;
-
 mod filters;
 mod graphql;
 mod helpers;
@@ -23,45 +21,12 @@ use helpers::{chapter_from_data, manga_from_data};
 
 const DEFAULT_BASE_URL: &str = "https://xcomic.me";
 
-struct XComic {
-	latest_cursor: RefCell<Option<i64>>,
-}
+struct XComic;
 
 impl XComic {
-	fn latest_page(
-		&self,
-		base_url: &str,
-		params: &BrowseParams,
-	) -> Result<(Vec<models::ComicData>, bool)> {
-		let mut before = if params.page == 1 {
-			None
-		} else {
-			*self.latest_cursor.borrow()
-		};
-		for _ in 0..10 {
-			let response = graphql::latest_uploads_request(base_url, before)?.send()?;
-			let (entries, next_cursor) = graphql::parse_latest_uploads(response, params)?;
-			// Only the home page pairs these with their chapter.
-			let comics: Vec<models::ComicData> =
-				entries.into_iter().map(|(comic, _)| comic).collect();
-			let has_next_page = next_cursor.is_some();
-			*self.latest_cursor.borrow_mut() = next_cursor;
-			if !comics.is_empty() || !has_next_page {
-				return Ok((comics, has_next_page));
-			}
-			before = next_cursor;
-		}
-		Ok((Vec::new(), self.latest_cursor.borrow().is_some()))
-	}
-
-	/// One page of browse results, shared by search and listings.
 	fn browse_page(&self, base_url: &str, params: BrowseParams) -> Result<MangaPageResult> {
-		let (comics, has_next_page) = if params.can_use_latest_uploads() {
-			self.latest_page(base_url, &params)?
-		} else {
-			let response = graphql::browse_request(base_url, &params)?.send()?;
-			graphql::parse_browse(response, &params)?
-		};
+		let response = graphql::browse_request(base_url, &params)?.send()?;
+		let (comics, has_next_page) = graphql::parse_browse(response, &params)?;
 		let entries = comics
 			.into_iter()
 			.map(|comic| manga_from_data(comic, base_url))
@@ -75,9 +40,7 @@ impl XComic {
 
 impl Source for XComic {
 	fn new() -> Self {
-		Self {
-			latest_cursor: RefCell::new(None),
-		}
+		Self
 	}
 
 	fn get_search_manga_list(
@@ -87,7 +50,6 @@ impl Source for XComic {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let base_url = self.get_base_url()?;
-		// Quick open: a pasted url or an `id:<value>` query resolves directly.
 		if let Some(target) = query.as_deref().and_then(helpers::target_from_query) {
 			let key = helpers::comic_key(&base_url, target)?;
 			let comic = graphql::fetch_comic(&base_url, &key)?;
@@ -96,7 +58,7 @@ impl Source for XComic {
 				has_next_page: false,
 			});
 		}
-		let mut params = BrowseParams::new("field_score", page)?;
+		let mut params = BrowseParams::new("field_score", page, graphql::PAGE_SIZE);
 		params.word = query.unwrap_or_default();
 
 		for filter in filters {
@@ -108,15 +70,20 @@ impl Source for XComic {
 				}
 				FilterValue::Select { id, value } => match id.as_str() {
 					"original_status" => params.original_status = value,
-					"upload_status" => params.upload_status = value,
-					"chapter_count" => params.chapter_count = value,
 					"include_mode" => params.include_mode = value,
 					"exclude_mode" => params.exclude_mode = value,
+					"chapter_count" => params.chapter_count = value,
 					_ => {}
 				},
-				FilterValue::Text { id, value } if id == "year" => {
-					(params.year_min, params.year_max) = helpers::parse_year(&value);
-				}
+				FilterValue::Text { id, value } => match id.as_str() {
+					"chapter_count_custom" if !value.trim().is_empty() => {
+						params.chapter_count = helpers::chapter_count_range(&value);
+					}
+					"year" => {
+						(params.year_min, params.year_max) = helpers::parse_range(&value);
+					}
+					_ => {}
+				},
 				FilterValue::MultiSelect {
 					id,
 					included,
@@ -142,29 +109,40 @@ impl Source for XComic {
 
 	fn get_manga_update(
 		&self,
-		mut manga: Manga,
+		manga: Manga,
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let base_url = self.get_base_url()?;
-		if needs_details {
+		let (manga, team) = if needs_details {
 			let comic = graphql::fetch_comic(&base_url, &manga.key)?;
-			let chapters = manga.chapters.take();
-			manga = manga_from_data(comic, &base_url);
-			manga.chapters = chapters;
+			let team = helpers::team_of(&comic);
+			let manga = Manga {
+				chapters: manga.chapters,
+				..manga_from_data(comic, &base_url)
+			};
 			if needs_chapters {
 				send_partial_result(&manga);
 			}
-		}
-		if needs_chapters {
-			manga.chapters = Some(
-				graphql::fetch_chapters(&base_url, &manga.key)?
-					.into_iter()
-					.filter_map(|chapter| chapter_from_data(chapter, &base_url, None, false))
-					.collect(),
-			);
-		}
-		Ok(manga)
+			(manga, team)
+		} else {
+			(manga, None)
+		};
+		Ok(if needs_chapters {
+			Manga {
+				chapters: Some(
+					graphql::fetch_chapters(&base_url, &manga.key)?
+						.into_iter()
+						.filter_map(|chapter| {
+							chapter_from_data(chapter, &base_url, None, team.as_deref(), false)
+						})
+						.collect(),
+				),
+				..manga
+			}
+		} else {
+			manga
+		})
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
@@ -188,7 +166,10 @@ impl Source for XComic {
 impl ListingProvider for XComic {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let base_url = self.get_base_url()?;
-		self.browse_page(&base_url, BrowseParams::new(&listing.id, page)?)
+		self.browse_page(
+			&base_url,
+			BrowseParams::new(&listing.id, page, graphql::PAGE_SIZE),
+		)
 	}
 }
 

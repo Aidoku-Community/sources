@@ -1,11 +1,12 @@
 use crate::{
 	XComic,
 	graphql::{
-		BrowseParams, PAGE_SIZE, browse_request, latest_uploads_request, parse_browse,
-		parse_latest_uploads, parse_recently_added, recently_added_request, scroller_request,
+		BrowseParams, HOME_LATEST_SIZE, PAGE_SIZE, browse_request, latest_uploads_request,
+		parse_browse, parse_latest_uploads, parse_recently_added, parse_titles, random_request,
+		recently_added_request, scroller_request,
 	},
-	helpers::{chapter_from_data, manga_from_data},
-	models::{ComicData, LatestEntry},
+	helpers::{chapter_from_data, manga_from_data, team_of},
+	models::ComicData,
 	settings,
 };
 use aidoku::{
@@ -15,99 +16,86 @@ use aidoku::{
 	imports::net::{Request, RequestError, Response},
 };
 
-// Lets a section header open the matching `source.json` listing.
-fn listing(id: &str, name: &str) -> Option<Listing> {
-	Some(Listing {
-		id: id.into(),
-		name: name.into(),
-		kind: ListingKind::Default,
-	})
-}
-
-// Home sections only render covers, so coverless entries are dropped.
-fn visible(comic: ComicData, base_url: &str) -> Option<Manga> {
-	let manga = manga_from_data(comic, base_url);
-	manga.cover.is_some().then_some(manga)
-}
-
-fn links(comics: Vec<ComicData>, base_url: &str, limit: usize) -> Vec<Link> {
+fn home_links(comics: Vec<ComicData>, base_url: &str) -> Vec<Link> {
 	comics
 		.into_iter()
-		.filter_map(|comic| Some(Link::from(visible(comic, base_url)?)))
-		.take(limit)
-		.collect()
-}
-
-/// Pairs each upload with its chapter so the app can show a relative timestamp.
-fn chapter_entries(items: Vec<LatestEntry>, base_url: &str, limit: usize) -> Vec<MangaWithChapter> {
-	items
-		.into_iter()
-		.filter_map(|(comic, chapter)| {
-			let language = comic
-				.translated_language
-				.as_deref()
-				.and_then(settings::normalize_language);
-			let chapter = chapter_from_data(chapter?, base_url, language.as_deref(), true)?;
-			Some(MangaWithChapter {
-				manga: visible(comic, base_url)?,
-				chapter,
-			})
+		.filter_map(|comic| {
+			let manga = manga_from_data(comic, base_url);
+			manga.cover.is_some().then(|| Link::from(manga))
 		})
-		.take(limit)
 		.collect()
 }
 
 impl Home for XComic {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let base_url = self.get_base_url()?;
-		let top_rated_params = BrowseParams::new("field_score", 1)?;
-		let most_viewed_params = BrowseParams::new("views_d030", 1)?;
-		let most_chapters_params = BrowseParams::new("field_chapter", 1)?;
-		// Neither feed takes a sort; these carry the reader's content settings only.
-		let feed_params = BrowseParams::new("field_update", 1)?;
-		let responses: [core::result::Result<Response, RequestError>; 5] = Request::send_all([
+		let top_rated_params = BrowseParams::new("field_score", 1, 10);
+		let most_followed_params = BrowseParams::new("field_follow", 1, PAGE_SIZE);
+		let most_chapters_params = BrowseParams::new("field_chapter", 1, PAGE_SIZE);
+		// Neither feed nor the random list takes a sort; these carry the reader's
+		// content settings only.
+		let feed_params = BrowseParams::new("field_update", 1, PAGE_SIZE);
+		let responses: [core::result::Result<Response, RequestError>; 6] = Request::send_all([
 			scroller_request(&base_url, &top_rated_params)?,
-			browse_request(&base_url, &most_viewed_params)?,
-			latest_uploads_request(&base_url, None)?,
+			browse_request(&base_url, &most_followed_params)?,
+			random_request(&base_url)?,
+			latest_uploads_request(&base_url, HOME_LATEST_SIZE)?,
 			recently_added_request(&base_url)?,
 			browse_request(&base_url, &most_chapters_params)?,
 		])
 		.try_into()
-		.expect("requests vec length should be 5");
+		.expect("requests vec length should be 6");
 		let [
 			top_rated,
-			most_viewed,
+			most_followed,
+			random,
 			latest,
 			recently_added,
 			most_chapters,
 		] = responses;
 
-		let page = PAGE_SIZE as usize;
 		let top_rated: Vec<Manga> = parse_browse(top_rated?, &top_rated_params)?
 			.0
 			.into_iter()
-			.filter_map(|comic| visible(comic, &base_url))
-			.take(10)
+			.filter_map(|comic| {
+				let manga = manga_from_data(comic, &base_url);
+				manga.cover.is_some().then_some(manga)
+			})
 			.collect();
-		let most_viewed = links(
-			parse_browse(most_viewed?, &most_viewed_params)?.0,
-			&base_url,
-			usize::MAX,
-		);
-		let latest = chapter_entries(
-			parse_latest_uploads(latest?, &feed_params)?.0,
-			&base_url,
-			page,
-		);
-		let recently_added = links(
+		let random = home_links(parse_titles(random?, &feed_params)?.0, &base_url);
+		let latest = parse_latest_uploads(latest?, &feed_params)?
+			.into_iter()
+			.filter_map(|(comic, chapter)| {
+				let language = comic
+					.translated_language
+					.as_deref()
+					.and_then(settings::normalize_language);
+				let team = team_of(&comic);
+				let chapter = chapter_from_data(
+					chapter,
+					&base_url,
+					language.as_deref(),
+					team.as_deref(),
+					true,
+				)?;
+				let manga = manga_from_data(comic, &base_url);
+				manga
+					.cover
+					.is_some()
+					.then_some(MangaWithChapter { manga, chapter })
+			})
+			.collect();
+		let recently_added = home_links(
 			parse_recently_added(recently_added?, &feed_params)?,
 			&base_url,
-			page,
 		);
-		let most_chapters = links(
+		let most_followed = home_links(
+			parse_browse(most_followed?, &most_followed_params)?.0,
+			&base_url,
+		);
+		let most_chapters = home_links(
 			parse_browse(most_chapters?, &most_chapters_params)?.0,
 			&base_url,
-			usize::MAX,
 		);
 
 		Ok(HomeLayout {
@@ -121,13 +109,25 @@ impl Home for XComic {
 					},
 				},
 				HomeComponent {
-					title: Some("Most Viewed (30 Days)".into()),
+					title: Some("Most Followed".into()),
 					subtitle: None,
 					value: HomeComponentValue::MangaList {
 						ranking: true,
 						page_size: Some(5),
-						entries: most_viewed,
-						listing: listing("views_d030", "Most Viewed (30 Days)"),
+						entries: most_followed,
+						listing: Some(Listing {
+							id: "field_follow".into(),
+							name: "Most Followed".into(),
+							kind: ListingKind::Default,
+						}),
+					},
+				},
+				HomeComponent {
+					title: Some("Random Comics".into()),
+					subtitle: None,
+					value: HomeComponentValue::Scroller {
+						entries: random,
+						listing: None,
 					},
 				},
 				HomeComponent {
@@ -136,7 +136,11 @@ impl Home for XComic {
 					value: HomeComponentValue::MangaChapterList {
 						page_size: Some(5),
 						entries: latest,
-						listing: listing("field_update", "Latest Update"),
+						listing: Some(Listing {
+							id: "field_update".into(),
+							name: "Latest Update".into(),
+							kind: ListingKind::Default,
+						}),
 					},
 				},
 				HomeComponent {
@@ -144,17 +148,23 @@ impl Home for XComic {
 					subtitle: None,
 					value: HomeComponentValue::Scroller {
 						entries: recently_added,
-						listing: listing("field_create", "Recently Added"),
+						listing: Some(Listing {
+							id: "field_create".into(),
+							name: "Recently Added".into(),
+							kind: ListingKind::Default,
+						}),
 					},
 				},
 				HomeComponent {
 					title: Some("Most Chapters".into()),
 					subtitle: None,
-					value: HomeComponentValue::MangaList {
-						ranking: true,
-						page_size: Some(5),
+					value: HomeComponentValue::Scroller {
 						entries: most_chapters,
-						listing: listing("field_chapter", "Most Chapters"),
+						listing: Some(Listing {
+							id: "field_chapter".into(),
+							name: "Most Chapters".into(),
+							kind: ListingKind::Default,
+						}),
 					},
 				},
 			],

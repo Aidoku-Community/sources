@@ -9,28 +9,34 @@
 				"key": "contentTypes",
 				"title": "Content Types",
 				"values": [
+					"cartoon",
+					"imageset",
 					"manga",
-					"manhwa",
 					"manhua",
-					"other",
+					"manhwa",
 					"oel",
-					"novel"
+					"other",
+					"western"
 				],
 				"titles": [
+					"Cartoon",
+					"Imageset",
 					"Manga",
-					"Manhwa",
 					"Manhua",
-					"Other",
+					"Manhwa",
 					"OEL",
-					"Novel"
+					"Other",
+					"Western"
 				],
 				"default": [
+					"cartoon",
+					"imageset",
 					"manga",
-					"manhwa",
 					"manhua",
-					"other",
+					"manhwa",
 					"oel",
-					"novel"
+					"other",
+					"western"
 				],
 				"refreshes": [
 					"content"
@@ -66,14 +72,34 @@
 	},
 	{
 		"type": "group",
+		"title": "Title Preferences",
+		"footer": "A title can publish through several editions. The team behind each one tells them apart; chapters name it either way.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "showSourceInTitle",
+				"title": "Show Source in Title",
+				"subtitle": "Tag duplicate titles with the team that uploaded them.",
+				"default": true,
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
 		"title": "Chapters",
-		"footer": "Off shows every scanlator's upload. On asks the site for one chapter per number, which hides the rest.",
+		"footer": "On asks the site for one chapter per number. Off shows every scanlator's upload, which a title with hundreds of sources may be too large to load.",
 		"items": [
 			{
 				"type": "switch",
 				"key": "deduplicateChapters",
 				"title": "Deduplicate Chapter List",
-				"default": false
+				"default": true,
+				"refreshes": [
+					"content"
+				]
 			}
 		]
 	}

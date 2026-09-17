@@ -9,20 +9,10 @@
 			"Recently Added",
 			"Name A-Z",
 			"Name Z-A",
-			"Most Chapters",
 			"Most Follows",
 			"Most Reviews",
 			"Most Comments",
-			"Most Views (All Time)",
-			"Most Views (360 Days)",
-			"Most Views (180 Days)",
-			"Most Views (90 Days)",
-			"Most Views (30 Days)",
-			"Most Views (7 Days)",
-			"Most Views (24 Hours)",
-			"Most Views (12 Hours)",
-			"Most Views (6 Hours)",
-			"Most Views (1 Hour)"
+			"Most Chapters"
 		]
 	},
 	{
@@ -31,20 +21,24 @@
 		"title": "Types",
 		"canExclude": false,
 		"options": [
+			"Cartoon",
+			"Imageset",
 			"Manga",
-			"Manhwa",
 			"Manhua",
-			"Other",
+			"Manhwa",
 			"OEL",
-			"Novel"
+			"Other",
+			"Western"
 		],
 		"ids": [
+			"cartoon",
+			"imageset",
 			"manga",
-			"manhwa",
 			"manhua",
-			"other",
+			"manhwa",
 			"oel",
-			"novel"
+			"other",
+			"western"
 		]
 	},
 	{
@@ -53,28 +47,32 @@
 		"title": "Demographics",
 		"canExclude": false,
 		"options": [
-			"Shounen",
-			"Seinen",
-			"Shoujo",
-			"Josei",
-			"Kodomo",
-			"Male Demographic with Female Lead",
-			"Male Demographic with Female Author",
-			"Female Demographic with Male Lead",
+			"Shounen(B)",
+			"Shoujo(G)",
+			"Seinen(M)",
+			"Josei(W)",
+			"Kodomo(Kid)",
+			"Silver & Golden",
+			"Non-human",
 			"Male Oriented",
-			"Female Oriented"
+			"Female Oriented",
+			"Male Demographic with Female Author",
+			"Male Demographic with Female Lead",
+			"Female Demographic with Male Lead"
 		],
 		"ids": [
 			"shounen",
-			"seinen",
 			"shoujo",
+			"seinen",
 			"josei",
 			"kodomo",
-			"male_demographic_with_female_lead",
-			"male_demographic_with_female_author",
-			"female_demographic_with_male_lead",
+			"silver_golden",
+			"non_human",
 			"male_oriented",
-			"female_oriented"
+			"female_oriented",
+			"male_demographic_with_female_author",
+			"male_demographic_with_female_lead",
+			"female_demographic_with_male_lead"
 		]
 	},
 	{
@@ -107,29 +105,6 @@
 		"type": "select",
 		"id": "original_status",
 		"title": "Original Work Status",
-		"options": [
-			"Any",
-			"Releasing",
-			"Completed",
-			"Hiatus",
-			"Cancelled",
-			"Upcoming",
-			"Unknown"
-		],
-		"ids": [
-			"",
-			"releasing",
-			"completed",
-			"hiatus",
-			"cancelled",
-			"upcoming",
-			"unknown"
-		]
-	},
-	{
-		"type": "select",
-		"id": "upload_status",
-		"title": "Upload Status",
 		"options": [
 			"Any",
 			"Releasing",
@@ -211,6 +186,12 @@
 			"100-199",
 			"200-299"
 		]
+	},
+	{
+		"type": "text",
+		"id": "chapter_count_custom",
+		"title": "Chapter Count Range",
+		"placeholder": "e.g. 25 or 20-50"
 	},
 	{
 		"type": "text",
