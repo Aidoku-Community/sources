@@ -2,13 +2,36 @@
 	"info": {
 		"id": "multi.mangadotnet",
 		"name": "Mangadotnet",
-		"version": 6,
+		"version": 7,
 		"url": "https://mangadot.net",
 		"contentRating": 1,
 		"languages": [
-			"multi"
+			"ar",
+			"cs",
+			"de",
+			"el",
+			"en",
+			"es",
+			"es-la",
+			"fr",
+			"hi",
+			"id",
+			"it",
+			"ko",
+			"ms",
+			"nl",
+			"pl",
+			"pt",
+			"pt-br",
+			"ru",
+			"sv",
+			"th",
+			"tl",
+			"tr",
+			"vi",
+			"zh-hk"
 		],
-		"minAppVersion": "0.8.4"
+		"minAppVersion": "0.9.0"
 	},
 	"config": {
 		"supportsTagSearch": true

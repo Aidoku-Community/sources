@@ -1,10 +1,12 @@
 use crate::LOGIN_COOKIE_KEY;
 use aidoku::{
 	alloc::{string::String, vec, vec::Vec},
+	error,
 	imports::defaults::{DefaultValue, defaults_get, defaults_get_map, defaults_set},
+	imports::error::Result,
 };
 
-// const LANGUAGES_KEY: &str = "languages";
+const LANGUAGES_KEY: &str = "languages";
 
 const HIDE_NSFW_KEY: &str = "hideNSFW";
 const DEDUPED_CHAPTER_KEY: &str = "dedupedChapter";
@@ -18,25 +20,9 @@ pub const NOTIFICATION_RESET_DEDUPED_GROUP_KEY: &str = "resetDeduplicateGroupLis
 const DEFAULT_CONTENT_TYPES_KEY: &str = "contentTypes";
 pub const NOTIFICATION_RESET_FILTERS_KEY: &str = "resetFilters";
 
-/* Not in use yet, but maybe we need to do some mapping once we get enough data on how the language field works.
 pub fn get_languages() -> Result<Vec<String>> {
-	defaults_get::<Vec<String>>(LANGUAGES_KEY)
-		.map(|languages| {
-			languages
-				.into_iter()
-				.map(|lang| match lang.as_str() {
-					"zh-Hans" => "zh".into(),
-					"zh-Hant" => "zh-hk".into(),
-					"fil" => "tl".into(),
-					"pt-BR" => "pt-br".into(),
-					"es-419" => "es-la".into(),
-					_ => lang,
-				})
-				.collect()
-		})
-		.ok_or(error!("Unable to fetch languages"))
+	defaults_get::<Vec<String>>(LANGUAGES_KEY).ok_or(error!("No languages found"))
 }
-*/
 
 pub fn hide_nsfw() -> bool {
 	defaults_get::<bool>(HIDE_NSFW_KEY).unwrap_or(true)

@@ -188,9 +188,18 @@ impl Source for Mangadotnet {
 			let mut chapter_map: HashMap<String, MangaChapter> = HashMap::new();
 			let mut chapter_list: Vec<MangaChapter> = Vec::new();
 
+			let supported_languages = get_languages()?;
+			let default_language = "en".into();
+
 			if deduped_chapter() {
 				for manga in json {
-					dedup_insert(&mut chapter_map, manga);
+					let manga_language = manga.language.as_ref().unwrap_or(&default_language);
+					if supported_languages
+						.iter()
+						.any(|language| language.eq(manga_language))
+					{
+						dedup_insert(&mut chapter_map, manga);
+					}
 				}
 			} else {
 				chapter_list.extend(json);
@@ -199,14 +208,30 @@ impl Source for Mangadotnet {
 			let mut chapters: Vec<Chapter> = if deduped_chapter() {
 				chapter_map.into_values().map(Into::into).collect()
 			} else {
-				chapter_list.into_iter().map(Into::into).collect()
+				chapter_list
+					.into_iter()
+					.filter(|c| {
+						supported_languages.iter().any(|language| {
+							language.eq(c.language.as_ref().unwrap_or(&default_language))
+						})
+					})
+					.map(Into::into)
+					.collect()
 			};
 
 			if show_standalone_volume() {
 				let volumes_json: Vec<MangaVolume> =
 					get_json_data(&format!("{BASE_URL}/api/manga/{}/volumes", manga.key))?;
 
-				let mut volumes: Vec<Chapter> = volumes_json.into_iter().map(Into::into).collect();
+				let mut volumes: Vec<Chapter> = volumes_json
+					.into_iter()
+					.filter(|c| {
+						supported_languages
+							.iter()
+							.any(|language| language.eq(&c.language))
+					})
+					.map(Into::into)
+					.collect();
 				chapters.append(&mut volumes);
 			}
 
