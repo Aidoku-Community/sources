@@ -30,6 +30,8 @@ fn response_is_ok(response: &Response) -> Result<()> {
 		.is_some_and(|value| value == "challenge")
 	{
 		bail!("{CF_CHALLENGE_ERROR_MESSAGE}")
+	} else if response.status_code() == 401 {
+		bail!("Response Error: 401. Please re-login in the source settings and try again.");
 	} else if response.status_code() >= 400 {
 		bail!("Response Error: {}", response.status_code())
 	}

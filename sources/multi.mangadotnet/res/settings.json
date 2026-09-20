@@ -46,6 +46,7 @@
 				"title": "Login",
 				"logoutTitle": "Logout",
 				"notification": "login",
+				"clearCookiesOnLogOut": true,
 				"refreshes": [
 					"content",
 					"listings"
