@@ -10,9 +10,11 @@ const COOKIE_KEY: &str = "naver_cookies";
 pub fn handle_login(cookies: HashMap<String, String>) -> Result<bool> {
 	// Only finish login if authenticated session cookies are present and non-empty.
 	// Returning false keeps the webview open for the user to complete login.
-	let is_authenticated = ["NID_AUT", "NID_SES"]
-		.iter()
-		.any(|name| cookies.get(*name).is_some_and(|value| !value.trim().is_empty()));
+	let is_authenticated = ["NID_AUT", "NID_SES"].iter().any(|name| {
+		cookies
+			.get(*name)
+			.is_some_and(|value| !value.trim().is_empty())
+	});
 	if !is_authenticated {
 		return Ok(false);
 	}
