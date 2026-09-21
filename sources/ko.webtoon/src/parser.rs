@@ -381,7 +381,7 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 				date_uploaded,
 				url: Some(full_chapter_url),
 				language: Some(String::from("ko")),
-				..Default::default()
+				locked: is_locked,
 			});
 		}
 
