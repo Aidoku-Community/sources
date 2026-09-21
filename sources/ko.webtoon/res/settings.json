@@ -1,0 +1,39 @@
+[
+	{
+		"type": "group",
+		"title": "설정",
+		"items": [
+			{
+				"type": "switch",
+				"key": "showBestChallenge",
+				"title": "베스트도전 표시",
+				"subtitle": "베스트도전 연재작을 탐색에 포함합니다",
+				"default": true
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "네이버 계정 (Beta)",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"notification": "login",
+				"method": "web",
+				"title": "네이버 로그인 (Beta)",
+				"url": "https://nid.naver.com/nidlogin.login",
+				"refreshes": ["listings"]
+			},
+			{
+				"type": "button",
+				"title": "로그아웃",
+				"notification": "logout",
+				"destructive": true,
+				"confirmTitle": "로그아웃",
+				"confirmText": "저장된 네이버 계정 로그인을 해제하시겠습니까?",
+				"refreshes": ["listings"]
+			}
+		]
+	}
+]
