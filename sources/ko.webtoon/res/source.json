@@ -2,7 +2,7 @@
 	"info": {
 		"id": "ko.webtoon",
 		"name": "webtoonKR",
-		"version": 3,
+		"version": 1,
 		"lang": "ko",
 		"languages": ["ko"],
 		"url": "https://comic.naver.com",
