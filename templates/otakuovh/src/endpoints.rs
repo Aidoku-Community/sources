@@ -50,7 +50,7 @@ impl Url {
 	}
 
 	pub fn manga_chapters(base_url: &str, book_id: &str) -> String {
-		let url = format!("{}{}/chapters", &base_url, Self::BASE_PATH);
+		let url = format!("{}{}/chapters", base_url, Self::BASE_PATH);
 		let params = [("moderationStatus", "APPROVED"), ("bookId", book_id)];
 		Self::append_query_params(url, &params)
 	}

@@ -1,7 +1,5 @@
 use aidoku::{
-	HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Result,
-	alloc::{Vec, string::ToString},
-	imports::{net::Request, std::send_partial_result},
+	HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Result, alloc::{Vec, string::ToString, vec}, imports::{net::Request, std::send_partial_result},
 };
 
 use crate::{
@@ -14,47 +12,42 @@ const BEST_COMPLETED: &str = "Лучшие завершенные";
 const RECENTLY_ADDED: &str = "Недавно добавлено";
 
 pub fn initial_layout() {
-	let mut components = Vec::new();
+	let components = vec![
+		HomeComponent {
+			title: Some(EDITORS_CHOICE.to_string()),
+			subtitle: None,
+			value: HomeComponentValue::empty_scroller(),
+		},
+		HomeComponent {
+			title: Some(POPULAR_TITLE.to_string()),
+			subtitle: None,
+			value: HomeComponentValue::empty_scroller(),
+		},
+		HomeComponent {
+			title: Some(BEST_COMPLETED.to_string()),
+			subtitle: None,
+			value: HomeComponentValue::empty_scroller(),
+		},
+		HomeComponent {
+			title: Some(RECENTLY_ADDED.to_string()),
+			subtitle: None,
+			value: HomeComponentValue::empty_scroller(),
+		}
+	];
 
-	components.push(HomeComponent {
-		title: Some(EDITORS_CHOICE.to_string()),
-		subtitle: None,
-		value: HomeComponentValue::empty_scroller(),
-	});
-	components.push(HomeComponent {
-		title: Some(POPULAR_TITLE.to_string()),
-		subtitle: None,
-		value: HomeComponentValue::empty_scroller(),
-	});
-	components.push(HomeComponent {
-		title: Some(BEST_COMPLETED.to_string()),
-		subtitle: None,
-		value: HomeComponentValue::empty_scroller(),
-	});
-	components.push(HomeComponent {
-		title: Some(RECENTLY_ADDED.to_string()),
-		subtitle: None,
-		value: HomeComponentValue::empty_scroller(),
-	});
 	send_partial_result(&HomePartialResult::Layout(HomeLayout { components }))
 }
 
 pub fn load_editors_choice(params: &Params) -> Result<()> {
-	let mut search_params = Vec::new();
-	search_params.push(("featured".to_string(), "1".to_string()));
-	search_params.push(("page".to_string(), "0".to_string()));
-	search_params.push(("size".to_string(), "20".to_string()));
+	let search_params = vec![
+		("featured".to_string(), "1".to_string()),
+		("page".to_string(), "0".to_string()),
+		("size".to_string(), "20".to_string())
+	];
 	let url = Url::manga_search_with_params(&params.base_url, search_params);
 	let response = Request::get(&url)?
-		.prepared_headers(&params)?
+		.prepared_headers(params)?
 		.parse_json::<Vec<InkManga>>()?;
-	let mut components = Vec::new();
-
-	components.push(HomeComponent {
-		title: Some(EDITORS_CHOICE.to_string()),
-		subtitle: None,
-		value: HomeComponentValue::empty_big_scroller(),
-	});
 
 	send_partial_result(&HomePartialResult::Component(HomeComponent {
 		title: Some(EDITORS_CHOICE.into()),
@@ -85,15 +78,8 @@ pub fn load_popular_ongoings(params: &Params) -> Result<()> {
 		.collect(),
 	);
 	let response = Request::get(&url)?
-		.prepared_headers(&params)?
+		.prepared_headers(params)?
 		.parse_json::<Vec<InkManga>>()?;
-	let mut components = Vec::new();
-
-	components.push(HomeComponent {
-		title: Some(POPULAR_TITLE.to_string()),
-		subtitle: None,
-		value: HomeComponentValue::empty_big_scroller(),
-	});
 
 	send_partial_result(&HomePartialResult::Component(HomeComponent {
 		title: Some(POPULAR_TITLE.into()),
@@ -124,15 +110,8 @@ pub fn load_best_completed(params: &Params) -> Result<()> {
 		.collect(),
 	);
 	let response = Request::get(&url)?
-		.prepared_headers(&params)?
+		.prepared_headers(params)?
 		.parse_json::<Vec<InkManga>>()?;
-	let mut components = Vec::new();
-
-	components.push(HomeComponent {
-		title: Some(BEST_COMPLETED.to_string()),
-		subtitle: None,
-		value: HomeComponentValue::empty_big_scroller(),
-	});
 
 	send_partial_result(&HomePartialResult::Component(HomeComponent {
 		title: Some(BEST_COMPLETED.into()),
@@ -158,15 +137,8 @@ pub fn load_recently_added(params: &Params) -> Result<()> {
 			.collect(),
 	);
 	let response = Request::get(&url)?
-		.prepared_headers(&params)?
+		.prepared_headers(params)?
 		.parse_json::<Vec<InkManga>>()?;
-	let mut components = Vec::new();
-
-	components.push(HomeComponent {
-		title: Some(RECENTLY_ADDED.to_string()),
-		subtitle: None,
-		value: HomeComponentValue::empty_big_scroller(),
-	});
 
 	send_partial_result(&HomePartialResult::Component(HomeComponent {
 		title: Some(RECENTLY_ADDED.into()),

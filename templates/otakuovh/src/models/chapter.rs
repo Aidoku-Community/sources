@@ -42,7 +42,7 @@ pub struct InkPage {
 }
 
 impl InkChapter {
-	pub fn into_chapter(self, branches: &Vec<InkBranch>) -> Chapter {
+	pub fn into_chapter(self, branches: &[InkBranch]) -> Chapter {
 		Chapter {
 			key: self.id,
 			title: self.title,

@@ -46,14 +46,6 @@ pub struct InkRelationPublisher {
 	pub name: String,
 	pub kind: String,
 }
-/**
-#[derive(Default, Deserialize)]
-#[serde(default)]
-pub struct InkAltName {
-	pub language: String,
-	pub name: String,
-} 
-**/
 
 impl InkLabel {
 	pub fn into_listing(self, kind: ListingKind) -> Listing {

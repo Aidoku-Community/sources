@@ -118,7 +118,7 @@ pub trait Impl {
 			.map(|manga| manga.into_basic_manga())
 			.collect();
 
-		let has_next_page = response.iter().count() > 0;
+		let has_next_page = !response.is_empty();
 
 		Ok(MangaPageResult {
 			entries: response,
@@ -173,7 +173,7 @@ pub trait Impl {
 	fn get_page_list(&self, params: &Params, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let url_page = Url::chapter_page(&params.base_url, &chapter.key);
 		let response = Request::get(&url_page)?
-			.prepared_headers(&params)?
+			.prepared_headers(params)?
 			.parse_json::<InkChapter>()?;
 
 		Ok(response
@@ -207,7 +207,7 @@ pub trait Impl {
 
 		Ok(MangaPageResult {
 			entries: response.clone(),
-			has_next_page: response.into_iter().count() > 0,
+			has_next_page: !response.is_empty(),
 		})
 	}
 
