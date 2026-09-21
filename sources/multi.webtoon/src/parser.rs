@@ -32,10 +32,12 @@ struct ApiEpisode {
 	exposure_date_millis: Option<i64>,
 }
 
+const ITEMS_PER_PAGE: usize = 30;
+
 /// Parses search query or falls back to the default genres listing.
 pub fn parse_search_manga_list(
 	query: Option<String>,
-	_page: i32,
+	page: i32,
 	_filters: Vec<FilterValue>,
 ) -> Result<MangaPageResult> {
 	if let Some(ref q) = query {
@@ -44,21 +46,25 @@ pub fn parse_search_manga_list(
 			let encoded = encode_uri_component(trimmed);
 			let base_url = get_base_url(false);
 			let url = format!("{base_url}/search?keyword={encoded}");
-			return parse_manga_list(&url);
+			return parse_manga_list(&url, page);
 		}
 	}
 
 	let base_url = get_base_url(false);
-	parse_manga_list(&format!("{base_url}/genres"))
+	parse_manga_list(&format!("{base_url}/genres"), page)
 }
 
 /// Handles all listings registered in source.json.
 pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 	let base_url = get_base_url(false);
 	match listing.id.as_str() {
-		"latest" | "Latest" => parse_manga_list(&format!("{base_url}/genres?sortOrder=UPDATE")),
-		"popular" | "Popular" => parse_manga_list(&format!("{base_url}/genres?sortOrder=MANA")),
-		"top" | "Top" => parse_manga_list(&format!("{base_url}/genres?sortOrder=LIKEIT")),
+		"latest" | "Latest" => {
+			parse_manga_list(&format!("{base_url}/genres?sortOrder=UPDATE"), page)
+		}
+		"popular" | "Popular" => {
+			parse_manga_list(&format!("{base_url}/genres?sortOrder=MANA"), page)
+		}
+		"top" | "Top" => parse_manga_list(&format!("{base_url}/genres?sortOrder=LIKEIT"), page),
 		"canvas_latest" | "Canvas Latest" => parse_canvas_list(
 			&format!("{base_url}/canvas/list?genreTab=ALL&sortOrder=UPDATE"),
 			page,
@@ -71,12 +77,12 @@ pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResul
 			&format!("{base_url}/canvas/list?genreTab=ALL&sortOrder=LIKEIT"),
 			page,
 		),
-		_ => parse_manga_list(&format!("{base_url}/genres")),
+		_ => parse_manga_list(&format!("{base_url}/genres"), page),
 	}
 }
 
 /// Parses manga cards from originals list or search results.
-pub fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
+pub fn parse_manga_list(url: &str, page: i32) -> Result<MangaPageResult> {
 	let html = request(url, false)?.html()?;
 	let mut entries = Vec::new();
 
@@ -115,9 +121,24 @@ pub fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 		}
 	}
 
+	let total = entries.len();
+	let start = ((page - 1).max(0) as usize) * ITEMS_PER_PAGE;
+	if start >= total {
+		return Ok(MangaPageResult {
+			entries: Vec::new(),
+			has_next_page: false,
+		});
+	}
+	let has_next_page = start + ITEMS_PER_PAGE < total;
+	let paged_entries = entries
+		.into_iter()
+		.skip(start)
+		.take(ITEMS_PER_PAGE)
+		.collect();
+
 	Ok(MangaPageResult {
-		entries,
-		has_next_page: false,
+		entries: paged_entries,
+		has_next_page,
 	})
 }
 
@@ -263,9 +284,31 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 		.unwrap_or_default()
 		.to_lowercase();
 
-	manga.status = if status_text.contains("completed") {
+	let is_completed = html.select_first(".txt_ico_completed").is_some()
+		|| status_text.contains("completed")
+		|| status_text.contains("완결")
+		|| status_text.contains("terminé")
+		|| status_text.contains("completo")
+		|| status_text.contains("beendet")
+		|| status_text.contains("จบแล้ว")
+		|| status_text.contains("已完結")
+		|| status_text.contains("tamat");
+
+	let is_hiatus = html.select_first(".txt_ico_hiatus, .ico_hiatus").is_some()
+		|| series_note.contains("will return")
+		|| series_note.contains("hiatus")
+		|| series_note.contains("휴재")
+		|| series_note.contains("pause")
+		|| series_note.contains("regresará")
+		|| series_note.contains("zurückkehren")
+		|| series_note.contains("reviendra")
+		|| series_note.contains("กลับมา")
+		|| series_note.contains("回歸")
+		|| series_note.contains("akan kembali");
+
+	manga.status = if is_completed {
 		MangaStatus::Completed
-	} else if series_note.contains("will return") {
+	} else if is_hiatus {
 		MangaStatus::Hiatus
 	} else {
 		MangaStatus::Ongoing
@@ -307,8 +350,12 @@ fn clean_episode_title(raw_title: &str) -> (Option<String>, Option<f32>) {
 			&& (chars[1] == 'S' || chars[1] == 'T' || chars[1] == 's' || chars[1] == 't')
 			&& chars[2].is_ascii_digit()
 		{
-			if let Some(v) = chars[2].to_digit(10) {
-				volume = Some(v as f32);
+			let digits: String = chars[2..]
+				.iter()
+				.take_while(|c| c.is_ascii_digit())
+				.collect();
+			if let Ok(v) = digits.parse::<f32>() {
+				volume = Some(v);
 				words.remove(0);
 			}
 		} else if chars.len() >= 4
