@@ -69,8 +69,8 @@ fn parse_weekday_list(week: &str) -> Result<MangaPageResult> {
 }
 
 /// Helper to parse finished webtoons with pagination
-fn parse_finish_list(page: i32) -> Result<MangaPageResult> {
-	let url = format!("{BASE_URL}/webtoon/finish?page={page}&sort=UPDATE");
+fn parse_finish_list(page: i32, sort: &str) -> Result<MangaPageResult> {
+	let url = format!("{BASE_URL}/webtoon/finish?page={page}&sort={sort}");
 	let html = request(&url)?.html()?;
 	let entries = parse_manga_cards(&html);
 
@@ -148,10 +148,10 @@ pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResul
 		"fri" | "금요일" => parse_weekday_list("fri"),
 		"sat" | "토요일" => parse_weekday_list("sat"),
 		"sun" | "일요일" => parse_weekday_list("sun"),
-		"completed" | "완결" => parse_finish_list(page),
+		"completed" | "완결" => parse_finish_list(page, "UPDATE"),
 		"best" | "베스트도전" => parse_best_challenge_list(page),
-		"popular" | "인기순" => parse_finish_list(page),
-		"update" | "업데이트순" => parse_finish_list(page),
+		"popular" | "인기순" => parse_finish_list(page, "ALL_READER"),
+		"update" | "업데이트순" => parse_finish_list(page, "UPDATE"),
 		_ => parse_weekday_list("mon"),
 	}
 }
@@ -270,14 +270,8 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 			format!("{BASE_URL}/webtoon/list?titleId={manga_id}&sortOrder=DESC&page={page}")
 		};
 
-		let req = match request(&url) {
-			Ok(r) => r,
-			Err(_) => break,
-		};
-		let html = match req.html() {
-			Ok(h) => h,
-			Err(_) => break,
-		};
+		let req = request(&url)?;
+		let html = req.html()?;
 
 		// Check for 19+ adult login redirect
 		let is_login_page = html
@@ -382,6 +376,7 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 				url: Some(full_chapter_url),
 				language: Some(String::from("ko")),
 				locked: is_locked,
+				..Default::default()
 			});
 		}
 
@@ -487,13 +482,32 @@ pub fn parse_page_list(manga_id: &str, chapter_id: &str) -> Result<Vec<Page>> {
 	Ok(pages)
 }
 
-/// Handles image request modification (injected Referer + User-Agent + Cookie)
+const TRUSTED_COOKIE_HOSTS: &[&str] = &["comic.naver.com", "m.comic.naver.com"];
+
+fn is_trusted_cookie_host(url: &str) -> bool {
+	let after_scheme = if let Some(idx) = url.find("://") {
+		&url[idx + 3..]
+	} else if let Some(stripped) = url.strip_prefix("//") {
+		stripped
+	} else {
+		url
+	};
+	let host_and_port = after_scheme.split(['/', '?', '#']).next().unwrap_or("");
+	let host = host_and_port.split(':').next().unwrap_or("");
+	TRUSTED_COOKIE_HOSTS
+		.iter()
+		.any(|&trusted| host.eq_ignore_ascii_case(trusted))
+}
+
+/// Handles image request modification (injected Referer + User-Agent + Cookie for trusted hosts)
 pub fn parse_image_request(url: String, _context: Option<PageContext>) -> Result<Request> {
 	let mut req = Request::get(&url)?
 		.header("Referer", "https://comic.naver.com/")
 		.header("User-Agent", &get_user_agent());
-	if let Some(cookie_str) = crate::auth::get_cookie_header() {
-		req = req.header("Cookie", &cookie_str);
+	if is_trusted_cookie_host(&url) {
+		if let Some(cookie_str) = crate::auth::get_cookie_header() {
+			req = req.header("Cookie", &cookie_str);
+		}
 	}
 	Ok(req)
 }

@@ -8,15 +8,20 @@ const COOKIE_KEY: &str = "naver_cookies";
 
 /// Save cookies captured from in-app Naver login
 pub fn handle_login(cookies: HashMap<String, String>) -> Result<bool> {
-	// Only finish login if authenticated session cookies are present.
+	// Only finish login if authenticated session cookies are present and non-empty.
 	// Returning false keeps the webview open for the user to complete login.
-	let is_authenticated = cookies.contains_key("NID_AUT") || cookies.contains_key("NID_SES");
+	let is_authenticated = ["NID_AUT", "NID_SES"]
+		.iter()
+		.any(|name| cookies.get(*name).is_some_and(|value| !value.trim().is_empty()));
 	if !is_authenticated {
 		return Ok(false);
 	}
 	let mut cookie_str = String::new();
 	let mut first = true;
 	for (name, value) in cookies.iter() {
+		if value.trim().is_empty() {
+			continue;
+		}
 		if !first {
 			cookie_str.push_str("; ");
 		}
@@ -32,7 +37,12 @@ pub fn handle_login(cookies: HashMap<String, String>) -> Result<bool> {
 /// Check if user has authenticated Naver cookies
 pub fn is_logged_in() -> bool {
 	if let Some(cookie_str) = defaults_get::<String>(COOKIE_KEY) {
-		cookie_str.contains("NID_AUT") || cookie_str.contains("NID_SES")
+		cookie_str.split(';').any(|part| {
+			let mut split = part.splitn(2, '=');
+			let name = split.next().unwrap_or("").trim();
+			let val = split.next().unwrap_or("").trim();
+			(name == "NID_AUT" || name == "NID_SES") && !val.is_empty()
+		})
 	} else {
 		false
 	}
