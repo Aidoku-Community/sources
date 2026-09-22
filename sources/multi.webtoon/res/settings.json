@@ -13,7 +13,7 @@
 			{
 				"type": "switch",
 				"key": "canvasSeries",
-				"title": "Show canvas series",
+				"title": "Show Canvas Series",
 				"subtitle": "Canvas series are published by independent creators",
 				"default": true
 			}
