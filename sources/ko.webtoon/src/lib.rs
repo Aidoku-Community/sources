@@ -1,9 +1,9 @@
 #![no_std]
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, ImageRequestProvider, Listing,
-	ListingProvider, Manga, MangaPageResult, NotificationHandler, Page, PageContext, Source,
-	WebLoginHandler,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeLayout,
+	ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler,
+	Page, PageContext, Source, WebLoginHandler,
 	alloc::{String, Vec},
 	imports::error::Result,
 	imports::net::Request,
@@ -44,6 +44,12 @@ impl Source for WebtoonKR {
 	}
 }
 
+impl Home for WebtoonKR {
+	fn get_home(&self) -> Result<HomeLayout> {
+		parser::parse_home()
+	}
+}
+
 impl ListingProvider for WebtoonKR {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		parser::parse_manga_listing(listing, page)
@@ -70,7 +76,7 @@ impl WebLoginHandler for WebtoonKR {
 
 impl NotificationHandler for WebtoonKR {
 	fn handle_notification(&self, notification: String) {
-		if notification == "logout" {
+		if notification == "login" || notification == "logout" {
 			auth::logout();
 		}
 	}
@@ -78,6 +84,7 @@ impl NotificationHandler for WebtoonKR {
 
 register_source!(
 	WebtoonKR,
+	Home,
 	ListingProvider,
 	ImageRequestProvider,
 	DeepLinkHandler,

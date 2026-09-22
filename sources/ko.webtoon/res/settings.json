@@ -22,16 +22,8 @@
 				"notification": "login",
 				"method": "web",
 				"title": "네이버 로그인 (Beta)",
+				"logoutTitle": "로그아웃",
 				"url": "https://nid.naver.com/nidlogin.login",
-				"refreshes": ["listings"]
-			},
-			{
-				"type": "button",
-				"title": "로그아웃",
-				"notification": "logout",
-				"destructive": true,
-				"confirmTitle": "로그아웃",
-				"confirmText": "저장된 네이버 계정 로그인을 해제하시겠습니까?",
 				"refreshes": ["listings"]
 			}
 		]

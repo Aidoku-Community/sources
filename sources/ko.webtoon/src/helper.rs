@@ -5,17 +5,13 @@ use aidoku::{
 
 pub const BASE_URL: &str = "https://m.comic.naver.com";
 
-pub fn get_user_agent() -> String {
-	String::from(
-		"Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-	)
-}
+pub const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
 /// Request wrapper with User-Agent, Referer, and automatic Cookie injection
 pub fn request(url: &str) -> Result<Request> {
 	let mut req = Request::get(url)?
 		.header("Referer", "https://comic.naver.com/")
-		.header("User-Agent", &get_user_agent());
+		.header("User-Agent", USER_AGENT);
 	if let Some(cookie_str) = crate::auth::get_cookie_header() {
 		req = req.header("Cookie", &cookie_str);
 	}

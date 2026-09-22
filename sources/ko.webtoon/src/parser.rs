@@ -1,6 +1,7 @@
 use aidoku::{
-	Chapter, ContentRating, DeepLinkResult, FilterValue, Listing, Manga, MangaPageResult,
-	MangaStatus, Page, PageContent, PageContext, Viewer,
+	Chapter, ContentRating, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue,
+	HomeLayout, Link, Listing, Manga, MangaPageResult, MangaStatus, Page, PageContent, PageContext,
+	Viewer,
 	alloc::{String, Vec, format, vec},
 	helpers::uri::encode_uri_component,
 	imports::error::{AidokuError, Result},
@@ -32,7 +33,6 @@ fn parse_manga_cards(html: &aidoku::imports::html::Document) -> Vec<Manga> {
 					.unwrap_or_default();
 			}
 			let cover = node.select_first("img").and_then(|e| e.attr("src"));
-			let author = node.select_first(".desc, .author").and_then(|e| e.text());
 
 			let full_url = if href.starts_with("http") {
 				href
@@ -40,13 +40,10 @@ fn parse_manga_cards(html: &aidoku::imports::html::Document) -> Vec<Manga> {
 				format!("{BASE_URL}{href}")
 			};
 
-			let authors = author.map(|a| vec![a]);
-
 			mangas.push(Manga {
 				key: id,
 				cover,
 				title,
-				authors,
 				url: Some(full_url),
 				viewer: Viewer::Webtoon,
 				..Default::default()
@@ -157,8 +154,8 @@ pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResul
 }
 
 /// Parses webtoon details (title, cover, author, description, status, genre, 19+ check)
-pub fn parse_manga_details(manga_id: &str, mut manga: Manga) -> Result<Manga> {
-	let url = get_manga_url(manga_id);
+pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
+	let url = get_manga_url(&manga.key);
 	let html = match request(&url)?.html() {
 		Ok(h) => h,
 		Err(e) => return Err(e.into()),
@@ -167,7 +164,7 @@ pub fn parse_manga_details(manga_id: &str, mut manga: Manga) -> Result<Manga> {
 	let is_login_page = html
 		.select_first("title")
 		.and_then(|t| t.text())
-		.map(|s| s.contains("NAVER 로그인") || s.contains("로그인"))
+		.map(|s| s.contains("로그인"))
 		.unwrap_or(false)
 		|| html.select_first("form#frmNIDLogin").is_some();
 
@@ -277,7 +274,7 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 		let is_login_page = html
 			.select_first("title")
 			.and_then(|t| t.text())
-			.map(|s| s.contains("NAVER 로그인") || s.contains("로그인"))
+			.map(|s| s.contains("로그인"))
 			.unwrap_or(false)
 			|| html.select_first("form#frmNIDLogin").is_some()
 			|| html.select_first("input[name='dynamicKey']").is_some();
@@ -344,14 +341,9 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 				raw_title = format!("{chapter_id}화");
 			}
 
-			let title = if is_locked {
-				format!("🔒 {raw_title}")
-			} else {
-				raw_title.clone()
-			};
-
 			let fallback_no = chapter_id.parse::<f32>().unwrap_or(-1.0);
 			let chapter_num = extract_chapter_number(&raw_title, fallback_no);
+			let title = raw_title;
 			let date_text = node
 				.select_first(".date")
 				.and_then(|e| e.text())
@@ -411,12 +403,11 @@ pub fn parse_manga_update(
 	needs_details: bool,
 	needs_chapters: bool,
 ) -> Result<Manga> {
-	let manga_id = manga.key.clone();
 	if needs_details {
-		manga = parse_manga_details(&manga_id, manga)?;
+		manga = parse_manga_details(manga)?;
 	}
 	if needs_chapters {
-		let chapters = parse_chapter_list(&manga_id)?;
+		let chapters = parse_chapter_list(&manga.key)?;
 		manga.chapters = Some(chapters);
 	}
 	Ok(manga)
@@ -430,7 +421,7 @@ pub fn parse_page_list(manga_id: &str, chapter_id: &str) -> Result<Vec<Page>> {
 	let is_login_page = html
 		.select_first("title")
 		.and_then(|t| t.text())
-		.map(|s| s.contains("NAVER 로그인") || s.contains("로그인"))
+		.map(|s| s.contains("로그인"))
 		.unwrap_or(false)
 		|| html.select_first("form#frmNIDLogin").is_some();
 
@@ -503,7 +494,7 @@ fn is_trusted_cookie_host(url: &str) -> bool {
 pub fn parse_image_request(url: String, _context: Option<PageContext>) -> Result<Request> {
 	let mut req = Request::get(&url)?
 		.header("Referer", "https://comic.naver.com/")
-		.header("User-Agent", &get_user_agent());
+		.header("User-Agent", USER_AGENT);
 	if is_trusted_cookie_host(&url) {
 		if let Some(cookie_str) = crate::auth::get_cookie_header() {
 			req = req.header("Cookie", &cookie_str);
@@ -527,4 +518,70 @@ pub fn parse_deep_link(url: String) -> Result<Option<DeepLinkResult>> {
 	} else {
 		Ok(Some(DeepLinkResult::Manga { key: manga_key }))
 	}
+}
+
+/// Parses the home page layout (Today's Webtoons, Popular Completed, and Recent Completed)
+pub fn parse_home() -> Result<HomeLayout> {
+	let mut components = Vec::new();
+
+	// 1. 오늘의 웹툰 (Today's Webtoons from /webtoon/weekday)
+	let today_url = format!("{BASE_URL}/webtoon/weekday");
+	if let Ok(req) = request(&today_url) {
+		if let Ok(html) = req.html() {
+			let today_entries: Vec<Link> = parse_manga_cards(&html)
+				.into_iter()
+				.map(Into::into)
+				.collect();
+			if !today_entries.is_empty() {
+				components.push(HomeComponent {
+					title: Some(String::from("오늘의 웹툰")),
+					subtitle: None,
+					value: HomeComponentValue::Scroller {
+						entries: today_entries,
+						listing: None,
+					},
+				});
+			}
+		}
+	}
+
+	// 2. 인기 완결작 (Popular Completed Webtoons)
+	if let Ok(pop_result) = parse_finish_list(1, "ALL_READER") {
+		let popular_entries: Vec<Link> = pop_result.entries.into_iter().map(Into::into).collect();
+		if !popular_entries.is_empty() {
+			components.push(HomeComponent {
+				title: Some(String::from("인기 완결작")),
+				subtitle: None,
+				value: HomeComponentValue::Scroller {
+					entries: popular_entries,
+					listing: Some(Listing {
+						id: String::from("popular"),
+						name: String::from("인기순"),
+						..Default::default()
+					}),
+				},
+			});
+		}
+	}
+
+	// 3. 최신 완결작 (Recently Updated Completed Webtoons)
+	if let Ok(upd_result) = parse_finish_list(1, "UPDATE") {
+		let update_entries: Vec<Link> = upd_result.entries.into_iter().map(Into::into).collect();
+		if !update_entries.is_empty() {
+			components.push(HomeComponent {
+				title: Some(String::from("최신 완결작")),
+				subtitle: None,
+				value: HomeComponentValue::Scroller {
+					entries: update_entries,
+					listing: Some(Listing {
+						id: String::from("update"),
+						name: String::from("업데이트순"),
+						..Default::default()
+					}),
+				},
+			});
+		}
+	}
+
+	Ok(HomeLayout { components })
 }
