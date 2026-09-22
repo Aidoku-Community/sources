@@ -6,7 +6,7 @@
 			{
 				"type": "switch",
 				"key": "optionalPages",
-				"title": "Show optional pages",
+				"title": "Show Optional Pages",
 				"subtitle": "Warning pages, author notes, etc.",
 				"default": true
 			},
