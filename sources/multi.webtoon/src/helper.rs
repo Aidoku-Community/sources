@@ -10,10 +10,10 @@ pub const BASE_URL_MOBILE: &str = "https://m.webtoons.com";
 /// Returns the currently selected language code, falling back to "en".
 pub fn get_lang_code() -> String {
 	if let Some(langs) = defaults_get::<Vec<String>>("languages") {
-		if let Some(lang) = langs.first() {
+		if let Some(lang) = langs.into_iter().next() {
 			return match lang.as_str() {
 				"zh-Hant" => String::from("zh-hant"),
-				_ => lang.clone(),
+				_ => lang,
 			};
 		}
 	}
