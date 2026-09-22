@@ -3,15 +3,12 @@
 		"id": "ko.naverwebtoon",
 		"name": "webtoonKR",
 		"version": 1,
-		"lang": "ko",
 		"languages": ["ko"],
-		"url": "https://comic.naver.com",
 		"urls": [
 			"https://comic.naver.com",
 			"https://m.comic.naver.com"
 		],
-		"contentRating": 0,
-		"nsfw": 0
+		"contentRating": 0
 	},
 	"listings": [
 		{
