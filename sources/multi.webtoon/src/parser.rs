@@ -32,8 +32,6 @@ struct ApiEpisode {
 	exposure_date_millis: Option<i64>,
 }
 
-const ITEMS_PER_PAGE: usize = 30;
-
 /// Parses search query or falls back to the default genres listing.
 pub fn parse_search_manga_list(
 	query: Option<String>,
@@ -54,26 +52,22 @@ pub fn parse_search_manga_list(
 	parse_manga_list(&format!("{base_url}/genres"), page)
 }
 
-/// Handles all listings registered in source.json.
+/// Handles all listings registered in source.json and DynamicListings.
 pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 	let base_url = get_base_url(false);
 	match listing.id.as_str() {
-		"latest" | "Latest" => {
-			parse_manga_list(&format!("{base_url}/genres?sortOrder=UPDATE"), page)
-		}
-		"popular" | "Popular" => {
-			parse_manga_list(&format!("{base_url}/genres?sortOrder=MANA"), page)
-		}
-		"top" | "Top" => parse_manga_list(&format!("{base_url}/genres?sortOrder=LIKEIT"), page),
-		"canvas_latest" | "Canvas Latest" => parse_canvas_list(
+		"latest" => parse_manga_list(&format!("{base_url}/genres?sortOrder=UPDATE"), page),
+		"popular" => parse_manga_list(&format!("{base_url}/genres?sortOrder=MANA"), page),
+		"top" => parse_manga_list(&format!("{base_url}/genres?sortOrder=LIKEIT"), page),
+		"canvas_latest" => parse_canvas_list(
 			&format!("{base_url}/canvas/list?genreTab=ALL&sortOrder=UPDATE"),
 			page,
 		),
-		"canvas_popular" | "Canvas Popular" => parse_canvas_list(
+		"canvas_popular" => parse_canvas_list(
 			&format!("{base_url}/canvas/list?genreTab=ALL&sortOrder=READ_COUNT"),
 			page,
 		),
-		"canvas_top" | "Canvas Top" => parse_canvas_list(
+		"canvas_top" => parse_canvas_list(
 			&format!("{base_url}/canvas/list?genreTab=ALL&sortOrder=LIKEIT"),
 			page,
 		),
@@ -83,6 +77,10 @@ pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResul
 
 /// Parses manga cards from originals list or search results.
 pub fn parse_manga_list(url: &str, page: i32) -> Result<MangaPageResult> {
+	if page > 1 {
+		return Ok(MangaPageResult::default());
+	}
+
 	let html = request(url, false)?.html()?;
 	let mut entries = Vec::new();
 
@@ -98,10 +96,6 @@ pub fn parse_manga_list(url: &str, page: i32) -> Result<MangaPageResult> {
 				.select_first(".title")
 				.and_then(|t| t.text())
 				.unwrap_or_default();
-			let authors = node
-				.select_first(".author")
-				.and_then(|a| a.text())
-				.map(|a| vec![a]);
 			let full_url = if href.starts_with("http") {
 				href
 			} else {
@@ -112,7 +106,6 @@ pub fn parse_manga_list(url: &str, page: i32) -> Result<MangaPageResult> {
 				key: id,
 				title,
 				cover,
-				authors,
 				url: Some(full_url),
 				viewer: Viewer::Webtoon,
 				content_rating: ContentRating::Safe,
@@ -121,24 +114,9 @@ pub fn parse_manga_list(url: &str, page: i32) -> Result<MangaPageResult> {
 		}
 	}
 
-	let total = entries.len();
-	let start = ((page - 1).max(0) as usize) * ITEMS_PER_PAGE;
-	if start >= total {
-		return Ok(MangaPageResult {
-			entries: Vec::new(),
-			has_next_page: false,
-		});
-	}
-	let has_next_page = start + ITEMS_PER_PAGE < total;
-	let paged_entries = entries
-		.into_iter()
-		.skip(start)
-		.take(ITEMS_PER_PAGE)
-		.collect();
-
 	Ok(MangaPageResult {
-		entries: paged_entries,
-		has_next_page,
+		entries,
+		has_next_page: false,
 	})
 }
 
@@ -164,10 +142,6 @@ pub fn parse_canvas_list(url: &str, page: i32) -> Result<MangaPageResult> {
 				.select_first(".subj")
 				.and_then(|t| t.text())
 				.unwrap_or_default();
-			let authors = node
-				.select_first(".author")
-				.and_then(|a| a.text())
-				.map(|a| vec![a]);
 			let full_url = if href.starts_with("http") {
 				href
 			} else {
@@ -178,7 +152,6 @@ pub fn parse_canvas_list(url: &str, page: i32) -> Result<MangaPageResult> {
 				key: id,
 				title,
 				cover,
-				authors,
 				url: Some(full_url),
 				viewer: Viewer::Webtoon,
 				content_rating: ContentRating::Safe,
@@ -187,11 +160,12 @@ pub fn parse_canvas_list(url: &str, page: i32) -> Result<MangaPageResult> {
 		}
 	}
 
-	let has_next_page = html
-		.select_first(
-			"#content > div.cont_box > div.challenge_cont_area > div.paginate > a.pg_next",
-		)
-		.is_some();
+	let next_page_param = format!("page={}", page + 1);
+	let has_next_page = !entries.is_empty()
+		&& (html
+			.select_first(format!("a[href*=\"{next_page_param}\"]"))
+			.is_some()
+			|| html.select_first("a.pg_next").is_some());
 
 	Ok(MangaPageResult {
 		entries,
@@ -489,7 +463,7 @@ pub fn parse_page_list(manga_key: &str, chapter_key: &str) -> Result<Vec<Page>> 
 }
 
 /// Prepares image request with required headers (Referer & User-Agent).
-pub fn parse_image_request(url: String) -> Result<Request> {
+pub fn get_image_request(url: String) -> Result<Request> {
 	Ok(Request::get(url)?
 		.header("Referer", BASE_URL_DESKTOP)
 		.header("User-Agent", get_user_agent(false)))

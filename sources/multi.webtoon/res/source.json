@@ -35,18 +35,6 @@
 		{
 			"id": "top",
 			"name": "Top"
-		},
-		{
-			"id": "canvas_latest",
-			"name": "Canvas Latest"
-		},
-		{
-			"id": "canvas_popular",
-			"name": "Canvas Popular"
-		},
-		{
-			"id": "canvas_top",
-			"name": "Canvas Top"
 		}
 	]
 }

@@ -1,9 +1,9 @@
 #![no_std]
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider, Listing,
-	ListingProvider, Manga, MangaPageResult, Page, PageContext, Source,
-	alloc::{String, Vec},
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicListings, FilterValue, ImageRequestProvider,
+	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContext, Source,
+	alloc::{String, Vec, vec},
 	imports::error::Result,
 	imports::net::Request,
 	register_source,
@@ -48,9 +48,34 @@ impl ListingProvider for Webtoon {
 	}
 }
 
+impl DynamicListings for Webtoon {
+	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
+		if !helper::get_canvas_series() {
+			return Ok(Vec::new());
+		}
+		Ok(vec![
+			Listing {
+				id: String::from("canvas_latest"),
+				name: String::from("Canvas Latest"),
+				..Default::default()
+			},
+			Listing {
+				id: String::from("canvas_popular"),
+				name: String::from("Canvas Popular"),
+				..Default::default()
+			},
+			Listing {
+				id: String::from("canvas_top"),
+				name: String::from("Canvas Top"),
+				..Default::default()
+			},
+		])
+	}
+}
+
 impl ImageRequestProvider for Webtoon {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-		parser::parse_image_request(url)
+		parser::get_image_request(url)
 	}
 }
 
@@ -63,6 +88,7 @@ impl DeepLinkHandler for Webtoon {
 register_source!(
 	Webtoon,
 	ListingProvider,
+	DynamicListings,
 	ImageRequestProvider,
 	DeepLinkHandler
 );

@@ -15,7 +15,8 @@
 				"key": "canvasSeries",
 				"title": "Show Canvas Series",
 				"subtitle": "Canvas series are published by independent creators",
-				"default": true
+				"default": true,
+				"refreshes": ["listings"]
 			}
 		]
 	}

@@ -13,7 +13,7 @@ pub fn get_lang_code() -> String {
 		if let Some(lang) = langs.first() {
 			return match lang.as_str() {
 				"zh-Hant" => String::from("zh-hant"),
-				_ => lang,
+				_ => lang.clone(),
 			};
 		}
 	}
