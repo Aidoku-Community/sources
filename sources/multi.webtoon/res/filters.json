@@ -29,9 +29,9 @@
 			"fantasy",
 			"comedy",
 			"action",
-			"slice",
+			"slice_of_life",
 			"romance",
-			"super",
+			"super_hero",
 			"sf",
 			"thriller",
 			"supernatural",
@@ -40,7 +40,7 @@
 			"historical",
 			"heartwarming",
 			"horror",
-			"graphic",
+			"graphic_novel",
 			"tiptoon"
 		]
 	},
