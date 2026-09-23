@@ -497,46 +497,46 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 	let lang = get_lang_code();
 	let mut chapters = Vec::new();
 
-	if let Some(result_data) = api_response.result {
-		if let Some(episode_list) = result_data.episode_list {
-			for episode in episode_list.into_iter().rev() {
-				let viewer_link = episode.viewer_link.unwrap_or_default();
-				let chapter_id = get_chapter_id(&viewer_link);
-				if chapter_id.is_empty() {
-					continue;
-				}
-
-				let raw_title = episode.episode_title.unwrap_or_default();
-				let (title, volume_number) = clean_episode_title(&raw_title);
-
-				let full_chapter_url = if viewer_link.starts_with("http") {
-					viewer_link
-				} else {
-					format!("{BASE_URL_DESKTOP}{viewer_link}")
-				};
-
-				let date_uploaded = episode.exposure_date_millis.map(|ms| ms / 1000);
-
-				let thumbnail = episode.thumbnail.map(|t| {
-					if t.starts_with("http") {
-						t
-					} else {
-						format!("https://webtoon-phinf.pstatic.net{t}")
-					}
-				});
-
-				chapters.push(Chapter {
-					key: chapter_id,
-					title,
-					volume_number,
-					chapter_number: Some(episode.episode_no),
-					date_uploaded,
-					url: Some(full_chapter_url),
-					thumbnail,
-					language: Some(lang.clone()),
-					..Default::default()
-				});
+	if let Some(result_data) = api_response.result
+		&& let Some(episode_list) = result_data.episode_list
+	{
+		for episode in episode_list.into_iter().rev() {
+			let viewer_link = episode.viewer_link.unwrap_or_default();
+			let chapter_id = get_chapter_id(&viewer_link);
+			if chapter_id.is_empty() {
+				continue;
 			}
+
+			let raw_title = episode.episode_title.unwrap_or_default();
+			let (title, volume_number) = clean_episode_title(&raw_title);
+
+			let full_chapter_url = if viewer_link.starts_with("http") {
+				viewer_link
+			} else {
+				format!("{BASE_URL_DESKTOP}{viewer_link}")
+			};
+
+			let date_uploaded = episode.exposure_date_millis.map(|ms| ms / 1000);
+
+			let thumbnail = episode.thumbnail.map(|t| {
+				if t.starts_with("http") {
+					t
+				} else {
+					format!("https://webtoon-phinf.pstatic.net{t}")
+				}
+			});
+
+			chapters.push(Chapter {
+				key: chapter_id,
+				title,
+				volume_number,
+				chapter_number: Some(episode.episode_no),
+				date_uploaded,
+				url: Some(full_chapter_url),
+				thumbnail,
+				language: Some(lang.clone()),
+				..Default::default()
+			});
 		}
 	}
 
