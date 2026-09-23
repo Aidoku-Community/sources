@@ -1,0 +1,62 @@
+[
+	{
+		"type": "select",
+		"id": "genre",
+		"title": "Genre",
+		"options": [
+			"All",
+			"Drama",
+			"Fantasy",
+			"Comedy",
+			"Action",
+			"Slice of Life",
+			"Romance",
+			"Superhero",
+			"Sci-Fi",
+			"Thriller",
+			"Supernatural",
+			"Mystery",
+			"Sports",
+			"Historical",
+			"Heartwarming",
+			"Horror",
+			"Graphic Novel",
+			"Informative"
+		],
+		"ids": [
+			"",
+			"drama",
+			"fantasy",
+			"comedy",
+			"action",
+			"slice",
+			"romance",
+			"super",
+			"sf",
+			"thriller",
+			"supernatural",
+			"mystery",
+			"sports",
+			"historical",
+			"heartwarming",
+			"horror",
+			"graphic",
+			"tiptoon"
+		]
+	},
+	{
+		"type": "select",
+		"id": "sort",
+		"title": "Sort",
+		"options": [
+			"Popularity",
+			"Likes",
+			"Update"
+		],
+		"ids": [
+			"MANA",
+			"LIKEIT",
+			"UPDATE"
+		]
+	}
+]

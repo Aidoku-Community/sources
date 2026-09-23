@@ -30,26 +30,97 @@ struct ApiEpisode {
 	viewer_link: Option<String>,
 	#[serde(rename = "exposureDateMillis")]
 	exposure_date_millis: Option<i64>,
+	thumbnail: Option<String>,
 }
 
 /// Parses search query or falls back to the default genres listing.
 pub fn parse_search_manga_list(
 	query: Option<String>,
 	page: i32,
-	_filters: Vec<FilterValue>,
+	filters: Vec<FilterValue>,
 ) -> Result<MangaPageResult> {
+	let base_url = get_base_url(false);
+
 	if let Some(ref q) = query {
 		let trimmed = q.trim();
 		if !trimmed.is_empty() {
 			let encoded = encode_uri_component(trimmed);
-			let base_url = get_base_url(false);
-			let url = format!("{base_url}/search?keyword={encoded}");
-			return parse_manga_list(&url, page);
+			let search_path = if get_canvas_series() {
+				"search"
+			} else {
+				"search/originals"
+			};
+			let url = format!("{base_url}/{search_path}?keyword={encoded}&page={page}");
+			return parse_search_results(&url);
 		}
 	}
 
-	let base_url = get_base_url(false);
-	parse_manga_list(&format!("{base_url}/genres"), page)
+	let mut genre = String::new();
+	let mut sort = "UPDATE";
+
+	for filter in filters {
+		if let FilterValue::Select { id, value } = filter {
+			if id == "genre" {
+				genre = value;
+			} else if id == "sort" {
+				sort = match value.as_str() {
+					"MANA" => "MANA",
+					"LIKEIT" => "LIKEIT",
+					_ => "UPDATE",
+				};
+			}
+		}
+	}
+
+	let url = if genre.is_empty() {
+		format!("{base_url}/genres?sortOrder={sort}")
+	} else {
+		format!("{base_url}/genres/{genre}?sortOrder={sort}")
+	};
+
+	parse_manga_list(&url, page)
+}
+
+/// Parses manga cards from search results with pagination.
+fn parse_search_results(url: &str) -> Result<MangaPageResult> {
+	let html = request(url, false)?.html()?;
+	let mut entries = Vec::new();
+
+	if let Some(items) = html.select("#content > div.webtoon_list_wrap ul > li > a") {
+		for node in items {
+			let href = node.attr("href").unwrap_or_default();
+			let id = get_manga_id(&href);
+			if id.is_empty() || entries.iter().any(|m: &Manga| m.key == id) {
+				continue;
+			}
+			let cover = node.select_first("img").and_then(|img| img.attr("src"));
+			let title = node
+				.select_first(".title")
+				.and_then(|t| t.text())
+				.unwrap_or_default();
+			let full_url = if href.starts_with("http") {
+				href
+			} else {
+				format!("{BASE_URL_DESKTOP}{href}")
+			};
+
+			entries.push(Manga {
+				key: id,
+				title,
+				cover,
+				url: Some(full_url),
+				viewer: Viewer::Webtoon,
+				content_rating: ContentRating::Safe,
+				..Default::default()
+			});
+		}
+	}
+
+	let has_next_page = !entries.is_empty();
+	Ok(MangaPageResult {
+		entries,
+		has_next_page,
+	})
 }
 
 /// Handles all listings registered in source.json and DynamicListings.
@@ -206,7 +277,7 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 	}
 
 	let title = html
-		.select_first("#content > div.cont_box > div.detail_header > div.info > .subj")
+		.select_first(".detail_header .subj, .challenge_header .subj, .info > .subj")
 		.and_then(|e| e.text())
 		.or_else(|| {
 			html.select_first("head meta[property=\"og:title\"]")
@@ -217,27 +288,29 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 	}
 
 	let author_raw = html
-		.select_first("#content > div.cont_box > div.detail_header > div.info > .author_area")
+		.select_first(".author_area")
 		.and_then(|e| e.text())
 		.unwrap_or_default()
 		.replace("author info", "");
-	let parts: Vec<&str> = author_raw
+	let parts: Vec<String> = author_raw
 		.split(',')
-		.map(|s| s.trim())
+		.map(|s| s.trim().trim_end_matches('.').trim())
 		.filter(|s| !s.is_empty())
+		.map(String::from)
 		.collect();
 
 	if !parts.is_empty() {
-		manga.authors = Some(vec![String::from(parts[0])]);
-	}
-	if parts.len() > 1 {
-		manga.artists = Some(vec![String::from(parts[1])]);
-	} else if let Some(ref authors) = manga.authors {
-		manga.artists = Some(authors.clone());
+		let first_author = parts[0].clone();
+		manga.authors = Some(vec![first_author]);
+		if parts.len() > 1 {
+			manga.artists = Some(parts.into_iter().skip(1).collect());
+		} else if let Some(ref authors) = manga.authors {
+			manga.artists = Some(authors.clone());
+		}
 	}
 
 	let desc = html
-		.select_first("#_asideDetail > .summary")
+		.select_first(".summary")
 		.and_then(|e| e.text())
 		.or_else(|| {
 			html.select_first("head meta[property=\"og:description\"]")
@@ -290,7 +363,7 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 
 	let mut tags = Vec::new();
 	if let Some(items) =
-		html.select("#content > div.cont_box > div.detail_header > div.info > .genre")
+		html.select(".detail_header .genre, .challenge_header .genre, .info > .genre")
 	{
 		for item in items {
 			if let Some(text) = item.text() {
@@ -307,7 +380,17 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 
 	manga.url = Some(url);
 	manga.viewer = Viewer::Webtoon;
-	manga.content_rating = ContentRating::Safe;
+	let is_mature = manga.tags.as_ref().is_some_and(|t| {
+		t.iter()
+			.any(|tag| tag == "Mature" || tag == "Horror" || tag == "Gore")
+	}) || html
+		.select_first("[data-title-unsuitable-for-children=\"true\"]")
+		.is_some();
+	manga.content_rating = if is_mature {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
+	};
 
 	Ok(manga)
 }
@@ -418,6 +501,14 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 
 				let date_uploaded = episode.exposure_date_millis.map(|ms| ms / 1000);
 
+				let thumbnail = episode.thumbnail.map(|t| {
+					if t.starts_with("http") {
+						t
+					} else {
+						format!("https://webtoon-phinf.pstatic.net{t}")
+					}
+				});
+
 				chapters.push(Chapter {
 					key: chapter_id,
 					title,
@@ -425,6 +516,7 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 					chapter_number: Some(episode.episode_no),
 					date_uploaded,
 					url: Some(full_chapter_url),
+					thumbnail,
 					language: Some(lang.clone()),
 					..Default::default()
 				});
