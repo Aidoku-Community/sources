@@ -163,7 +163,6 @@ version = "0.1.0"
 dependencies = [
  "aidoku",
  "serde",
- "serde_json",
 ]
 
 [[package]]

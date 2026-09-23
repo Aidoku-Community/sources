@@ -228,10 +228,7 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 		// Fallback to official API for metadata even when not logged in
 		let clean_id = manga.key.strip_suffix("-best").unwrap_or(&manga.key);
 		let api_url = format!("https://comic.naver.com/api/article/list/info?titleId={clean_id}");
-		if let Ok(req) = request(&api_url)
-			&& let Ok(res) = req.data()
-			&& let Ok(info) = serde_json::from_slice::<ApiArticleInfo>(&res)
-		{
+		if let Ok(info) = request(&api_url).and_then(|r| r.json_owned::<ApiArticleInfo>()) {
 			if let Some(name) = info.title_name {
 				manga.title = name;
 			}
