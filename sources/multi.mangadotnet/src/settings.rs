@@ -1,4 +1,4 @@
-use crate::LOGIN_COOKIE_KEY;
+use crate::{CLOUDFLARE_COOKIE_KEY, LOGIN_COOKIE_KEY};
 use aidoku::{
 	alloc::{string::String, vec, vec::Vec},
 	error,
@@ -12,7 +12,8 @@ const HIDE_NSFW_KEY: &str = "hideNSFW";
 const DEDUPED_CHAPTER_KEY: &str = "dedupedChapter";
 const SHOW_STANDALONE_VOLUME_KEY: &str = "showVolumes";
 
-const LOGIN_KEY: &str = "login";
+pub const LOGIN_KEY: &str = "login";
+pub const CLOUDFLARE_KEY: &str = "cloudflare";
 
 const DEDUPED_GROUP_KEY: &str = "deduplicateGroupList";
 pub const NOTIFICATION_RESET_DEDUPED_GROUP_KEY: &str = "resetDeduplicateGroupList";
@@ -38,6 +39,12 @@ pub fn show_standalone_volume() -> bool {
 
 pub fn get_login_cookie() -> Option<String> {
 	defaults_get_map(LOGIN_KEY)?.get(LOGIN_COOKIE_KEY).cloned()
+}
+
+pub fn get_cloudflare_cookie() -> Option<String> {
+	defaults_get_map(CLOUDFLARE_KEY)?
+		.get(CLOUDFLARE_COOKIE_KEY)
+		.cloned()
 }
 
 pub fn get_deduped_group_list() -> Vec<String> {

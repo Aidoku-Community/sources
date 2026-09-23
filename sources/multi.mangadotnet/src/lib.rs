@@ -600,10 +600,17 @@ impl NotificationHandler for Mangadotnet {
 }
 
 const LOGIN_COOKIE_KEY: &str = "ory_kratos_session";
+const CLOUDFLARE_COOKIE_KEY: &str = "cf_clearance";
 
 impl WebLoginHandler for Mangadotnet {
-	fn handle_web_login(&self, _key: String, cookies: HashMap<String, String>) -> Result<bool> {
-		Ok(cookies.contains_key(LOGIN_COOKIE_KEY))
+	fn handle_web_login(&self, key: String, cookies: HashMap<String, String>) -> Result<bool> {
+		if key == LOGIN_KEY {
+			Ok(cookies.contains_key(LOGIN_COOKIE_KEY))
+		} else if key == CLOUDFLARE_KEY {
+			Ok(cookies.contains_key(CLOUDFLARE_COOKIE_KEY))
+		} else {
+			Ok(false)
+		}
 	}
 }
 

@@ -139,5 +139,26 @@
 			}
 		],
 		"footer": "Content filters are applied to the home page and listings only."
+	},
+	{
+		"type": "group",
+		"title": "Experimental",
+		"items": [
+			{
+				"type": "login",
+				"method": "web",
+				"url": "https://mangadot.net",
+				"key": "cloudflare",
+				"title": "Resolve Cloudflare",
+				"logoutTitle": "Retry Resolve Cloudflare",
+				"notification": "cloudflare",
+				"clearCookiesOnLogOut": true,
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			}
+		],
+		"footer": "Use this button if you get stuck in infinite loop while solving captcha."
 	}
 ]
