@@ -58,7 +58,7 @@ pub fn parse_search_manga_list(
 	}
 
 	let mut genre: Option<String> = None;
-	let mut sort = "UPDATE";
+	let mut sort = "MANA";
 
 	for filter in filters {
 		match filter {
