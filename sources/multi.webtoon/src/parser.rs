@@ -116,7 +116,7 @@ fn parse_search_results(url: &str) -> Result<MangaPageResult> {
 		}
 	}
 
-	let has_next_page = !entries.is_empty();
+	let has_next_page = !entries.is_empty() && entries.len() >= 12;
 	Ok(MangaPageResult {
 		entries,
 		has_next_page,
@@ -400,14 +400,27 @@ fn clean_episode_title(raw_title: &str) -> (Option<String>, Option<f32>) {
 	let mut volume: Option<f32> = None;
 	let mut words: Vec<&str> = raw_title.split_whitespace().collect();
 
-	// Remove leading volume text and set volume accordingly: "(S1) Chapter 1 - ..."
+	// Remove leading volume text and set volume accordingly: "(S1) Chapter 1 - ..." or "S1 Chapter 1 - ..."
 	if !words.is_empty() {
 		let chars: Vec<char> = words[0].chars().collect();
 		if chars.len() >= 3
+			&& (chars[0] == '(' || chars[0] == '[')
 			&& (chars[1] == 'S' || chars[1] == 'T' || chars[1] == 's' || chars[1] == 't')
 			&& chars[2].is_ascii_digit()
 		{
 			let digits: String = chars[2..]
+				.iter()
+				.take_while(|c| c.is_ascii_digit())
+				.collect();
+			if let Ok(v) = digits.parse::<f32>() {
+				volume = Some(v);
+				words.remove(0);
+			}
+		} else if chars.len() >= 2
+			&& (chars[0] == 'S' || chars[0] == 's')
+			&& chars[1].is_ascii_digit()
+		{
+			let digits: String = chars[1..]
 				.iter()
 				.take_while(|c| c.is_ascii_digit())
 				.collect();
@@ -426,9 +439,12 @@ fn clean_episode_title(raw_title: &str) -> (Option<String>, Option<f32>) {
 		}
 	}
 
-	// Remove leading season text: "[Season 1] Chapter 1 - ..."
-	if words.len() >= 2 && words[0] == "[Season" && words[1].ends_with(']') {
-		let season_str = words[1].trim_end_matches(']');
+	// Remove leading season text: "[Season 1] Chapter 1 - ..." or "(Season 1) Chapter 1 - ..."
+	if words.len() >= 2
+		&& (words[0] == "[Season" && words[1].ends_with(']')
+			|| words[0] == "(Season" && words[1].ends_with(')'))
+	{
+		let season_str = words[1].trim_end_matches([']', ')']);
 		if let Ok(v) = season_str.parse::<f32>() {
 			volume = Some(v);
 			words.remove(0);
