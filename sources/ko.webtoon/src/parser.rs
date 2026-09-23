@@ -59,10 +59,10 @@ fn parse_manga_cards(html: &aidoku::imports::html::Document) -> Vec<Manga> {
 
 			// If entry already exists, upgrade low-res cover (IMAG19)
 			if let Some(existing) = mangas.iter_mut().find(|m| m.key == id) {
-				if let Some(ref c) = cover {
-					if !c.contains("IMAG19") {
-						existing.cover = cover;
-					}
+				if let Some(ref c) = cover
+					&& !c.contains("IMAG19")
+				{
+					existing.cover = cover;
 				}
 				continue;
 			}
@@ -170,14 +170,14 @@ pub fn parse_search_manga_list(
 	};
 
 	for filter in &filters {
-		if let FilterValue::Select { id, value } = filter {
-			if id == "searchType" {
-				match value.as_str() {
-					"WEBTOON" => search_type = "WEBTOON",
-					"BEST_CHALLENGE" => search_type = "BEST_CHALLENGE",
-					"ALL" => search_type = "ALL",
-					_ => {}
-				}
+		if let FilterValue::Select { id, value } = filter
+			&& id == "searchType"
+		{
+			match value.as_str() {
+				"WEBTOON" => search_type = "WEBTOON",
+				"BEST_CHALLENGE" => search_type = "BEST_CHALLENGE",
+				"ALL" => search_type = "ALL",
+				_ => {}
 			}
 		}
 	}
@@ -252,59 +252,58 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 		// Fallback to official API for metadata even when not logged in
 		let clean_id = manga.key.strip_suffix("-best").unwrap_or(&manga.key);
 		let api_url = format!("https://comic.naver.com/api/article/list/info?titleId={clean_id}");
-		if let Ok(req) = request(&api_url) {
-			if let Ok(res) = req.data() {
-				if let Ok(info) = serde_json::from_slice::<ApiArticleInfo>(&res) {
-					if let Some(name) = info.title_name {
-						manga.title = name;
-					}
-					if let Some(cover) = info.poster_thumbnail_url.or(info.thumbnail_url) {
-						manga.cover = Some(cover);
-					}
-					if let Some(desc) = info.synopsis {
-						manga.description = Some(desc);
-					}
-					if let Some(author) = info.display_author {
-						let authors: Vec<String> = author
-							.split(['/', ','])
-							.map(|s| String::from(s.trim()))
-							.filter(|s| !s.is_empty())
-							.collect();
-						if !authors.is_empty() {
-							manga.artists = Some(authors.clone());
-							manga.authors = Some(authors);
-						}
-					} else if let Some(artists) = info.community_artists {
-						let authors: Vec<String> = artists
-							.into_iter()
-							.filter_map(|a| a.name)
-							.map(|s| String::from(s.trim()))
-							.filter(|s| !s.is_empty())
-							.collect();
-						if !authors.is_empty() {
-							manga.artists = Some(authors.clone());
-							manga.authors = Some(authors);
-						}
-					}
-					if let Some(tags) = info.curation_tag_list {
-						let tag_names: Vec<String> = tags
-							.into_iter()
-							.filter_map(|t| t.tag_name)
-							.filter(|s| !s.trim().is_empty())
-							.collect();
-						if !tag_names.is_empty() {
-							manga.tags = Some(tag_names);
-						}
-					}
-					manga.status = if info.finished.unwrap_or(false) {
-						MangaStatus::Completed
-					} else if info.rest.unwrap_or(false) {
-						MangaStatus::Hiatus
-					} else {
-						MangaStatus::Ongoing
-					};
+		if let Ok(req) = request(&api_url)
+			&& let Ok(res) = req.data()
+			&& let Ok(info) = serde_json::from_slice::<ApiArticleInfo>(&res)
+		{
+			if let Some(name) = info.title_name {
+				manga.title = name;
+			}
+			if let Some(cover) = info.poster_thumbnail_url.or(info.thumbnail_url) {
+				manga.cover = Some(cover);
+			}
+			if let Some(desc) = info.synopsis {
+				manga.description = Some(desc);
+			}
+			if let Some(author) = info.display_author {
+				let authors: Vec<String> = author
+					.split(['/', ','])
+					.map(|s| String::from(s.trim()))
+					.filter(|s| !s.is_empty())
+					.collect();
+				if !authors.is_empty() {
+					manga.artists = Some(authors.clone());
+					manga.authors = Some(authors);
+				}
+			} else if let Some(artists) = info.community_artists {
+				let authors: Vec<String> = artists
+					.into_iter()
+					.filter_map(|a| a.name)
+					.map(|s| String::from(s.trim()))
+					.filter(|s| !s.is_empty())
+					.collect();
+				if !authors.is_empty() {
+					manga.artists = Some(authors.clone());
+					manga.authors = Some(authors);
 				}
 			}
+			if let Some(tags) = info.curation_tag_list {
+				let tag_names: Vec<String> = tags
+					.into_iter()
+					.filter_map(|t| t.tag_name)
+					.filter(|s| !s.trim().is_empty())
+					.collect();
+				if !tag_names.is_empty() {
+					manga.tags = Some(tag_names);
+				}
+			}
+			manga.status = if info.finished.unwrap_or(false) {
+				MangaStatus::Completed
+			} else if info.rest.unwrap_or(false) {
+				MangaStatus::Hiatus
+			} else {
+				MangaStatus::Ongoing
+			};
 		}
 
 		if manga.description.is_none() {
@@ -669,10 +668,10 @@ pub fn get_image_request(url: String) -> Result<Request> {
 	let mut req = Request::get(&url)?
 		.header("Referer", "https://comic.naver.com/")
 		.header("User-Agent", USER_AGENT);
-	if is_trusted_cookie_host(&url) {
-		if let Some(cookie_str) = crate::auth::get_cookie_header() {
-			req = req.header("Cookie", &cookie_str);
-		}
+	if is_trusted_cookie_host(&url)
+		&& let Some(cookie_str) = crate::auth::get_cookie_header()
+	{
+		req = req.header("Cookie", &cookie_str);
 	}
 	Ok(req)
 }
@@ -700,22 +699,22 @@ pub fn parse_home() -> Result<HomeLayout> {
 
 	// 1. 오늘의 웹툰 (Today's Webtoons from /webtoon/weekday)
 	let today_url = format!("{BASE_URL}/webtoon/weekday");
-	if let Ok(req) = request(&today_url) {
-		if let Ok(html) = req.html() {
-			let today_entries: Vec<Link> = parse_manga_cards(&html)
-				.into_iter()
-				.map(Into::into)
-				.collect();
-			if !today_entries.is_empty() {
-				components.push(HomeComponent {
-					title: Some(String::from("오늘의 웹툰")),
-					subtitle: None,
-					value: HomeComponentValue::Scroller {
-						entries: today_entries,
-						listing: None,
-					},
-				});
-			}
+	if let Ok(req) = request(&today_url)
+		&& let Ok(html) = req.html()
+	{
+		let today_entries: Vec<Link> = parse_manga_cards(&html)
+			.into_iter()
+			.map(Into::into)
+			.collect();
+		if !today_entries.is_empty() {
+			components.push(HomeComponent {
+				title: Some(String::from("오늘의 웹툰")),
+				subtitle: None,
+				value: HomeComponentValue::Scroller {
+					entries: today_entries,
+					listing: None,
+				},
+			});
 		}
 	}
 
