@@ -3,7 +3,7 @@ use aidoku::{
 	MangaStatus, Page, PageContent, Result, Viewer,
 	alloc::{String, Vec, format, vec},
 	helpers::uri::encode_uri_component,
-	imports::{net::Request, std::send_partial_result},
+	imports::{error::AidokuError, net::Request, std::send_partial_result},
 };
 use serde::Deserialize;
 
@@ -288,12 +288,12 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 	}
 
 	let author_raw = html
-		.select_first(".author_area")
+		.select_first(".author_area, .author")
 		.and_then(|e| e.text())
 		.unwrap_or_default()
 		.replace("author info", "");
 	let parts: Vec<String> = author_raw
-		.split(',')
+		.split([',', '/'])
 		.map(|s| s.trim().trim_end_matches('.').trim())
 		.filter(|s| !s.is_empty())
 		.map(String::from)
@@ -537,8 +537,11 @@ pub fn parse_page_list(manga_key: &str, chapter_key: &str) -> Result<Vec<Page>> 
 
 	if let Some(imgs) = html.select("div#_imageList > img") {
 		for img in imgs {
-			let img_url = img.attr("data-url").unwrap_or_default();
-			if img_url.is_empty() {
+			let mut img_url = img.attr("data-url").unwrap_or_default();
+			if img_url.is_empty() || img_url.contains("bg_transparency.png") {
+				img_url = img.attr("src").unwrap_or_default();
+			}
+			if img_url.is_empty() || img_url.contains("bg_transparency.png") {
 				continue;
 			}
 			if img_url.ends_with("?type=opti") && !optional_pages {
@@ -549,6 +552,10 @@ pub fn parse_page_list(manga_key: &str, chapter_key: &str) -> Result<Vec<Page>> 
 				..Default::default()
 			});
 		}
+	}
+
+	if pages.is_empty() {
+		return Err(AidokuError::message("No pages found"));
 	}
 
 	Ok(pages)

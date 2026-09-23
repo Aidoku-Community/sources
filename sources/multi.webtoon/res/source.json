@@ -3,7 +3,6 @@
 		"id": "multi.webtoon",
 		"name": "WEBTOON",
 		"version": 4,
-		"url": "https://www.webtoons.com",
 		"urls": [
 			"https://www.webtoons.com",
 			"https://m.webtoons.com"
