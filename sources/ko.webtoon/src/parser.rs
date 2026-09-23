@@ -65,12 +65,13 @@ fn parse_manga_cards(html: &aidoku::imports::html::Document) -> Vec<Manga> {
 				.select_first("strong")
 				.and_then(|e| e.text())
 				.unwrap_or_default();
-			if title.is_empty() {
+			if title.trim().is_empty() {
 				title = node
 					.select_first(".title")
 					.and_then(|e| e.text())
 					.unwrap_or_default();
 			}
+			let title = String::from(title.trim());
 
 			let full_url = if href.starts_with("http") {
 				href
@@ -115,7 +116,7 @@ fn parse_finish_list(page: i32, sort: &str) -> Result<MangaPageResult> {
 	let next_btn = html.select_first("a.btn_next");
 	let has_next_page = if let Some(btn) = next_btn {
 		let href = btn.attr("href").unwrap_or_default();
-		!btn.has_class("disabled") && !href.is_empty() && href != "#"
+		!entries.is_empty() && !btn.has_class("disabled") && !href.is_empty() && href != "#"
 	} else {
 		false
 	};
@@ -139,7 +140,7 @@ fn parse_best_challenge_list(page: i32) -> Result<MangaPageResult> {
 	let next_btn = html.select_first("a.btn_next");
 	let has_next_page = if let Some(btn) = next_btn {
 		let href = btn.attr("href").unwrap_or_default();
-		!btn.has_class("disabled") && !href.is_empty() && href != "#"
+		!entries.is_empty() && !btn.has_class("disabled") && !href.is_empty() && href != "#"
 	} else {
 		false
 	};
@@ -294,7 +295,11 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 				"로그인이 필요한 작품입니다. 소스 설정에서 네이버 로그인을 완료해주세요.",
 			));
 		}
-		if manga.tags.is_none() {
+		if let Some(ref mut tags) = manga.tags {
+			if !tags.iter().any(|t| t == "성인") {
+				tags.push(String::from("성인"));
+			}
+		} else {
 			manga.tags = Some(vec![String::from("성인")]);
 		}
 
@@ -331,8 +336,15 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 		.select_first(".author, .info_area .author, .writer, .info .author_area")
 		.and_then(|e| e.text());
 	if let Some(a) = author {
-		manga.authors = Some(vec![a]);
-		manga.artists = manga.authors.clone();
+		let authors: Vec<String> = a
+			.split(['/', ','])
+			.map(|s| String::from(s.trim()))
+			.filter(|s| !s.is_empty())
+			.collect();
+		if !authors.is_empty() {
+			manga.artists = Some(authors.clone());
+			manga.authors = Some(authors);
+		}
 	}
 
 	let mut tags: Vec<String> = Vec::new();
@@ -449,15 +461,17 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 				.select_first(".name")
 				.and_then(|e| e.text())
 				.unwrap_or_default();
-			if raw_title.is_empty() {
+			if raw_title.trim().is_empty() {
 				raw_title = node
 					.select_first("strong.title, .title")
 					.and_then(|e| e.text())
 					.unwrap_or_default();
 			}
-			if raw_title.is_empty() {
-				raw_title = format!("{chapter_id}화");
-			}
+			let raw_title = if raw_title.trim().is_empty() {
+				format!("{chapter_id}화")
+			} else {
+				String::from(raw_title.trim())
+			};
 
 			let fallback_no = chapter_id.parse::<f32>().unwrap_or(-1.0);
 			let chapter_num = extract_chapter_number(&raw_title, fallback_no);
@@ -485,7 +499,7 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 			chapters.push(Chapter {
 				key: chapter_id,
 				title: Some(title),
-				chapter_number: Some(chapter_num),
+				chapter_number: (chapter_num >= 0.0).then_some(chapter_num),
 				date_uploaded,
 				url: Some(full_chapter_url),
 				language: Some(String::from("ko")),
@@ -604,7 +618,18 @@ pub fn parse_page_list(manga_id: &str, chapter_id: &str) -> Result<Vec<Page>> {
 const TRUSTED_COOKIE_HOSTS: &[&str] = &["comic.naver.com", "m.comic.naver.com"];
 
 fn is_trusted_cookie_host(url: &str) -> bool {
-	TRUSTED_COOKIE_HOSTS.iter().any(|&host| url.contains(host))
+	let after_scheme = if let Some(stripped) = url.strip_prefix("https://") {
+		stripped
+	} else if let Some(stripped) = url.strip_prefix("http://") {
+		stripped
+	} else {
+		return false;
+	};
+	let host = after_scheme
+		.split(['/', '?', '#', ':'])
+		.next()
+		.unwrap_or("");
+	TRUSTED_COOKIE_HOSTS.contains(&host)
 }
 
 /// Handles image request modification (injected Referer + User-Agent + Cookie for trusted hosts)

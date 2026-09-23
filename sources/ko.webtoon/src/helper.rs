@@ -22,7 +22,7 @@ pub fn request(url: &str) -> Result<Request> {
 pub fn get_title_id(url: &str) -> String {
 	if let Some(pos) = url.find("titleId=") {
 		let after = &url[pos + 8..];
-		let id_str = after.split('&').next().unwrap_or(after);
+		let id_str = after.split(['&', '#']).next().unwrap_or(after);
 		if url.contains("bestChallenge") {
 			format!("{id_str}-best")
 		} else {

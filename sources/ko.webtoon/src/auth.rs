@@ -72,28 +72,27 @@ pub fn is_logged_in() -> bool {
 
 /// Retrieve formatted Cookie header string (prioritizes fast cached string, falls back to map)
 pub fn get_cookie_header() -> Option<String> {
+	if !is_logged_in() {
+		return None;
+	}
 	if let Some(cookie_str) = defaults_get::<String>(COOKIE_KEY).filter(|s| !s.trim().is_empty()) {
 		return Some(cookie_str);
 	}
 	if let Some(map) = defaults_get_map(LOGIN_KEY) {
-		let has_auth = map.get("NID_AUT").is_some_and(|v| !v.trim().is_empty())
-			&& map.get("NID_SES").is_some_and(|v| !v.trim().is_empty());
-		if has_auth {
-			let mut header = String::new();
-			for (k, v) in map.iter() {
-				if v.trim().is_empty() {
-					continue;
-				}
-				if !header.is_empty() {
-					header.push_str("; ");
-				}
-				header.push_str(k);
-				header.push('=');
-				header.push_str(v);
+		let mut header = String::new();
+		for (k, v) in map.iter() {
+			if v.trim().is_empty() {
+				continue;
 			}
 			if !header.is_empty() {
-				return Some(header);
+				header.push_str("; ");
 			}
+			header.push_str(k);
+			header.push('=');
+			header.push_str(v);
+		}
+		if !header.is_empty() {
+			return Some(header);
 		}
 	}
 	None
