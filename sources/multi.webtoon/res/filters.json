@@ -3,6 +3,7 @@
 		"type": "select",
 		"id": "genre",
 		"title": "Genre",
+		"isGenre": true,
 		"options": [
 			"All",
 			"Drama",
@@ -45,18 +46,17 @@
 		]
 	},
 	{
-		"type": "select",
+		"type": "sort",
 		"id": "sort",
-		"title": "Sort",
+		"canAscend": false,
 		"options": [
 			"Popularity",
 			"Likes",
 			"Update"
 		],
-		"ids": [
-			"MANA",
-			"LIKEIT",
-			"UPDATE"
-		]
+		"default": {
+			"index": 0,
+			"ascending": false
+		}
 	}
 ]

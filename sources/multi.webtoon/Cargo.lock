@@ -334,8 +334,8 @@ name = "webtoon"
 version = "0.1.0"
 dependencies = [
  "aidoku",
+ "hashbrown",
  "serde",
- "serde_json",
 ]
 
 [[package]]

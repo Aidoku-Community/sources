@@ -2,9 +2,11 @@ use aidoku::{
 	Chapter, ContentRating, DeepLinkResult, FilterValue, Listing, Manga, MangaPageResult,
 	MangaStatus, Page, PageContent, Result, Viewer,
 	alloc::{String, Vec, format, vec},
+	bail,
 	helpers::uri::encode_uri_component,
-	imports::{error::AidokuError, net::Request, std::send_partial_result},
+	imports::{net::Request, std::send_partial_result},
 };
+use hashbrown::HashSet;
 use serde::Deserialize;
 
 use crate::helper::*;
@@ -55,42 +57,47 @@ pub fn parse_search_manga_list(
 		}
 	}
 
-	let mut genre = String::new();
+	let mut genre: Option<String> = None;
 	let mut sort = "UPDATE";
 
 	for filter in filters {
-		if let FilterValue::Select { id, value } = filter {
-			if id == "genre" {
-				genre = value;
-			} else if id == "sort" {
-				sort = match value.as_str() {
-					"MANA" => "MANA",
-					"LIKEIT" => "LIKEIT",
+		match filter {
+			FilterValue::Select { id, value } if id == "genre" && !value.is_empty() => {
+				genre = Some(value);
+			}
+			FilterValue::Sort { index, .. } => {
+				sort = match index {
+					0 => "MANA",
+					1 => "LIKEIT",
 					_ => "UPDATE",
 				};
 			}
+			_ => {}
 		}
 	}
 
-	let url = if genre.is_empty() {
-		format!("{base_url}/genres?sortOrder={sort}")
+	let url = if let Some(ref g) = genre {
+		format!("{base_url}/genres/{g}?sortOrder={sort}")
 	} else {
-		format!("{base_url}/genres/{genre}?sortOrder={sort}")
+		format!("{base_url}/genres?sortOrder={sort}")
 	};
 
-	parse_manga_list(&url, page)
+	parse_manga_list(&url)
 }
 
 /// Parses manga cards from search results with pagination.
 fn parse_search_results(url: &str) -> Result<MangaPageResult> {
 	let html = request(url, false)?.html()?;
 	let mut entries = Vec::new();
+	let mut seen = HashSet::new();
 
 	if let Some(items) = html.select("#content > div.webtoon_list_wrap ul > li > a") {
 		for node in items {
 			let href = node.attr("href").unwrap_or_default();
-			let id = get_manga_id(&href);
-			if id.is_empty() || entries.iter().any(|m: &Manga| m.key == id) {
+			let Some(id) = get_manga_id(&href) else {
+				continue;
+			};
+			if !seen.insert(id.clone()) {
 				continue;
 			}
 			let cover = node.select_first("img").and_then(|img| img.attr("src"));
@@ -127,9 +134,9 @@ fn parse_search_results(url: &str) -> Result<MangaPageResult> {
 pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 	let base_url = get_base_url(false);
 	match listing.id.as_str() {
-		"latest" => parse_manga_list(&format!("{base_url}/genres?sortOrder=UPDATE"), page),
-		"popular" => parse_manga_list(&format!("{base_url}/genres?sortOrder=MANA"), page),
-		"top" => parse_manga_list(&format!("{base_url}/genres?sortOrder=LIKEIT"), page),
+		"latest" => parse_manga_list(&format!("{base_url}/genres?sortOrder=UPDATE")),
+		"popular" => parse_manga_list(&format!("{base_url}/genres?sortOrder=MANA")),
+		"top" => parse_manga_list(&format!("{base_url}/genres?sortOrder=LIKEIT")),
 		"canvas_latest" => parse_canvas_list(
 			&format!("{base_url}/canvas/list?genreTab=ALL&sortOrder=UPDATE"),
 			page,
@@ -142,24 +149,23 @@ pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResul
 			&format!("{base_url}/canvas/list?genreTab=ALL&sortOrder=LIKEIT"),
 			page,
 		),
-		_ => parse_manga_list(&format!("{base_url}/genres"), page),
+		_ => parse_manga_list(&format!("{base_url}/genres")),
 	}
 }
 
 /// Parses manga cards from originals list or search results.
-pub fn parse_manga_list(url: &str, page: i32) -> Result<MangaPageResult> {
-	if page > 1 {
-		return Ok(MangaPageResult::default());
-	}
-
+pub fn parse_manga_list(url: &str) -> Result<MangaPageResult> {
 	let html = request(url, false)?.html()?;
 	let mut entries = Vec::new();
+	let mut seen = HashSet::new();
 
 	if let Some(items) = html.select("#content > div.webtoon_list_wrap ul > li > a") {
 		for node in items {
 			let href = node.attr("href").unwrap_or_default();
-			let id = get_manga_id(&href);
-			if id.is_empty() || entries.iter().any(|m: &Manga| m.key == id) {
+			let Some(id) = get_manga_id(&href) else {
+				continue;
+			};
+			if !seen.insert(id.clone()) {
 				continue;
 			}
 			let cover = node.select_first("img").and_then(|img| img.attr("src"));
@@ -200,12 +206,15 @@ pub fn parse_canvas_list(url: &str, page: i32) -> Result<MangaPageResult> {
 	let paged_url = format!("{url}&page={page}");
 	let html = request(&paged_url, false)?.html()?;
 	let mut entries = Vec::new();
+	let mut seen = HashSet::new();
 
 	if let Some(items) = html.select("#content div.challenge_lst > ul > li > a") {
 		for node in items {
 			let href = node.attr("href").unwrap_or_default();
-			let id = get_manga_id(&href);
-			if id.is_empty() || entries.iter().any(|m: &Manga| m.key == id) {
+			let Some(id) = get_manga_id(&href) else {
+				continue;
+			};
+			if !seen.insert(id.clone()) {
 				continue;
 			}
 			let cover = node.select_first("img").and_then(|img| img.attr("src"));
@@ -491,8 +500,7 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 		format!("{base_url}/api/v1/webtoon/{manga_id}/episodes?pageSize=100000")
 	};
 
-	let res = request(&api_url, true)?.data()?;
-	let api_response: ApiResponse = serde_json::from_slice(&res)?;
+	let api_response: ApiResponse = request(&api_url, true)?.json_owned()?;
 
 	let lang = get_lang_code();
 	let mut chapters = Vec::new();
@@ -502,10 +510,9 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 	{
 		for episode in episode_list.into_iter().rev() {
 			let viewer_link = episode.viewer_link.unwrap_or_default();
-			let chapter_id = get_chapter_id(&viewer_link);
-			if chapter_id.is_empty() {
+			let Some(chapter_id) = get_chapter_id(&viewer_link) else {
 				continue;
-			}
+			};
 
 			let raw_title = episode.episode_title.unwrap_or_default();
 			let (title, volume_number) = clean_episode_title(&raw_title);
@@ -571,7 +578,7 @@ pub fn parse_page_list(manga_key: &str, chapter_key: &str) -> Result<Vec<Page>> 
 	}
 
 	if pages.is_empty() {
-		return Err(AidokuError::message("No pages found"));
+		bail!("No pages found");
 	}
 
 	Ok(pages)
@@ -586,12 +593,10 @@ pub fn get_image_request(url: String) -> Result<Request> {
 
 /// Handles deep linking for webtoons.com URLs.
 pub fn parse_deep_link(url: &str) -> Result<Option<DeepLinkResult>> {
-	let manga_key = get_manga_id(url);
-	if manga_key.is_empty() {
+	let Some(manga_key) = get_manga_id(url) else {
 		return Ok(None);
-	}
-	let chapter_key = get_chapter_id(url);
-	if !chapter_key.is_empty() {
+	};
+	if let Some(chapter_key) = get_chapter_id(url) {
 		Ok(Some(DeepLinkResult::Chapter {
 			manga_key,
 			key: chapter_key,
