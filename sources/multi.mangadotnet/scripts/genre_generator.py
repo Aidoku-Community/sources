@@ -37,7 +37,8 @@ with requests.Session() as mangadot_session:
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:156.0) Gecko/20100101 Firefox/156.0',
     })
     cookies: Dict[str, str] = {
-        'cf_clearance': ''
+        'cf_clearance': '',
+        'ory_kratos_session': ''
     }
     mangadot_session.cookies.update(cookies)
 
