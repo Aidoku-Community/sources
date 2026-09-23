@@ -134,6 +134,7 @@ fn parse_search_results(url: &str) -> Result<MangaPageResult> {
 pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 	let base_url = get_base_url(false);
 	match listing.id.as_str() {
+		"latest" | "popular" | "top" if page > 1 => Ok(MangaPageResult::default()),
 		"latest" => parse_manga_list(&format!("{base_url}/genres?sortOrder=UPDATE")),
 		"popular" => parse_manga_list(&format!("{base_url}/genres?sortOrder=MANA")),
 		"top" => parse_manga_list(&format!("{base_url}/genres?sortOrder=LIKEIT")),
@@ -149,7 +150,13 @@ pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResul
 			&format!("{base_url}/canvas/list?genreTab=ALL&sortOrder=LIKEIT"),
 			page,
 		),
-		_ => parse_manga_list(&format!("{base_url}/genres")),
+		_ => {
+			if page > 1 {
+				Ok(MangaPageResult::default())
+			} else {
+				parse_manga_list(&format!("{base_url}/genres"))
+			}
+		}
 	}
 }
 
@@ -407,11 +414,12 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 /// Cleans episode titles to extract optional volume number and stripped title.
 fn clean_episode_title(raw_title: &str) -> (Option<String>, Option<f32>) {
 	let mut volume: Option<f32> = None;
-	let mut words: Vec<&str> = raw_title.split_whitespace().collect();
+	let words: Vec<&str> = raw_title.split_whitespace().collect();
+	let mut start = 0;
 
 	// Remove leading volume text and set volume accordingly: "(S1) Chapter 1 - ..." or "S1 Chapter 1 - ..."
-	if !words.is_empty() {
-		let chars: Vec<char> = words[0].chars().collect();
+	if words.len() > start {
+		let chars: Vec<char> = words[start].chars().collect();
 		if chars.len() >= 3
 			&& (chars[0] == '(' || chars[0] == '[')
 			&& (chars[1] == 'S' || chars[1] == 'T' || chars[1] == 's' || chars[1] == 't')
@@ -423,7 +431,7 @@ fn clean_episode_title(raw_title: &str) -> (Option<String>, Option<f32>) {
 				.collect();
 			if let Ok(v) = digits.parse::<f32>() {
 				volume = Some(v);
-				words.remove(0);
+				start += 1;
 			}
 		} else if chars.len() >= 2
 			&& (chars[0] == 'S' || chars[0] == 's')
@@ -435,7 +443,7 @@ fn clean_episode_title(raw_title: &str) -> (Option<String>, Option<f32>) {
 				.collect();
 			if let Ok(v) = digits.parse::<f32>() {
 				volume = Some(v);
-				words.remove(0);
+				start += 1;
 			}
 		} else if chars.len() >= 4
 			&& chars[0] == 'E'
@@ -444,44 +452,43 @@ fn clean_episode_title(raw_title: &str) -> (Option<String>, Option<f32>) {
 			&& chars[3..].iter().all(|c| c.is_ascii_digit())
 		{
 			// Remove leading episode text: "Ep.1 - ..."
-			words.remove(0);
+			start += 1;
 		}
 	}
 
 	// Remove leading season text: "[Season 1] Chapter 1 - ..." or "(Season 1) Chapter 1 - ..."
-	if words.len() >= 2
-		&& (words[0] == "[Season" && words[1].ends_with(']')
-			|| words[0] == "(Season" && words[1].ends_with(')'))
+	if words.len() - start >= 2
+		&& (words[start] == "[Season" && words[start + 1].ends_with(']')
+			|| words[start] == "(Season" && words[start + 1].ends_with(')'))
 	{
-		let season_str = words[1].trim_end_matches([']', ')']);
+		let season_str = words[start + 1].trim_end_matches([']', ')']);
 		if let Ok(v) = season_str.parse::<f32>() {
 			volume = Some(v);
-			words.remove(0);
-			words.remove(0);
+			start += 2;
 		}
 	}
 
 	// Remove leading chapter/episode text
-	if words.len() >= 2 {
-		let first = words[0];
+	if words.len() - start >= 2 {
+		let first = words[start];
 		if matches!(
 			first,
 			"Chapter" | "Episode" | "Ch." | "CH." | "Ep." | "EP" | "EP."
 		) {
-			let clean_second = words[1].trim_end_matches(':');
+			let clean_second = words[start + 1].trim_end_matches(':');
 			if clean_second.parse::<f32>().is_ok() {
-				words.remove(0);
-				words.remove(0);
+				start += 2;
 			}
 		}
 	}
 
 	// Remove leading punctuation symbols
-	if !words.is_empty() && (words[0] == "-" || words[0] == ":") {
-		words.remove(0);
+	if words.len() > start && (words[start] == "-" || words[start] == ":") {
+		start += 1;
 	}
 
-	let title_str = words.join(" ");
+	let remaining = &words[start..];
+	let title_str = remaining.join(" ");
 	let title = if title_str.is_empty() {
 		None
 	} else {

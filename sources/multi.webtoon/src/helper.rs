@@ -67,34 +67,24 @@ fn get_param<'a>(url: &'a str, param: &str) -> Option<&'a str> {
 	if val.is_empty() { None } else { Some(val) }
 }
 
+fn format_id(url: &str, val: &str) -> String {
+	if (url.contains("canvas") || url.contains("challenge")) && !val.ends_with("-canvas") {
+		format!("{val}-canvas")
+	} else {
+		String::from(val)
+	}
+}
+
 /// Returns the ID of a manga from a URL.
 pub fn get_manga_id(url: &str) -> Option<String> {
 	let val = get_param(url, "title_no=").or_else(|| get_param(url, "titleNo="))?;
-
-	if url.contains("canvas") || url.contains("challenge") {
-		if !val.ends_with("-canvas") {
-			Some(format!("{val}-canvas"))
-		} else {
-			Some(String::from(val))
-		}
-	} else {
-		Some(String::from(val))
-	}
+	Some(format_id(url, val))
 }
 
 /// Returns the ID of a chapter from a URL.
 pub fn get_chapter_id(url: &str) -> Option<String> {
 	let val = get_param(url, "episode_no=").or_else(|| get_param(url, "episodeNo="))?;
-
-	if url.contains("canvas") || url.contains("challenge") {
-		if !val.ends_with("-canvas") {
-			Some(format!("{val}-canvas"))
-		} else {
-			Some(String::from(val))
-		}
-	} else {
-		Some(String::from(val))
-	}
+	Some(format_id(url, val))
 }
 
 /// Returns full URL of a manga from a manga ID.
