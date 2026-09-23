@@ -14,43 +14,35 @@
 	"listings": [
 		{
 			"id": "mon",
-			"name": "월요일",
-			"kind": 1
+			"name": "월요일"
 		},
 		{
 			"id": "tue",
-			"name": "화요일",
-			"kind": 1
+			"name": "화요일"
 		},
 		{
 			"id": "wed",
-			"name": "수요일",
-			"kind": 1
+			"name": "수요일"
 		},
 		{
 			"id": "thu",
-			"name": "목요일",
-			"kind": 1
+			"name": "목요일"
 		},
 		{
 			"id": "fri",
-			"name": "금요일",
-			"kind": 1
+			"name": "금요일"
 		},
 		{
 			"id": "sat",
-			"name": "토요일",
-			"kind": 1
+			"name": "토요일"
 		},
 		{
 			"id": "sun",
-			"name": "일요일",
-			"kind": 1
+			"name": "일요일"
 		},
 		{
 			"id": "completed",
-			"name": "완결",
-			"kind": 1
+			"name": "완결"
 		},
 		{
 			"id": "popular",
@@ -59,8 +51,7 @@
 		},
 		{
 			"id": "update",
-			"name": "업데이트순",
-			"kind": 1
+			"name": "업데이트순"
 		}
 	]
 }

@@ -89,6 +89,28 @@ pub fn extract_chapter_number(title: &str, fallback_no: f32) -> f32 {
 	fallback_no
 }
 
+/// Extracts season/volume value from title (e.g. "3부 235화" -> 3.0)
+pub fn extract_volume_number(title: &str) -> Option<f32> {
+	if let Some(bu_idx) = title.find('부') {
+		let before = &title[..bu_idx];
+		let mut num_str = String::new();
+		for c in before.chars().rev() {
+			if c.is_ascii_digit() || c == '.' {
+				num_str.push(c);
+			} else if !num_str.is_empty() {
+				break;
+			}
+		}
+		if !num_str.is_empty() {
+			let reversed: String = num_str.chars().rev().collect();
+			if let Ok(val) = reversed.parse::<f32>() {
+				return Some(val);
+			}
+		}
+	}
+	None
+}
+
 /// Parses Korean date string ("YY.MM.DD" or "YYYY.MM.DD") into unix timestamp (seconds)
 pub fn parse_korean_date(date_str: &str) -> Option<i64> {
 	let trimmed = date_str.trim().trim_end_matches('.');

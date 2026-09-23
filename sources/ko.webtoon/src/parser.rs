@@ -24,10 +24,17 @@ struct ApiArticleInfo {
 	synopsis: Option<String>,
 	#[serde(rename = "displayAuthor")]
 	display_author: Option<String>,
+	#[serde(rename = "communityArtists")]
+	community_artists: Option<Vec<ApiCommunityArtist>>,
 	finished: Option<bool>,
 	rest: Option<bool>,
 	#[serde(rename = "curationTagList")]
 	curation_tag_list: Option<Vec<ApiTagInfo>>,
+}
+
+#[derive(Deserialize)]
+struct ApiCommunityArtist {
+	name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -267,6 +274,17 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 							manga.artists = Some(authors.clone());
 							manga.authors = Some(authors);
 						}
+					} else if let Some(artists) = info.community_artists {
+						let authors: Vec<String> = artists
+							.into_iter()
+							.filter_map(|a| a.name)
+							.map(|s| String::from(s.trim()))
+							.filter(|s| !s.is_empty())
+							.collect();
+						if !authors.is_empty() {
+							manga.artists = Some(authors.clone());
+							manga.authors = Some(authors);
+						}
 					}
 					if let Some(tags) = info.curation_tag_list {
 						let tag_names: Vec<String> = tags
@@ -372,9 +390,22 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 		.select_first(".week_day .list_detail, .detail .week_day")
 		.and_then(|e| e.text())
 		.unwrap_or_default();
-	manga.status = if status_text.contains("완결") {
+	let is_hiatus = html
+		.select_first("span.bullet.break, span.bullet_break")
+		.is_some()
+		|| html
+			.select_first(".area_info, .section_toon_info")
+			.and_then(|e| e.text())
+			.is_some_and(|t| t.contains("휴재"))
+		|| status_text.contains("휴재");
+	let is_completed = status_text.contains("완결")
+		|| html
+			.select_first(".week_day")
+			.and_then(|e| e.text())
+			.is_some_and(|t| t.contains("완결"));
+	manga.status = if is_completed {
 		MangaStatus::Completed
-	} else if status_text.contains("휴재") {
+	} else if is_hiatus {
 		MangaStatus::Hiatus
 	} else {
 		MangaStatus::Ongoing
@@ -474,6 +505,7 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 
 			let fallback_no = chapter_id.parse::<f32>().unwrap_or(-1.0);
 			let chapter_num = extract_chapter_number(&raw_title, fallback_no);
+			let volume_number = extract_volume_number(&raw_title);
 			let title = raw_title;
 			let date_text = node
 				.select_first(".date")
@@ -498,6 +530,7 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 			chapters.push(Chapter {
 				key: chapter_id,
 				title: Some(title),
+				volume_number,
 				chapter_number: (chapter_num >= 0.0).then_some(chapter_num),
 				date_uploaded,
 				url: Some(full_chapter_url),
