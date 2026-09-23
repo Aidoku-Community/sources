@@ -102,17 +102,20 @@
 								"titles": [
 									"Manga",
 									"Manhwa",
-									"Manhua"
+									"Manhua",
+									"OEL"
 								],
 								"values": [
 									"JP",
 									"KR",
-									"CN,TW"
+									"CN,TW",
+									"EN"
 								],
 								"default": [
 									"JP",
 									"KR",
-									"CN,TW"
+									"CN,TW",
+									"EN"
 								],
 								"refreshes": [
 									"content"

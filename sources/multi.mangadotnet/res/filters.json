@@ -27,12 +27,14 @@
 			"Manga",
 			"Manhwa",
 			"Manhua",
+			"OEL",
 			"One Shot"
 		],
 		"ids": [
 			"JP",
 			"KR",
 			"CN",
+			"EN",
 			"ONESHOT"
 		]
 	},
