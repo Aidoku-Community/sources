@@ -47,26 +47,6 @@ pub fn is_logged_in() -> bool {
 			return true;
 		}
 	}
-	// Fallback to COOKIE_KEY if present
-	if let Some(cookie_str) = defaults_get::<String>(COOKIE_KEY) {
-		let mut has_aut = false;
-		let mut has_ses = false;
-		for part in cookie_str.split(';') {
-			let mut split = part.splitn(2, '=');
-			let name = split.next().unwrap_or("").trim();
-			let val = split.next().unwrap_or("").trim();
-			if !val.is_empty() {
-				if name == "NID_AUT" {
-					has_aut = true;
-				} else if name == "NID_SES" {
-					has_ses = true;
-				}
-			}
-		}
-		if has_aut && has_ses {
-			return true;
-		}
-	}
 	false
 }
 
