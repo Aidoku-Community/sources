@@ -1,7 +1,6 @@
 use aidoku::{
 	Chapter, ContentRating, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue,
-	HomeLayout, Link, Listing, Manga, MangaPageResult, MangaStatus, Page, PageContent, PageContext,
-	Viewer,
+	HomeLayout, Link, Listing, Manga, MangaPageResult, MangaStatus, Page, PageContent, Viewer,
 	alloc::{String, Vec, format, vec},
 	helpers::uri::encode_uri_component,
 	imports::{
@@ -633,7 +632,7 @@ fn is_trusted_cookie_host(url: &str) -> bool {
 }
 
 /// Handles image request modification (injected Referer + User-Agent + Cookie for trusted hosts)
-pub fn get_image_request(url: String, _context: Option<PageContext>) -> Result<Request> {
+pub fn get_image_request(url: String) -> Result<Request> {
 	let mut req = Request::get(&url)?
 		.header("Referer", "https://comic.naver.com/")
 		.header("User-Agent", USER_AGENT);
@@ -646,12 +645,12 @@ pub fn get_image_request(url: String, _context: Option<PageContext>) -> Result<R
 }
 
 /// Handles deep linking for comic.naver.com URLs
-pub fn parse_deep_link(url: String) -> Result<Option<DeepLinkResult>> {
-	let manga_key = get_title_id(&url);
+pub fn parse_deep_link(url: &str) -> Result<Option<DeepLinkResult>> {
+	let manga_key = get_title_id(url);
 	if manga_key.is_empty() {
 		return Ok(None);
 	}
-	let chapter_id = get_chapter_id(&url);
+	let chapter_id = get_chapter_id(url);
 	if !chapter_id.is_empty() {
 		Ok(Some(DeepLinkResult::Chapter {
 			manga_key,

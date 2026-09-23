@@ -70,14 +70,14 @@ impl DynamicListings for WebtoonKR {
 }
 
 impl ImageRequestProvider for WebtoonKR {
-	fn get_image_request(&self, url: String, context: Option<PageContext>) -> Result<Request> {
-		parser::get_image_request(url, context)
+	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
+		parser::get_image_request(url)
 	}
 }
 
 impl DeepLinkHandler for WebtoonKR {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		parser::parse_deep_link(url)
+		parser::parse_deep_link(&url)
 	}
 }
 
