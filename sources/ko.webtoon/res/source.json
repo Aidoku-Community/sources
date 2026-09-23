@@ -52,11 +52,6 @@
 			"kind": 1
 		},
 		{
-			"id": "best",
-			"name": "베스트도전",
-			"kind": 1
-		},
-		{
 			"id": "popular",
 			"name": "인기순",
 			"kind": 1

@@ -1,6 +1,6 @@
 use aidoku::{
-	alloc::{String, Vec, format},
-	imports::{defaults::defaults_get, error::Result, net::Request},
+	alloc::{String, format},
+	imports::{defaults::defaults_get, error::Result, net::Request, std::parse_date},
 };
 
 pub const BASE_URL: &str = "https://m.comic.naver.com";
@@ -89,33 +89,13 @@ pub fn extract_chapter_number(title: &str, fallback_no: f32) -> f32 {
 	fallback_no
 }
 
-/// Parses Korean date string "YY.MM.DD" into unix timestamp (seconds)
+/// Parses Korean date string ("YY.MM.DD" or "YYYY.MM.DD") into unix timestamp (seconds)
 pub fn parse_korean_date(date_str: &str) -> Option<i64> {
 	let trimmed = date_str.trim().trim_end_matches('.');
-	let parts: Vec<&str> = trimmed.split('.').collect();
-	if parts.len() == 3 {
-		let raw_year: i64 = parts[0].parse().ok()?;
-		let year: i64 = if raw_year < 100 {
-			2000 + raw_year
-		} else {
-			raw_year
-		};
-		let month: i64 = parts[1].parse().ok()?;
-		let day: i64 = parts[2].parse().ok()?;
-
-		let mut days = (year - 1970) * 365 + (year - 1969) / 4;
-		let days_in_month = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-		for &d in days_in_month.iter().take((month - 1) as usize) {
-			days += d;
-		}
-		if month > 2 && (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) {
-			days += 1;
-		}
-		days += day - 1;
-
-		Some(days * 86400)
+	if trimmed.len() <= 8 {
+		parse_date(trimmed, "yy.MM.dd")
 	} else {
-		None
+		parse_date(trimmed, "yyyy.MM.dd")
 	}
 }
 

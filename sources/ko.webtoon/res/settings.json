@@ -8,23 +8,24 @@
 				"key": "showBestChallenge",
 				"title": "베스트도전 표시",
 				"subtitle": "베스트도전 연재작을 탐색에 포함합니다",
-				"default": true
+				"default": true,
+				"refreshes": ["listings"]
 			}
 		]
 	},
 	{
 		"type": "group",
-		"title": "네이버 계정 (Beta)",
+		"title": "네이버 계정",
 		"items": [
 			{
 				"type": "login",
 				"key": "login",
 				"notification": "login",
 				"method": "web",
-				"title": "네이버 로그인 (Beta)",
+				"title": "네이버 로그인",
 				"logoutTitle": "로그아웃",
-				"url": "https://nid.naver.com/nidlogin.login",
-				"refreshes": ["listings"]
+				"url": "https://nid.naver.com/nidlogin.login?url=https%3A%2F%2Fm.comic.naver.com",
+				"refreshes": ["listings", "content"]
 			}
 		]
 	}

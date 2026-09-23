@@ -1,10 +1,10 @@
 #![no_std]
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeLayout,
-	ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler,
-	Page, PageContext, Source, WebLoginHandler,
-	alloc::{String, Vec},
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicListings, FilterValue, HashMap, Home,
+	HomeLayout, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
+	NotificationHandler, Page, PageContext, Source, WebLoginHandler,
+	alloc::{String, Vec, vec},
 	imports::error::Result,
 	imports::net::Request,
 	register_source,
@@ -56,9 +56,22 @@ impl ListingProvider for WebtoonKR {
 	}
 }
 
+impl DynamicListings for WebtoonKR {
+	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
+		if !helper::show_best_challenge() {
+			return Ok(Vec::new());
+		}
+		Ok(vec![Listing {
+			id: String::from("best"),
+			name: String::from("베스트도전"),
+			..Default::default()
+		}])
+	}
+}
+
 impl ImageRequestProvider for WebtoonKR {
 	fn get_image_request(&self, url: String, context: Option<PageContext>) -> Result<Request> {
-		parser::parse_image_request(url, context)
+		parser::get_image_request(url, context)
 	}
 }
 
@@ -76,7 +89,7 @@ impl WebLoginHandler for WebtoonKR {
 
 impl NotificationHandler for WebtoonKR {
 	fn handle_notification(&self, notification: String) {
-		if notification == "login" || notification == "logout" {
+		if notification == "logout" || (notification == "login" && !auth::is_logged_in()) {
 			auth::logout();
 		}
 	}
@@ -86,6 +99,7 @@ register_source!(
 	WebtoonKR,
 	Home,
 	ListingProvider,
+	DynamicListings,
 	ImageRequestProvider,
 	DeepLinkHandler,
 	WebLoginHandler,
