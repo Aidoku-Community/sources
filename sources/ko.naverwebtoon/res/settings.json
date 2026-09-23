@@ -25,7 +25,7 @@
 				"title": "네이버 로그인",
 				"logoutTitle": "로그아웃",
 				"url": "https://nid.naver.com/nidlogin.login?url=https%3A%2F%2Fm.comic.naver.com",
-				"refreshes": ["listings", "content"]
+				"refreshes": ["content"]
 			}
 		]
 	}

@@ -1,13 +1,11 @@
 use aidoku::{
 	Chapter, ContentRating, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue,
-	HomeLayout, Link, Listing, Manga, MangaPageResult, MangaStatus, Page, PageContent, Viewer,
+	HomeLayout, Link, Listing, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
+	Viewer,
 	alloc::{String, Vec, format, vec},
+	bail,
 	helpers::uri::encode_uri_component,
-	imports::{
-		error::{AidokuError, Result},
-		net::Request,
-		std::send_partial_result,
-	},
+	imports::{net::Request, std::send_partial_result},
 };
 use serde::Deserialize;
 
@@ -50,10 +48,9 @@ fn parse_manga_cards(html: &aidoku::imports::html::Document) -> Vec<Manga> {
 	if let Some(items) = html.select(selector) {
 		for node in items {
 			let href = node.attr("href").unwrap_or_default();
-			let id = get_title_id(&href);
-			if id.is_empty() {
+			let Some(id) = get_title_id(&href) else {
 				continue;
-			}
+			};
 
 			let cover = node.select_first("img").and_then(|e| e.attr("src"));
 
@@ -99,10 +96,7 @@ fn parse_manga_cards(html: &aidoku::imports::html::Document) -> Vec<Manga> {
 }
 
 /// Helper to parse weekday list (mon, tue, wed, thu, fri, sat, sun)
-fn parse_weekday_list(week: &str, page: i32) -> Result<MangaPageResult> {
-	if page > 1 {
-		return Ok(MangaPageResult::default());
-	}
+fn parse_weekday_list(week: &str) -> Result<MangaPageResult> {
 	let url = format!("{BASE_URL}/webtoon/weekday?week={week}");
 	let html = request(&url)?.html()?;
 	let entries = parse_manga_cards(&html);
@@ -172,31 +166,20 @@ pub fn parse_search_manga_list(
 	for filter in &filters {
 		if let FilterValue::Select { id, value } = filter
 			&& id == "searchType"
+			&& !value.is_empty()
 		{
-			match value.as_str() {
-				"WEBTOON" => search_type = "WEBTOON",
-				"BEST_CHALLENGE" => search_type = "BEST_CHALLENGE",
-				"ALL" => search_type = "ALL",
-				_ => {}
-			}
+			search_type = value.as_str();
 		}
 	}
 
 	if let Some(ref q) = query {
 		let trimmed = q.trim();
 		if !trimmed.is_empty() {
-			if page > 1 {
-				return Ok(MangaPageResult::default());
-			}
 			let encoded = encode_uri_component(trimmed);
-			let url = match search_type {
-				"WEBTOON" => {
-					format!("{BASE_URL}/search/result?keyword={encoded}&searchType=WEBTOON")
-				}
-				"BEST_CHALLENGE" => {
-					format!("{BASE_URL}/search/result?keyword={encoded}&searchType=BEST_CHALLENGE")
-				}
-				_ => format!("{BASE_URL}/search/result?keyword={encoded}"),
+			let url = if search_type == "ALL" {
+				format!("{BASE_URL}/search/result?keyword={encoded}")
+			} else {
+				format!("{BASE_URL}/search/result?keyword={encoded}&searchType={search_type}")
 			};
 			let html = request(&url)?.html()?;
 			let entries = parse_manga_cards(&html);
@@ -211,25 +194,18 @@ pub fn parse_search_manga_list(
 	if search_type == "BEST_CHALLENGE" {
 		parse_best_challenge_list(page)
 	} else {
-		parse_weekday_list("mon", page)
+		parse_weekday_list("mon")
 	}
 }
 
 /// Handles all listings registered in source.json and DynamicListings
 pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 	match listing.id.as_str() {
-		"mon" => parse_weekday_list("mon", page),
-		"tue" => parse_weekday_list("tue", page),
-		"wed" => parse_weekday_list("wed", page),
-		"thu" => parse_weekday_list("thu", page),
-		"fri" => parse_weekday_list("fri", page),
-		"sat" => parse_weekday_list("sat", page),
-		"sun" => parse_weekday_list("sun", page),
-		"completed" => parse_finish_list(page, "UPDATE"),
-		"best" => parse_best_challenge_list(page),
+		"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun" => parse_weekday_list(&listing.id),
+		"completed" | "update" => parse_finish_list(page, "UPDATE"),
 		"popular" => parse_finish_list(page, "ALL_READER"),
-		"update" => parse_finish_list(page, "UPDATE"),
-		_ => parse_weekday_list("mon", page),
+		"best" => parse_best_challenge_list(page),
+		_ => parse_weekday_list("mon"),
 	}
 }
 
@@ -441,13 +417,9 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 
 		if is_login_page {
 			if !crate::auth::is_logged_in() {
-				return Err(AidokuError::message(
-					"로그인이 필요한 작품입니다. 소스 설정에서 네이버 로그인을 완료해주세요.",
-				));
+				bail!("로그인이 필요한 작품입니다. 소스 설정에서 네이버 로그인을 완료해주세요.");
 			} else {
-				return Err(AidokuError::message(
-					"네이버 로그인 세션이 만료되었습니다. 소스 설정에서 다시 로그인해주세요.",
-				));
+				bail!("네이버 로그인 세션이 만료되었습니다. 소스 설정에서 다시 로그인해주세요.");
 			}
 		}
 
@@ -469,11 +441,14 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 				.or_else(|| node.select_first("a").and_then(|a| a.attr("href")))
 				.unwrap_or_default();
 
-			let mut chapter_id = node.attr("data-no").unwrap_or_default();
-			if chapter_id.is_empty() {
-				chapter_id = get_chapter_id(&href);
-			}
-			if chapter_id.is_empty() || chapters.iter().any(|c| c.key == chapter_id) {
+			let chapter_id = node
+				.attr("data-no")
+				.filter(|no| !no.is_empty())
+				.or_else(|| get_chapter_id(&href));
+			let Some(chapter_id) = chapter_id else {
+				continue;
+			};
+			if chapters.iter().any(|c| c.key == chapter_id) {
 				continue;
 			}
 			found_new = true;
@@ -595,9 +570,7 @@ pub fn parse_page_list(manga_id: &str, chapter_id: &str) -> Result<Vec<Page>> {
 		|| html.select_first("form#frmNIDLogin").is_some();
 
 	if is_login_page {
-		return Err(AidokuError::message(
-			"로그인이 필요한 작품입니다. 소스 설정에서 네이버 로그인을 완료해주세요.",
-		));
+		bail!("로그인이 필요한 작품입니다. 소스 설정에서 네이버 로그인을 완료해주세요.");
 	}
 
 	let mut pages: Vec<Page> = Vec::new();
@@ -636,11 +609,9 @@ pub fn parse_page_list(manga_id: &str, chapter_id: &str) -> Result<Vec<Page>> {
 			|| raw_html.contains("구매")
 			|| raw_html.contains("대여")
 		{
-			return Err(AidokuError::message(
-				"구매 또는 대여가 필요한 유료 회차입니다.",
-			));
+			bail!("구매 또는 대여가 필요한 유료 회차입니다.");
 		}
-		return Err(AidokuError::message("회차 이미지를 불러올 수 없습니다."));
+		bail!("회차 이미지를 불러올 수 없습니다.");
 	}
 
 	Ok(pages)
@@ -678,12 +649,10 @@ pub fn get_image_request(url: String) -> Result<Request> {
 
 /// Handles deep linking for comic.naver.com URLs
 pub fn parse_deep_link(url: &str) -> Result<Option<DeepLinkResult>> {
-	let manga_key = get_title_id(url);
-	if manga_key.is_empty() {
+	let Some(manga_key) = get_title_id(url) else {
 		return Ok(None);
-	}
-	let chapter_id = get_chapter_id(url);
-	if !chapter_id.is_empty() {
+	};
+	if let Some(chapter_id) = get_chapter_id(url) {
 		Ok(Some(DeepLinkResult::Chapter {
 			manga_key,
 			key: chapter_id,

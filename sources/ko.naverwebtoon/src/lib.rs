@@ -14,9 +14,9 @@ mod auth;
 mod helper;
 mod parser;
 
-pub struct WebtoonKR;
+pub struct NaverWebtoon;
 
-impl Source for WebtoonKR {
+impl Source for NaverWebtoon {
 	fn new() -> Self {
 		Self
 	}
@@ -44,19 +44,19 @@ impl Source for WebtoonKR {
 	}
 }
 
-impl Home for WebtoonKR {
+impl Home for NaverWebtoon {
 	fn get_home(&self) -> Result<HomeLayout> {
 		parser::parse_home()
 	}
 }
 
-impl ListingProvider for WebtoonKR {
+impl ListingProvider for NaverWebtoon {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		parser::parse_manga_listing(listing, page)
 	}
 }
 
-impl DynamicListings for WebtoonKR {
+impl DynamicListings for NaverWebtoon {
 	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
 		if !helper::show_best_challenge() {
 			return Ok(Vec::new());
@@ -69,34 +69,34 @@ impl DynamicListings for WebtoonKR {
 	}
 }
 
-impl ImageRequestProvider for WebtoonKR {
+impl ImageRequestProvider for NaverWebtoon {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
 		parser::get_image_request(url)
 	}
 }
 
-impl DeepLinkHandler for WebtoonKR {
+impl DeepLinkHandler for NaverWebtoon {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		parser::parse_deep_link(&url)
 	}
 }
 
-impl WebLoginHandler for WebtoonKR {
+impl WebLoginHandler for NaverWebtoon {
 	fn handle_web_login(&self, _key: String, cookies: HashMap<String, String>) -> Result<bool> {
 		auth::handle_login(cookies)
 	}
 }
 
-impl NotificationHandler for WebtoonKR {
+impl NotificationHandler for NaverWebtoon {
 	fn handle_notification(&self, notification: String) {
-		if notification == "logout" || (notification == "login" && !auth::is_logged_in()) {
+		if notification == "login" && !auth::is_logged_in() {
 			auth::logout();
 		}
 	}
 }
 
 register_source!(
-	WebtoonKR,
+	NaverWebtoon,
 	Home,
 	ListingProvider,
 	DynamicListings,

@@ -19,34 +19,36 @@ pub fn request(url: &str) -> Result<Request> {
 }
 
 /// Extracts titleId from a given webtoon URL
-pub fn get_title_id(url: &str) -> String {
-	if let Some(pos) = url.find("titleId=") {
-		let after = &url[pos + 8..];
-		let id_str = after.split(['&', '#']).next().unwrap_or(after);
-		if url.contains("bestChallenge") {
-			format!("{id_str}-best")
-		} else {
-			String::from(id_str)
-		}
+pub fn get_title_id(url: &str) -> Option<String> {
+	let pos = url.find("titleId=")?;
+	let after = &url[pos + 8..];
+	let id_str = after.split(['&', '#']).next().unwrap_or(after);
+	if id_str.is_empty() {
+		return None;
+	}
+	if url.contains("bestChallenge") {
+		Some(format!("{id_str}-best"))
 	} else {
-		String::new()
+		Some(String::from(id_str))
 	}
 }
 
 /// Extracts episode sequence number 'no' from a viewer or detail URL
-pub fn get_chapter_id(url: &str) -> String {
+pub fn get_chapter_id(url: &str) -> Option<String> {
 	if !url.contains("detail?") {
-		return String::new();
+		return None;
 	}
-	let query = url.split('?').nth(1).unwrap_or("");
+	let query = url.split('?').nth(1)?;
 	for param in query.split('&') {
 		let clean = param.trim_start_matches("amp;");
 		if let Some(val) = clean.strip_prefix("no=") {
 			let clean_val = val.split('#').next().unwrap_or(val);
-			return String::from(clean_val);
+			if !clean_val.is_empty() {
+				return Some(String::from(clean_val));
+			}
 		}
 	}
-	String::new()
+	None
 }
 
 /// Returns full list URL for a manga
