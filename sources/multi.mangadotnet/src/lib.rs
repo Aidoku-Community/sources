@@ -296,26 +296,18 @@ impl ListingProvider for Mangadotnet {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		match listing.id.as_str() {
 			BOOKMARKS_LISTING_ID => {
-				let mut query_parameters = QueryParameters::new();
-				query_parameters.push("_routes", Some("pages/BookmarksPage"));
-
-				if page > 1 {
-					query_parameters.push("page", Some(&format!("{page}")));
-				}
-
-				let bookmark_page: BookmarkPage = get_page_container_json_data(&format!(
-					"{BASE_URL}/bookmark.data?{query_parameters}"
+				let bookmark_page_data: BookmarkPageData = get_json_data(&format!(
+					"{BASE_URL}/api/lists/manage?sort=updated&order=desc&per_page=50&page={page}"
 				))?;
 
 				Ok(MangaPageResult {
-					entries: bookmark_page
-						.data
+					entries: bookmark_page_data
 						.entries
 						.into_iter()
 						.map(Into::into)
 						.collect(),
-					has_next_page: bookmark_page.data.page * bookmark_page.data.per_page
-						< bookmark_page.data.total,
+					has_next_page: bookmark_page_data.page * bookmark_page_data.per_page
+						< bookmark_page_data.total,
 				})
 			}
 
