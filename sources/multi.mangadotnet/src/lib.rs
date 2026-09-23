@@ -188,9 +188,18 @@ impl Source for Mangadotnet {
 			let mut chapter_map: HashMap<String, MangaChapter> = HashMap::new();
 			let mut chapter_list: Vec<MangaChapter> = Vec::new();
 
+			let supported_languages = get_languages()?;
+			let default_language = "en".into();
+
 			if deduped_chapter() {
 				for manga in json {
-					dedup_insert(&mut chapter_map, manga);
+					let manga_language = manga.language.as_ref().unwrap_or(&default_language);
+					if supported_languages
+						.iter()
+						.any(|language| language.eq(manga_language))
+					{
+						dedup_insert(&mut chapter_map, manga);
+					}
 				}
 			} else {
 				chapter_list.extend(json);
@@ -199,14 +208,30 @@ impl Source for Mangadotnet {
 			let mut chapters: Vec<Chapter> = if deduped_chapter() {
 				chapter_map.into_values().map(Into::into).collect()
 			} else {
-				chapter_list.into_iter().map(Into::into).collect()
+				chapter_list
+					.into_iter()
+					.filter(|c| {
+						supported_languages.iter().any(|language| {
+							language.eq(c.language.as_ref().unwrap_or(&default_language))
+						})
+					})
+					.map(Into::into)
+					.collect()
 			};
 
 			if show_standalone_volume() {
 				let volumes_json: Vec<MangaVolume> =
 					get_json_data(&format!("{BASE_URL}/api/manga/{}/volumes", manga.key))?;
 
-				let mut volumes: Vec<Chapter> = volumes_json.into_iter().map(Into::into).collect();
+				let mut volumes: Vec<Chapter> = volumes_json
+					.into_iter()
+					.filter(|c| {
+						supported_languages
+							.iter()
+							.any(|language| language.eq(&c.language))
+					})
+					.map(Into::into)
+					.collect();
 				chapters.append(&mut volumes);
 			}
 
@@ -271,26 +296,18 @@ impl ListingProvider for Mangadotnet {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		match listing.id.as_str() {
 			BOOKMARKS_LISTING_ID => {
-				let mut query_parameters = QueryParameters::new();
-				query_parameters.push("_routes", Some("pages/BookmarksPage"));
-
-				if page > 1 {
-					query_parameters.push("page", Some(&format!("{page}")));
-				}
-
-				let bookmark_page: BookmarkPage = get_page_container_json_data(&format!(
-					"{BASE_URL}/bookmark.data?{query_parameters}"
+				let bookmark_page_data: BookmarkPageData = get_json_data(&format!(
+					"{BASE_URL}/api/lists/manage?sort=updated&order=desc&per_page=50&page={page}"
 				))?;
 
 				Ok(MangaPageResult {
-					entries: bookmark_page
-						.data
+					entries: bookmark_page_data
 						.entries
 						.into_iter()
 						.map(Into::into)
 						.collect(),
-					has_next_page: bookmark_page.data.page * bookmark_page.data.per_page
-						< bookmark_page.data.total,
+					has_next_page: bookmark_page_data.page * bookmark_page_data.per_page
+						< bookmark_page_data.total,
 				})
 			}
 
@@ -583,10 +600,17 @@ impl NotificationHandler for Mangadotnet {
 }
 
 const LOGIN_COOKIE_KEY: &str = "ory_kratos_session";
+const CLOUDFLARE_COOKIE_KEY: &str = "cf_clearance";
 
 impl WebLoginHandler for Mangadotnet {
-	fn handle_web_login(&self, _key: String, cookies: HashMap<String, String>) -> Result<bool> {
-		Ok(cookies.contains_key(LOGIN_COOKIE_KEY))
+	fn handle_web_login(&self, key: String, cookies: HashMap<String, String>) -> Result<bool> {
+		if key == LOGIN_KEY {
+			Ok(cookies.contains_key(LOGIN_COOKIE_KEY))
+		} else if key == CLOUDFLARE_KEY {
+			Ok(cookies.contains_key(CLOUDFLARE_COOKIE_KEY))
+		} else {
+			Ok(false)
+		}
 	}
 }
 

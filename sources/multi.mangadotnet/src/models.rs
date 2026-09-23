@@ -23,11 +23,6 @@ pub struct UserProfileData {
 }
 
 #[derive(Deserialize)]
-pub struct BookmarkPage {
-	pub data: BookmarkPageData,
-}
-
-#[derive(Deserialize)]
 pub struct BookmarkPageData {
 	pub total: i32,
 	pub page: i32,

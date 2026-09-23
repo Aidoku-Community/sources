@@ -27,12 +27,14 @@
 			"Manga",
 			"Manhwa",
 			"Manhua",
+			"OEL",
 			"One Shot"
 		],
 		"ids": [
 			"JP",
 			"KR",
 			"CN",
+			"EN",
 			"ONESHOT"
 		]
 	},
@@ -125,6 +127,7 @@
 			"Boys Love",
 			"Bully",
 			"Business",
+			"Child Abuse",
 			"Comic",
 			"crossdressing",
 			"Crossdressing",
@@ -162,10 +165,13 @@
 			"Manhwa",
 			"Mature",
 			"Medieval Area",
+			"MILF",
 			"Military",
 			"Monster Girls",
 			"Monsters",
+			"Murim",
 			"Ninja",
+			"Nobility",
 			"Office Romance",
 			"Office Worker",
 			"Office Workers",
@@ -181,6 +187,7 @@
 			"Reincarnation",
 			"Revenge",
 			"Reverse Harem",
+			"Royalty",
 			"Samurai",
 			"School",
 			"Seinin",
@@ -224,7 +231,7 @@
 			"safe",
 			"suggestive",
 			"erotica",
-			"pronographic"
+			"pornographic"
 		],
 		"defaultIncluded": [
 			"safe",

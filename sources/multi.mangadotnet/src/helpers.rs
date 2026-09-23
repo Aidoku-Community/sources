@@ -1,6 +1,7 @@
+use crate::settings::get_cloudflare_cookie;
 use crate::{
-	BASE_URL, LOGIN_COOKIE_KEY, models::MangaChapter, models::PageContainer, models::UserProfile,
-	settings::get_deduped_group_list, settings::get_login_cookie,
+	BASE_URL, CLOUDFLARE_COOKIE_KEY, LOGIN_COOKIE_KEY, models::MangaChapter, models::PageContainer,
+	models::UserProfile, settings::get_deduped_group_list, settings::get_login_cookie,
 };
 use aidoku::{
 	HashMap, Result,
@@ -14,13 +15,24 @@ use aidoku::{
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
-const CF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned CF challenge page instead of JSON data. If problem persist, please clear the source cache and restart the application to resolve this issue.";
+const CF_CHALLENGE_ERROR_MESSAGE: &str = "Response returned CF challenge page instead of JSON data. If problem persist, please clear the source cache and use the Resolve Cloudflare button instead.";
 
 fn create_request_get(url: &str) -> Result<Request> {
 	let mut request = Request::get(url)?;
+	let mut cookies = Vec::<String>::new();
+
 	if let Some(token) = get_login_cookie() {
-		request = request.header("Cookie", &format!("{LOGIN_COOKIE_KEY}={token}"));
+		cookies.push(format!("{LOGIN_COOKIE_KEY}={token}"));
 	}
+
+	if let Some(token) = get_cloudflare_cookie() {
+		cookies.push(format!("{CLOUDFLARE_COOKIE_KEY}={token}"));
+	}
+
+	if !cookies.is_empty() {
+		request = request.header("Cookie", &cookies.join(";"));
+	}
+
 	Ok(request)
 }
 
@@ -30,6 +42,16 @@ fn response_is_ok(response: &Response) -> Result<()> {
 		.is_some_and(|value| value == "challenge")
 	{
 		bail!("{CF_CHALLENGE_ERROR_MESSAGE}")
+	} else if response.status_code() == 503 {
+		bail!("Website is under maintenance. Please try again later :)");
+	} else if response.status_code() == 429 {
+		if let Some(duration) = response.get_header("Retry-After") {
+			bail!("Rate limited. Please wait for {duration} seconds before trying again.");
+		} else {
+			bail!("Rate limited. Please try again later.");
+		}
+	} else if response.status_code() == 401 {
+		bail!("Login token expired. Please re-login in the source settings.");
 	} else if response.status_code() >= 400 {
 		bail!("Response Error: {}", response.status_code())
 	}
