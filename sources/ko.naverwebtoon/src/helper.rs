@@ -7,25 +7,56 @@ pub const BASE_URL: &str = "https://m.comic.naver.com";
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
-/// Request wrapper with User-Agent, Referer, and automatic Cookie injection
+const TRUSTED_COOKIE_HOSTS: &[&str] = &["comic.naver.com", "m.comic.naver.com"];
+
+fn is_trusted_cookie_host(url: &str) -> bool {
+	let after_scheme = if let Some(stripped) = url.strip_prefix("https://") {
+		stripped
+	} else if let Some(stripped) = url.strip_prefix("http://") {
+		stripped
+	} else {
+		return false;
+	};
+	let host = after_scheme
+		.split(['/', '?', '#', ':'])
+		.next()
+		.unwrap_or("");
+	TRUSTED_COOKIE_HOSTS.contains(&host)
+}
+
+/// Request wrapper with User-Agent, Referer, and automatic Cookie injection for trusted hosts
 pub fn request(url: &str) -> Result<Request> {
 	let mut req = Request::get(url)?
 		.header("Referer", "https://comic.naver.com/")
 		.header("User-Agent", USER_AGENT);
-	if let Some(cookie_str) = crate::auth::get_cookie_header() {
+	if is_trusted_cookie_host(url)
+		&& let Some(cookie_str) = crate::auth::get_cookie_header()
+	{
 		req = req.header("Cookie", &cookie_str);
 	}
 	Ok(req)
 }
 
+fn get_param<'a>(url: &'a str, param: &str) -> Option<&'a str> {
+	let mut query_start = false;
+	let mut val = "";
+	for part in url.split(['?', '&']) {
+		if !query_start {
+			query_start = true;
+			continue;
+		}
+		let clean = part.trim_start_matches("amp;");
+		if let Some(v) = clean.strip_prefix(param) {
+			val = v.split('#').next().unwrap_or(v);
+			break;
+		}
+	}
+	if val.is_empty() { None } else { Some(val) }
+}
+
 /// Extracts titleId from a given webtoon URL
 pub fn get_title_id(url: &str) -> Option<String> {
-	let pos = url.find("titleId=")?;
-	let after = &url[pos + 8..];
-	let id_str = after.split(['&', '#']).next().unwrap_or(after);
-	if id_str.is_empty() {
-		return None;
-	}
+	let id_str = get_param(url, "titleId=")?;
 	if url.contains("bestChallenge") {
 		Some(format!("{id_str}-best"))
 	} else {
@@ -35,20 +66,8 @@ pub fn get_title_id(url: &str) -> Option<String> {
 
 /// Extracts episode sequence number 'no' from a viewer or detail URL
 pub fn get_chapter_id(url: &str) -> Option<String> {
-	if !url.contains("detail?") {
-		return None;
-	}
-	let query = url.split('?').nth(1)?;
-	for param in query.split('&') {
-		let clean = param.trim_start_matches("amp;");
-		if let Some(val) = clean.strip_prefix("no=") {
-			let clean_val = val.split('#').next().unwrap_or(val);
-			if !clean_val.is_empty() {
-				return Some(String::from(clean_val));
-			}
-		}
-	}
-	None
+	let val = get_param(url, "no=")?;
+	Some(String::from(val))
 }
 
 /// Returns full list URL for a manga
@@ -69,48 +88,32 @@ pub fn get_chapter_url(chapter_id: &str, manga_id: &str) -> String {
 	}
 }
 
-/// Extracts numeric chapter value from title
-pub fn extract_chapter_number(title: &str, fallback_no: f32) -> f32 {
-	if let Some(hwa_idx) = title.find('화') {
-		let before = &title[..hwa_idx];
-		let mut num_str = String::new();
-		for c in before.chars().rev() {
-			if c.is_ascii_digit() || c == '.' {
-				num_str.push(c);
-			} else if !num_str.is_empty() {
-				break;
-			}
-		}
-		if !num_str.is_empty() {
-			let reversed: String = num_str.chars().rev().collect();
-			if let Ok(val) = reversed.parse::<f32>() {
-				return val;
-			}
+fn extract_number_before(title: &str, marker: char) -> Option<f32> {
+	let idx = title.find(marker)?;
+	let before = &title[..idx];
+	let mut num_str = String::new();
+	for c in before.chars().rev() {
+		if c.is_ascii_digit() || c == '.' {
+			num_str.push(c);
+		} else if !num_str.is_empty() {
+			break;
 		}
 	}
-	fallback_no
+	if num_str.is_empty() {
+		return None;
+	}
+	let reversed: String = num_str.chars().rev().collect();
+	reversed.parse::<f32>().ok()
+}
+
+/// Extracts numeric chapter value from title
+pub fn extract_chapter_number(title: &str, fallback_no: f32) -> f32 {
+	extract_number_before(title, '화').unwrap_or(fallback_no)
 }
 
 /// Extracts season/volume value from title (e.g. "3부 235화" -> 3.0)
 pub fn extract_volume_number(title: &str) -> Option<f32> {
-	if let Some(bu_idx) = title.find('부') {
-		let before = &title[..bu_idx];
-		let mut num_str = String::new();
-		for c in before.chars().rev() {
-			if c.is_ascii_digit() || c == '.' {
-				num_str.push(c);
-			} else if !num_str.is_empty() {
-				break;
-			}
-		}
-		if !num_str.is_empty() {
-			let reversed: String = num_str.chars().rev().collect();
-			if let Ok(val) = reversed.parse::<f32>() {
-				return Some(val);
-			}
-		}
-	}
-	None
+	extract_number_before(title, '부')
 }
 
 /// Parses Korean date string ("YY.MM.DD" or "YYYY.MM.DD") into unix timestamp (seconds)

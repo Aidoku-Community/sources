@@ -631,34 +631,9 @@ pub fn parse_page_list(manga_id: &str, chapter_id: &str) -> Result<Vec<Page>> {
 	Ok(pages)
 }
 
-const TRUSTED_COOKIE_HOSTS: &[&str] = &["comic.naver.com", "m.comic.naver.com"];
-
-fn is_trusted_cookie_host(url: &str) -> bool {
-	let after_scheme = if let Some(stripped) = url.strip_prefix("https://") {
-		stripped
-	} else if let Some(stripped) = url.strip_prefix("http://") {
-		stripped
-	} else {
-		return false;
-	};
-	let host = after_scheme
-		.split(['/', '?', '#', ':'])
-		.next()
-		.unwrap_or("");
-	TRUSTED_COOKIE_HOSTS.contains(&host)
-}
-
 /// Handles image request modification (injected Referer + User-Agent + Cookie for trusted hosts)
 pub fn get_image_request(url: String) -> Result<Request> {
-	let mut req = Request::get(&url)?
-		.header("Referer", "https://comic.naver.com/")
-		.header("User-Agent", USER_AGENT);
-	if is_trusted_cookie_host(&url)
-		&& let Some(cookie_str) = crate::auth::get_cookie_header()
-	{
-		req = req.header("Cookie", &cookie_str);
-	}
-	Ok(req)
+	request(&url)
 }
 
 /// Handles deep linking for comic.naver.com URLs
