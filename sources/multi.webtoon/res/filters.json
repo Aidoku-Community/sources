@@ -1,0 +1,62 @@
+[
+	{
+		"type": "select",
+		"id": "genre",
+		"title": "Genre",
+		"isGenre": true,
+		"options": [
+			"All",
+			"Drama",
+			"Fantasy",
+			"Comedy",
+			"Action",
+			"Slice of Life",
+			"Romance",
+			"Superhero",
+			"Sci-Fi",
+			"Thriller",
+			"Supernatural",
+			"Mystery",
+			"Sports",
+			"Historical",
+			"Heartwarming",
+			"Horror",
+			"Graphic Novel",
+			"Informative"
+		],
+		"ids": [
+			"",
+			"drama",
+			"fantasy",
+			"comedy",
+			"action",
+			"slice_of_life",
+			"romance",
+			"super_hero",
+			"sf",
+			"thriller",
+			"supernatural",
+			"mystery",
+			"sports",
+			"historical",
+			"heartwarming",
+			"horror",
+			"graphic_novel",
+			"tiptoon"
+		]
+	},
+	{
+		"type": "sort",
+		"id": "sort",
+		"canAscend": false,
+		"options": [
+			"Popularity",
+			"Likes",
+			"Update"
+		],
+		"default": {
+			"index": 0,
+			"ascending": false
+		}
+	}
+]

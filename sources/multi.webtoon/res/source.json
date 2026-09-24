@@ -1,0 +1,39 @@
+{
+	"info": {
+		"id": "multi.webtoon",
+		"name": "WEBTOON",
+		"version": 4,
+		"urls": [
+			"https://www.webtoons.com",
+			"https://m.webtoons.com"
+		],
+		"contentRating": 0,
+		"languages": [
+			"en",
+			"zh-Hant",
+			"th",
+			"id",
+			"es",
+			"fr",
+			"de"
+		],
+		"minAppVersion": "0.7.2"
+	},
+	"config": {
+		"languageSelectType": "single"
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "Latest"
+		},
+		{
+			"id": "popular",
+			"name": "Popular"
+		},
+		{
+			"id": "top",
+			"name": "Top"
+		}
+	]
+}
