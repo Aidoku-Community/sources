@@ -1,5 +1,7 @@
 use aidoku::{
-	HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Result, alloc::{Vec, string::ToString, vec}, imports::{net::Request, std::send_partial_result},
+	HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Result,
+	alloc::{Vec, string::ToString, vec},
+	imports::{net::Request, std::send_partial_result},
 };
 
 use crate::{
@@ -32,7 +34,7 @@ pub fn initial_layout() {
 			title: Some(RECENTLY_ADDED.to_string()),
 			subtitle: None,
 			value: HomeComponentValue::empty_scroller(),
-		}
+		},
 	];
 
 	send_partial_result(&HomePartialResult::Layout(HomeLayout { components }))
@@ -42,7 +44,7 @@ pub fn load_editors_choice(params: &Params) -> Result<()> {
 	let search_params = vec![
 		("featured".to_string(), "1".to_string()),
 		("page".to_string(), "0".to_string()),
-		("size".to_string(), "20".to_string())
+		("size".to_string(), "20".to_string()),
 	];
 	let url = Url::manga_search_with_params(&params.base_url, search_params);
 	let response = Request::get(&url)?
@@ -154,3 +156,4 @@ pub fn load_recently_added(params: &Params) -> Result<()> {
 
 	Ok(())
 }
+

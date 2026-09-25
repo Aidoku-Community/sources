@@ -1,9 +1,9 @@
 use aidoku::{
-	Chapter, DeepLinkResult, FilterValue, HomeLayout, Listing, Manga, MangaPageResult, Page, Result, alloc::{
-		String, Vec,
-		string::ToString,
-		vec,
-	}, imports::{canvas::ImageRef, net::Request}, println,
+	Chapter, DeepLinkResult, FilterValue, HomeLayout, Listing, Manga, MangaPageResult, Page,
+	Result,
+	alloc::{String, Vec, string::ToString, vec},
+	imports::{canvas::ImageRef, net::Request},
+	println,
 };
 
 use crate::{
@@ -43,12 +43,12 @@ pub trait Impl {
 		search_params.push(("page".to_string(), binding));
 		search_params.push(("size".to_string(), "20".to_string()));
 		filters.iter().for_each(|filter| match filter {
-			FilterValue::Text { id: _, value: _ } => {},
+			FilterValue::Text { id: _, value: _ } => {}
 			FilterValue::Sort {
 				id: _,
 				index: _,
-				ascending: _ ,
-			} => {},
+				ascending: _,
+			} => {}
 			FilterValue::Check { id: _, value: _ } => {}
 			FilterValue::Select { id: _, value: _ } => {}
 			FilterValue::MultiSelect {
@@ -62,12 +62,12 @@ pub trait Impl {
 						included.iter().for_each(|status| {
 							search_params.push(("status".to_string(), status.to_string()))
 						});
-					},
+					}
 					"country" => {
 						included.iter().for_each(|country| {
 							search_params.push(("country".to_string(), country.to_string()));
 						});
-					},
+					}
 					"format" => {
 						included.iter().for_each(|format| {
 							search_params.push(("formats".to_string(), format.to_string()));
@@ -75,7 +75,8 @@ pub trait Impl {
 					}
 					"content_status" => {
 						included.iter().for_each(|age_rating| {
-							search_params.push(("contentStatus".to_string(), age_rating.to_string()));
+							search_params
+								.push(("contentStatus".to_string(), age_rating.to_string()));
 						});
 					}
 					_ => {}
@@ -287,3 +288,4 @@ pub trait Impl {
 			.collect())
 	}
 }
+

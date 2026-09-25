@@ -63,3 +63,4 @@ impl Url {
 		format!("{}{}/labels", base_url, Self::BASE_PATH)
 	}
 }
+

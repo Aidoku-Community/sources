@@ -1,7 +1,7 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, DynamicListings, FilterValue, Home,
-	HomeLayout, ImageResponse, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContext,
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicListings, FilterValue, Home, HomeLayout,
+	ImageResponse, Listing, ListingProvider, Manga, MangaPageResult, Page, PageContext,
 	PageImageProcessor, Result, Source,
 	alloc::{String, Vec, borrow::Cow},
 	imports::canvas::ImageRef,
@@ -93,3 +93,4 @@ impl<T: Impl> DynamicListings for OtakuOvh<T> {
 		self.inner.get_dynamic_listings()
 	}
 }
+

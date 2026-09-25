@@ -1,7 +1,4 @@
-use aidoku::{
-	Listing, ListingKind,
-	alloc::string::String,
-};
+use aidoku::{Listing, ListingKind, alloc::string::String};
 use serde::Deserialize;
 
 #[derive(Default, Deserialize)]
@@ -56,3 +53,4 @@ impl InkLabel {
 		}
 	}
 }
+
