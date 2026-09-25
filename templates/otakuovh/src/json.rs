@@ -1,5 +1,5 @@
 // Taken from template libgroup, why not?
-use aidoku::{AidokuError, Result, alloc::String, imports::net::Response, prelude::*};
+use aidoku::{Result, alloc::String, imports::net::Response, prelude::*};
 use serde::de::DeserializeOwned;
 
 pub trait ResponseJsonExt {
@@ -18,10 +18,10 @@ impl ResponseJsonExt for Response {
 				.skip(start)
 				.take(1024)
 				.collect();
-			AidokuError::message(format!(
+			error!(
 				"JSON error at col {col} (body {} bytes): {e} | context: {context}",
 				bytes.len()
-			))
+			)
 		})
 	}
 }
