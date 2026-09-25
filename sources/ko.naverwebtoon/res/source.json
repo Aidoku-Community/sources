@@ -1,0 +1,53 @@
+{
+	"info": {
+		"id": "ko.naverwebtoon",
+		"name": "Naver Webtoon",
+		"version": 1,
+		"languages": ["ko"],
+		"urls": [
+			"https://comic.naver.com",
+			"https://m.comic.naver.com"
+		],
+		"contentRating": 0,
+		"minAppVersion": "0.7.2"
+	},
+	"listings": [
+		{
+			"id": "mon",
+			"name": "월요일"
+		},
+		{
+			"id": "tue",
+			"name": "화요일"
+		},
+		{
+			"id": "wed",
+			"name": "수요일"
+		},
+		{
+			"id": "thu",
+			"name": "목요일"
+		},
+		{
+			"id": "fri",
+			"name": "금요일"
+		},
+		{
+			"id": "sat",
+			"name": "토요일"
+		},
+		{
+			"id": "sun",
+			"name": "일요일"
+		},
+		{
+			"id": "completed",
+			"name": "완결"
+		},
+		{
+			"id": "popular",
+			"name": "인기순",
+			"kind": 1
+		}
+	]
+}

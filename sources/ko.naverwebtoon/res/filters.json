@@ -1,0 +1,17 @@
+[
+	{
+		"type": "select",
+		"id": "searchType",
+		"title": "구분",
+		"options": [
+			"전체",
+			"웹툰만",
+			"베스트도전만"
+		],
+		"ids": [
+			"",
+			"WEBTOON",
+			"BEST_CHALLENGE"
+		]
+	}
+]
