@@ -175,9 +175,6 @@ pub fn parse_search_manga_list(
 	if let Some(ref q) = query {
 		let trimmed = q.trim();
 		if !trimmed.is_empty() {
-			if page > 1 {
-				return Ok(MangaPageResult::default());
-			}
 			let encoded = encode_uri_component(trimmed);
 			let url = if search_type == "ALL" {
 				format!("{BASE_URL}/search/result?keyword={encoded}")
@@ -196,8 +193,6 @@ pub fn parse_search_manga_list(
 
 	if search_type == "BEST_CHALLENGE" {
 		parse_best_challenge_list(page)
-	} else if page > 1 {
-		Ok(MangaPageResult::default())
 	} else {
 		parse_weekday_list("mon")
 	}
@@ -206,23 +201,11 @@ pub fn parse_search_manga_list(
 /// Handles all listings registered in source.json and DynamicListings
 pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
 	match listing.id.as_str() {
-		"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun" => {
-			if page > 1 {
-				Ok(MangaPageResult::default())
-			} else {
-				parse_weekday_list(&listing.id)
-			}
-		}
-		"completed" | "update" => parse_finish_list(page, "UPDATE"),
+		"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun" => parse_weekday_list(&listing.id),
+		"completed" => parse_finish_list(page, "UPDATE"),
 		"popular" => parse_finish_list(page, "ALL_READER"),
 		"best" => parse_best_challenge_list(page),
-		_ => {
-			if page > 1 {
-				Ok(MangaPageResult::default())
-			} else {
-				parse_weekday_list("mon")
-			}
-		}
+		_ => parse_weekday_list("mon"),
 	}
 }
 

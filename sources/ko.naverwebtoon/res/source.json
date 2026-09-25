@@ -48,10 +48,6 @@
 			"id": "popular",
 			"name": "인기순",
 			"kind": 1
-		},
-		{
-			"id": "update",
-			"name": "업데이트순"
 		}
 	]
 }
