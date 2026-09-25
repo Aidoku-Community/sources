@@ -1,0 +1,112 @@
+[
+    {
+        "id": "status",
+        "type": "multi-select",
+        "title": "Статус",
+        "options": [
+            "Анонс",
+            "Завершен",
+            "Онгоинг",
+            "Заморожен"
+        ],
+        "ids": [
+            "ANNOUNCE",
+            "DONE",
+            "ONGOING",
+            "FROZEN"
+        ]
+    },
+    {
+        "id": "country",
+        "type": "multi-select",
+        "title": "Страна",
+        "options": [
+            "Другая",
+            "Япония",
+            "КНР",
+            "Китай",
+            "Корея",
+            "Россия"
+        ],
+        "ids": [
+            "OTHER",
+            "JAPAN",
+            "CHINA",
+            "TAIWAN",
+            "KOREA",
+            "RUSSIA"
+        ]
+    },
+    {
+		"id": "format",
+		"title": "Формат",
+		"type": "multi-select",
+		"canExclude": false,
+		"usesTagStyle": true,
+		"options": [
+			"Ёнкома (4-кома)",
+			"Додзинси",
+			"Цветной",
+			"Сборник",
+			"Веб",
+			"Сингл",
+            "Вебтун",
+            "Артбук",
+            "Печать"
+		],
+		"ids": [
+			"FOURTH_KOMA",
+			"DOUJINSHI",
+			"COLORED",
+			"COMPILATION",
+			"WEB",
+			"SINGLE",
+            "WEBTOON",
+            "ARTBOOK",
+            "LIGHT"
+		]
+	},
+    {
+        "id": "content_status",
+        "type": "multi-select",
+        "title": "Безопасность контента",
+        "options": [
+            "Безопасный",
+            "Эротика",
+            "Порнография",
+            "Небезопасный"
+        ],
+        "ids": [
+            "SAFE",
+            "EROTIC",
+            "PORNOGRAPHIC",
+            "UNSAFE"
+        ]
+    },
+    	{
+		"id": "year",
+		"title": "Год релиза",
+		"type": "range",
+		"hideFromHeader": true,
+		"min": 1970,
+		"decimal": false
+	},
+	{
+		"id": "chap_count",
+		"title": "Количество глав",
+		"type": "range",
+		"hideFromHeader": true,
+		"min": 0,
+		"decimal": false
+	},
+	{
+		"id": "rating",
+		"title": "Оценка",
+		"type": "range",
+		"hideFromHeader": true,
+		"min": 0,
+		"max": 10,
+		"decimal": true
+	}
+]
+
