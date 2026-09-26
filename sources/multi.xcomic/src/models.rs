@@ -59,6 +59,9 @@ pub struct ComicData {
 	/// Chapters on this edition, which ranks the editions of one title.
 	#[serde(rename = "chaps_normal")]
 	pub chapter_count: Option<i64>,
+	/// An edition the site has taken down still answers, so both mark a live one.
+	pub db_status: Option<String>,
+	pub is_public: Option<bool>,
 }
 
 /// A work and its editions; the edition carries the id the source is keyed by.

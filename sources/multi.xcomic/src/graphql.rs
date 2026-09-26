@@ -45,7 +45,7 @@ query get_title_browse_items($select: Title_Browse_Select) {
       contentRating: content_rating_id
       originalStatus: status
     }
-    comicNodes { data { id name subName urlPath translatedLanguage chaps_normal } }
+    comicNodes { data { id name subName urlPath translatedLanguage chaps_normal dbStatus isPublic } }
   }
 }
 "#;
@@ -62,7 +62,7 @@ query get_title_browse_items($select: Title_Browse_Select) {
       genres: genre_ids
       description
     }
-    comicNodes { data { id name subName urlPath translatedLanguage chaps_normal } }
+    comicNodes { data { id name subName urlPath translatedLanguage chaps_normal dbStatus isPublic } }
   }
 }
 "#;
@@ -75,7 +75,7 @@ query get_title_randomList($select: Title_RandomList_Select) {
       urlCover: cover_local_url
       contentRating: content_rating_id
     }
-    comicNodes { data { id name subName urlPath translatedLanguage chaps_normal } }
+    comicNodes { data { id name subName urlPath translatedLanguage chaps_normal dbStatus isPublic } }
   }
 }
 "#;
@@ -92,7 +92,7 @@ query get_title_recentlyAdded($select: Title_RecentlyAdded_Select) {
         type: type_id
         genres: genre_ids
       }
-      comicNodes { data { id name subName urlPath translatedLanguage chaps_normal } }
+      comicNodes { data { id name subName urlPath translatedLanguage chaps_normal dbStatus isPublic } }
     }
   }
 }

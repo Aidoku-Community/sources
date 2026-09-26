@@ -448,6 +448,8 @@ pub fn editions_of(title: TitleNode, languages: &[String], every: bool) -> Vec<C
 		.filter(|edition| {
 			// An edition that states no language is no reason to hide the work.
 			!edition.id.is_empty()
+				&& edition.is_public != Some(false)
+				&& edition.db_status.as_deref().unwrap_or("normal") == "normal"
 				&& edition
 					.translated_language
 					.as_ref()
@@ -513,6 +515,8 @@ pub fn manga_from_data(comic: ComicData, base_url: &str) -> Manga {
 		read_direction,
 		translated_language: _,
 		chapter_count: _,
+		db_status: _,
+		is_public: _,
 	} = comic;
 	let mut raw_tags = genres.unwrap_or_default();
 	raw_tags.extend(demographics.unwrap_or_default());
@@ -541,7 +545,7 @@ pub fn manga_from_data(comic: ComicData, base_url: &str) -> Manga {
 		.collect();
 
 	let cover = site_url(base_url, url_cover);
-	let url = site_url(base_url, url_path).unwrap_or_else(|| format!("{base_url}/comic/{id}"));
+	let url = site_url(base_url, url_path).unwrap_or_else(|| format!("{base_url}/source/{id}"));
 	let authors = author_nodes
 		.map(node_names)
 		.filter(|names| !names.is_empty());
@@ -587,9 +591,12 @@ pub fn manga_from_data(comic: ComicData, base_url: &str) -> Manga {
 	}
 }
 
+/// The site writes an edition as `/source/`; saved links still carry `/comic/`.
+const EDITION_PREFIXES: [&str; 2] = ["/source/", "/comic/"];
+
 /// The two prefixes are different things, not aliases: `/title/{id}` is the
-/// series, which owns one `/comic/` edition per language, and only edition ids
-/// work as manga keys.
+/// series, which owns one edition per language, and only edition ids work as
+/// manga keys.
 pub enum Target {
 	Title(String),
 	Comic(String, Option<String>),
@@ -608,7 +615,10 @@ pub fn parse_link(url: &str) -> Option<Target> {
 	if let Some(path) = url.split("/title/").nth(1) {
 		return id(path.split('/').next()?).map(Target::Title);
 	}
-	let mut segments = url.split("/comic/").nth(1)?.split('/');
+	let mut segments = EDITION_PREFIXES
+		.iter()
+		.find_map(|prefix| url.split(prefix).nth(1))?
+		.split('/');
 	Some(Target::Comic(
 		id(segments.next()?)?,
 		segments.next().and_then(id),
@@ -619,7 +629,7 @@ pub fn parse_link(url: &str) -> Option<Target> {
 /// since it would swallow ordinary search terms.
 pub fn target_from_query(query: &str) -> Option<Target> {
 	let query = query.trim();
-	if query.contains("/title/") || query.contains("/comic/") {
+	if query.contains("/title/") || EDITION_PREFIXES.iter().any(|prefix| query.contains(prefix)) {
 		return parse_link(query);
 	}
 	let rest = query
@@ -640,11 +650,14 @@ fn resolve_title(base_url: &str, title_id: &str) -> Option<String> {
 		.html()
 		.ok()?;
 	let mut editions: Vec<(String, String)> = Vec::new();
-	for anchor in document.select("a[href*='/comic/']")? {
+	for anchor in document.select("a[href]")? {
 		let Some(href) = anchor.attr("href") else {
 			continue;
 		};
-		let Some(path) = href.split("/comic/").nth(1) else {
+		let Some(path) = EDITION_PREFIXES
+			.iter()
+			.find_map(|prefix| href.split(prefix).nth(1))
+		else {
 			continue;
 		};
 		// Chapter links live under an edition, so they carry a second segment.
@@ -763,10 +776,8 @@ pub fn chapter_from_data(
 	let language = language
 		.map(Into::into)
 		.or_else(|| language_from_path(url_path.as_deref()));
-	// An absent or blank path would otherwise leave the web view nothing to open.
-	// `_` stands in for the comic, which is the shape the site's own url rewriter
-	// produces when it only has a chapter id.
-	let url = site_url(base_url, url_path).unwrap_or_else(|| format!("{base_url}/comic/_/{id}"));
+	// The shape the site's own rewriter takes when it has only a chapter id.
+	let url = site_url(base_url, url_path).unwrap_or_else(|| format!("{base_url}/chapter/{id}"));
 	Some(Chapter {
 		key: id,
 		chapter_number: cha_num.or(serial).map(|number| number as f32),
