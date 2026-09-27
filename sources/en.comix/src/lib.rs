@@ -1,19 +1,18 @@
 #![no_std]
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeComponent,
-	HomeLayout, HomePartialResult, ImageRequestProvider, ImageResponse, Link, LinkValue, Listing,
-	ListingProvider, Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page,
-	PageContent, PageContext, PageImageProcessor, Result, Source, WebLoginHandler,
+	HomeLayout, HomePartialResult, ImageRequestProvider, Link, LinkValue, Listing, ListingProvider,
+	Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page, PageContent, PageContext,
+	Result, Source, WebLoginHandler,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
-		canvas::ImageRef,
 		net::{Request, RequestError, Response},
 		std::{current_date, send_partial_result},
 	},
 	prelude::*,
 };
-use base64::{Engine, engine::general_purpose};
+
 use core::cell::RefCell;
 
 mod helpers;
@@ -289,15 +288,7 @@ impl Source for Comix {
 					format!("{base_url}/{}", page.url.trim_start_matches('/'))
 				};
 				Page {
-					content: if let Some(s) = page.s {
-						let mut context = PageContext::new();
-						context.insert("s".into(), s.to_string());
-						context.insert("width".into(), page.width.to_string());
-						context.insert("height".into(), page.height.to_string());
-						PageContent::url_context(url, context)
-					} else {
-						PageContent::url(url)
-					},
+					content: PageContent::url(url),
 					..Default::default()
 				}
 			})
@@ -520,46 +511,6 @@ impl ImageRequestProvider for Comix {
 	}
 }
 
-impl PageImageProcessor for Comix {
-	fn process_page_image(
-		&self,
-		response: ImageResponse,
-		context: Option<PageContext>,
-	) -> Result<ImageRef> {
-		if let Some(context) = context {
-			if context.get("s").is_some_and(|s| s == "1") {
-				let Some(url) = response.request.url else {
-					bail!("Unable to get the image url")
-				};
-
-				let Some(width) = context.get("width").and_then(|s| s.parse::<f32>().ok()) else {
-					bail!("Unable to get the image width")
-				};
-
-				let Some(height) = context.get("height").and_then(|s| s.parse::<f32>().ok()) else {
-					bail!("Unable to get the image height")
-				};
-
-				let mut web_view = self.web_view.borrow_mut();
-
-				let data_url = web_view.descramble_image(width, height, url.as_ref())?;
-				let Some((_, base64_data)) = data_url.split_once(',') else {
-					bail!("Unable to get the raw image data")
-				};
-				let bytes: Vec<u8> = general_purpose::STANDARD
-					.decode(base64_data)
-					.map_err(|_| error!("Invalid base64 data given"))?;
-
-				Ok(ImageRef::new(bytes.as_ref()))
-			} else {
-				Ok(response.image)
-			}
-		} else {
-			Ok(response.image)
-		}
-	}
-}
-
 impl NotificationHandler for Comix {
 	fn handle_notification(&self, notification: String) {
 		if notification == "resetFilters" {
@@ -627,7 +578,6 @@ register_source!(
 	Home,
 	ListingProvider,
 	ImageRequestProvider,
-	PageImageProcessor,
 	NotificationHandler,
 	DeepLinkHandler,
 	WebLoginHandler

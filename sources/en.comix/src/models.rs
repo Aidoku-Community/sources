@@ -311,9 +311,6 @@ pub struct ComixPages {
 #[derive(Deserialize)]
 pub struct ComixPage {
 	pub url: String,
-	pub width: f32,
-	pub height: f32,
-	pub s: Option<i32>,
 }
 
 // deserialize a bool from a json bool, number, or string
