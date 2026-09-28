@@ -10,6 +10,8 @@ use aidoku::{
 };
 use core::fmt::Write as _;
 
+use crate::{settings, watermark};
+
 /// Length of the longest consecutive backtick run in `text`.
 fn longest_backtick_run(text: &str) -> usize {
 	let mut longest = 0;
@@ -198,7 +200,9 @@ fn convert_blockquote_to_markdown(element: &Element, output: &mut String) {
 ///
 /// The API's chapter content carries no ad markup (verified on live
 /// chapters): its placement spacers are empty, style-only divs that
-/// naturally emit nothing during conversion.
+/// naturally emit nothing during conversion. It does carry a promotional
+/// attribution paragraph, which [`watermark::strip`] removes unless the
+/// reader turned that off in the source settings.
 ///
 /// The fragment is wrapped in a container element before parsing: the
 /// fragment root itself cannot be traversed (its child lists come back
@@ -216,7 +220,11 @@ pub fn html_to_markdown(html: &str) -> String {
 	if let Some(root) = doc.select_first("#nb-root") {
 		convert_children_to_markdown(&root, &mut output);
 	}
-	output.trim().to_string()
+	if settings::hide_watermark() {
+		watermark::strip(output.trim())
+	} else {
+		output.trim().to_string()
+	}
 }
 
 #[cfg(test)]

@@ -12,6 +12,7 @@ mod helpers;
 mod markdown;
 mod models;
 mod settings;
+mod watermark;
 
 use helpers::{fetch_chapter_list, request, resolve_slug};
 use markdown::html_to_markdown;

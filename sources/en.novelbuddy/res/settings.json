@@ -116,5 +116,21 @@
 			}
 		],
 		"footer": "Novels tagged with the selected genres are excluded from search results."
+	},
+	{
+		"type": "group",
+		"title": "Experimental",
+		"items": [
+			{
+				"type": "switch",
+				"key": "hideWatermark",
+				"title": "Hide Watermark",
+				"subtitle": "Remove the source-credit line the site injects into chapters",
+				"default": false,
+				"refreshes": [
+					"content"
+				]
+			}
+		]
 	}
 ]
