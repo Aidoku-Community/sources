@@ -160,11 +160,23 @@ impl DynamicFilters for Copymanga {
 }
 
 fn listings(is_logged_in: bool) -> Vec<Listing> {
-	let mut listings = Vec::from([Listing {
-		id: String::from("recent"),
-		name: String::from("全新上架"),
-		kind: ListingKind::Default,
-	}]);
+	let mut listings = Vec::from([
+		Listing {
+			id: String::from("update"),
+			name: String::from("更新时间"),
+			kind: ListingKind::Default,
+		},
+		Listing {
+			id: String::from("hot"),
+			name: String::from("热门"),
+			kind: ListingKind::Default,
+		},
+		Listing {
+			id: String::from("recent"),
+			name: String::from("全新上架"),
+			kind: ListingKind::Default,
+		},
+	]);
 	if is_logged_in {
 		listings.push(Listing {
 			id: String::from("f:fav"),
@@ -184,6 +196,30 @@ impl DynamicListings for Copymanga {
 impl ListingProvider for Copymanga {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		match listing.id.as_str() {
+			"update" => {
+				let url = Url::from_query_or_filters(
+					None,
+					page,
+					&[FilterValue::Sort {
+						id: String::from("排序"),
+						index: 0,
+						ascending: false,
+					}],
+				)?;
+				url.request()?.html()?.manga_page_result()
+			}
+			"hot" => {
+				let url = Url::from_query_or_filters(
+					None,
+					page,
+					&[FilterValue::Sort {
+						id: String::from("排序"),
+						index: 1,
+						ascending: false,
+					}],
+				)?;
+				url.request()?.html()?.manga_page_result()
+			}
 			"recent" => Url::newest(page)
 				.request()?
 				.html()?
