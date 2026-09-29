@@ -1,19 +1,8 @@
 //! Remove the promotional credit line the site injects into chapters.
-//!
-//! The site appends a source-credit line to roughly a quarter of its
-//! chapters, with the letters of its wording swapped for Unicode
-//! look-alikes so keyword filters miss it. The wording rotates, so the
-//! odd characters are matched instead.
+//! Its wording rotates through Unicode look-alikes, so odd characters are matched, not keywords.
 
 use aidoku::alloc::{String, Vec};
 
-/// Unicode blocks whitelisted for the chapter text, as inclusive ranges.
-///
-/// One entry per block, unioned, so allowing or forbidding a script only
-/// ever costs a line here. Everything outside them is the site swapping
-/// the credit's letters for look-alikes (math alphanumerics, Cyrillic,
-/// Greek) to evade keyword filters.
-///
 /// Accepted limits: blocks left out are dropped even when the prose
 /// needs them (CJK brackets, the Korean narration markers), and plain
 /// ASCII credits pass any character rule.
@@ -23,39 +12,27 @@ const PROSE_BLOCKS: &[(u32, u32)] = &[
 	(0x2000, 0x206F), // General Punctuation
 ];
 
-/// Asymmetric delimiter pairs, grouped by the whitelisted block they
-/// come from. Symmetric quotes are left out on purpose: `"` and `'`
-/// cannot tell an opener from a closer, and `'` is the apostrophe of
-/// every contraction on the site.
-///
-/// Test-only: these tables exist so the repair tables below cannot rot
-/// unnoticed — see `repair_pairs_come_from_whitelisted_blocks`.
+/// Asymmetric delimiter pairs. Symmetric quotes are excluded: `"` and `'`
+/// cannot tell an opener from a closer, and `'` is every contraction's
+/// apostrophe.
 #[cfg(test)]
 const BASIC_LATIN_PAIRS: &[(char, char)] = &[('(', ')'), ('[', ']'), ('{', '}')];
 
-/// Asymmetric delimiter pairs in Latin-1 Supplement.
 #[cfg(test)]
 const LATIN_1_PAIRS: &[(char, char)] = &[('«', '»')];
 
-/// Asymmetric delimiter pairs in General Punctuation.
 #[cfg(test)]
 const GENERAL_PUNCTUATION_PAIRS: &[(char, char)] =
 	&[('‘', '’'), ('“', '”'), ('‹', '›'), ('⁅', '⁆')];
 
-/// Pairs the cut may close by extending to the matching closer, found
-/// past the cut point. General Punctuation only: `‘’` and `“”` are the
-/// pairs the cut actually strands on live chapters, and their closers
-/// were never seen inside a credit on ~500 chapters.
+/// Pairs closable by extending to the matching closer past the cut.
+/// General Punctuation only: their closers were never seen inside a credit.
 const EXTEND_PAIRS: &[(char, char)] = &[('‘', '’'), ('“', '”'), ('‹', '›'), ('⁅', '⁆')];
 
-/// Pairs the cut may close by appending the missing closer: everything
-/// at or below Latin-1. The credit frames its own domain in
-/// `fre𝒆webnove(l)`, so the forward search above cannot be trusted
-/// here — the closer is created instead, and nothing is ever pulled
-/// back in.
+/// Pairs closable by appending the missing closer. The credit frames its
+/// own domain, so no forward search: the closer is created instead.
 const CREATE_PAIRS: &[(char, char)] = &[('(', ')'), ('[', ']'), ('{', '}'), ('«', '»')];
 
-/// Whether `ch` can appear in the chapter text.
 fn is_prose_char(ch: char) -> bool {
 	let code = u32::from(ch);
 	ch.is_whitespace()
@@ -64,7 +41,6 @@ fn is_prose_char(ch: char) -> bool {
 			.any(|(start, end)| (*start..=*end).contains(&code))
 }
 
-/// The closer `open` pairs with when extending, if it is handled.
 fn extend_close(open: char) -> Option<char> {
 	EXTEND_PAIRS
 		.iter()
@@ -72,7 +48,6 @@ fn extend_close(open: char) -> Option<char> {
 		.map(|pair| pair.1)
 }
 
-/// The closer `open` pairs with when creating, if it is handled.
 fn create_close(open: char) -> Option<char> {
 	CREATE_PAIRS
 		.iter()
@@ -80,7 +55,6 @@ fn create_close(open: char) -> Option<char> {
 		.map(|pair| pair.1)
 }
 
-/// The opener `close` pairs with, in either table.
 fn matching_opener(close: char) -> Option<char> {
 	EXTEND_PAIRS
 		.iter()
@@ -89,7 +63,6 @@ fn matching_opener(close: char) -> Option<char> {
 		.map(|pair| pair.0)
 }
 
-/// Openers left without their closer, innermost last.
 fn unbalanced(text: &str) -> Vec<char> {
 	let mut stack: Vec<char> = Vec::new();
 	for ch in text.chars() {
@@ -106,13 +79,9 @@ fn unbalanced(text: &str) -> Vec<char> {
 
 /// Append a block, keeping blocks one blank line apart.
 ///
-/// Lines are filtered rather than the whole block: the site also appends
-/// the credit to the end of a real paragraph. A mixed line is cut at the
-/// last sentence end in front of its first foreign character, and an
-/// opener the cut stranded is then closed: by extending for General
+/// Only mixed lines are cut (the credit is also appended to real
+/// paragraphs); the stranded opener is closed by extending for General
 /// Punctuation and Latin-1, by creating the closer for Basic Latin.
-/// Surviving lines are rejoined with a plain newline, which leaves `br`
-/// hard breaks exactly as they were.
 fn append_block(output: &mut String, block: &str) {
 	let mut kept: Vec<String> = Vec::new();
 	for line in block.trim().lines() {
@@ -122,9 +91,7 @@ fn append_block(output: &mut String, block: &str) {
 			None => kept.push(line.into()),
 			Some(index) => {
 				// No sentence end in front of the credit means the line
-				// is the credit, so there is nothing worth keeping. `…`
-				// ends sentences in these translations as often as `.`
-				// does; `;` `:` `—` do not, so they stay out.
+				// is the credit. `…` ends sentences here; `;` `:` `—` do not.
 				let head = &line[..index];
 				// `end` is the byte index where the terminator starts; the
 				// slice has to cover it whole because `…` is three bytes.

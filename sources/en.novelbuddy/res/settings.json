@@ -126,10 +126,7 @@
 				"key": "hideWatermark",
 				"title": "Hide Watermark",
 				"subtitle": "Remove the source-credit line the site injects into chapters",
-				"default": false,
-				"refreshes": [
-					"content"
-				]
+				"default": false
 			}
 		]
 	}

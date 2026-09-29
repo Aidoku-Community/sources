@@ -1,7 +1,4 @@
 //! Convert chapter HTML to Aidoku Markdown.
-//!
-//! Approach adapted from en.freewebnovel's chapter converter and the shared
-//! libgroup template converter.
 
 use aidoku::{
 	alloc::{String, Vec, string::ToString},
@@ -12,7 +9,6 @@ use core::fmt::Write as _;
 
 use crate::{settings, watermark};
 
-/// Length of the longest consecutive backtick run in `text`.
 fn longest_backtick_run(text: &str) -> usize {
 	let mut longest = 0;
 	let mut current = 0;
@@ -37,9 +33,8 @@ fn append_raw_text(element: &Element, output: &mut String) {
 
 /// Append an element's direct text and child elements in document order.
 ///
-/// `child_nodes` yields text nodes (whose text is only reachable there),
-/// while `children` yields elements with reliable tag names; element-kind
-/// nodes are therefore paired with the next entry from `children`.
+/// Text nodes are only reachable via `child_nodes`, tag names only via
+/// `children`, so element-kind nodes pair with the next `children` entry.
 fn convert_children_to_markdown(element: &Element, output: &mut String) {
 	let mut elements = element.children();
 	for node in element.child_nodes() {
@@ -59,11 +54,8 @@ fn convert_children_to_markdown(element: &Element, output: &mut String) {
 	}
 }
 
-/// Terminate any open inline run before a block element: a block that
-/// follows bare text (e.g. a `<p>` after a chapter title sitting directly
-/// inside a `<div>`) must start a new paragraph, not continue the line.
-/// No-op on empty output or when a blank line already separates them, so
-/// consecutive blocks and leading blocks are unaffected.
+/// Terminate any open inline run before a block element, so a block
+/// following bare text starts a new paragraph. No-op when already separated.
 fn break_before_block(output: &mut String) {
 	if output.is_empty() {
 		return;
@@ -117,9 +109,8 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 			for _ in 0..ticks {
 				output.push('`');
 			}
-			// Space-pad whenever the content touches a delimiter boundary:
-			// CommonMark strips one space from both sides when they are
-			// present, which restores the original text verbatim.
+			// Space-pad content touching a delimiter boundary: CommonMark
+			// strips one space from both sides, restoring the text verbatim.
 			if raw.starts_with('`') || raw.ends_with('`') {
 				output.push(' ');
 				output.push_str(&raw);
@@ -174,8 +165,7 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 				output.push('\n');
 			}
 		}
-		// Inline containers carry no block semantics: pass their content
-		// through without injecting newlines mid-paragraph.
+		// Inline containers carry no block semantics.
 		"span" | "li" => convert_children_to_markdown(element, output),
 		// Unknown tags: recurse so their prose is still emitted.
 		_ => convert_children_to_markdown(element, output),
@@ -184,8 +174,8 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 
 /// Render list items as Markdown bullets or numbered entries.
 ///
-/// Numbering follows `li` position: non-item children are filtered out
-/// before enumeration so stray markup cannot shift the sequence.
+/// Non-item children are filtered out before enumeration so stray markup
+/// cannot shift the sequence.
 fn convert_list_to_markdown(element: &Element, tag: &str, output: &mut String) {
 	break_before_block(output);
 	let items: Vec<_> = element
@@ -222,16 +212,11 @@ fn convert_blockquote_to_markdown(element: &Element, output: &mut String) {
 
 /// Convert chapter HTML to Aidoku Markdown.
 ///
-/// The API's chapter content carries no ad markup (verified on live
-/// chapters): its placement spacers are empty, style-only divs that
-/// naturally emit nothing during conversion. It does carry a promotional
-/// attribution paragraph, which [`watermark::strip`] removes unless the
-/// reader turned that off in the source settings.
-///
-/// The fragment is wrapped in a container element before parsing: the
-/// fragment root itself cannot be traversed (its child lists come back
-/// empty), while a selected wrapper element supports the full traversal
-/// API, including root-level text and inline elements.
+/// The fragment is wrapped in a container before parsing: the fragment
+/// root itself cannot be traversed, while a selected wrapper supports
+/// the full traversal API. The API content carries no ad markup, only
+/// a promotional paragraph that [`watermark::strip`] removes unless the
+/// reader turned that off.
 pub fn html_to_markdown(html: &str) -> String {
 	// Concatenated rather than formatted: chapter content may contain
 	// braces, which format! would treat as placeholders.
