@@ -449,8 +449,8 @@ pub trait Impl {
 	}
 
 	fn get_home(&self, cache: &mut Cache, params: &Params) -> Result<HomeLayout> {
-		let base_url = &params.base_url.clone();
-		let html = self.create_request(cache, params, base_url, None)?.html()?;
+		let url = format!("{}{}", params.base_url, params.home_page);
+		let html = self.create_request(cache, params, &url, None)?.html()?;
 
 		let mut components = Vec::new();
 

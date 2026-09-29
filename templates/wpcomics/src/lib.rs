@@ -78,6 +78,8 @@ pub struct Params {
 		filters: Vec<FilterValue>,
 	) -> Result<String>,
 
+	/// Path appended to `base_url` to fetch the home page, for sites that moved it off the root.
+	pub home_page: &'static str,
 	pub home_manga_link: &'static str,
 	pub home_chapter_link: &'static str,
 	pub home_date_uploaded: &'static str,
@@ -218,6 +220,7 @@ impl Default for Params {
 				get_search_url(params, query, page, filters)
 			},
 
+			home_page: "",
 			home_manga_link: ".book_info a",
 			home_chapter_link: ".last_chapter a, .chapter-item a",
 			home_date_uploaded: ".time-ago, .timediff a",

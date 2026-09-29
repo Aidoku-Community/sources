@@ -87,6 +87,7 @@ impl Impl for NetTruyen {
 				))
 			},
 
+			home_page: "/trang-chu",
 			home_manga_link: "h3 > a",
 			home_chapter_link: ".slide-caption > a, .chapter > a",
 			home_date_uploaded: ".time",
