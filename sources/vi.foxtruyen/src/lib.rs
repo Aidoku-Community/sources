@@ -125,7 +125,7 @@ impl Impl for FoxTruyen {
 			home_sliders_title_selector: "h2",
 			home_sliders_item_selector: "li",
 
-			home_grids_selector: "section > div > .col-md-6, .container > section:nth-child(1)",
+			home_grids_selector: "div:has(> .list_item_home)",
 			home_grids_title_selector: ".title_cate",
 			home_grids_item_selector: ".item_home",
 
