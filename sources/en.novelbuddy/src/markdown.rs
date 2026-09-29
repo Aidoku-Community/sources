@@ -59,15 +59,31 @@ fn convert_children_to_markdown(element: &Element, output: &mut String) {
 	}
 }
 
+/// Terminate any open inline run before a block element: a block that
+/// follows bare text (e.g. a `<p>` after a chapter title sitting directly
+/// inside a `<div>`) must start a new paragraph, not continue the line.
+/// No-op on empty output or when a blank line already separates them, so
+/// consecutive blocks and leading blocks are unaffected.
+fn break_before_block(output: &mut String) {
+	if output.is_empty() {
+		return;
+	}
+	while !output.ends_with("\n\n") {
+		output.push('\n');
+	}
+}
+
 fn convert_element_to_markdown(element: &Element, output: &mut String) {
 	let tag = element.tag_name().unwrap_or_default();
 	match tag.as_str() {
 		"p" => {
+			break_before_block(output);
 			convert_children_to_markdown(element, output);
 			output.push_str("\n\n");
 		}
 		"br" => output.push_str("  \n"),
 		"h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+			break_before_block(output);
 			let level = tag.as_bytes()[1] - b'0';
 			for _ in 0..level {
 				output.push('#');
@@ -116,6 +132,7 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 			}
 		}
 		"pre" => {
+			break_before_block(output);
 			let mut raw = String::default();
 			append_raw_text(element, &mut raw);
 			let fence = "`".repeat(3.max(longest_backtick_run(&raw) + 1));
@@ -129,6 +146,7 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 			output.push_str("\n\n");
 		}
 		"img" => {
+			break_before_block(output);
 			if let Some(src) = element.attr("src") {
 				let alt = element.attr("alt").unwrap_or_default();
 				let _ = write!(output, "![{alt}]({src})\n\n");
@@ -143,10 +161,14 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 				convert_children_to_markdown(element, output);
 			}
 		}
-		"hr" => output.push_str("---\n\n"),
+		"hr" => {
+			break_before_block(output);
+			output.push_str("---\n\n")
+		}
 		"ul" | "ol" => convert_list_to_markdown(element, &tag, output),
 		"blockquote" => convert_blockquote_to_markdown(element, output),
 		"div" | "section" | "article" | "header" | "footer" | "main" | "aside" => {
+			break_before_block(output);
 			convert_children_to_markdown(element, output);
 			if !output.ends_with("\n\n") && !output.ends_with('\n') {
 				output.push('\n');
@@ -165,6 +187,7 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 /// Numbering follows `li` position: non-item children are filtered out
 /// before enumeration so stray markup cannot shift the sequence.
 fn convert_list_to_markdown(element: &Element, tag: &str, output: &mut String) {
+	break_before_block(output);
 	let items: Vec<_> = element
 		.children()
 		.filter(|child| child.tag_name().as_deref() == Some("li"))
@@ -184,6 +207,7 @@ fn convert_list_to_markdown(element: &Element, tag: &str, output: &mut String) {
 /// Render a blockquote by prefixing every emitted line with `> `, keeping
 /// multi-block quotes valid Markdown.
 fn convert_blockquote_to_markdown(element: &Element, output: &mut String) {
+	break_before_block(output);
 	let mut quoted = String::default();
 	convert_children_to_markdown(element, &mut quoted);
 	for (index, line) in quoted.trim_end().lines().enumerate() {
@@ -276,6 +300,30 @@ mod tests {
 		let html = "<div>text in div</div>";
 		let out = html_to_markdown(html);
 		assert_eq!(out, "text in div");
+	}
+
+	#[aidoku_test]
+	fn separates_bare_title_from_following_paragraph() {
+		// Real API shape (Chaotic Craftsman ch. 218): the chapter title is
+		// a bare text node inside the container, directly followed by the
+		// first paragraph. Without a break the two render glued together.
+		// (`\:`/`\.` escaping and the trailing spaces come from the
+		// source-whitespace handling, unchanged by the break. The leading
+		// space before "He" is the `<p>` content's own, kept as-is.)
+		let html =
+			"<div> Chapter 218: Ather’s Perspective\n<p> He woke up as he always did.</p></div>";
+		let out = html_to_markdown(html);
+		assert_eq!(
+			out,
+			"Chapter 218\\: Ather’s Perspective  \n\n He woke up as he always did\\."
+		);
+	}
+
+	#[aidoku_test]
+	fn separates_consecutive_divs() {
+		let html = "<div>first</div><div>second</div>";
+		let out = html_to_markdown(html);
+		assert_eq!(out, "first\n\nsecond");
 	}
 
 	#[aidoku_test]
