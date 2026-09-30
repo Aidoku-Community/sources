@@ -63,7 +63,7 @@ impl HomePage for Document {
 
 		for (heading, listing) in [
 			("漫畫推薦", None),
-			("熱門更新", Some(("update", "更新时间"))),
+			("熱門更新", Some(("update", "更新時間"))),
 			("全新上架", Some(("recent", "全新上架"))),
 		] {
 			let Some(section) = self.try_select("div.container")?.find(|section| {
@@ -150,8 +150,8 @@ impl GenresPage for Document {
 		ids.insert(0, "".into());
 
 		Ok(SelectFilter {
-			id: "题材".into(),
-			title: Some("题材".into()),
+			id: "題材".into(),
+			title: Some("題材".into()),
 			is_genre: true,
 			uses_tag_style: true,
 			options,

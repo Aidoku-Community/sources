@@ -82,15 +82,15 @@ fn fetch_collect_page(page: i32) -> Result<MangaPageResult> {
 		response = Request::get(&url)?.authed()?.send()?;
 	}
 	if response.status_code() == 401 {
-		bail!("登录已失效，请重新在设置中登录");
+		bail!("登入已失效，請重新在設定中登入");
 	}
 
 	let body = response.get_string()?;
 	let parsed: CollectResponse =
-		serde_json::from_str(&body).map_err(|_| error!("收藏响应解析失败"))?;
+		serde_json::from_str(&body).map_err(|_| error!("收藏回應解析失敗"))?;
 	let results = parsed
 		.results
-		.ok_or_else(|| error!("收藏响应缺少 results"))?;
+		.ok_or_else(|| error!("收藏回應缺少 results"))?;
 
 	let item_count = results.list.len();
 	let has_next_page =
@@ -126,15 +126,15 @@ pub fn resolve_comic_uuid(path_word: &str) -> Result<String> {
 	let html = Url::manga(path_word).request()?.string()?;
 	let marker = "collect('";
 	let Some(start) = html.find(marker) else {
-		bail!("详情页中未找到收藏标识，漫画可能不存在");
+		bail!("詳情頁中找不到收藏標識，漫畫可能不存在");
 	};
 	let rest = &html[start + marker.len()..];
 	let Some(end) = rest.find('\'') else {
-		bail!("详情页收藏标识解析失败");
+		bail!("詳情頁收藏標識解析失敗");
 	};
 	let uuid = &rest[..end];
 	if uuid.is_empty() {
-		bail!("详情页收藏标识为空");
+		bail!("詳情頁收藏標識為空");
 	}
 	Ok(uuid.into())
 }
@@ -246,7 +246,7 @@ where
 /// 簡介收藏按鈕入口（handle_deep_link 路由 /__fav/{add|remove}/{path_word}）。
 /// 执行写操作并记录状态，返回当前漫画让 App 刷新详情页展示结果。
 pub fn deep_link_favorite(path_word: &str, add: bool) -> Result<Option<DeepLinkResult>> {
-	let action = if add { "收藏漫画" } else { "取消收藏" };
+	let action = if add { "收藏漫畫" } else { "取消收藏" };
 
 	let result = favorite_with_state(path_word, add);
 
@@ -260,7 +260,7 @@ pub fn deep_link_favorite(path_word: &str, add: bool) -> Result<Option<DeepLinkR
 			set_fav_msg(path_word, &format!("{mark} {message}"));
 		}
 		Err(err) => {
-			set_fav_msg(path_word, &format!("❌ {action}失败：{}", error_text(err)));
+			set_fav_msg(path_word, &format!("❌ {action}失敗：{}", error_text(err)));
 		}
 	}
 	// 无论如何返回当前漫画：App 会重新拉取详情并推入刷新页，用户即可看到状态
@@ -284,9 +284,9 @@ fn favorite_with_state(path_word: &str, add: bool) -> Result<String> {
 	}
 	set_collected_state(path_word, collected);
 	Ok(if collected {
-		String::from("已收藏（无需重复操作）")
+		String::from("已收藏（無需重複操作）")
 	} else {
-		String::from("尚未收藏（无需取消）")
+		String::from("尚未收藏（無需取消）")
 	})
 }
 
@@ -295,7 +295,7 @@ fn detail_action_line(favorite: Option<&str>, uuid: Option<&str>) -> Option<Stri
 	let mut actions = Vec::new();
 	if let Some(uuid) = uuid.filter(|uuid| !uuid.is_empty()) {
 		actions.push(format!(
-			"[💬 评论区](https://www.copy5000.com/h5/commentList?comicId={uuid})"
+			"[💬 評論區](https://www.copy5000.com/h5/commentList?comicId={uuid})"
 		));
 	}
 	if let Some(favorite) = favorite {
@@ -340,7 +340,7 @@ pub fn decorate_description(
 			))
 		} else {
 			Some(format!(
-				"[➕ 收藏漫画]({BUTTON_HOST}/__fav/add/{path_word})"
+				"[➕ 收藏漫畫]({BUTTON_HOST}/__fav/add/{path_word})"
 			))
 		}
 	} else {
@@ -370,9 +370,9 @@ fn favorite_core(path_word: &str, add: bool) -> Result<String> {
 	let status = format!(
 		"{}{path_word}",
 		if add {
-			"已收藏漫画: "
+			"已收藏漫畫："
 		} else {
-			"已取消收藏: "
+			"已取消收藏："
 		}
 	);
 	set_collected_state(path_word, add);
@@ -405,7 +405,7 @@ pub fn set_collect(comic_uuid: &str, collect: bool) -> Result<()> {
 			CollectWriteAttempt::Stop(err) => return Err(err),
 		}
 	}
-	Err(last_error.unwrap_or_else(|| error!("收藏写入失败：所有接口均不可用")))
+	Err(last_error.unwrap_or_else(|| error!("收藏寫入失敗：所有介面均無法使用")))
 }
 
 /// 收藏写接口候选域：H5 应用核心域优先，回退当前所选主域。
@@ -444,13 +444,13 @@ fn set_collect_once(url: &str, body: &str) -> CollectWriteAttempt {
 	};
 
 	let Some(token) = crate::auth::token() else {
-		return CollectWriteAttempt::Stop(error!("请先在设置中登录"));
+		return CollectWriteAttempt::Stop(error!("請先在設定中登入"));
 	};
 	let mut response = match send(url.into(), &token) {
 		Ok(response) => response,
 		Err(_) => {
 			return CollectWriteAttempt::Stop(error!(
-				"收藏请求未得到响应，结果未知；请刷新详情或到网站书架确认"
+				"收藏請求未得到回應，結果未知；請重新整理詳情或到網站書架確認"
 			));
 		}
 	};
@@ -462,14 +462,14 @@ fn set_collect_once(url: &str, body: &str) -> CollectWriteAttempt {
 			Ok(response) => response,
 			Err(_) => {
 				return CollectWriteAttempt::Stop(error!(
-					"收藏请求未得到响应，结果未知；请刷新详情或到网站书架确认"
+					"收藏請求未得到回應，結果未知；請重新整理詳情或到網站書架確認"
 				));
 			}
 		};
 	}
 	if response.status_code() == 401 {
 		return CollectWriteAttempt::Stop(error!(
-			"登录已失效，请在设置中重新登录（会自动续期，无需网页登录）"
+			"登入已失效，請在設定中重新登入（會自動續期，無需透過網頁登入）"
 		));
 	}
 	if response.status_code() == 404 {
@@ -482,24 +482,24 @@ fn set_collect_once(url: &str, body: &str) -> CollectWriteAttempt {
 		Ok(body) => body,
 		Err(_) => {
 			return CollectWriteAttempt::Stop(error!(
-				"收藏响应读取失败，结果未知；请刷新详情或到网站书架确认"
+				"收藏回應讀取失敗，結果未知；請重新整理詳情或到網站書架確認"
 			));
 		}
 	};
 	if should_retry_on_other_host(200, &resp_body) {
-		return CollectWriteAttempt::RetryOnOtherHost(error!("网站拦截页阻止了收藏请求"));
+		return CollectWriteAttempt::RetryOnOtherHost(error!("網站攔截頁阻止了收藏請求"));
 	}
 	let value: serde_json::Value = match serde_json::from_str(&resp_body) {
 		Ok(value) => value,
-		Err(_) => return CollectWriteAttempt::Stop(error!("收藏响应不是预期 JSON，结果未知")),
+		Err(_) => return CollectWriteAttempt::Stop(error!("收藏回應不是預期的 JSON，結果未知")),
 	};
 	let code = value.get("code").and_then(|v| v.as_i64()).unwrap_or(0);
 	if code != 200 {
 		let message = value
 			.get("message")
 			.and_then(|v| v.as_str())
-			.unwrap_or("未知错误");
-		return CollectWriteAttempt::Stop(error!("网站返回 {code}：{message}"));
+			.unwrap_or("未知錯誤");
+		return CollectWriteAttempt::Stop(error!("網站回傳 {code}：{message}"));
 	}
 	CollectWriteAttempt::Success
 }
@@ -554,13 +554,13 @@ mod tests {
 	#[aidoku_test::aidoku_test]
 	fn detail_actions_keep_favorite_and_comment_section_on_one_line() {
 		let actions = detail_action_line(
-			Some("[➕ 收藏漫画](https://example.com/add)"),
+			Some("[➕ 收藏漫畫](https://example.com/add)"),
 			Some("comic-uuid"),
 		)
 		.expect("actions should be present");
 		assert_eq!(
 			actions,
-			"[💬 评论区](https://www.copy5000.com/h5/commentList?comicId=comic-uuid) · [➕ 收藏漫画](https://example.com/add)"
+			"[💬 評論區](https://www.copy5000.com/h5/commentList?comicId=comic-uuid) · [➕ 收藏漫畫](https://example.com/add)"
 		);
 	}
 

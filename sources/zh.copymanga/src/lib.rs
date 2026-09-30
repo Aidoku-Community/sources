@@ -171,12 +171,12 @@ impl DynamicListings for Copymanga {
 		let mut listings = Vec::from([
 			Listing {
 				id: String::from("update"),
-				name: String::from("更新时间"),
+				name: String::from("更新時間"),
 				kind: ListingKind::Default,
 			},
 			Listing {
 				id: String::from("hot"),
-				name: String::from("热门"),
+				name: String::from("熱門"),
 				kind: ListingKind::Default,
 			},
 			Listing {
@@ -236,7 +236,7 @@ impl ListingProvider for Copymanga {
 impl BasicLoginHandler for Copymanga {
 	fn handle_basic_login(&self, key: String, username: String, password: String) -> Result<bool> {
 		if key != "login" {
-			bail!("登录入口无效");
+			bail!("登入入口無效");
 		}
 		match auth::login(&username, &password) {
 			Ok(()) => {
