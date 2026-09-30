@@ -1,7 +1,7 @@
 #![no_std]
 use aidoku::{
 	Chapter, FilterValue, HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Manga,
-	Result, Source, Viewer,
+	MangaWithChapter, Result, Source, Viewer,
 	alloc::{borrow::ToOwned, string::ToString, *},
 	helpers::uri::QueryParameters,
 	imports::{html::Element, net::Request, std::send_partial_result},
@@ -9,7 +9,7 @@ use aidoku::{
 };
 use wpcomics::{Cache, Impl, Params, WpComics};
 
-const BASE_URL: &str = "https://www.zettruyen.homes";
+const BASE_URL: &str = "https://www.zettruyen2.com";
 
 mod models;
 use models::*;
@@ -125,11 +125,6 @@ impl Impl for ZetTruyen {
 					value: aidoku::HomeComponentValue::empty_scroller(),
 				},
 				HomeComponent {
-					title: Some("Top ngày".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_scroller(),
-				},
-				HomeComponent {
 					title: Some("Top tháng".into()),
 					subtitle: None,
 					value: aidoku::HomeComponentValue::empty_scroller(),
@@ -208,72 +203,76 @@ impl Impl for ZetTruyen {
 			}
 		}
 
-		let top = Request::get(format!("{BASE_URL}/api/comics/top"))?
-			.send()?
-			.get_json::<Top>()?;
+		// The site removed /api/comics/top and /api/comics/related, so both are read from the
+		// rankings and "Mới cập nhật" blocks that the home page now renders itself.
+		let parse_ranked = |el: &Element| -> Option<Manga> {
+			let link = el.select_first("a[href]")?;
+			let url = link.attr("abs:href")?;
+			Some(Manga {
+				key: (params.manga_parse_id)(&url),
+				title: link.attr("title")?,
+				cover: el.select_first("img").and_then(|img| img.attr("abs:src")),
+				url: Some(url),
+				..Default::default()
+			})
+		};
+		for (id, title) in [
+			("#content-top_all", "Top"),
+			("#content-top_month", "Top tháng"),
+			("#content-top_week", "Top tuần"),
+		] {
+			let entries = html
+				.select(format!("{id} .thumb-cover"))
+				.map(|els| {
+					els.filter_map(|el| parse_ranked(&el))
+						.map(|manga| manga.into())
+						.collect::<Vec<_>>()
+				})
+				.unwrap_or_default();
+			send_partial_result(&HomePartialResult::Component(HomeComponent {
+				title: Some(title.to_owned()),
+				subtitle: None,
+				value: HomeComponentValue::Scroller {
+					entries,
+					listing: None,
+				},
+			}));
+		}
 
-		send_partial_result(&HomePartialResult::Component(HomeComponent {
-			title: Some("Top".to_owned()),
-			subtitle: None,
-			value: HomeComponentValue::Scroller {
-				entries: top
-					.data
-					.top_all
-					.into_iter()
-					.map(|v| Manga::from(v).into())
-					.collect::<Vec<_>>(),
-				listing: None,
-			},
-		}));
-		send_partial_result(&HomePartialResult::Component(HomeComponent {
-			title: Some("Top ngày".to_owned()),
-			subtitle: None,
-			value: HomeComponentValue::Scroller {
-				entries: top
-					.data
-					.top_day
-					.into_iter()
-					.map(|v| Manga::from(v).into())
-					.collect::<Vec<_>>(),
-				listing: None,
-			},
-		}));
-		send_partial_result(&HomePartialResult::Component(HomeComponent {
-			title: Some("Top tháng".to_owned()),
-			subtitle: None,
-			value: HomeComponentValue::Scroller {
-				entries: top
-					.data
-					.top_month
-					.into_iter()
-					.map(|v| Manga::from(v).into())
-					.collect::<Vec<_>>(),
-				listing: None,
-			},
-		}));
-		send_partial_result(&HomePartialResult::Component(HomeComponent {
-			title: Some("Top tuần".to_owned()),
-			subtitle: None,
-			value: HomeComponentValue::Scroller {
-				entries: top
-					.data
-					.top_week
-					.into_iter()
-					.map(|v| Manga::from(v).into())
-					.collect::<Vec<_>>(),
-				listing: None,
-			},
-		}));
-
-		let related = Request::get(format!("{BASE_URL}/api/comics/related?limit=10"))?
-			.send()?
-			.get_json::<Related>()?
-			.data;
+		let latest = html
+			.select("#LatestUpdate .grid-cols-12")
+			.map(|rows| {
+				rows.filter_map(|row| {
+					let link = row.select_first(".col-span-9 a[title]")?;
+					let url = link.attr("abs:href")?;
+					let chapter_url = row.select_first(".chapter-link")?.attr("abs:href")?;
+					let chapter_key = (params.chapter_parse_id)(chapter_url.clone());
+					Some(MangaWithChapter {
+						manga: Manga {
+							key: (params.manga_parse_id)(&url),
+							title: link.attr("title")?,
+							cover: row.select_first("img").and_then(|img| img.attr("abs:src")),
+							url: Some(url),
+							..Default::default()
+						},
+						chapter: Chapter {
+							chapter_number: chapter_key
+								.strip_prefix("chuong-")
+								.and_then(|n| n.parse::<f32>().ok()),
+							key: chapter_key,
+							url: Some(chapter_url),
+							..Default::default()
+						},
+					})
+				})
+				.collect::<Vec<_>>()
+			})
+			.unwrap_or_default();
 		send_partial_result(&HomePartialResult::Component(HomeComponent {
 			title: Some("Mới cập nhật".to_owned()),
 			subtitle: None,
 			value: HomeComponentValue::MangaChapterList {
-				entries: related.into_iter().map(|v| v.into()).collect::<Vec<_>>(),
+				entries: latest,
 				page_size: Some(4),
 				listing: None,
 			},
