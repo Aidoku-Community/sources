@@ -2,11 +2,12 @@
 	"info": {
 		"id": "vi.foxtruyen",
 		"name": "FoxTruyen",
-		"version": 5,
+		"version": 6,
 		"url": "https://foxtruyen2.com",
 		"contentRating": 1,
 		"languages": [
 			"vi"
-		]
+		],
+		"minAppVersion": "0.7.1"
 	}
 }
