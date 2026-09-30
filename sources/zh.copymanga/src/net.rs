@@ -11,6 +11,8 @@ use strum::{AsRefStr, Display, EnumIs, FromRepr};
 
 #[derive(Display, EnumIs)]
 pub enum Url<'a> {
+	#[strum(to_string = "")]
+	Home,
 	#[strum(to_string = "/filter")]
 	GenresPage,
 	#[strum(to_string = "/comics?{0}")]

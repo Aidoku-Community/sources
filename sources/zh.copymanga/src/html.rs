@@ -3,7 +3,8 @@ use crate::{
 	net::Url,
 };
 use aidoku::{
-	Manga, MangaPageResult, MangaStatus, Page, Result, SelectFilter,
+	HomeComponent, HomeComponentValue, HomeLayout, Link, LinkValue, Listing, ListingKind, Manga,
+	MangaPageResult, MangaStatus, Page, Result, SelectFilter,
 	alloc::{String, Vec, borrow::ToOwned as _, format},
 	error,
 	imports::{
@@ -11,6 +12,124 @@ use aidoku::{
 		js::JsContext,
 	},
 };
+
+pub trait HomePage {
+	fn home_layout(&self, base_url: &str) -> Result<HomeLayout>;
+}
+
+impl HomePage for Document {
+	fn home_layout(&self, base_url: &str) -> Result<HomeLayout> {
+		let mut components = Vec::new();
+		let banners: Vec<Link> = self
+			.try_select(".carousel-inner .carousel-item")?
+			.filter_map(|item| {
+				let link = item.select_first("a[href]")?;
+				let href = link.attr("href")?;
+				let image = item.select_first("img")?;
+				let image_url = image.attr("data-src").or_else(|| image.attr("src"))?;
+				let title = item
+					.select_first(".carousel-caption")
+					.and_then(|caption| caption.text())
+					.unwrap_or_default();
+				let value = if let Some(key) = href.strip_prefix("/comic/") {
+					LinkValue::Manga(Manga {
+						key: key.into(),
+						title: title.clone(),
+						..Default::default()
+					})
+				} else {
+					LinkValue::Url(absolute_url(base_url, &href))
+				};
+				Some(Link {
+					title,
+					subtitle: None,
+					image_url: Some(absolute_url(base_url, &image_url)),
+					value: Some(value),
+				})
+			})
+			.collect();
+		if !banners.is_empty() {
+			components.push(HomeComponent {
+				title: None,
+				value: HomeComponentValue::ImageScroller {
+					links: banners,
+					auto_scroll_interval: Some(5.0),
+					width: Some(300),
+					height: Some(145),
+				},
+				..Default::default()
+			});
+		}
+
+		for (heading, listing) in [
+			("漫畫推薦", None),
+			("熱門更新", Some(("update", "更新时间"))),
+			("全新上架", Some(("recent", "全新上架"))),
+		] {
+			let Some(section) = self.try_select("div.container")?.find(|section| {
+				section
+					.select_first(".index-all-icon-left-txt")
+					.and_then(|title| title.text())
+					.is_some_and(|title| {
+						title
+							.chars()
+							.filter(|c| !c.is_whitespace())
+							.eq(heading.chars())
+					})
+			}) else {
+				continue;
+			};
+			let entries: Vec<Link> = section
+				.select(".row .col-auto > a[href^='/comic/']")
+				.into_iter()
+				.flatten()
+				.filter_map(|link| {
+					let key = link.attr("href")?.strip_prefix("/comic/")?.into();
+					let title = link.select_first("p.edit-txt")?.text()?;
+					let image = link.select_first("img")?;
+					let cover = image
+						.attr("data-src")
+						.or_else(|| image.attr("src"))?
+						.replace(".328x422.jpg", "");
+					Some(
+						Manga {
+							key,
+							title,
+							cover: Some(absolute_url(base_url, &cover)),
+							..Default::default()
+						}
+						.into(),
+					)
+				})
+				.collect();
+			if !entries.is_empty() {
+				components.push(HomeComponent {
+					title: Some(heading.into()),
+					value: HomeComponentValue::Scroller {
+						entries,
+						listing: listing.map(|(id, name)| Listing {
+							id: id.into(),
+							name: name.into(),
+							kind: ListingKind::Default,
+						}),
+					},
+					..Default::default()
+				});
+			}
+		}
+		Ok(HomeLayout { components })
+	}
+}
+
+fn absolute_url(base_url: &str, url: &str) -> String {
+	if url.starts_with("https://") || url.starts_with("http://") {
+		url.into()
+	} else if url.starts_with("//") {
+		format!("https:{url}")
+	} else {
+		format!("{}{url}", base_url.trim_end_matches('/'))
+	}
+}
 
 pub trait GenresPage {
 	fn filter(&self) -> Result<SelectFilter>;

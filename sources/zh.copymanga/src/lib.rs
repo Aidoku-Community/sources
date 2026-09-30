@@ -10,15 +10,15 @@ mod tests;
 
 use aidoku::{
 	BasicLoginHandler, Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, DynamicListings,
-	Filter, FilterValue, Listing, ListingKind, ListingProvider, Manga, MangaPageResult,
-	NotificationHandler, Page, Result, Source,
+	Filter, FilterValue, Home, HomeLayout, Listing, ListingKind, ListingProvider, Manga,
+	MangaPageResult, NotificationHandler, Page, Result, Source,
 	alloc::{String, Vec},
 	imports::std::send_partial_result,
 	prelude::*,
 };
 use html::{
-	ChapterPage as _, CollectButtonPage as _, FiltersPage as _, GenresPage as _, KeyPage as _,
-	MangaPage as _, NewestPage as _,
+	ChapterPage as _, CollectButtonPage as _, FiltersPage as _, GenresPage as _, HomePage as _,
+	KeyPage as _, MangaPage as _, NewestPage as _,
 };
 use json::{chapter_list, search};
 use net::Url;
@@ -91,6 +91,13 @@ impl Source for Copymanga {
 	}
 }
 
+impl Home for Copymanga {
+	fn get_home(&self) -> Result<HomeLayout> {
+		let base_url = net::base_url()?;
+		Url::Home.request()?.html()?.home_layout(&base_url)
+	}
+}
+
 /// 解析簡介收藏按鈕的 deep link：`/__fav/{add|remove}/{path_word}`。
 /// App 传入形态为 "https:host/path"（无 //，NSURL.resourceSpecifier 拼接），
 /// 也兼容完整 "https://host/path"；先取动作段、再取漫画 ID 段。
@@ -159,37 +166,33 @@ impl DynamicFilters for Copymanga {
 	}
 }
 
-fn listings(is_logged_in: bool) -> Vec<Listing> {
-	let mut listings = Vec::from([
-		Listing {
-			id: String::from("update"),
-			name: String::from("更新时间"),
-			kind: ListingKind::Default,
-		},
-		Listing {
-			id: String::from("hot"),
-			name: String::from("热门"),
-			kind: ListingKind::Default,
-		},
-		Listing {
-			id: String::from("recent"),
-			name: String::from("全新上架"),
-			kind: ListingKind::Default,
-		},
-	]);
-	if is_logged_in {
-		listings.push(Listing {
-			id: String::from("f:fav"),
-			name: String::from("我的收藏"),
-			kind: ListingKind::List,
-		});
-	}
-	listings
-}
-
 impl DynamicListings for Copymanga {
 	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
-		Ok(listings(auth::is_logged_in()))
+		let mut listings = Vec::from([
+			Listing {
+				id: String::from("update"),
+				name: String::from("更新时间"),
+				kind: ListingKind::Default,
+			},
+			Listing {
+				id: String::from("hot"),
+				name: String::from("热门"),
+				kind: ListingKind::Default,
+			},
+			Listing {
+				id: String::from("recent"),
+				name: String::from("全新上架"),
+				kind: ListingKind::Default,
+			},
+		]);
+		if auth::is_logged_in() {
+			listings.push(Listing {
+				id: String::from("f:fav"),
+				name: String::from("我的收藏"),
+				kind: ListingKind::List,
+			});
+		}
+		Ok(listings)
 	}
 }
 
@@ -256,6 +259,7 @@ impl NotificationHandler for Copymanga {
 
 register_source!(
 	Copymanga,
+	Home,
 	DeepLinkHandler,
 	DynamicFilters,
 	DynamicListings,
