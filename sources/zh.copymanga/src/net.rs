@@ -74,7 +74,9 @@ impl Url<'_> {
 						let url = Self::search(search_query)?;
 						return Ok(url);
 					}
-					_ => bail!("Invalid text filter ID: `{id}`"),
+					_ => {
+						bail!("Invalid text filter ID: `{id}`");
+					}
 				},
 
 				FilterValue::Sort {
@@ -87,7 +89,9 @@ impl Url<'_> {
 						sort = Sort::from_repr(index)
 							.ok_or_else(|| error!("Invalid `排序` index: `{index}`"))?;
 					}
-					_ => bail!("Invalid sort filter ID: `{id}`"),
+					_ => {
+						bail!("Invalid sort filter ID: `{id}`");
+					}
 				},
 
 				FilterValue::Select { ref id, ref value } => match id.as_str() {
@@ -104,10 +108,14 @@ impl Url<'_> {
 							.ok_or_else(|| error!("Genre ID not found for option: `{value}`"))?;
 						genre = genre_id.into();
 					}
-					_ => bail!("Invalid select filter ID: `{id}`"),
+					_ => {
+						bail!("Invalid select filter ID: `{id}`");
+					}
 				},
 
-				_ => bail!("Invalid filter: `{filter:?}`"),
+				_ => {
+					bail!("Invalid filter: `{filter:?}`");
+				}
 			}
 		}
 
