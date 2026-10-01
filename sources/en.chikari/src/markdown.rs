@@ -1,9 +1,8 @@
 //! Convert chapter HTML to Aidoku Markdown.
 //!
-//! Chikari bodies are line-based text with blank-line paragraph separation
-//! and inline tags only (`em`, `strong`); paragraphs are converted one at
-//! a time so blank lines always survive as paragraph breaks regardless of
-//! how the parser treats whitespace between elements.
+//! Chikari bodies are line-based with inline tags only (`em`, `strong`).
+//! Converting one paragraph at a time keeps blank lines as paragraph breaks
+//! whatever the parser does with whitespace between elements.
 
 use aidoku::{
 	alloc::{String, Vec, string::ToString},
@@ -14,9 +13,9 @@ use core::fmt::Write as _;
 
 use crate::{settings, watermark};
 
-/// Tag names Chikari can serve as markup. Any other angle-bracket sequence
-/// is prose, not a tag: sampled chapters contain literal `<Maddened
-/// Enlightenment>` and `<Dark Exploration Records>`, which must survive.
+/// Tag names Chikari serves as markup. Any other angle-bracket sequence is
+/// prose, not a tag: chapters carry literal `<Maddened Enlightenment>`, which
+/// must survive.
 const MARKUP_TAGS: &[&str] = &[
 	"a",
 	"abbr",
@@ -72,18 +71,18 @@ fn longest_backtick_run(text: &str) -> usize {
 	longest
 }
 
-/// Append an element's full descendant text without Markdown escaping:
-/// backslashes inside code spans and fenced blocks are literal output.
+/// Append an element's descendant text unescaped: backslashes inside code
+/// spans and fences are literal output.
 fn append_raw_text(element: &Element, output: &mut String) {
 	if let Some(text) = element.text() {
 		output.push_str(&text);
 	}
 }
 
-/// Append an element's direct text and child elements in document order.
+/// Append an element's text and children in document order.
 ///
-/// Text nodes are only reachable via `child_nodes`, tag names only via
-/// `children`, so element-kind nodes pair with the next `children` entry.
+/// Text nodes come from `child_nodes` and tag names from `children`, so
+/// element-kind nodes pair with the next `children` entry.
 fn convert_children_to_markdown(element: &Element, output: &mut String) {
 	let mut elements = element.children();
 	for node in element.child_nodes() {
@@ -257,11 +256,11 @@ fn convert_blockquote_to_markdown(element: &Element, output: &mut String) {
 	output.push_str("\n\n");
 }
 
-/// Return the byte index just past the `>` when `start` begins a tag whose
-/// name is recognized markup, or `None` when the sequence is literal text.
+/// Byte index just past the `>` when `start` opens recognized markup, else
+/// `None` for literal text.
 ///
-/// Attribute values are skipped with quote awareness so a `>` inside them
-/// cannot terminate the tag early.
+/// Attribute values are skipped with quote awareness so a `>` inside one
+/// cannot end the tag early.
 fn markup_tag_end(input: &str, start: usize) -> Option<usize> {
 	let bytes = input.as_bytes();
 	let mut index = start + 1;
@@ -299,10 +298,9 @@ fn markup_tag_end(input: &str, start: usize) -> Option<usize> {
 	None
 }
 
-/// HTML-escape `<` for every angle bracket that does not open recognized
-/// markup, so literal prose like `<Maddened Enlightenment>` reaches the
-/// parser as text instead of being consumed as an unknown element (which
-/// would drop the tag name and keep only its attributes).
+/// Escape `<` on every angle bracket that does not open recognized markup.
+/// Otherwise the parser reads literal prose like `<Maddened Enlightenment>`
+/// as an unknown element and keeps only its attributes.
 fn protect_literal_angle_brackets(input: &str) -> String {
 	let mut output = String::default();
 	let mut index = 0;
@@ -326,9 +324,8 @@ fn protect_literal_angle_brackets(input: &str) -> String {
 
 /// Convert one blank-line-delimited paragraph of chapter HTML to Markdown.
 ///
-/// The paragraph is wrapped in a container before parsing: the fragment
-/// root itself cannot be traversed, while a selected wrapper supports
-/// the full traversal API.
+/// The paragraph is wrapped in a container first: the fragment root cannot be
+/// traversed, a selected wrapper can.
 fn paragraph_to_markdown(paragraph: &str) -> String {
 	// Concatenated rather than formatted: chapter content may contain
 	// braces, which format! would treat as placeholders.

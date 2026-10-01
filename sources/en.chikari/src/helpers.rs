@@ -351,14 +351,12 @@ pub fn fetch_chapters(slug: &str, content_type: ContentType) -> Result<Vec<Chapt
 }
 
 pub fn parse_iso_date(value: &str) -> Option<i64> {
-	// Chikari serves UTC: "2026-09-01T15:48:38.782596+00:00". The device parses
-	// the full ISO form; the test host implements neither Unicode quoted
-	// literals, fractional seconds nor ISO zones, so fall back to a
-	// seconds-precision parse with the fractional seconds and the zone dropped.
-	// Like en.novelbuddy, the value is then read as UTC: upload dates only need
-	// to be comparable with each other, not timezone-exact. The "T" stays
-	// unquoted on purpose because a parser without quoted-literal support treats
-	// it as a plain character.
+	// Chikari serves UTC: "2026-09-01T15:48:38.782596+00:00". The test host
+	// implements neither quoted literals, fractional seconds nor ISO zones, so
+	// fall back to a seconds-precision parse with the fraction and zone dropped
+	// and the value read as UTC, like en.novelbuddy: upload dates only need to
+	// be comparable with each other. The "T" stays unquoted because a parser
+	// without quoted-literal support treats it as a plain character.
 	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX").or_else(|| {
 		let naive = value.split('.').next()?;
 		let naive = naive.trim_end_matches("+00:00");

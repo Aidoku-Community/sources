@@ -111,9 +111,8 @@ impl Source for Chikari {
 	}
 }
 
-/// Chapter text (Markdown conversion plus the optional watermark filter) is
-/// novels-only: series chapters are image URL lists and must never enter
-/// the text pipeline.
+/// Chapter text is novels-only: series chapters are image URL lists and must
+/// never enter the text pipeline.
 fn is_text_content(content_type: ContentType) -> bool {
 	matches!(content_type, ContentType::Novel)
 }
