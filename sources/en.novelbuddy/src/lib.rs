@@ -176,7 +176,9 @@ impl ListingProvider for NovelBuddy {
 					has_next_page: data.pagination.has_next,
 				})
 			}
-			_ => bail!("Unknown listing: {}", listing.id),
+			_ => {
+				bail!("Unknown listing: {}", listing.id);
+			}
 		}
 	}
 }
