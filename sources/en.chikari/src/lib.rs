@@ -7,7 +7,10 @@ use aidoku::{
 	prelude::*,
 };
 mod helpers;
+mod markdown;
 mod models;
+mod settings;
+mod watermark;
 use helpers::{
 	ContentType, body_to_text, content_type_from_setting, decode_manga_key, deep_link_manga_key,
 	fetch_chapters, list_url, manga_from_detail, manga_page_result, request, valid_number,
@@ -88,42 +91,53 @@ impl Source for Chikari {
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let (content_type, raw_slug) = decode_manga_key(&manga.key, manga.url.as_deref());
-		match content_type {
-			ContentType::Novel => {
-				let data: ChapterBody = request(&format!(
-					"{BASE_URL}{}/{}/chapters/{}/read",
-					content_type.api_base(),
-					raw_slug,
-					chapter.key
-				))?;
-				let text = if data.locked || data.body.trim().is_empty() {
-					"This chapter is locked (early access)".into()
-				} else {
-					body_to_text(data.body)?
-				};
-				Ok(vec![Page {
-					content: PageContent::text(text),
-					..Default::default()
-				}])
-			}
-			ContentType::Series => {
-				let data: SeriesChapterBody = request(&format!(
-					"{BASE_URL}{}/{}/chapters/{}",
-					content_type.api_base(),
-					raw_slug,
-					chapter.key
-				))?;
-				Ok(data
-					.pages
-					.into_iter()
-					.map(|url| Page {
-						content: PageContent::url(url),
-						..Default::default()
-					})
-					.collect())
-			}
+		if is_text_content(content_type) {
+			let data: ChapterBody = request(&format!(
+				"{BASE_URL}{}/{}/chapters/{}/read",
+				content_type.api_base(),
+				raw_slug,
+				chapter.key
+			))?;
+			novel_text_pages(data)
+		} else {
+			let data: SeriesChapterBody = request(&format!(
+				"{BASE_URL}{}/{}/chapters/{}",
+				content_type.api_base(),
+				raw_slug,
+				chapter.key
+			))?;
+			Ok(series_image_pages(data.pages))
 		}
 	}
+}
+
+/// Chapter text (Markdown conversion plus the optional watermark filter) is
+/// novels-only: series chapters are image URL lists and must never enter
+/// the text pipeline.
+fn is_text_content(content_type: ContentType) -> bool {
+	matches!(content_type, ContentType::Novel)
+}
+
+fn novel_text_pages(data: ChapterBody) -> Result<Vec<Page>> {
+	let text = if data.locked || data.body.trim().is_empty() {
+		"This chapter is locked (early access)".into()
+	} else {
+		body_to_text(data.body)?
+	};
+	Ok(vec![Page {
+		content: PageContent::text(text),
+		..Default::default()
+	}])
+}
+
+fn series_image_pages(pages: Vec<String>) -> Vec<Page> {
+	pages
+		.into_iter()
+		.map(|url| Page {
+			content: PageContent::url(url),
+			..Default::default()
+		})
+		.collect()
 }
 
 impl ListingProvider for Chikari {
@@ -301,6 +315,53 @@ mod tests {
 				.iter()
 				.any(|page| matches!(&page.content, PageContent::Url(_, _)))
 		);
+	}
+
+	#[aidoku_test]
+	fn series_never_uses_the_text_pipeline() {
+		assert!(is_text_content(ContentType::Novel));
+		assert!(!is_text_content(ContentType::Series));
+
+		let pages = series_image_pages(vec![
+			"https://chikari.moe/img/1.jpg".into(),
+			"https://chikari.moe/img/2.jpg".into(),
+		]);
+		assert_eq!(pages.len(), 2);
+		assert!(
+			pages
+				.iter()
+				.all(|page| matches!(&page.content, PageContent::Url(_, _)))
+		);
+
+		let pages = novel_text_pages(ChapterBody {
+			body: "<strong>prose</strong>".into(),
+			locked: false,
+		})
+		.expect("novel chapter failed");
+		assert_eq!(pages.len(), 1);
+		assert!(matches!(&pages[0].content, PageContent::Text(_)));
+	}
+
+	#[aidoku_test]
+	fn locked_and_empty_novel_chapters_return_early_access_message() {
+		for data in [
+			ChapterBody {
+				body: "prose".into(),
+				locked: true,
+			},
+			ChapterBody {
+				body: "   ".into(),
+				locked: false,
+			},
+		] {
+			let pages = novel_text_pages(data).expect("novel chapter failed");
+			match &pages[0].content {
+				PageContent::Text(text) => {
+					assert_eq!(text, "This chapter is locked (early access)")
+				}
+				_ => panic!("expected text"),
+			}
+		}
 	}
 
 	#[aidoku_test]
