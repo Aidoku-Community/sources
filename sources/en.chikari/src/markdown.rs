@@ -104,7 +104,7 @@ fn convert_children_to_markdown(element: &Element, output: &mut String) {
 }
 
 /// Terminate any open inline run before a block element, so a block
-/// following bare text starts a new paragraph. No-op when already separated.
+/// following bare text starts a new paragraph.
 fn break_before_block(output: &mut String) {
 	if output.is_empty() {
 		return;
@@ -221,8 +221,6 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 	}
 }
 
-/// Render list items as Markdown bullets or numbered entries.
-///
 /// Non-item children are filtered out before enumeration so stray markup
 /// cannot shift the sequence.
 fn convert_list_to_markdown(element: &Element, tag: &str, output: &mut String) {
@@ -243,8 +241,8 @@ fn convert_list_to_markdown(element: &Element, tag: &str, output: &mut String) {
 	output.push('\n');
 }
 
-/// Render a blockquote by prefixing every emitted line with `> `, keeping
-/// multi-block quotes valid Markdown.
+/// Prefixing every emitted line with `> ` keeps multi-block quotes valid
+/// Markdown.
 fn convert_blockquote_to_markdown(element: &Element, output: &mut String) {
 	break_before_block(output);
 	let mut quoted = String::default();
