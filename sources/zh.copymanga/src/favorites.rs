@@ -252,12 +252,7 @@ pub fn deep_link_favorite(path_word: &str, add: bool) -> Result<Option<DeepLinkR
 
 	match result {
 		Ok(message) => {
-			let mark = if message.starts_with("已在") || message.starts_with("尚未") {
-				"ℹ️"
-			} else {
-				"✅"
-			};
-			set_fav_msg(path_word, &format!("{mark} {message}"));
+			set_fav_msg(path_word, &message);
 		}
 		Err(err) => {
 			set_fav_msg(path_word, &format!("❌ {action}失敗：{}", error_text(err)));
@@ -284,9 +279,9 @@ fn favorite_with_state(path_word: &str, add: bool) -> Result<String> {
 	}
 	set_collected_state(path_word, collected);
 	Ok(if collected {
-		String::from("已收藏（無需重複操作）")
+		String::from("ℹ️ 已收藏")
 	} else {
-		String::from("尚未收藏（無需取消）")
+		String::from("ℹ️ 尚未收藏")
 	})
 }
 
@@ -367,14 +362,11 @@ pub fn decorate_description(
 fn favorite_core(path_word: &str, add: bool) -> Result<String> {
 	let uuid = resolve_comic_uuid(path_word)?;
 	set_collect(&uuid, add)?;
-	let status = format!(
-		"{}{path_word}",
-		if add {
-			"已收藏漫畫："
-		} else {
-			"已取消收藏："
-		}
-	);
+	let status = String::from(if add {
+		"✅ 已收藏"
+	} else {
+		"✅ 已取消收藏"
+	});
 	set_collected_state(path_word, add);
 	Ok(status)
 }

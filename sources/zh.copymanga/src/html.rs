@@ -4,7 +4,7 @@ use crate::{
 };
 use aidoku::{
 	HomeComponent, HomeComponentValue, HomeLayout, Link, LinkValue, Listing, ListingKind, Manga,
-	MangaPageResult, MangaStatus, Page, Result, SelectFilter,
+	MangaPageResult, MangaStatus, Page, Result, SelectFilter, Viewer,
 	alloc::{String, Vec, borrow::ToOwned as _, format},
 	error,
 	imports::{
@@ -255,13 +255,16 @@ impl MangaPage for Document {
 
 		manga.url = Url::manga(&manga.key).to_string().ok();
 
-		let tags = self
+		let tags: Vec<String> = self
 			.try_select("span.comicParticulars-tag > a")?
 			.filter_map(|element| {
 				let tag = element.text()?.strip_prefix('#')?.into();
 				Some(tag)
 			})
 			.collect();
+		if tags.iter().any(|tag| tag == "長條") {
+			manga.viewer = Viewer::Webtoon;
+		}
 		manga.tags = Some(tags);
 
 		manga.status = match self

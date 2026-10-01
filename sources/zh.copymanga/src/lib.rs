@@ -188,7 +188,7 @@ impl DynamicListings for Copymanga {
 		if auth::is_logged_in() {
 			listings.push(Listing {
 				id: String::from("f:fav"),
-				name: String::from("我的收藏"),
+				name: String::from("網站收藏"),
 				kind: ListingKind::List,
 			});
 		}

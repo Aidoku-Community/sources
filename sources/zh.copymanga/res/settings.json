@@ -2,7 +2,7 @@
 	{
 		"type": "group",
 		"title": "帳號",
-		"footer": "登入後可查看收藏，並使用收藏功能。",
+		"footer": "登入後可查看、加入或取消網站帳戶收藏。",
 		"items": [
 			{
 				"type": "login",

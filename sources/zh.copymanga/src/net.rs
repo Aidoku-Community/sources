@@ -91,9 +91,9 @@ impl Url<'_> {
 				},
 
 				FilterValue::Select { ref id, ref value } => match id.as_str() {
-					"地區" => r#type = value,
-					"狀態" => status = value,
-					"題材" => genre = value.into(),
+					"地区" | "地區" => r#type = value,
+					"状态" | "狀態" => status = value,
+					"题材" | "題材" => genre = value.into(),
 					"genre" => {
 						let genres = Self::GenresPage.request()?.html()?.filter()?;
 						let genre_id = genres
