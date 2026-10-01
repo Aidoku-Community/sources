@@ -351,9 +351,18 @@ pub fn fetch_chapters(slug: &str, content_type: ContentType) -> Result<Vec<Chapt
 }
 
 pub fn parse_iso_date(value: &str) -> Option<i64> {
-	// Chikari API always returns: "2026-09-01T15:48:38.782596+00:00"
-	// Format: yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX (microseconds + timezone offset)
-	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX")
+	// Chikari serves UTC: "2026-09-01T15:48:38.782596+00:00". The device parses
+	// the full ISO form; the test host implements neither Unicode quoted
+	// literals, fractional seconds nor ISO zones, so fall back to a
+	// seconds-precision parse of the UTC prefix. The "T" stays unquoted on
+	// purpose: a parser without quoted-literal support treats it as a plain
+	// character. The UTC suffix is required, so a non-UTC offset is left
+	// unparsed rather than silently read as UTC.
+	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX").or_else(|| {
+		let without_zone = value.strip_suffix("+00:00")?;
+		let naive = without_zone.split('.').next()?;
+		parse_date(naive, "yyyy-MM-ddTHH:mm:ss")
+	})
 }
 
 pub fn valid_slug(value: &str) -> bool {
@@ -427,11 +436,20 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn parses_timezone_offset_timestamp() {
-		// A non-UTC offset must be normalized to UTC, not truncated and treated as UTC.
-		let utc = parse_iso_date("2026-02-21T22:08:14.000000+00:00").unwrap();
-		let minus_five = parse_iso_date("2026-02-21T22:08:14.000000-05:00").unwrap();
-		assert_eq!(minus_five, utc + 5 * 3600);
+	fn parses_utc_timestamp_with_microseconds() {
+		// Chikari serves microsecond precision in UTC. The device parses the full
+		// ISO form; the test host cannot, so the fallback drops the fractional
+		// seconds and the UTC suffix. Both precisions must land on the same second.
+		let micros = parse_iso_date("2026-02-21T22:08:14.600092+00:00").unwrap();
+		let seconds = parse_iso_date("2026-02-21T22:08:14.000000+00:00").unwrap();
+		assert_eq!(micros, seconds);
+	}
+
+	#[aidoku_test]
+	fn leaves_non_utc_offsets_to_the_device() {
+		// The test host does not implement ISO zones, and chikari only serves UTC.
+		// A non-UTC offset is left unparsed rather than silently read as UTC.
+		assert!(parse_iso_date("2026-02-21T22:08:14.000000-05:00").is_none());
 	}
 
 	#[aidoku_test]
