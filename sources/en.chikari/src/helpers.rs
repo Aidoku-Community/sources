@@ -354,13 +354,14 @@ pub fn parse_iso_date(value: &str) -> Option<i64> {
 	// Chikari serves UTC: "2026-09-01T15:48:38.782596+00:00". The device parses
 	// the full ISO form; the test host implements neither Unicode quoted
 	// literals, fractional seconds nor ISO zones, so fall back to a
-	// seconds-precision parse of the UTC prefix. The "T" stays unquoted on
-	// purpose: a parser without quoted-literal support treats it as a plain
-	// character. The UTC suffix is required, so a non-UTC offset is left
-	// unparsed rather than silently read as UTC.
+	// seconds-precision parse with the fractional seconds and the zone dropped.
+	// Like en.novelbuddy, the value is then read as UTC: upload dates only need
+	// to be comparable with each other, not timezone-exact. The "T" stays
+	// unquoted on purpose because a parser without quoted-literal support treats
+	// it as a plain character.
 	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX").or_else(|| {
-		let without_zone = value.strip_suffix("+00:00")?;
-		let naive = without_zone.split('.').next()?;
+		let naive = value.split('.').next()?;
+		let naive = naive.trim_end_matches("+00:00");
 		parse_date(naive, "yyyy-MM-ddTHH:mm:ss")
 	})
 }
@@ -439,23 +440,19 @@ mod tests {
 	fn parses_utc_timestamp_with_microseconds() {
 		// Chikari serves microsecond precision in UTC. The device parses the full
 		// ISO form; the test host cannot, so the fallback drops the fractional
-		// seconds and the UTC suffix. Both precisions must land on the same second.
+		// seconds. Both precisions must land on the same second.
 		let micros = parse_iso_date("2026-02-21T22:08:14.600092+00:00").unwrap();
 		let seconds = parse_iso_date("2026-02-21T22:08:14.000000+00:00").unwrap();
 		assert_eq!(micros, seconds);
 	}
 
 	#[aidoku_test]
-	fn leaves_non_utc_offsets_to_the_device() {
-		// The test host does not implement ISO zones, and chikari only serves UTC.
-		// A non-UTC offset is left unparsed rather than silently read as UTC.
-		assert!(parse_iso_date("2026-02-21T22:08:14.000000-05:00").is_none());
-	}
-
-	#[aidoku_test]
-	fn rejects_invalid_timezone_separator() {
-		// A five-character offset must use a colon separator (e.g. -05:00), not any character.
-		assert!(parse_iso_date("2026-02-21T22:08:14.000000-05x00").is_none());
+	fn reads_the_dropped_zone_as_utc() {
+		// Upload dates only need to be comparable with each other, so the zone is
+		// dropped and the value read as UTC, matching en.novelbuddy.
+		let zoned = parse_iso_date("2026-02-21T22:08:14.000000-05:00").unwrap();
+		let plain = parse_iso_date("2026-02-21T22:08:14").unwrap();
+		assert_eq!(zoned, plain);
 	}
 
 	#[aidoku_test]
@@ -672,11 +669,6 @@ mod tests {
 		assert_eq!(manga.authors, Some(vec!["Writer".into()]));
 		assert_eq!(manga.artists, Some(vec!["Artist".into()]));
 		assert_eq!(manga.viewer, Viewer::Webtoon);
-	}
-
-	#[aidoku_test]
-	fn rejects_non_ascii_timezone_offset() {
-		assert!(parse_iso_date("2026-02-21T22:08:14.000000\u{2014}05:00").is_none());
 	}
 
 	#[aidoku_test]
