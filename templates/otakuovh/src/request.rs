@@ -27,4 +27,3 @@ impl InkRequest for Request {
 		Ok(response)
 	}
 }
-

@@ -25,7 +25,7 @@ impl Url {
 		url
 	}
 
-	pub fn manga_search_with_params(base_url: &str, params: Vec<(String, String)>) -> String {
+	pub fn manga_search_with_params(base_url: &str, params: &[(String, String)]) -> String {
 		let url = format!("{}{}/books", base_url, Self::BASE_PATH);
 		let ref_array: Vec<(&str, &str)> = params
 			.iter()
@@ -63,4 +63,3 @@ impl Url {
 		format!("{}{}/labels", base_url, Self::BASE_PATH)
 	}
 }
-

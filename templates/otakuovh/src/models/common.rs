@@ -3,16 +3,13 @@ use serde::Deserialize;
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
+#[serde(rename_all = "camelCase")]
 pub struct InkMangaAlias {
 	pub id: String,
 	pub slug: String,
-	#[serde(rename = "bookId")]
 	pub book_id: String,
-	#[serde(rename = "serviceName")]
 	pub service_name: String,
-	#[serde(rename = "createdAt")]
 	pub created_at: String,
-	#[serde(rename = "updatedAt")]
 	pub updated_at: String,
 }
 
@@ -53,4 +50,3 @@ impl InkLabel {
 		}
 	}
 }
-

@@ -3,7 +3,6 @@ use aidoku::{
 	Result,
 	alloc::{String, Vec, string::ToString, vec},
 	imports::{canvas::ImageRef, net::Request},
-	println,
 };
 
 use crate::{
@@ -35,83 +34,65 @@ pub trait Impl {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let binding = (page - 1).to_string();
-		let mut search_params: Vec<(String, String)> = vec![];
+		let mut search_params: Vec<(String, String)> = vec![
+			("strictLabelEqual", "false"),
+			("page", binding.as_str()),
+			("size", "20"),
+		]
+		.into_iter()
+		.map(|(k, v)| (k.into(), v.into()))
+		.collect();
 		if let Some(query) = query {
-			search_params.push(("search".to_string(), query))
+			search_params.push(("search".into(), query))
 		}
-		search_params.push(("strictLabelEqual".to_string(), "false".to_string()));
-		search_params.push(("page".to_string(), binding));
-		search_params.push(("size".to_string(), "20".to_string()));
-		filters.iter().for_each(|filter| match filter {
-			FilterValue::Text { id: _, value: _ } => {}
-			FilterValue::Sort {
-				id: _,
-				index: _,
-				ascending: _,
-			} => {}
-			FilterValue::Check { id: _, value: _ } => {}
-			FilterValue::Select { id: _, value: _ } => {}
+		filters.into_iter().for_each(|filter| match filter {
 			FilterValue::MultiSelect {
 				id,
 				included,
 				excluded: _,
 			} => {
 				// the API doesn't have exclude parameters, that's why excluded not used.
-				match id.as_str() {
-					"status" => {
-						included.iter().for_each(|status| {
-							search_params.push(("status".to_string(), status.to_string()))
-						});
+				if let Some(key) = match id.as_str() {
+					"format" => Some("formats"),
+					"content_status" => Some("contentStatus"),
+					id => Some(id),
+				} {
+					for value in included {
+						search_params.push((key.into(), value));
 					}
-					"country" => {
-						included.iter().for_each(|country| {
-							search_params.push(("country".to_string(), country.to_string()));
-						});
-					}
-					"format" => {
-						included.iter().for_each(|format| {
-							search_params.push(("formats".to_string(), format.to_string()));
-						});
-					}
-					"content_status" => {
-						included.iter().for_each(|age_rating| {
-							search_params
-								.push(("contentStatus".to_string(), age_rating.to_string()));
-						});
-					}
-					_ => {}
 				}
 			}
 			FilterValue::Range { id, from, to } => {
 				if id == "year" {
 					if let Some(min) = from {
-						search_params.push(("yearMin".to_string(), min.to_string()));
+						search_params.push(("yearMin".into(), min.to_string()));
 					}
 					if let Some(max) = to {
-						search_params.push(("yearMax".to_string(), max.to_string()));
+						search_params.push(("yearMax".into(), max.to_string()));
 					}
 				}
 				if id == "rating" {
 					if let Some(min) = from {
-						search_params.push(("averageRatingMin".to_string(), min.to_string()));
+						search_params.push(("averageRatingMin".into(), min.to_string()));
 					}
 					if let Some(max) = to {
-						search_params.push(("averageRatingMax".to_string(), max.to_string()));
+						search_params.push(("averageRatingMax".into(), max.to_string()));
 					}
 				}
 				if id == "chap_count" {
 					if let Some(min) = from {
-						search_params.push(("chaptersCountMin".to_string(), min.to_string()));
+						search_params.push(("chaptersCountMin".into(), min.to_string()));
 					}
 					if let Some(max) = to {
-						search_params.push(("chaptersCountMax".to_string(), max.to_string()));
+						search_params.push(("chaptersCountMax".into(), max.to_string()));
 					}
 				}
 			}
+			_ => {}
 		});
 
-		let url_search = Url::manga_search_with_params(&params.base_url, search_params);
-		println!("{}", url_search);
+		let url_search = Url::manga_search_with_params(&params.base_url, &search_params);
+
 		let response: Vec<Manga> = Request::get(url_search)?
 			.prepared_headers(params)?
 			.parse_json::<Vec<InkManga>>()?
@@ -130,35 +111,45 @@ pub trait Impl {
 	fn get_manga_update(
 		&self,
 		params: &Params,
-		manga: Manga,
+		mut manga: Manga,
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let url_manga = Url::manga_details(&params.base_url, &manga.key);
 		let url_branch = Url::manga_branches(&params.base_url, &manga.key, 0);
 		let url_chapters = Url::manga_chapters(&params.base_url, &manga.key);
 
-		let response_manga = Request::get(&url_manga)?
-			.prepared_headers(params)?
-			.parse_json::<InkManga>()?;
-
-		let mut manga = Manga {
-			..Default::default()
-		};
-
 		if needs_details {
-			manga.clone_from(&response_manga.into_detailed_manga(self.params().domain.to_string()));
-		} else {
-			manga.clone_from(&response_manga.into_basic_manga());
+			let response_manga = Request::get(Url::manga_details(&params.base_url, &manga.key))?
+				.prepared_headers(params)?
+				.parse_json::<InkManga>()?;
+
+			manga.clone_from(&response_manga.into_detailed_manga(params.domain.to_string()));
 		}
 
 		if needs_chapters {
-			let response_branch = Request::get(&url_branch)?
+			let request_branch = Request::get(&url_branch)?
 				.prepared_headers(params)?
-				.parse_json::<Vec<InkBranch>>()?;
-			let response_chapters = Request::get(&url_chapters)?
+				.into_request();
+			let request_chapters = Request::get(&url_chapters)?
 				.prepared_headers(params)?
-				.parse_json::<Vec<InkChapter>>()?;
+				.into_request();
+
+			let mut responses = Request::send_all([request_branch, request_chapters]).into_iter();
+
+			let response_branch = responses
+				.next()
+				.ok_or(aidoku::AidokuError::Message(
+					"Не удалось загрузить данные".into(),
+				))
+				.unwrap()?
+				.get_json::<Vec<InkBranch>>()?;
+			let response_chapters = responses
+				.next()
+				.ok_or(aidoku::AidokuError::Message(
+					"Не удалось загрузить данные".into(),
+				))
+				.unwrap()?
+				.get_json::<Vec<InkChapter>>()?;
 
 			let chapters = response_chapters
 				.into_iter()
@@ -192,12 +183,15 @@ pub trait Impl {
 		page: i32,
 	) -> Result<MangaPageResult> {
 		let search_params: Vec<(String, String)> = vec![
-			("strictLabelEqual".to_string(), "false".to_string()),
-			("labelsInclude".to_string(), listing.id),
-			("page".to_string(), (page - 1).to_string()),
-			("size".to_string(), "20".to_string()),
-		];
-		let url_search = Url::manga_search_with_params(&params.base_url, search_params);
+			("strictLabelEqual", "false"),
+			("labelsInclude", &listing.id),
+			("page", (page - 1).to_string().as_str()),
+			("size", "20"),
+		]
+		.into_iter()
+		.map(|(k, v)| (k.into(), v.into()))
+		.collect();
+		let url_search = Url::manga_search_with_params(&params.base_url, &search_params);
 
 		let response: Vec<Manga> = Request::get(&url_search)?
 			.prepared_headers(params)?
@@ -288,4 +282,3 @@ pub trait Impl {
 			.collect())
 	}
 }
-

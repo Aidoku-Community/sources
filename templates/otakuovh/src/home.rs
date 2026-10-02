@@ -1,6 +1,10 @@
 use aidoku::{
 	HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Result,
-	alloc::{Vec, string::ToString, vec},
+	alloc::{
+		Vec,
+		string::{String, ToString},
+		vec,
+	},
 	imports::{net::Request, std::send_partial_result},
 };
 
@@ -41,12 +45,12 @@ pub fn initial_layout() {
 }
 
 pub fn load_editors_choice(params: &Params) -> Result<()> {
-	let search_params = vec![
-		("featured".to_string(), "1".to_string()),
-		("page".to_string(), "0".to_string()),
-		("size".to_string(), "20".to_string()),
-	];
-	let url = Url::manga_search_with_params(&params.base_url, search_params);
+	let search_params: Vec<(String, String)> =
+		vec![("featured", "1"), ("page", "0"), ("size", "20")]
+			.into_iter()
+			.map(|(k, v)| (k.into(), v.into()))
+			.collect();
+	let url = Url::manga_search_with_params(&params.base_url, &search_params);
 	let response = Request::get(&url)?
 		.prepared_headers(params)?
 		.parse_json::<Vec<InkManga>>()?;
@@ -67,18 +71,16 @@ pub fn load_editors_choice(params: &Params) -> Result<()> {
 }
 
 pub fn load_popular_ongoings(params: &Params) -> Result<()> {
-	let url = Url::manga_search_with_params(
-		&params.base_url,
-		[
-			("status", "ONGOING"),
-			("page", "0"),
-			("size", "20"),
-			("sort", "viewsCount,desc"),
-		]
-		.into_iter()
-		.map(|(key, value)| (key.to_string(), value.to_string()))
-		.collect(),
-	);
+	let url_params: Vec<(String, String)> = vec![
+		("status", "ONGOING"),
+		("page", "0"),
+		("size", "20"),
+		("sort", "viewsCount,desc"),
+	]
+	.into_iter()
+	.map(|(k, v)| (k.into(), v.into()))
+	.collect();
+	let url = Url::manga_search_with_params(&params.base_url, &url_params);
 	let response = Request::get(&url)?
 		.prepared_headers(params)?
 		.parse_json::<Vec<InkManga>>()?;
@@ -101,15 +103,15 @@ pub fn load_popular_ongoings(params: &Params) -> Result<()> {
 pub fn load_best_completed(params: &Params) -> Result<()> {
 	let url = Url::manga_search_with_params(
 		&params.base_url,
-		[
+		&[
 			("status", "DONE"),
 			("page", "0"),
 			("size", "20"),
 			("sort", "viewsCount,desc"),
 		]
 		.into_iter()
-		.map(|(key, value)| (key.to_string(), value.to_string()))
-		.collect(),
+		.map(|(k, v)| (k.into(), v.into()))
+		.collect::<Vec<(String, String)>>(),
 	);
 	let response = Request::get(&url)?
 		.prepared_headers(params)?
@@ -133,10 +135,10 @@ pub fn load_best_completed(params: &Params) -> Result<()> {
 pub fn load_recently_added(params: &Params) -> Result<()> {
 	let url = Url::manga_search_with_params(
 		&params.base_url,
-		[("page", "0"), ("size", "20"), ("sort", "createdAt,desc")]
+		&[("page", "0"), ("size", "20"), ("sort", "createdAt,desc")]
 			.into_iter()
-			.map(|(key, value)| (key.to_string(), value.to_string()))
-			.collect(),
+			.map(|(k, v)| (k.into(), v.into()))
+			.collect::<Vec<(String, String)>>(),
 	);
 	let response = Request::get(&url)?
 		.prepared_headers(params)?
@@ -156,4 +158,3 @@ pub fn load_recently_added(params: &Params) -> Result<()> {
 
 	Ok(())
 }
-

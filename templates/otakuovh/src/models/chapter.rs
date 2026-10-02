@@ -69,9 +69,8 @@ impl InkChapter {
 impl InkPage {
 	pub fn into_page(self) -> Option<Page> {
 		Some(Page {
-			content: aidoku::PageContent::Url(self.image, None),
+			content: aidoku::PageContent::url(self.image),
 			..Default::default()
 		})
 	}
 }
-

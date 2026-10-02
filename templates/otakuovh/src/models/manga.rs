@@ -8,12 +8,11 @@ use crate::models::common::{InkLabel, InkMangaAlias, InkRelation};
 
 #[derive(Default, Deserialize)]
 #[serde(default)]
+#[serde(rename_all = "camelCase")]
 pub struct InkManga {
 	pub id: String,
 	pub slug: String,
-	#[serde(rename = "type")]
 	pub content_type: String,
-	#[serde(rename = "serviceName")]
 	pub service_name: String,
 	pub aliases: Vec<InkMangaAlias>,
 	pub poster: String,
@@ -21,13 +20,11 @@ pub struct InkManga {
 	pub country: String,
 	pub year: i32,
 	pub formats: Vec<String>,
-	#[serde(rename = "chaptersCount")]
 	pub chapters_count: i32,
 	pub status: String,
 	pub description: Option<String>,
 	pub relations: Option<Vec<InkRelation>>,
 	pub labels: Vec<InkLabel>,
-	#[serde(rename = "contentStatus")]
 	pub content_status: String,
 }
 
@@ -95,7 +92,7 @@ impl InkManga {
 
 		let viewer = match self.formats.first().map(|s| s.as_str()) {
 			Some("WEBTOON") => aidoku::Viewer::Webtoon,
-			_ => aidoku::Viewer::RightToLeft, // adjust as needed
+			_ => aidoku::Viewer::RightToLeft,
 		};
 
 		Manga {
@@ -115,4 +112,3 @@ impl InkManga {
 		}
 	}
 }
-

@@ -93,4 +93,3 @@ impl<T: Impl> DynamicListings for OtakuOvh<T> {
 		self.inner.get_dynamic_listings()
 	}
 }
-

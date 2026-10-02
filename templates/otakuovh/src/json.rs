@@ -25,4 +25,3 @@ impl ResponseJsonExt for Response {
 		})
 	}
 }
-
