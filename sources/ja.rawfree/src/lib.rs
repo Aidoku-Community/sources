@@ -8,12 +8,14 @@ use aidoku::{
 	},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
+		defaults::defaults_get,
 		html::Html,
 		net::Request,
 		std::{parse_date_with_options, send_partial_result},
 	},
 	prelude::*,
 };
+use core::cell::RefCell;
 
 mod helpers;
 mod models;
@@ -21,11 +23,16 @@ mod models;
 use helpers::*;
 use models::*;
 
-struct RawFree;
+const BASE_URL: &str = "https://rawfree.bid";
+
+#[derive(Default)]
+struct RawFree {
+	cached_base_url: RefCell<Option<String>>,
+}
 
 impl Source for RawFree {
 	fn new() -> Self {
-		Self
+		Self::default()
 	}
 
 	fn get_search_manga_list(
@@ -41,7 +48,7 @@ impl Source for RawFree {
 			}
 		}
 
-		let base_url = get_base_url();
+		let base_url = self.get_base_url()?;
 		let url = format!(
 			"{base_url}{}/page/{page}/?s={}",
 			if let Some(genre) = genre {
@@ -89,7 +96,7 @@ impl Source for RawFree {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let base_url = get_base_url();
+		let base_url = self.get_base_url()?;
 		let manga_url = format!("{base_url}{}", manga.key);
 		let html = Request::get(&manga_url)?.html()?;
 
@@ -170,7 +177,7 @@ impl Source for RawFree {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let base_url = get_base_url();
+		let base_url = self.get_base_url()?;
 		let url = format!("{base_url}{}", chapter.key);
 		let html = Request::get(url)?.html()?;
 
@@ -282,7 +289,7 @@ impl Source for RawFree {
 
 impl DeepLinkHandler for RawFree {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let base_url = get_base_url();
+		let base_url = self.get_base_url()?;
 		let Some(key) = url.strip_prefix(&base_url) else {
 			return Ok(None);
 		};
@@ -314,7 +321,19 @@ impl DeepLinkHandler for RawFree {
 
 impl BaseUrlProvider for RawFree {
 	fn get_base_url(&self) -> Result<String> {
-		Ok(get_base_url())
+		let base_url = defaults_get::<String>("baseUrl");
+		match base_url {
+			Some(url) if !url.is_empty() => Ok(url),
+			_ => {
+				if let Some(cached_url) = self.cached_base_url.borrow().as_ref() {
+					return Ok(cached_url.clone());
+				}
+				let result = Request::head(BASE_URL)?.send()?;
+				let url = result.get_url();
+				*self.cached_base_url.borrow_mut() = url.clone();
+				Ok(url.unwrap_or_else(|| BASE_URL.into()))
+			}
+		}
 	}
 }
 
