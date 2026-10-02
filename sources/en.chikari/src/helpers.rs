@@ -355,8 +355,10 @@ pub fn parse_iso_date(value: &str) -> Option<i64> {
 	// implements neither quoted literals, fractional seconds nor ISO zones, so
 	// fall back to a seconds-precision parse with the fraction and zone dropped
 	// and the value read as UTC, like en.novelbuddy: upload dates only need to
-	// be comparable with each other. The "T" stays unquoted because a parser
-	// without quoted-literal support treats it as a plain character.
+	// be comparable with each other. A non-UTC zone without a fraction keeps its
+	// offset and then stops parsing, which the always-UTC upload feed never
+	// produces. The "T" stays unquoted because a parser without quoted-literal
+	// support treats it as a plain character.
 	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX").or_else(|| {
 		let naive = value.split('.').next()?;
 		let naive = naive.trim_end_matches("+00:00");
