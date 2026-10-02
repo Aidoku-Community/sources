@@ -432,11 +432,6 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn parses_chikari_timestamp() {
-		assert!(parse_iso_date("2026-02-21T22:08:14.600092+00:00").is_some());
-	}
-
-	#[aidoku_test]
 	fn parses_utc_timestamp_with_microseconds() {
 		// Chikari serves microsecond precision in UTC. The device parses the full
 		// ISO form; the test host cannot, so the fallback drops the fractional
