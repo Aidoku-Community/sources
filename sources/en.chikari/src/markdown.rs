@@ -483,7 +483,7 @@ mod tests {
 		const SOURCE: &str = include_str!("markdown.rs");
 		assert!(SOURCE.contains("fn convert_element_to_markdown"));
 		let rest = &SOURCE[SOURCE.find("fn convert_element_to_markdown").unwrap_or(0)..];
-		let end = rest.find("\nfn ").unwrap_or(rest.len());
+		let end = rest.find("\nfn ").unwrap_or_else(|| rest.len());
 		let body = &rest[..end];
 		let mut missing = String::default();
 		let bytes = body.as_bytes();
