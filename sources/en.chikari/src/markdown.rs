@@ -483,77 +483,32 @@ mod tests {
 		const SOURCE: &str = include_str!("markdown.rs");
 		assert!(SOURCE.contains("fn convert_element_to_markdown"));
 		let rest = &SOURCE[SOURCE.find("fn convert_element_to_markdown").unwrap_or(0)..];
-		let open = rest.find('{').unwrap_or(0);
-		let bytes = rest.as_bytes();
-		let mut depth = 0usize;
-		let mut end = open;
-		let mut i = open;
-		while i < bytes.len() {
-			let b = bytes[i];
-			if b == b'"' {
-				i += 1;
-				while i < bytes.len() && bytes[i] != b'"' {
-					if bytes[i] == b'\\' {
-						i += 1;
-					}
-					i += 1;
-				}
-				i += 1;
-				continue;
-			}
-			if b == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'/' {
-				while i < bytes.len() && bytes[i] != b'\n' {
-					i += 1;
-				}
-				continue;
-			}
-			if b == b'/' && i + 1 < bytes.len() && bytes[i + 1] == b'*' {
-				i += 2;
-				while i + 1 < bytes.len() && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
-					i += 1;
-				}
-				i += 2;
-				continue;
-			}
-			if b == b'{' {
-				depth += 1;
-			}
-			if b == b'}' {
-				depth -= 1;
-				if depth == 0 {
-					end = i;
-					break;
-				}
-			}
-			i += 1;
-		}
-		let body = if end > open { &rest[open..end + 1] } else { "" };
+		let end = rest.find("\nfn ").unwrap_or(rest.len());
+		let body = &rest[..end];
 		let mut missing = String::default();
-		let bb = body.as_bytes();
-		let mut j = 0;
-		while j < bb.len() {
-			if bb[j] == b'"' {
-				let mut k = j + 1;
-				while k < bb.len() && bb[k] != b'"' {
-					if bb[k] == b'\\' {
-						k += 1;
-					}
+		let bytes = body.as_bytes();
+		let mut i = 0;
+		while i < bytes.len() {
+			if bytes[i] == b'"' {
+				let mut k = i + 1;
+				while k < bytes.len() && bytes[k] != b'"' {
 					k += 1;
 				}
-				let lit = &body[j + 1..k];
-				if !lit.is_empty() && lit.bytes().all(|c| c.is_ascii_alphanumeric()) {
-					if !MARKUP_TAGS.contains(&lit) {
-						if !missing.is_empty() {
-							missing.push_str(", ");
-						}
-						missing.push_str(lit);
-						missing.push_str(" missing from MARKUP_TAGS");
+				let lit = &body[i + 1..k];
+				if !lit.is_empty()
+					&& lit.bytes().all(|c| c.is_ascii_alphanumeric())
+					&& !MARKUP_TAGS.contains(&lit)
+				{
+					if !missing.is_empty() {
+						missing.push_str(", ");
 					}
+					missing.push_str(lit);
+					missing.push_str(" missing from MARKUP_TAGS");
 				}
-				j = k + 1;
-				continue;
+				i = k + 1;
+			} else {
+				i += 1;
 			}
-			j += 1;
 		}
 		assert_eq!(missing.as_str(), "");
 	}
