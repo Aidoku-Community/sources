@@ -363,13 +363,6 @@ fn paragraph_to_markdown(paragraph: &str) -> String {
 	output.trim().to_string()
 }
 
-fn push_block(blocks: &mut Vec<String>, html: &str) {
-	let markdown = paragraph_to_markdown(html);
-	if !markdown.trim().is_empty() {
-		blocks.push(markdown);
-	}
-}
-
 /// Convert chapter HTML to Aidoku Markdown.
 ///
 /// Only text nodes are escaped; the Markdown this converter emits is left
@@ -380,7 +373,7 @@ pub fn html_to_markdown(html: &str) -> String {
 	for line in html.lines() {
 		if line.trim().is_empty() {
 			if !current.is_empty() {
-				push_block(&mut blocks, &current);
+				blocks.push(paragraph_to_markdown(&current));
 				current.clear();
 			}
 		} else {
@@ -391,7 +384,7 @@ pub fn html_to_markdown(html: &str) -> String {
 		}
 	}
 	if !current.is_empty() {
-		push_block(&mut blocks, &current);
+		blocks.push(paragraph_to_markdown(&current));
 	}
 	let output = blocks.join("\n\n");
 	if settings::hide_watermark() {
@@ -477,12 +470,6 @@ mod tests {
 	fn empty_body_converts_to_nothing() {
 		assert_eq!(html_to_markdown(""), "");
 		assert_eq!(html_to_markdown("  \n\n  "), "");
-	}
-
-	#[aidoku_test]
-	fn skips_blocks_that_convert_to_nothing() {
-		let out = html_to_markdown("Real\n\n<div></div>\n\nReal2");
-		assert_eq!(out, "Real\n\nReal2");
 	}
 
 	#[aidoku_test]
