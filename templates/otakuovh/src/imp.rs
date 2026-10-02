@@ -140,15 +140,14 @@ pub trait Impl {
 				.next()
 				.ok_or(aidoku::AidokuError::Message(
 					"Не удалось загрузить данные".into(),
-				))
-				.unwrap()?
+				))??
 				.get_json::<Vec<InkBranch>>()?;
+
 			let response_chapters = responses
 				.next()
 				.ok_or(aidoku::AidokuError::Message(
 					"Не удалось загрузить данные".into(),
-				))
-				.unwrap()?
+				))??
 				.get_json::<Vec<InkChapter>>()?;
 
 			let chapters = response_chapters
