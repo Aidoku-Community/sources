@@ -2,12 +2,10 @@
 	"info": {
 		"id": "multi.lanraragi",
 		"name": "LANraragi",
-		"version": 2,
+		"version": 3,
 		"url": "https://github.com/Difegue/LANraragi",
 		"contentRating": 1,
-		"languages": [
-			"multi"
-		]
+		"languages": ["multi"]
 	},
 	"config": {
 		"supportsTagSearch": true

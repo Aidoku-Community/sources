@@ -23,7 +23,7 @@ pub struct Archive {
 	pub arcid: String,
 	pub title: String,
 	pub tags: String,
-	pub isnew: String,
+	// pub isnew: bool,
 	pub progress: Option<i32>,
 	pub lastreadtime: Option<i64>,
 	pub pagecount: i32,
@@ -33,7 +33,7 @@ pub struct Archive {
 pub struct Category {
 	pub id: String,
 	pub name: String,
-	pub pinned: String,
+	pub pinned: i32,
 	pub search: String,
 	pub archives: Vec<String>,
 }

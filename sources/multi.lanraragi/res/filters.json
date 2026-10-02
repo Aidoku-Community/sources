@@ -3,10 +3,6 @@
 		"type": "sort",
 		"title": "Sort",
 		"canAscend": true,
-		"options": [
-			"Date Added",
-			"Title",
-			"Last Read"
-		]
+		"options": ["Date Added", "Title", "Last Read"]
 	}
 ]

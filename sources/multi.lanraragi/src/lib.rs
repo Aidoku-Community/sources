@@ -277,8 +277,8 @@ impl DynamicFilters for Lanraragi {
 		let mut sorted_categories = categories;
 		sorted_categories.sort_by(|a, b| {
 			// Sort by pinned status first (pinned first)
-			let a_pinned = a.pinned == "1";
-			let b_pinned = b.pinned == "1";
+			let a_pinned = a.pinned == 1;
+			let b_pinned = b.pinned == 1;
 			if a_pinned != b_pinned {
 				return b_pinned.cmp(&a_pinned);
 			}
@@ -287,7 +287,7 @@ impl DynamicFilters for Lanraragi {
 		});
 
 		for category in sorted_categories {
-			let display_name = if category.pinned == "1" {
+			let display_name = if category.pinned == 1 {
 				format!("📌 {}", category.name)
 			} else {
 				category.name.clone()
