@@ -22,7 +22,12 @@ struct Result {
 
 impl From<Result> for Vec<Chapter> {
 	fn from(result: Result) -> Self {
-		result.list.into_iter().map(Into::into).collect()
+		result
+			.list
+			.into_iter()
+			.filter(|item| item.isvip != Some(1))
+			.map(Into::into)
+			.collect()
 	}
 }
 
@@ -31,6 +36,7 @@ struct ListItem {
 	id: u32,
 	title: String,
 	create_time: i64,
+	isvip: Option<u8>,
 }
 
 impl From<ListItem> for Chapter {

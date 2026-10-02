@@ -8,19 +8,23 @@ mod time;
 
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, HashMap, Home,
-	HomeLayout, Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler, Page,
-	Result, Source, WebLoginHandler,
-	alloc::{String, Vec},
-	bail, error,
-	imports::std::send_partial_result,
-	register_source,
+	HomeLayout, ImageResponse, Listing, ListingProvider, Manga, MangaPageResult,
+	NotificationHandler, Page, PageContext, PageImageProcessor, Result, Source, Viewer,
+	WebLoginHandler,
+	alloc::{String, Vec, string::ToString},
+	canvas::Rect,
+	imports::{
+		canvas::{Canvas, ImageRef},
+		std::send_partial_result,
+	},
+	prelude::*,
 };
 use html::{
 	ChapterPage as _, FiltersPage as _, HomePage as _, MangaPage as _, TryElement as _,
 	TrySelector as _,
 };
 use json::{chapter_list, daily_update, manga_page_result, random};
-use net::{Api, Url};
+use net::Url;
 use setting::change_charset;
 use time::DayOfWeek;
 
@@ -75,7 +79,58 @@ impl Source for Boylove {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		Api::chapter(&chapter.key).request()?.html()?.pages()
+		Url::chapter(&chapter.key).request()?.html()?.pages()
+	}
+}
+
+// reference: https://github.com/keiyoushi/extensions-source/blob/aa14252caaba8bfe676eaf62095819745a2138ec/src/zh/boylove/src/eu/kanade/tachiyomi/extension/zh/boylove/UnscramblerInterceptor.kt
+impl PageImageProcessor for Boylove {
+	fn process_page_image(
+		&self,
+		response: ImageResponse,
+		context: Option<PageContext>,
+	) -> Result<ImageRef> {
+		let Some(parts_count) = context
+			.as_ref()
+			.and_then(|context| context.get("parts_count"))
+			.and_then(|count| count.parse::<u32>().ok())
+			.filter(|count| *count > 1)
+		else {
+			return Ok(response.image);
+		};
+
+		let width = response.image.width();
+		let height = response.image.height();
+		if height >= 4000.0 {
+			return Ok(response.image);
+		}
+
+		let width_px = width as u32;
+		let strip_width = width_px / parts_count;
+		if strip_width == 0 {
+			return Ok(response.image);
+		}
+
+		let mut canvas = Canvas::new(width, height);
+		for part in 1..parts_count {
+			let src_x = width_px - strip_width * part;
+			let dst_x = strip_width * (part - 1);
+			canvas.copy_image(
+				&response.image,
+				Rect::new(src_x as f32, 0.0, strip_width as f32, height),
+				Rect::new(dst_x as f32, 0.0, strip_width as f32, height),
+			);
+		}
+
+		let last_x = strip_width * (parts_count - 1);
+		let last_width = width_px - last_x;
+		canvas.copy_image(
+			&response.image,
+			Rect::new(0.0, 0.0, last_width as f32, height),
+			Rect::new(last_x as f32, 0.0, last_width as f32, height),
+		);
+
+		Ok(canvas.get_image())
 	}
 }
 
@@ -244,6 +299,7 @@ impl WebLoginHandler for Boylove {
 
 register_source!(
 	Boylove,
+	PageImageProcessor,
 	DeepLinkHandler,
 	DynamicFilters,
 	Home,

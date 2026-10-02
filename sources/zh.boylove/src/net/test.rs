@@ -79,7 +79,7 @@ from_filters!(
 		}
 	),
 	"https://boylove.cc/home/api/cate/tp/1-%E6%97%A5%E6%BC%AB-0-1-2-1-1-0",
-	1
+	0
 );
 from_filters!(
 	vip_completed_nsfw_manhwa_h_3,
@@ -104,7 +104,7 @@ from_filters!(
 		}
 	),
 	"https://boylove.cc/home/api/cate/tp/1-%E9%9F%A9%E6%BC%AB+%E9%AB%98H-1-1-3-2-1-1",
-	1
+	0
 );
 from_filters!(
 	author,

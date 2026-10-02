@@ -2,7 +2,7 @@ use super::*;
 use aidoku::{
 	alloc::{format, string::ToString as _},
 	helpers::uri::{QueryParameters, encode_uri_component},
-	imports::{defaults::defaults_get, net::Request, std::current_date},
+	imports::{defaults::defaults_get, net::Request},
 };
 use core::fmt::{Display, Formatter, Result as FmtResult};
 use strum::{Display, FromRepr};
@@ -96,7 +96,6 @@ impl<'a> Url<'a> {
 		let mut view_permission = "2";
 
 		for filter in filters {
-			#[expect(clippy::match_wildcard_for_single_variants)]
 			match filter {
 				FilterValue::Text { id, value } => match id.as_str() {
 					"author" => {
@@ -182,39 +181,6 @@ pub enum Sort {
 	#[default]
 	#[strum(to_string = "1")]
 	LastUpdated,
-}
-
-#[derive(Display)]
-#[strum(prefix = "https://xxblapingpong.cc")]
-pub enum Api {
-	#[strum(to_string = "/chapter_view_template?{0}")]
-	Chapter(ChapterQuery),
-}
-
-impl Api {
-	pub fn chapter(key: &str) -> Self {
-		let query = ChapterQuery::new(key);
-		Self::Chapter(query)
-	}
-
-	pub fn request(&self) -> Result<Request> {
-		let now = current_date();
-		let token_parameter = format!("{now},1.1.0");
-
-		let token = format!("{now}18comicAPPContent");
-		let token_digest = md5::compute(token);
-		let token_hash = format!("{token_digest:x}");
-
-		let request = Request::get(self.to_string())?
-			.header(
-				"User-Agent",
-				"Mozilla/5.0 (iPad; CPU OS 18_2 like Mac OS X) \
-				 AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
-			)
-			.header("Tokenparam", &token_parameter)
-			.header("Token", &token_hash);
-		Ok(request)
-	}
 }
 
 #[derive(Default)]
@@ -308,27 +274,6 @@ impl RandomQuery {
 }
 
 impl Display for RandomQuery {
-	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-		write!(f, "{}", self.0)
-	}
-}
-
-pub struct ChapterQuery(QueryParameters);
-
-impl ChapterQuery {
-	fn new(key: &str) -> Self {
-		let mut query = QueryParameters::new();
-		query.push_encoded("id", Some(key));
-		query.push_encoded("sw_page", Some("null"));
-		query.push_encoded("mode", Some("vertical"));
-		query.push_encoded("page", Some("0"));
-		query.push_encoded("app_img_shunt", Some("NaN"));
-
-		Self(query)
-	}
-}
-
-impl Display for ChapterQuery {
 	fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
 		write!(f, "{}", self.0)
 	}

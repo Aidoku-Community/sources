@@ -396,6 +396,7 @@ fn manga_page() {
 			url: Some("https://boylove.cc/home/book/index/id/31164".into()),
 			status: MangaStatus::Completed,
 			content_rating: ContentRating::NSFW,
+			viewer: Viewer::Webtoon,
 			..Default::default() // test-runner does not support pseudo-classes
 			                     // authors: Some(["콤".into()].into()),
 			                     // tags: Some(["香香腐宅".into(), "fuhouse".into(), "韩漫".into(), "BL".into(), "校园".into(), "萌".into(), "纯爱".into(), "黑白漫".into(), "双向暗恋".into()].into()),

@@ -95,6 +95,7 @@ impl MangaPage for Document {
 			tags,
 			status,
 			content_rating,
+			viewer: Viewer::Webtoon,
 			..Default::default()
 		})
 	}
@@ -192,10 +193,28 @@ pub trait ChapterPage {
 
 impl ChapterPage for Document {
 	fn pages(&self) -> Result<Vec<Page>> {
+		let parts_count = self
+			.try_select("script")?
+			.filter_map(|script| script.data())
+			.find(|script| script.contains("firstMergeImg") && script.contains("imageData"))
+			.and_then(|script| {
+				script
+					.split_once("var randomClass = ")
+					.and_then(|(_, rest)| rest.split_once(';'))
+					.and_then(|(count, _)| count.trim().parse::<u32>().ok())
+			})
+			.filter(|count| *count > 1);
+
 		self.try_select("img.lazy")?
 			.map(|element| {
 				let url = element.try_attr("abs:data-original")?;
-				let content = PageContent::Url(url, None);
+				let content = if let Some(count) = parts_count {
+					let mut context = HashMap::new();
+					context.insert("parts_count".into(), count.to_string());
+					PageContent::url_context(url, context)
+				} else {
+					PageContent::url(url)
+				};
 
 				Ok(Page {
 					content,
