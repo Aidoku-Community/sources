@@ -1,8 +1,8 @@
 #![no_std]
 use aidoku::{Source, prelude::*};
-use mangathemesia::{Impl, MangaThemesia, Params};
+use vinetheme::{Impl, Params, VineTheme};
 
-const BASE_URL: &str = "https://elftoon.com";
+const BASE_URL: &str = "https://elftoon.net";
 
 struct ElfToon;
 
@@ -14,14 +14,13 @@ impl Impl for ElfToon {
 	fn params(&self) -> Params {
 		Params {
 			base_url: BASE_URL.into(),
-			chapter_list_selector: "#chapterlist li:not(:has(.gem-price-icon))".into(),
 			..Default::default()
 		}
 	}
 }
 
 register_source!(
-	MangaThemesia<ElfToon>,
+	VineTheme<ElfToon>,
 	Home,
 	ImageRequestProvider,
 	DeepLinkHandler
