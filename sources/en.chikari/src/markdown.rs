@@ -13,12 +13,12 @@ use core::fmt::Write as _;
 
 use crate::{settings, watermark};
 
-/// Tag names Chikari serves as markup. Any other angle-bracket sequence is
-/// prose, not a tag: chapters carry literal `<Maddened Enlightenment>`, which
-/// must survive.
+/// Tag names `convert_element_to_markdown` translates. The list is that
+/// function's own vocabulary: every arm is listed and nothing else is, so an
+/// angle-bracket sequence outside it is prose rather than a tag. Chapters carry
+/// literal `<Maddened Enlightenment>`, which must survive.
 const MARKUP_TAGS: &[&str] = &[
 	"a",
-	"abbr",
 	"article",
 	"aside",
 	"b",
@@ -41,18 +41,14 @@ const MARKUP_TAGS: &[&str] = &[
 	"img",
 	"li",
 	"main",
-	"mark",
 	"ol",
 	"p",
 	"pre",
 	"s",
 	"section",
-	"small",
 	"span",
 	"strike",
 	"strong",
-	"sub",
-	"sup",
 	"u",
 	"ul",
 ];
@@ -425,11 +421,12 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn unknown_tags_emit_their_prose() {
-		// A recognized tag with no dedicated case recurses instead of
-		// dropping the prose, even when it wraps an inline element.
+	fn unknown_tags_are_escaped_not_parsed() {
+		// A tag outside MARKUP_TAGS is prose, so the parser must not read it as
+		// an element: the brackets are escaped and the content between them
+		// survives.
 		let out = html_to_markdown("A <small>strange <em>x</em></small> tag");
-		assert_eq!(out, "A strange *x* tag");
+		assert_eq!(out, "A \\<small\\>strange *x*\\<\\/small\\> tag");
 	}
 
 	#[aidoku_test]
