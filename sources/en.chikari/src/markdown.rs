@@ -422,9 +422,6 @@ mod tests {
 
 	#[aidoku_test]
 	fn unknown_tags_are_escaped_not_parsed() {
-		// A tag outside MARKUP_TAGS is prose, so the parser must not read it as
-		// an element: the brackets are escaped and the content between them
-		// survives.
 		let out = html_to_markdown("A <small>strange <em>x</em></small> tag");
 		assert_eq!(out, "A \\<small\\>strange *x*\\<\\/small\\> tag");
 	}

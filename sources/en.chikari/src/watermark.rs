@@ -278,8 +278,6 @@ mod tests {
 
 	#[aidoku_test]
 	fn extends_the_cut_to_the_matching_closer() {
-		// General Punctuation and Latin-1 pairs close by extending to the
-		// closer, bringing back the sentence between the opener and the cut.
 		let out = strip("She said \u{201C}hi. \u{2E22}x\u{2E25} there\u{201D} end\n\n");
 		assert_eq!(out, "She said \u{201C}hi. \u{2E22}x\u{2E25} there\u{201D}");
 	}
