@@ -1,8 +1,5 @@
 use aidoku::{
-	Chapter, DeepLinkResult, FilterValue, HomeLayout, Listing, Manga, MangaPageResult, Page,
-	Result,
-	alloc::{String, Vec, string::ToString, vec},
-	imports::{canvas::ImageRef, net::Request},
+	Chapter, DeepLinkResult, FilterValue, HomeLayout, Listing, Manga, MangaPageResult, Page, Result, alloc::{String, Vec, string::ToString, vec}, error, imports::{canvas::ImageRef, net::Request},
 };
 
 use crate::{
@@ -138,16 +135,12 @@ pub trait Impl {
 
 			let response_branch = responses
 				.next()
-				.ok_or(aidoku::AidokuError::Message(
-					"Не удалось загрузить данные".into(),
-				))??
+				.ok_or(error!("Не удалось загрузить данные"))??
 				.get_json::<Vec<InkBranch>>()?;
 
 			let response_chapters = responses
 				.next()
-				.ok_or(aidoku::AidokuError::Message(
-					"Не удалось загрузить данные".into(),
-				))??
+				.ok_or(error!("Не удалось загрузить данные"))??
 				.get_json::<Vec<InkChapter>>()?;
 
 			let chapters = response_chapters
@@ -198,10 +191,11 @@ pub trait Impl {
 			.into_iter()
 			.map(|manga| manga.into_basic_manga())
 			.collect();
-
+		let has_next_page = response.is_empty();
+		
 		Ok(MangaPageResult {
-			entries: response.clone(),
-			has_next_page: !response.is_empty(),
+			entries: response,
+			has_next_page
 		})
 	}
 
