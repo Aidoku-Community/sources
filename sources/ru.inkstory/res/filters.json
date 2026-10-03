@@ -1,43 +1,43 @@
 [
-    {
-        "id": "status",
-        "type": "multi-select",
-        "title": "Статус",
-        "options": [
-            "Анонс",
-            "Завершен",
-            "Онгоинг",
-            "Заморожен"
-        ],
-        "ids": [
-            "ANNOUNCE",
-            "DONE",
-            "ONGOING",
-            "FROZEN"
-        ]
-    },
-    {
-        "id": "country",
-        "type": "multi-select",
-        "title": "Страна",
-        "options": [
-            "Другая",
-            "Япония",
-            "КНР",
-            "Китай",
-            "Корея",
-            "Россия"
-        ],
-        "ids": [
-            "OTHER",
-            "JAPAN",
-            "CHINA",
-            "TAIWAN",
-            "KOREA",
-            "RUSSIA"
-        ]
-    },
-    {
+	{
+		"id": "status",
+		"type": "multi-select",
+		"title": "Статус",
+		"options": [
+			"Анонс",
+			"Завершен",
+			"Онгоинг",
+			"Заморожен"
+		],
+		"ids": [
+			"ANNOUNCE",
+			"DONE",
+			"ONGOING",
+			"FROZEN"
+		]
+	},
+	{
+		"id": "country",
+		"type": "multi-select",
+		"title": "Страна",
+		"options": [
+			"Другая",
+			"Япония",
+			"КНР",
+			"Китай",
+			"Корея",
+			"Россия"
+		],
+		"ids": [
+			"OTHER",
+			"JAPAN",
+			"CHINA",
+			"TAIWAN",
+			"KOREA",
+			"RUSSIA"
+		]
+	},
+	{
 		"id": "format",
 		"title": "Формат",
 		"type": "multi-select",
@@ -50,9 +50,9 @@
 			"Сборник",
 			"Веб",
 			"Сингл",
-            "Вебтун",
-            "Артбук",
-            "Печать"
+			"Вебтун",
+			"Артбук",
+			"Печать"
 		],
 		"ids": [
 			"FOURTH_KOMA",
@@ -61,29 +61,29 @@
 			"COMPILATION",
 			"WEB",
 			"SINGLE",
-            "WEBTOON",
-            "ARTBOOK",
-            "LIGHT"
+			"WEBTOON",
+			"ARTBOOK",
+			"LIGHT"
 		]
 	},
-    {
-        "id": "content_status",
-        "type": "multi-select",
-        "title": "Безопасность контента",
-        "options": [
-            "Безопасный",
-            "Эротика",
-            "Порнография",
-            "Небезопасный"
-        ],
-        "ids": [
-            "SAFE",
-            "EROTIC",
-            "PORNOGRAPHIC",
-            "UNSAFE"
-        ]
-    },
-    	{
+	{
+		"id": "content_status",
+		"type": "multi-select",
+		"title": "Безопасность контента",
+		"options": [
+			"Безопасный",
+			"Эротика",
+			"Порнография",
+			"Небезопасный"
+		],
+		"ids": [
+			"SAFE",
+			"EROTIC",
+			"PORNOGRAPHIC",
+			"UNSAFE"
+		]
+	},
+		{
 		"id": "year",
 		"title": "Год релиза",
 		"type": "range",
