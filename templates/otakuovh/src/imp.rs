@@ -1,5 +1,9 @@
 use aidoku::{
-	Chapter, DeepLinkResult, FilterValue, HomeLayout, Listing, Manga, MangaPageResult, Page, Result, alloc::{String, Vec, string::ToString, vec}, error, imports::{canvas::ImageRef, net::Request},
+	Chapter, DeepLinkResult, FilterValue, HomeLayout, Listing, Manga, MangaPageResult, Page,
+	Result,
+	alloc::{String, Vec, string::ToString, vec},
+	error,
+	imports::{canvas::ImageRef, net::Request},
 };
 
 use crate::{
@@ -192,10 +196,10 @@ pub trait Impl {
 			.map(|manga| manga.into_basic_manga())
 			.collect();
 		let has_next_page = response.is_empty();
-		
+
 		Ok(MangaPageResult {
 			entries: response,
-			has_next_page
+			has_next_page,
 		})
 	}
 
