@@ -84,24 +84,27 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 			convert_children_to_markdown(element, output);
 			output.push_str("\n\n");
 		}
-		"strong" | "b" | "em" | "i" | "u" | "s" | "strike" | "del" => {
+		"strong" | "b" | "em" | "i" => {
 			// Trim so surrounding whitespace stays outside the markers;
 			// `** bold **` is not recognized as emphasis by Markdown.
 			let mut inner = String::default();
 			convert_children_to_markdown(element, &mut inner);
 			let trimmed = inner.trim();
 			if !trimmed.is_empty() {
-				let marker = match tag.as_str() {
-					"strong" | "b" => "**",
-					"em" | "i" => "*",
-					"u" => "__",
-					_ => "~~",
+				let marker = if matches!(tag.as_str(), "strong" | "b") {
+					"**"
+				} else {
+					"*"
 				};
 				output.push_str(marker);
 				output.push_str(trimmed);
 				output.push_str(marker);
 			}
 		}
+		// CommonMark has neither strikethrough nor underline, and Rakuyomi
+		// compiles with GFM off: `~~` would print literally and `__` would read
+		// as strong. Emit the content unmarked.
+		"u" | "s" | "strike" | "del" => convert_children_to_markdown(element, output),
 		"code" => {
 			let mut raw = String::default();
 			append_raw_text(element, &mut raw);
@@ -245,10 +248,7 @@ mod tests {
 	fn preserves_inline_markdown_without_tags() {
 		let html = "<p>A <strong>bold</strong>, <em>italic</em>, <u>underlined</u>, and <del>gone</del>.</p>";
 		let out = html_to_markdown(html);
-		assert_eq!(
-			out,
-			"A **bold**\\, *italic*\\, __underlined__\\, and ~~gone~~\\."
-		);
+		assert_eq!(out, "A **bold**\\, *italic*\\, underlined\\, and gone\\.");
 	}
 
 	#[aidoku_test]
