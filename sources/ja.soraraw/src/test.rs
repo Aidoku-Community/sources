@@ -1,5 +1,5 @@
 use super::*;
-use aidoku::{ContentRating, FilterKind, MangaStatus, Viewer};
+use aidoku::{ContentRating, FilterKind, MangaStatus, Viewer, imports::net::Request};
 use aidoku_test::aidoku_test;
 
 const MANGA_KEY: &str = "majo-to-youhei-57539";
@@ -24,7 +24,7 @@ fn listing(id: &str) -> Listing {
 
 fn resolves(url: &str) -> bool {
 	Request::head(url)
-		.and_then(|request| request.send())
+		.and_then(|request| request.header("User-Agent", USER_AGENT).send())
 		.map(|response| response.status_code() == 200)
 		.unwrap_or(false)
 }

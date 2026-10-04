@@ -7,7 +7,6 @@ use aidoku::{
 	canvas::{Rect, Transform},
 	imports::{
 		canvas::{Canvas, ImageRef},
-		net::Request,
 		std::send_partial_result,
 	},
 	prelude::*,
@@ -23,6 +22,8 @@ use models::*;
 const BASE_URL: &str = "https://soraraw.com";
 const THUMBNAIL_URL: &str = "https://i.mangaraw.lat";
 const IMAGE_API_URL: &str = "https://api.mangarawgo.site";
+// both hosts answer 403 to a user agent containing "aidoku", such as the test runner's default
+const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Version/26.6 Safari/605.1.15";
 const DATE_FORMAT: &str = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX";
 const PAYLOAD_KEY: &[u8] = b"/fuCkYou!!!";
 const PATH_SECRET: &[u8] = b"202508055d0db38bae2e86cc41649f90";
@@ -161,7 +162,7 @@ impl Source for Soraraw {
 		};
 		let scrambled = details.mode.as_deref() == Some("canva2");
 
-		let payload = Request::get(format!("{IMAGE_API_URL}/{manga_id}/{chapter_id}.json"))?
+		let payload = request(format!("{IMAGE_API_URL}/{manga_id}/{chapter_id}.json"))?
 			.json_owned::<ImagePayload>()?;
 		let Some(json) = deobfuscate(&payload.d, PAYLOAD_KEY) else {
 			bail!("could not decode the page list of chapter {chapter_id}");
@@ -236,7 +237,7 @@ impl Soraraw {
 		let mut entries = Vec::new();
 
 		for page in 1..=CATALOGUE_PAGE_LIMIT {
-			let response = Request::get(format!("{BASE_URL}/mangas_{page}.json"))?.send()?;
+			let response = request(format!("{BASE_URL}/mangas_{page}.json"))?.send()?;
 			// the dump ends with a 404, which is how the site's own search stops walking it
 			if response.status_code() != 200 {
 				// the first page is the exception: with nothing walked yet, a dump that can't be
@@ -286,7 +287,7 @@ impl Soraraw {
 
 	// a ranking arrives as one json holding every entry, leaving no page for the app to ask for
 	fn parse_top(period: &str) -> Result<MangaPageResult> {
-		let top = Request::get(format!("{BASE_URL}/top/{period}.json"))?.json_owned::<TopList>()?;
+		let top = request(format!("{BASE_URL}/top/{period}.json"))?.json_owned::<TopList>()?;
 		if top.mangas.is_empty() {
 			bail!("the {period} ranking came back empty");
 		}
@@ -386,8 +387,7 @@ impl ListingProvider for Soraraw {
 impl DynamicFilters for Soraraw {
 	// the genre list is fetched instead of hardcoded, so new genres are picked up automatically
 	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
-		let genres =
-			Request::get(format!("{BASE_URL}/genres.json"))?.json_owned::<Vec<GenreEntry>>()?;
+		let genres = request(format!("{BASE_URL}/genres.json"))?.json_owned::<Vec<GenreEntry>>()?;
 
 		let mut options: Vec<Cow<'static, str>> = vec![Cow::Borrowed("All")];
 		let mut ids: Vec<Cow<'static, str>> = vec![Cow::Borrowed("")];
