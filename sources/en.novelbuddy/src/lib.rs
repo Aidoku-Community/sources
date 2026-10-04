@@ -81,7 +81,6 @@ impl Source for NovelBuddy {
 						qs.push("genres", Some(&included.join(",")));
 					}
 					for genre in excluded {
-						// make sure hidden genres aren't added to query params twice
 						if !excluded_genres.contains(&genre) {
 							excluded_genres.push(genre);
 						}
