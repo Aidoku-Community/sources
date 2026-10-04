@@ -2,7 +2,26 @@ use aidoku::{
 	Manga, MangaStatus, Viewer,
 	alloc::{String, Vec, format, string::ToString},
 };
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// LANraragi versions differ on the `pinned` field type: some return
+/// `"0"`/`"1"` strings, others return integers. Accept both.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum StringOrI32 {
+	String(String),
+	Int(i32),
+}
+
+fn deserialize_pinned<'de, D>(deserializer: D) -> Result<i32, D::Error>
+where
+	D: Deserializer<'de>,
+{
+	match StringOrI32::deserialize(deserializer)? {
+		StringOrI32::String(value) => value.trim().parse().map_err(serde::de::Error::custom),
+		StringOrI32::Int(value) => Ok(value),
+	}
+}
 
 #[derive(Debug, Deserialize)]
 pub struct ArchiveMetadata {
@@ -33,6 +52,7 @@ pub struct Archive {
 pub struct Category {
 	pub id: String,
 	pub name: String,
+	#[serde(deserialize_with = "deserialize_pinned")]
 	pub pinned: i32,
 	pub search: String,
 	pub archives: Vec<String>,
