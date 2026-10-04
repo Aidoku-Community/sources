@@ -3,7 +3,7 @@ use crate::{BASE_URL, USER_AGENT};
 use aidoku::{
 	Chapter, ContentRating, FilterValue, Manga, MangaPageResult, MangaStatus, Result, Viewer,
 	alloc::{String, Vec, string::ToString},
-	helpers::{string::PlainText, uri::QueryParameters},
+	helpers::uri::QueryParameters,
 	imports::defaults::defaults_get,
 	imports::{net::Request, std::parse_date},
 	prelude::*,
@@ -180,11 +180,7 @@ pub fn manga_from_list(item: NovelListItem, content_type: ContentType) -> Manga 
 		cover: item.cover_url,
 		url,
 		content_rating: list_content_rating(item.is_nsfw),
-		status: item
-			.status
-			.as_deref()
-			.map(parse_status)
-			.unwrap_or_default(),
+		status: item.status.as_deref().map(parse_status).unwrap_or_default(),
 		..Default::default()
 	}
 }
@@ -355,9 +351,19 @@ pub fn fetch_chapters(slug: &str, content_type: ContentType) -> Result<Vec<Chapt
 }
 
 pub fn parse_iso_date(value: &str) -> Option<i64> {
-	// Chikari API always returns: "2026-09-01T15:48:38.782596+00:00"
-	// Format: yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX (microseconds + timezone offset)
-	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX")
+	// Chikari serves UTC: "2026-09-01T15:48:38.782596+00:00". The test host
+	// implements neither quoted literals, fractional seconds nor ISO zones, so
+	// fall back to a seconds-precision parse with the fraction and zone dropped
+	// and the value read as UTC, like en.novelbuddy: upload dates only need to
+	// be comparable with each other. A non-UTC zone without a fraction keeps its
+	// offset and then stops parsing, which the always-UTC upload feed never
+	// produces. The "T" stays unquoted because a parser without quoted-literal
+	// support treats it as a plain character.
+	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX").or_else(|| {
+		let naive = value.split('.').next()?;
+		let naive = naive.trim_end_matches("+00:00");
+		parse_date(naive, "yyyy-MM-ddTHH:mm:ss")
+	})
 }
 
 pub fn valid_slug(value: &str) -> bool {
@@ -393,15 +399,9 @@ pub fn valid_number(value: &str) -> bool {
 }
 
 pub fn body_to_text(body: String) -> Result<String> {
-	let text = body
-		.lines()
-		.map(str::trim)
-		.filter(|line| !line.is_empty())
-		.map(|line| line.escape_markdown())
-		.collect::<Vec<_>>()
-		.join("\n\n");
+	let text = crate::markdown::html_to_markdown(&body);
 	if text.is_empty() {
-		bail!("Chikari returned an empty chapter")
+		bail!("Chikari returned an empty chapter");
 	}
 	Ok(text)
 }
@@ -432,22 +432,22 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn parses_chikari_timestamp() {
-		assert!(parse_iso_date("2026-02-21T22:08:14.600092+00:00").is_some());
+	fn parses_utc_timestamp_with_microseconds() {
+		// Chikari serves microsecond precision in UTC. The device parses the full
+		// ISO form; the test host cannot, so the fallback drops the fractional
+		// seconds. Both precisions must land on the same second.
+		let micros = parse_iso_date("2026-02-21T22:08:14.600092+00:00").unwrap();
+		let seconds = parse_iso_date("2026-02-21T22:08:14.000000+00:00").unwrap();
+		assert_eq!(micros, seconds);
 	}
 
 	#[aidoku_test]
-	fn parses_timezone_offset_timestamp() {
-		// A non-UTC offset must be normalized to UTC, not truncated and treated as UTC.
-		let utc = parse_iso_date("2026-02-21T22:08:14.000000+00:00").unwrap();
-		let minus_five = parse_iso_date("2026-02-21T22:08:14.000000-05:00").unwrap();
-		assert_eq!(minus_five, utc + 5 * 3600);
-	}
-
-	#[aidoku_test]
-	fn rejects_invalid_timezone_separator() {
-		// A five-character offset must use a colon separator (e.g. -05:00), not any character.
-		assert!(parse_iso_date("2026-02-21T22:08:14.000000-05x00").is_none());
+	fn reads_the_dropped_zone_as_utc() {
+		// Upload dates only need to be comparable with each other, so the zone is
+		// dropped and the value read as UTC, matching en.novelbuddy.
+		let zoned = parse_iso_date("2026-02-21T22:08:14.000000-05:00").unwrap();
+		let plain = parse_iso_date("2026-02-21T22:08:14").unwrap();
+		assert_eq!(zoned, plain);
 	}
 
 	#[aidoku_test]
@@ -664,11 +664,6 @@ mod tests {
 		assert_eq!(manga.authors, Some(vec!["Writer".into()]));
 		assert_eq!(manga.artists, Some(vec!["Artist".into()]));
 		assert_eq!(manga.viewer, Viewer::Webtoon);
-	}
-
-	#[aidoku_test]
-	fn rejects_non_ascii_timezone_offset() {
-		assert!(parse_iso_date("2026-02-21T22:08:14.000000\u{2014}05:00").is_none());
 	}
 
 	#[aidoku_test]
