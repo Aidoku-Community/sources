@@ -163,8 +163,7 @@ mod tests {
 
 	#[aidoku_test]
 	fn keeps_paragraphs_inside_the_whitelisted_blocks() {
-		// Latin-1 accents plus General Punctuation, all verified in live
-		// prose on the site.
+		// Latin-1 accents and General Punctuation, verified in live prose.
 		let out = strip("Caf\u{00E9} \u{201C}wait\u{2026}\u{201D} \u{2014} it\u{2019}s fine\n\n");
 		assert!(out.contains("Caf\u{00E9}"), "accent: {out}");
 		assert!(out.contains('\u{2014}'), "dash: {out}");
@@ -194,8 +193,8 @@ mod tests {
 
 	#[aidoku_test]
 	fn drops_attribution_paragraph_in_place() {
-		// Verbatim from the live API, chapter 13: the line sits mid-chapter, so
-		// the blocks around it must end up one blank line apart.
+		// Verbatim from the live API, chapter 13: the credit sits mid-chapter, so
+		// the blocks around it must join with one blank line.
 		let out = strip(
 			"She pointed up\n\nThe sourc\u{1D5F2} of this content is \
 			 fre\u{113}w\u{113}b\u{3B7}ovel.c\u{0AE6}m\\.\n\n\u{201C}How do you know that\u{201D}\n\n",
@@ -208,8 +207,8 @@ mod tests {
 
 	#[aidoku_test]
 	fn keeps_prose_when_the_credit_shares_its_block() {
-		// Verified on a live chapter: the credit is appended to the end of
-		// a real paragraph as its own line, inside the same block.
+		// Verified live: the credit is its own line at the end of a real
+		// paragraph, in the same block.
 		let out = strip(
 			"Rosalyn profoundly asked\\.  \n\
 			 \u{1D4B7}\u{1D4BB}\u{1D4EE}\u{1D4EE}\u{1D66C}\u{1D4E2}\u{1D483}\u{1D48F}\
@@ -220,8 +219,8 @@ mod tests {
 
 	#[aidoku_test]
 	fn keeps_prose_when_the_credit_shares_its_line() {
-		// Verified live: no line break at all — the credit sits at the end of
-		// the sentence, even glued onto the full stop. Only the credit goes.
+		// Verified live: the credit ends the sentence with no line break, even
+		// glued onto the full stop. Only the credit goes.
 		let out = strip(
 			"The aura of fire\\! \u{1D627}\u{1D45F}\u{1D452}\u{1D638}\u{1D4B7}\
 			 \u{1D4C3}\u{1D45C}\u{1D4CB}\u{1D4C1}\\.\u{1D4B8}\u{1D45E}\n\n",

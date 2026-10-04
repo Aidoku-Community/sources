@@ -351,14 +351,12 @@ pub fn fetch_chapters(slug: &str, content_type: ContentType) -> Result<Vec<Chapt
 }
 
 pub fn parse_iso_date(value: &str) -> Option<i64> {
-	// Chikari serves UTC: "2026-09-01T15:48:38.782596+00:00". The test host
-	// implements neither quoted literals, fractional seconds nor ISO zones, so
-	// fall back to a seconds-precision parse with the fraction and zone dropped
-	// and the value read as UTC, like en.novelbuddy: upload dates only need to
-	// be comparable with each other. A non-UTC zone without a fraction keeps its
-	// offset and then stops parsing, which the always-UTC upload feed never
-	// produces. The "T" stays unquoted because a parser without quoted-literal
-	// support treats it as a plain character.
+	// Live form: "2026-09-01T15:48:38.782596+00:00" (UTC, microseconds).
+	// The test host parses no quoted literals, fractions, or zones, so the
+	// fallback drops the fraction and zone and reads the rest as UTC. That is
+	// enough because upload dates are only compared with each other. A non-UTC
+	// zone without a fraction keeps its offset; the UTC-only feed never sends
+	// one. The "T" is unquoted because the host reads it as a plain character.
 	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX").or_else(|| {
 		let naive = value.split('.').next()?;
 		let naive = naive.trim_end_matches("+00:00").trim_end_matches('Z');
@@ -433,20 +431,18 @@ mod tests {
 
 	#[aidoku_test]
 	fn parses_utc_timestamp_with_microseconds() {
-		// Chikari serves microsecond precision in UTC. The device parses the full
-		// ISO form; the test host cannot, so the fallback drops the fractional
-		// seconds. Both precisions must land on the same second.
+		// The device parses the full ISO form; the test host cannot, so the
+		// fallback drops the fractional seconds.
 		let micros = parse_iso_date("2026-02-21T22:08:14.600092+00:00").unwrap();
 		let seconds = parse_iso_date("2026-02-21T22:08:14.000000+00:00").unwrap();
 		assert_eq!(micros, seconds);
-		// Zulu without fractional seconds must parse too, like its dotted form.
 		assert!(parse_iso_date("2026-02-21T22:08:14Z").is_some());
 	}
 
 	#[aidoku_test]
 	fn reads_the_dropped_zone_as_utc() {
-		// Upload dates only need to be comparable with each other, so the zone is
-		// dropped and the value read as UTC, matching en.novelbuddy.
+		// Upload dates are only compared with each other, so the zone is dropped
+		// and the value is read as UTC, matching en.novelbuddy.
 		let zoned = parse_iso_date("2026-02-21T22:08:14.000000-05:00").unwrap();
 		let plain = parse_iso_date("2026-02-21T22:08:14").unwrap();
 		assert_eq!(zoned, plain);

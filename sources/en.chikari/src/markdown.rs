@@ -507,10 +507,9 @@ mod tests {
 
 	#[aidoku_test]
 	fn handles_inline_markup_split_by_a_paragraph_break() {
-		// The chapter body is plain text, so a tag can straddle a blank line.
-		// Formatting elements survive the `</p>` in the parser's active list, so
-		// the orphaned close tag still applies to the paragraph after it. Parse
-		// per block instead and the emphasis would be dropped.
+		// Bodies are plain text, so a tag can straddle a blank line. The parser
+		// keeps formatting elements past `</p>`, so the orphan close still applies
+		// to the next paragraph. Parsing per block would drop the emphasis.
 		let out = html_to_markdown("First <em>starts\n\nand closes</em> here.");
 		assert_eq!(out, "First *starts*\n\n*and closes* here\\.");
 	}
@@ -535,8 +534,8 @@ mod tests {
 
 	#[aidoku_test]
 	fn preserves_literal_angle_bracket_prose() {
-		// Sampled live (genetic-ascension ch. 101/401): the brackets are
-		// prose, not tags, and must not be consumed by the parser.
+		// Sampled live (genetic-ascension ch. 101/401): the brackets are prose,
+		// not tags.
 		let out = html_to_markdown("<Maddened Enlightenment> could replenish 30 Intelligence");
 		assert_eq!(
 			out,
