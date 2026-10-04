@@ -361,7 +361,7 @@ pub fn parse_iso_date(value: &str) -> Option<i64> {
 	// support treats it as a plain character.
 	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX").or_else(|| {
 		let naive = value.split('.').next()?;
-		let naive = naive.trim_end_matches("+00:00");
+		let naive = naive.trim_end_matches("+00:00").trim_end_matches('Z');
 		parse_date(naive, "yyyy-MM-ddTHH:mm:ss")
 	})
 }
@@ -439,6 +439,8 @@ mod tests {
 		let micros = parse_iso_date("2026-02-21T22:08:14.600092+00:00").unwrap();
 		let seconds = parse_iso_date("2026-02-21T22:08:14.000000+00:00").unwrap();
 		assert_eq!(micros, seconds);
+		// Zulu without fractional seconds must parse too, like its dotted form.
+		assert!(parse_iso_date("2026-02-21T22:08:14Z").is_some());
 	}
 
 	#[aidoku_test]
