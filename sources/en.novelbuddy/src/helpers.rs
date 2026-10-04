@@ -208,8 +208,9 @@ pub fn html_to_text(html: &str) -> String {
 	}
 	// A summary that arrives without `<p>` would otherwise be dropped outright.
 	// `select_first`, not `select`: a nested wrapper matches at both levels and
-	// `ElementList::text` would concatenate the text twice.
-	doc.select_first("body, div, span")
+	// `ElementList::text` would concatenate the text twice. `*` takes whatever
+	// the outermost wrapper is instead of a hardcoded tag list.
+	doc.select_first("*")
 		.and_then(|el| el.text())
 		.map(|text| text.trim().to_string())
 		.filter(|text| !text.is_empty())
@@ -251,6 +252,12 @@ mod tests {
 		assert_eq!(
 			html_to_text("<div><span>Nested without p.</span></div>"),
 			"Nested without p."
+		);
+		// The selector is generic, so a wrapper outside any hardcoded list is
+		// still found.
+		assert_eq!(
+			html_to_text("<section>A summary wrapped in a section.</section>"),
+			"A summary wrapped in a section."
 		);
 		// `Html::parse_fragment` on bare text yields no element to select, and
 		// `Document` exposes no text accessor, so that case stays unreachable.
