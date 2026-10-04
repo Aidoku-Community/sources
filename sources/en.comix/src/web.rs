@@ -93,24 +93,42 @@ impl ComixWebView {
 			let js_asset_path = &main_module_src[0..js_asset_path_index + 1];
 			let secure_script_regex = Regex::new("(secure-[A-Za-z0-9-_]+?\\.js)").unwrap();
 			let main_module_contents =
-				Request::get(format!("{BASE_URL}{main_module_src}"))?.string()?;
+				create_request_get(&format!("{BASE_URL}{main_module_src}"))?.string()?;
 			if let Some(secure_script_path) = secure_script_regex
 				.captures(main_module_contents.as_str())
 				.and_then(|captures| captures.get(1).map(|m| m.as_str()))
 			{
-				self.web_view.eval(&format!(
+				// the site's own scripts don't reliably run in the webview, so fetch the
+				// secure chunk natively and evaluate it as a classic script. it registers
+				// its own `vm` global, so only the trailing `export{...}` needs removing
+				let secure_module_contents =
+					create_request_get(&format!("{BASE_URL}{js_asset_path}{secure_script_path}"))?
+						.string()?;
+				let Some(module_body) = secure_module_contents
+					.rfind("export")
+					.filter(|&index| {
+						secure_module_contents[index + "export".len()..]
+							.trim_start()
+							.starts_with('{')
+					})
+					.map(|index| &secure_module_contents[..index])
+				else {
+					bail!("Secure module exports not found");
+				};
+				let result = self.web_view.eval(&format!(
 					"(() => {{
-						import('{BASE_URL}{js_asset_path}{secure_script_path}')
-							.then((m) => window['vm'] = m)
-							.catch((e) => window['vm'] = {{}});
-						return '';
+						'use strict';
+						try {{
+							{module_body}
+							return 'ok';
+						}} catch (e) {{
+							return 'error: ' + e;
+						}}
 					}})()"
 				))?;
-				while self
-					.web_view
-					.eval("(() => { return window['vm'] == null ? 'true' : 'false'; })()")?
-					== "true"
-				{}
+				if result != "ok" {
+					bail!("Failed to load secure module: {result}");
+				}
 				Ok(())
 			} else {
 				bail!("Secure module not found");
