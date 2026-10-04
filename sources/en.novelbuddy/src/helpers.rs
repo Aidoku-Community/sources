@@ -170,10 +170,17 @@ pub fn parse_chapter_number(name: &str) -> Option<f32> {
 	num.parse().ok()
 }
 
+/// Observed length of a canonical title id (`VYPGVZ8z`).
+///
+/// The length is what separates the id from the slug in
+/// `/titles/<id>-<slug>`; relaxing it makes `/titles/shadow-slave` parse as
+/// the id `shadow`.
+const CANONICAL_ID_LEN: usize = 8;
+
 pub fn parse_id_from_canonical(new_url: &str) -> Option<String> {
 	let trimmed = new_url.trim_start_matches("/titles/");
 	let id = trimmed.split('-').next()?;
-	if id.len() == 8 && id.chars().all(|c| c.is_ascii_alphanumeric()) {
+	if id.len() == CANONICAL_ID_LEN && id.chars().all(|c| c.is_ascii_alphanumeric()) {
 		Some(id.into())
 	} else {
 		None
@@ -187,16 +194,26 @@ pub fn html_to_text(html: &str) -> String {
 	let Ok(doc) = Html::parse_fragment(html) else {
 		return String::default();
 	};
-	doc.select("p")
+	let paragraphs = doc
+		.select("p")
 		.map(|els| {
-			els.filter_map(|el| {
-				let text = el.text()?;
-				let trimmed = text.trim();
-				(!trimmed.is_empty()).then(|| trimmed.to_string())
-			})
-			.collect::<Vec<_>>()
-			.join("\n\n")
+			els.filter_map(|el| el.text())
+				.map(|text| text.trim().to_string())
+				.filter(|trimmed| !trimmed.is_empty())
+				.collect::<Vec<_>>()
 		})
+		.unwrap_or_default();
+	if !paragraphs.is_empty() {
+		return paragraphs.join("\n\n");
+	}
+	// A summary that arrives without `<p>` would otherwise be dropped outright.
+	// `select_first`, not `select`: a nested wrapper matches at both levels and
+	// `ElementList::text` would concatenate the text twice. `*` takes whatever
+	// the outermost wrapper is instead of a hardcoded tag list.
+	doc.select_first("*")
+		.and_then(|el| el.text())
+		.map(|text| text.trim().to_string())
+		.filter(|text| !text.is_empty())
 		.unwrap_or_default()
 }
 
@@ -227,12 +244,43 @@ mod tests {
 	}
 
 	#[aidoku_test]
+	fn falls_back_to_text_without_paragraphs() {
+		assert_eq!(
+			html_to_text("<div>A summary wrapped in a div.</div>"),
+			"A summary wrapped in a div."
+		);
+		assert_eq!(
+			html_to_text("<div><span>Nested without p.</span></div>"),
+			"Nested without p."
+		);
+		// The selector is generic, so a wrapper outside any hardcoded list is
+		// still found.
+		assert_eq!(
+			html_to_text("<section>A summary wrapped in a section.</section>"),
+			"A summary wrapped in a section."
+		);
+		// `Html::parse_fragment` on bare text yields no element to select, and
+		// `Document` exposes no text accessor, so that case stays unreachable.
+		assert_eq!(html_to_text(""), "");
+	}
+
+	#[aidoku_test]
+	fn prefers_paragraphs_over_the_fallback() {
+		// The fallback must not swallow the ad spacer div the site injects.
+		let html = "<p>Kept.</p><div style=\"text-align:center\"><div></div></div>";
+		assert_eq!(html_to_text(html), "Kept.");
+	}
+
+	#[aidoku_test]
 	fn parses_canonical_id() {
 		assert_eq!(
 			parse_id_from_canonical("/titles/VYPGVZ8z-shadow-slave"),
 			Some("VYPGVZ8z".to_string())
 		);
 		assert_eq!(parse_id_from_canonical("/titles/garbage"), None);
+		// The length check is what keeps the slug from parsing as an id.
+		assert_eq!(parse_id_from_canonical("/titles/shadow-slave"), None);
+		assert_eq!(parse_id_from_canonical("/titles/ab-1234567"), None);
 	}
 
 	#[aidoku_test]

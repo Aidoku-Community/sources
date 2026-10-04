@@ -65,106 +65,128 @@ fn break_before_block(output: &mut String) {
 	}
 }
 
+fn convert_heading(element: &Element, output: &mut String) {
+	break_before_block(output);
+	let tag = element.tag_name().unwrap_or_default();
+	let level = tag.as_bytes()[1] - b'0';
+	for _ in 0..level {
+		output.push('#');
+	}
+	output.push(' ');
+	convert_children_to_markdown(element, output);
+	output.push_str("\n\n");
+}
+
+fn convert_emphasis(element: &Element, output: &mut String) {
+	let mut inner = String::default();
+	convert_children_to_markdown(element, &mut inner);
+	let trimmed = inner.trim();
+	if trimmed.is_empty() {
+		return;
+	}
+	// CommonMark has neither strikethrough nor underline: `~~` is inert text
+	// and `__` is strong emphasis. Emit the content unmarked.
+	let marker = match element.tag_name().as_deref() {
+		Some("strong" | "b") => "**",
+		Some("em" | "i") => "*",
+		_ => "",
+	};
+	// Surrounding whitespace must stay outside the markers: `** bold **` is not
+	// recognized as emphasis.
+	output.push_str(marker);
+	output.push_str(trimmed);
+	output.push_str(marker);
+}
+
+fn convert_inline_code(element: &Element, output: &mut String) {
+	let mut raw = String::default();
+	append_raw_text(element, &mut raw);
+	let ticks = longest_backtick_run(&raw) + 1;
+	for _ in 0..ticks {
+		output.push('`');
+	}
+	// Space-pad content touching a delimiter boundary: CommonMark
+	// strips one space from both sides, restoring the text verbatim.
+	if raw.starts_with('`') || raw.ends_with('`') {
+		output.push(' ');
+		output.push_str(&raw);
+		output.push(' ');
+	} else {
+		output.push_str(&raw);
+	}
+	for _ in 0..ticks {
+		output.push('`');
+	}
+}
+
+fn convert_fenced_code(element: &Element, output: &mut String) {
+	break_before_block(output);
+	let mut raw = String::default();
+	append_raw_text(element, &mut raw);
+	let fence = "`".repeat(3.max(longest_backtick_run(&raw) + 1));
+	output.push_str(&fence);
+	output.push('\n');
+	output.push_str(&raw);
+	if !raw.ends_with('\n') {
+		output.push('\n');
+	}
+	output.push_str(&fence);
+	output.push_str("\n\n");
+}
+
+fn convert_image(element: &Element, output: &mut String) {
+	break_before_block(output);
+	if let Some(src) = element.attr("src") {
+		let alt = element.attr("alt").unwrap_or_default();
+		let _ = writeln!(output, "![{alt}]({src})");
+		output.push('\n');
+	}
+}
+
+fn convert_link(element: &Element, output: &mut String) {
+	if let Some(href) = element.attr("href") {
+		output.push('[');
+		convert_children_to_markdown(element, output);
+		let _ = write!(output, "]({href})");
+	} else {
+		convert_children_to_markdown(element, output);
+	}
+}
+
+fn convert_block_container(element: &Element, output: &mut String) {
+	break_before_block(output);
+	convert_children_to_markdown(element, output);
+	if !output.ends_with("\n\n") && !output.ends_with('\n') {
+		output.push('\n');
+	}
+}
+
 fn convert_element_to_markdown(element: &Element, output: &mut String) {
 	let tag = element.tag_name().unwrap_or_default();
 	match tag.as_str() {
-		"p" => {
+		"p" | "figcaption" | "dt" | "dd" | "summary" => {
 			break_before_block(output);
 			convert_children_to_markdown(element, output);
 			output.push_str("\n\n");
 		}
 		"br" => output.push_str("  \n"),
-		"h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
-			break_before_block(output);
-			let level = tag.as_bytes()[1] - b'0';
-			for _ in 0..level {
-				output.push('#');
-			}
-			output.push(' ');
-			convert_children_to_markdown(element, output);
-			output.push_str("\n\n");
-		}
+		"h1" | "h2" | "h3" | "h4" | "h5" | "h6" => convert_heading(element, output),
 		"strong" | "b" | "em" | "i" | "u" | "s" | "strike" | "del" => {
-			// Trim so surrounding whitespace stays outside the markers;
-			// `** bold **` is not recognized as emphasis by Markdown.
-			let mut inner = String::default();
-			convert_children_to_markdown(element, &mut inner);
-			let trimmed = inner.trim();
-			if !trimmed.is_empty() {
-				let marker = match tag.as_str() {
-					"strong" | "b" => "**",
-					"em" | "i" => "*",
-					"u" => "__",
-					_ => "~~",
-				};
-				output.push_str(marker);
-				output.push_str(trimmed);
-				output.push_str(marker);
-			}
+			convert_emphasis(element, output)
 		}
-		"code" => {
-			let mut raw = String::default();
-			append_raw_text(element, &mut raw);
-			let ticks = longest_backtick_run(&raw) + 1;
-			for _ in 0..ticks {
-				output.push('`');
-			}
-			// Space-pad content touching a delimiter boundary: CommonMark
-			// strips one space from both sides, restoring the text verbatim.
-			if raw.starts_with('`') || raw.ends_with('`') {
-				output.push(' ');
-				output.push_str(&raw);
-				output.push(' ');
-			} else {
-				output.push_str(&raw);
-			}
-			for _ in 0..ticks {
-				output.push('`');
-			}
-		}
-		"pre" => {
-			break_before_block(output);
-			let mut raw = String::default();
-			append_raw_text(element, &mut raw);
-			let fence = "`".repeat(3.max(longest_backtick_run(&raw) + 1));
-			output.push_str(&fence);
-			output.push('\n');
-			output.push_str(&raw);
-			if !raw.ends_with('\n') {
-				output.push('\n');
-			}
-			output.push_str(&fence);
-			output.push_str("\n\n");
-		}
-		"img" => {
-			break_before_block(output);
-			if let Some(src) = element.attr("src") {
-				let alt = element.attr("alt").unwrap_or_default();
-				let _ = write!(output, "![{alt}]({src})\n\n");
-			}
-		}
-		"a" => {
-			if let Some(href) = element.attr("href") {
-				output.push('[');
-				convert_children_to_markdown(element, output);
-				let _ = write!(output, "]({href})");
-			} else {
-				convert_children_to_markdown(element, output);
-			}
-		}
+		"code" => convert_inline_code(element, output),
+		"pre" => convert_fenced_code(element, output),
+		"img" => convert_image(element, output),
+		"a" => convert_link(element, output),
 		"hr" => {
 			break_before_block(output);
 			output.push_str("---\n\n")
 		}
-		"ul" | "ol" => convert_list_to_markdown(element, &tag, output),
+		// menu is the unordered-list alternative.
+		"ul" | "ol" | "menu" => convert_list_to_markdown(element, &tag, output),
 		"blockquote" => convert_blockquote_to_markdown(element, output),
-		"div" | "section" | "article" | "header" | "footer" | "main" | "aside" => {
-			break_before_block(output);
-			convert_children_to_markdown(element, output);
-			if !output.ends_with("\n\n") && !output.ends_with('\n') {
-				output.push('\n');
-			}
-		}
+		"div" | "section" | "article" | "header" | "footer" | "main" | "aside" | "figure"
+		| "hgroup" | "details" | "dl" => convert_block_container(element, output),
 		// Inline containers carry no block semantics.
 		"span" | "li" => convert_children_to_markdown(element, output),
 		// Unknown tags: recurse so their prose is still emitted.
@@ -245,10 +267,23 @@ mod tests {
 	fn preserves_inline_markdown_without_tags() {
 		let html = "<p>A <strong>bold</strong>, <em>italic</em>, <u>underlined</u>, and <del>gone</del>.</p>";
 		let out = html_to_markdown(html);
-		assert_eq!(
-			out,
-			"A **bold**\\, *italic*\\, __underlined__\\, and ~~gone~~\\."
+		assert_eq!(out, "A **bold**\\, *italic*\\, underlined\\, and gone\\.");
+	}
+
+	#[aidoku_test]
+	fn unmarked_tags_keep_their_content_only() {
+		let out = html_to_markdown(
+			"<p><u>underlined</u>, <del>gone</del>, <s>struck</s>, <sup>2</sup>, <ruby>kanji<rt>kana</rt></ruby></p>",
 		);
+		assert_eq!(out, "underlined\\, gone\\, struck\\, 2\\, kanjikana");
+	}
+
+	#[aidoku_test]
+	fn routes_prose_block_variants_to_existing_layout() {
+		let out = html_to_markdown(
+			"<menu><li>One</li><li>Two</li></menu><dl><dt>Term</dt><dd>Definition</dd></dl><figure><figcaption>Caption</figcaption></figure>",
+		);
+		assert_eq!(out, "- One\n- Two\n\nTerm\n\nDefinition\n\nCaption");
 	}
 
 	#[aidoku_test]
