@@ -12,7 +12,6 @@ use aidoku::{
 	},
 	prelude::*,
 };
-use serde::Deserialize;
 
 mod cipher;
 mod helpers;
@@ -170,41 +169,6 @@ impl Source for MangaRawBest {
 			})
 			.collect())
 	}
-}
-
-#[derive(Deserialize)]
-struct EncryptedPages {
-	e: String,
-}
-
-#[derive(Deserialize)]
-struct PageUrls {
-	p: Vec<String>,
-}
-
-// probe the first page so a dead server falls back to the others
-fn select_image_server(preferred: String, sample: &str) -> String {
-	let candidates = core::iter::once(preferred.as_str()).chain(
-		IMAGE_SERVERS
-			.into_iter()
-			.filter(|server| *server != preferred),
-	);
-	for server in candidates {
-		// HEAD keeps the probe from downloading the whole image
-		let available = image_request(&build_image_url(server, sample), HttpMethod::Head)
-			// a dead origin behind a proxy can hang until the proxy gives up
-			.and_then(|request| Ok(request.timeout(5.0).send()?))
-			.is_ok_and(|response| (200..300).contains(&response.status_code()));
-		if available {
-			return server.into();
-		}
-	}
-	// No server answered, so the problem is more likely on the device's side.
-	preferred
-}
-
-fn image_request(url: &str, method: HttpMethod) -> Result<Request> {
-	Ok(Request::new(url, method)?.header("Referer", &format!("{BASE_URL}/")))
 }
 
 impl MangaRawBest {
