@@ -109,6 +109,9 @@ pub fn clean_tag(tag: &str) -> Option<String> {
 	(!tag.is_empty()).then(|| tag.to_string())
 }
 
+// same values as the imageServer select in res/settings.json
+pub const IMAGE_SERVERS: [&str; 3] = ["1", "2", "3"];
+
 // mirrors the `switchImageServer` helper the site ships in its reader
 pub fn build_image_url(server: &str, original: &str) -> String {
 	match server {

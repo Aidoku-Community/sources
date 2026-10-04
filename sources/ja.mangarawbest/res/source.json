@@ -2,8 +2,9 @@
 	"info": {
 		"id": "ja.mangarawbest",
 		"name": "Manga Raw Best",
-		"version": 2,
+		"version": 3,
 		"url": "https://mangaraw.best",
+		"minAppVersion": "0.8.3",
 		"contentRating": 2,
 		"languages": [
 			"ja"
