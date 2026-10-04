@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
 	BASE_URL, HEADER_BYTES, SCRAMBLE_GRID, SCRAMBLE_SECRET, STACKED_PAGE_LIMIT, THUMBNAIL_URL,
-	models::NextData,
+	USER_AGENT, models::NextData,
 };
 
 const BLOCK_SIZE: usize = 16;
@@ -41,8 +41,12 @@ pub fn paginated(url: &str, page: i32) -> String {
 	}
 }
 
+pub fn request(url: impl AsRef<str>) -> Result<Request> {
+	Ok(Request::get(url)?.header("User-Agent", USER_AGENT))
+}
+
 pub fn next_data<T: DeserializeOwned>(url: &str) -> Result<T> {
-	let html = Request::get(url)?.html()?;
+	let html = request(url)?.html()?;
 	// script contents are data nodes rather than text, so `text` would come back empty. `data` is
 	// what the app implements it with; the test runner only answers `html`, which holds the same
 	// string for a script tag
@@ -73,7 +77,7 @@ pub fn strip_html(text: &str) -> String {
 
 fn image_size(url: &str) -> Option<(u32, u32)> {
 	let range = format!("bytes=0-{}", HEADER_BYTES - 1);
-	let head = Request::get(url)
+	let head = request(url)
 		.ok()?
 		.header("Range", range.as_str())
 		.data()
