@@ -50,6 +50,7 @@ const MARKUP_TAGS: &[&str] = &[
 	"h5",
 	"h6",
 	"header",
+	"hgroup",
 	"hr",
 	"i",
 	"img",
@@ -58,6 +59,7 @@ const MARKUP_TAGS: &[&str] = &[
 	"li",
 	"main",
 	"mark",
+	"menu",
 	"ol",
 	"p",
 	"pre",
@@ -165,9 +167,8 @@ fn convert_emphasis(element: &Element, output: &mut String) {
 	if trimmed.is_empty() {
 		return;
 	}
-	// CommonMark has neither strikethrough nor underline, and Rakuyomi compiles
-	// with GFM off: `~~` would print literally and `__` would read as strong.
-	// Emit the content unmarked rather than ship a marker that cannot survive.
+	// CommonMark has neither strikethrough nor underline: `~~` is inert text
+	// and `__` is strong emphasis. Emit the content unmarked.
 	let marker = match element.tag_name().as_deref() {
 		Some("strong" | "b") => "**",
 		Some("em" | "i") => "*",
@@ -246,7 +247,7 @@ fn convert_block_container(element: &Element, output: &mut String) {
 fn convert_element_to_markdown(element: &Element, output: &mut String) {
 	let tag = element.tag_name().unwrap_or_default();
 	match tag.as_str() {
-		"p" => {
+		"p" | "figcaption" | "dt" | "dd" | "summary" => {
 			break_before_block(output);
 			convert_children_to_markdown(element, output);
 			output.push_str("\n\n");
@@ -264,9 +265,10 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 			break_before_block(output);
 			output.push_str("---\n\n")
 		}
-		"ul" | "ol" => convert_list_to_markdown(element, &tag, output),
+		// menu is the unordered-list alternative.
+		"ul" | "ol" | "menu" => convert_list_to_markdown(element, &tag, output),
 		"blockquote" => convert_blockquote_to_markdown(element, output),
-		"div" | "section" | "article" | "header" | "footer" | "main" | "aside" => {
+		"div" | "section" | "article" | "header" | "footer" | "main" | "aside" | "figure" | "hgroup" | "details" | "dl" => {
 			convert_block_container(element, output)
 		}
 		// Inline containers carry no block semantics.
@@ -378,37 +380,51 @@ fn protect_literal_angle_brackets(input: &str) -> String {
 	output
 }
 
-/// Convert one blank-line-delimited paragraph of chapter HTML to Markdown.
+/// Wrap each blank-line-delimited block in `<p>`, returning a single fragment.
 ///
-/// The paragraph is wrapped in a container first: the fragment root cannot be
-/// traversed, a selected wrapper can.
-fn paragraph_to_markdown(paragraph: &str) -> String {
-	// Concatenated rather than formatted: chapter content may contain
-	// braces, which format! would treat as placeholders.
-	let paragraph = protect_literal_angle_brackets(paragraph);
-	let wrapped = ["<div id=\"chikari-root\">", &paragraph, "</div>"].concat();
-	let Ok(doc) = Html::parse_fragment(wrapped) else {
-		return String::default();
+/// Chapter bodies arrive as plain text with blank-line paragraph breaks rather
+/// than as HTML, so the blocks have to become elements before the converter can
+/// walk the whole chapter in one pass. The container is required because the
+/// fragment root cannot be traversed, a selected wrapper can.
+/// A segment starting with real block markup must not be nested in an
+/// injected `<p>`: the parser would close one block inside the other and the
+/// emitted blank lines would double.
+fn starts_with_block_markup(segment: &str) -> bool {
+	let Some(tag) = segment.trim_start().strip_prefix('<').map(|rest| {
+		let end = rest
+			.find(|character: char| !(character.is_ascii_alphanumeric() || character == '-'))
+			.unwrap_or(rest.len());
+		rest[..end].to_ascii_lowercase()
+	}) else {
+		return false;
 	};
-
-	let mut output = String::default();
-	if let Some(root) = doc.select_first("#chikari-root") {
-		convert_children_to_markdown(&root, &mut output);
-	}
-	output.trim().to_string()
+	matches!(
+		tag.as_str(),
+		"blockquote"
+			| "details" | "div" | "dl" | "dt" | "dd" | "figcaption" | "figure"
+			| "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "hgroup" | "hr"
+			| "menu" | "ol" | "p" | "pre" | "summary" | "ul"
+	)
 }
 
-/// Convert chapter HTML to Aidoku Markdown.
-///
-/// Only text nodes are escaped; the Markdown this converter emits is left
-/// alone. Watermark removal runs last so it sees the final block layout.
-pub fn html_to_markdown(html: &str) -> String {
-	let mut blocks: Vec<String> = Vec::new();
+fn push_block_html(paragraphs: &mut String, block: &str) {
+	let protected = protect_literal_angle_brackets(block);
+	if starts_with_block_markup(&protected) {
+		paragraphs.push_str(&protected);
+	} else {
+		paragraphs.push_str("<p>");
+		paragraphs.push_str(&protected);
+		paragraphs.push_str("</p>");
+	}
+}
+
+fn assemble_paragraphs(input: &str) -> String {
+	let mut paragraphs = String::default();
 	let mut current = String::default();
-	for line in html.lines() {
+	for line in input.lines() {
 		if line.trim().is_empty() {
 			if !current.is_empty() {
-				blocks.push(paragraph_to_markdown(&current));
+				push_block_html(&mut paragraphs, &current);
 				current.clear();
 			}
 		} else {
@@ -419,9 +435,26 @@ pub fn html_to_markdown(html: &str) -> String {
 		}
 	}
 	if !current.is_empty() {
-		blocks.push(paragraph_to_markdown(&current));
+		push_block_html(&mut paragraphs, &current);
 	}
-	let output = blocks.join("\n\n");
+	// Concatenated rather than formatted: chapter content may contain
+	// braces, which format! would treat as placeholders.
+	["<div id=\"chikari-root\">", &paragraphs, "</div>"].concat()
+}
+
+/// Convert chapter HTML to Aidoku Markdown.
+///
+/// Only text nodes are escaped; the Markdown this converter emits is left
+/// alone. Watermark removal runs last so it sees the final block layout.
+pub fn html_to_markdown(html: &str) -> String {
+	let Ok(doc) = Html::parse_fragment(assemble_paragraphs(html)) else {
+		return String::default();
+	};
+
+	let mut output = String::default();
+	if let Some(root) = doc.select_first("#chikari-root") {
+		convert_children_to_markdown(&root, &mut output);
+	}
 	if settings::hide_watermark() {
 		watermark::strip(output.trim())
 	} else {
@@ -453,6 +486,24 @@ mod tests {
 			"<p><u>underlined</u>, <del>gone</del>, <s>struck</s>, <sup>2</sup>, <ruby>kanji<rt>kana</rt></ruby></p>",
 		);
 		assert_eq!(out, "underlined\\, gone\\, struck\\, 2\\, kanjikana");
+	}
+
+	#[aidoku_test]
+	fn routes_prose_block_variants_to_existing_layout() {
+		let out = html_to_markdown(
+			"<menu><li>One</li><li>Two</li></menu>\n\n<dl><dt>Term</dt><dd>Definition</dd></dl>\n\n<figure><figcaption>Caption</figcaption></figure>",
+		);
+		assert_eq!(out, "- One\n- Two\n\nTerm\n\nDefinition\n\nCaption");
+	}
+
+	#[aidoku_test]
+	fn handles_inline_markup_split_by_a_paragraph_break() {
+		// The chapter body is plain text, so a tag can straddle a blank line.
+		// Formatting elements survive the `</p>` in the parser's active list, so
+		// the orphaned close tag still applies to the paragraph after it. Parse
+		// per block instead and the emphasis would be dropped.
+		let out = html_to_markdown("First <em>starts\n\nand closes</em> here.");
+		assert_eq!(out, "First *starts*\n\n*and closes* here\\.");
 	}
 
 	#[aidoku_test]
