@@ -13,21 +13,35 @@ use core::fmt::Write as _;
 
 use crate::{settings, watermark};
 
-/// Tag names `convert_element_to_markdown` translates. The list is that
-/// function's own vocabulary: every arm is listed and nothing else is, so an
-/// angle-bracket sequence outside it is prose rather than a tag. Chapters carry
-/// literal `<Maddened Enlightenment>`, which must survive.
+/// Tag names treated as markup rather than prose. Every dispatcher arm is
+/// listed, plus the plausible-but-untranslated tags; anything else is escaped so
+/// literal `<Maddened Enlightenment>` survives. A tag listed here without an arm
+/// falls through to the dispatcher's catch-all, which keeps the content and drops
+/// the tag - the intended handling where CommonMark has no equivalent.
 const MARKUP_TAGS: &[&str] = &[
 	"a",
+	"abbr",
 	"article",
 	"aside",
 	"b",
 	"blockquote",
 	"br",
+	"caption",
+	"center",
+	"cite",
 	"code",
+	"col",
+	"colgroup",
+	"dd",
 	"del",
+	"details",
 	"div",
+	"dl",
+	"dt",
 	"em",
+	"figcaption",
+	"figure",
+	"font",
 	"footer",
 	"h1",
 	"h2",
@@ -39,18 +53,41 @@ const MARKUP_TAGS: &[&str] = &[
 	"hr",
 	"i",
 	"img",
+	"ins",
+	"kbd",
 	"li",
 	"main",
+	"mark",
 	"ol",
 	"p",
 	"pre",
+	"q",
+	"rp",
+	"rt",
+	"ruby",
 	"s",
+	"samp",
 	"section",
+	"small",
 	"span",
 	"strike",
 	"strong",
+	"sub",
+	"summary",
+	"sup",
+	"table",
+	"tbody",
+	"td",
+	"tfoot",
+	"th",
+	"thead",
+	"time",
+	"tr",
+	"tt",
 	"u",
 	"ul",
+	"var",
+	"wbr",
 ];
 
 fn longest_backtick_run(text: &str) -> usize {
@@ -122,23 +159,25 @@ fn convert_heading(element: &Element, output: &mut String) {
 }
 
 fn convert_emphasis(element: &Element, output: &mut String) {
-	// Trim so surrounding whitespace stays outside the markers;
-	// `** bold **` is not recognized as emphasis by Markdown.
 	let mut inner = String::default();
 	convert_children_to_markdown(element, &mut inner);
 	let trimmed = inner.trim();
-	if !trimmed.is_empty() {
-		let tag = element.tag_name().unwrap_or_default();
-		let marker = match tag.as_str() {
-			"strong" | "b" => "**",
-			"em" | "i" => "*",
-			"u" => "__",
-			_ => "~~",
-		};
-		output.push_str(marker);
-		output.push_str(trimmed);
-		output.push_str(marker);
+	if trimmed.is_empty() {
+		return;
 	}
+	// CommonMark has neither strikethrough nor underline, and Rakuyomi compiles
+	// with GFM off: `~~` would print literally and `__` would read as strong.
+	// Emit the content unmarked rather than ship a marker that cannot survive.
+	let marker = match element.tag_name().as_deref() {
+		Some("strong" | "b") => "**",
+		Some("em" | "i") => "*",
+		_ => "",
+	};
+	// Surrounding whitespace must stay outside the markers: `** bold **` is not
+	// recognized as emphasis.
+	output.push_str(marker);
+	output.push_str(trimmed);
+	output.push_str(marker);
 }
 
 fn convert_inline_code(element: &Element, output: &mut String) {
@@ -409,6 +448,14 @@ mod tests {
 	}
 
 	#[aidoku_test]
+	fn unmarked_tags_keep_their_content_only() {
+		let out = html_to_markdown(
+			"<p><u>underlined</u>, <del>gone</del>, <s>struck</s>, <sup>2</sup>, <ruby>kanji<rt>kana</rt></ruby></p>",
+		);
+		assert_eq!(out, "underlined\\, gone\\, struck\\, 2\\, kanjikana");
+	}
+
+	#[aidoku_test]
 	fn keeps_blank_line_paragraph_separation() {
 		let out = html_to_markdown("First <strong>bold</strong>.\n\nSecond <em>italic</em>.");
 		assert_eq!(out, "First **bold**\\.\n\nSecond *italic*\\.");
@@ -422,8 +469,8 @@ mod tests {
 
 	#[aidoku_test]
 	fn unknown_tags_are_escaped_not_parsed() {
-		let out = html_to_markdown("A <small>strange <em>x</em></small> tag");
-		assert_eq!(out, "A \\<small\\>strange *x*\\<\\/small\\> tag");
+		let out = html_to_markdown("A <marquee>strange <em>x</em></marquee> tag");
+		assert_eq!(out, "A \\<marquee\\>strange *x*\\<\\/marquee\\> tag");
 	}
 
 	#[aidoku_test]
