@@ -3,18 +3,16 @@
 
 use aidoku::alloc::{String, Vec};
 
-/// Accepted limits: blocks left out are dropped even when the prose
-/// needs them (CJK brackets, the Korean narration markers), and plain
-/// ASCII credits pass any character rule.
+/// Accepted limits: blocks are dropped even when the prose needs them (CJK
+/// brackets, Korean narration markers), and plain ASCII credits pass.
 const PROSE_BLOCKS: &[(u32, u32)] = &[
 	(0x0000, 0x007F), // Basic Latin
 	(0x0080, 0x00FF), // Latin-1 Supplement
 	(0x2000, 0x206F), // General Punctuation
 ];
 
-/// Asymmetric delimiter pairs. Symmetric quotes are excluded: `"` and `'`
-/// cannot tell an opener from a closer, and `'` is every contraction's
-/// apostrophe.
+/// Asymmetric delimiter pairs. Symmetric quotes are excluded: neither `"` nor
+/// `'` tells an opener from a closer, and `'` is every contraction's apostrophe.
 #[cfg(test)]
 const BASIC_LATIN_PAIRS: &[(char, char)] = &[('(', ')'), ('[', ']'), ('{', '}')];
 
@@ -79,9 +77,8 @@ fn unbalanced(text: &str) -> Vec<char> {
 
 /// Append a block, keeping blocks one blank line apart.
 ///
-/// Only mixed lines are cut (the credit is also appended to real
-/// paragraphs); the stranded opener is closed by extending for General
-/// Punctuation and Latin-1, by creating the closer for Basic Latin.
+/// Only mixed lines are cut; the stranded opener is closed by extending for
+/// General Punctuation and Latin-1, or by creating the closer for Basic Latin.
 fn append_block(output: &mut String, block: &str) {
 	let mut kept: Vec<String> = Vec::new();
 	for line in block.trim().lines() {
@@ -133,12 +130,12 @@ fn append_block(output: &mut String, block: &str) {
 	output.push_str(kept.join("\n").trim_end());
 }
 
-/// Drop the lines the site injected, and the blank line that followed
-/// each of them, so the remaining blocks stay one blank line apart.
+/// Drop the lines the site injected, and the blank line that followed each, so
+/// the remaining blocks stay one blank line apart.
 ///
-/// Blocks are delimited by blank lines rather than by a literal `\n\n`,
-/// because the API interleaves raw newlines between elements: those would
-/// otherwise survive the filter and stack up into extra blank lines.
+/// Blocks are delimited by blank lines, not by a literal `\n\n`: the API
+/// interleaves raw newlines between elements, which would otherwise stack up
+/// into extra blank lines.
 pub fn strip(markdown: &str) -> String {
 	let mut output = String::default();
 	let mut block = String::default();
@@ -197,9 +194,8 @@ mod tests {
 
 	#[aidoku_test]
 	fn drops_attribution_paragraph_in_place() {
-		// Verbatim from the live API, Chapter 13 of Chaotic Craftsman
-		// Worships The Cube: the line sits mid-chapter, so the blocks
-		// around it must end up one blank line apart.
+		// Verbatim from the live API, chapter 13: the line sits mid-chapter, so
+		// the blocks around it must end up one blank line apart.
 		let out = strip(
 			"She pointed up\n\nThe sourc\u{1D5F2} of this content is \
 			 fre\u{113}w\u{113}b\u{3B7}ovel.c\u{0AE6}m\\.\n\n\u{201C}How do you know that\u{201D}\n\n",
@@ -224,9 +220,8 @@ mod tests {
 
 	#[aidoku_test]
 	fn keeps_prose_when_the_credit_shares_its_line() {
-		// Verified live: no line break at all, the credit sits at the end
-		// of the sentence — even glued straight onto the full stop. Only
-		// the credit goes.
+		// Verified live: no line break at all — the credit sits at the end of
+		// the sentence, even glued onto the full stop. Only the credit goes.
 		let out = strip(
 			"The aura of fire\\! \u{1D627}\u{1D45F}\u{1D452}\u{1D638}\u{1D4B7}\
 			 \u{1D4C3}\u{1D45C}\u{1D4CB}\u{1D4C1}\\.\u{1D4B8}\u{1D45E}\n\n",
@@ -241,9 +236,8 @@ mod tests {
 
 	#[aidoku_test]
 	fn cuts_at_an_ellipsis_like_at_a_full_stop() {
-		// `…` ends sentences in these translations as often as `.` does,
-		// so it cuts the same way. `;` `:` `—` do not end sentences and
-		// stay out of the cut on purpose.
+		// `…` ends sentences here as often as `.` does, so it cuts the same way.
+		// `;` `:` `—` do not end sentences and stay out of the cut.
 		let out = strip("She trailed off\u{2026} \u{2E22}x\u{2E25} end\n\n");
 		assert_eq!(out, "She trailed off\u{2026}");
 	}
@@ -274,9 +268,8 @@ mod tests {
 
 	#[aidoku_test]
 	fn creates_closers_for_basic_latin() {
-		// Basic Latin pairs are closed by appending the missing closer:
-		// the credit frames its own domain in `fre𝒆webnove(l)`, so no
-		// forward search — and nothing is ever pulled back in.
+		// Basic Latin pairs close by appending the missing closer: the credit
+		// frames its own domain, so there is no forward search.
 		let out = strip("[Come! \u{25A0}\u{25A0}\u{25A0}\u{25A0}\u{25A0}!!]\n\n");
 		assert_eq!(out, "[Come!]");
 		let out = strip("He said (to me. \u{2E22}x\u{2E25} done) end\n\n");
@@ -285,18 +278,14 @@ mod tests {
 
 	#[aidoku_test]
 	fn extends_the_cut_to_the_matching_closer() {
-		// General Punctuation and Latin-1 pairs are closed by extending
-		// to the closer: the opener sits in front of the cut point, so
-		// the sentence between them is prose and comes back whole.
 		let out = strip("She said \u{201C}hi. \u{2E22}x\u{2E25} there\u{201D} end\n\n");
 		assert_eq!(out, "She said \u{201C}hi. \u{2E22}x\u{2E25} there\u{201D}");
 	}
 
 	#[aidoku_test]
 	fn repair_pairs_come_from_whitelisted_blocks() {
-		// Every block table holds asymmetric pairs of prose characters
-		// only — symmetric quotes are left out everywhere because `"`
-		// and `'` cannot tell an opener from a closer.
+		// Every block table holds asymmetric prose pairs only: `"` and `'` are
+		// left out because they cannot tell an opener from a closer.
 		for table in [BASIC_LATIN_PAIRS, LATIN_1_PAIRS, GENERAL_PUNCTUATION_PAIRS] {
 			for &(open, close) in table.iter() {
 				assert_ne!(open, close, "symmetric pair: {open}");
