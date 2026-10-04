@@ -185,9 +185,8 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 		// menu is the unordered-list alternative.
 		"ul" | "ol" | "menu" => convert_list_to_markdown(element, &tag, output),
 		"blockquote" => convert_blockquote_to_markdown(element, output),
-		"div" | "section" | "article" | "header" | "footer" | "main" | "aside" | "figure" | "hgroup" | "details" | "dl" => {
-			convert_block_container(element, output)
-		}
+		"div" | "section" | "article" | "header" | "footer" | "main" | "aside" | "figure"
+		| "hgroup" | "details" | "dl" => convert_block_container(element, output),
 		// Inline containers carry no block semantics.
 		"span" | "li" => convert_children_to_markdown(element, output),
 		// Unknown tags: recurse so their prose is still emitted.
