@@ -20,7 +20,6 @@ mod models;
 mod settings;
 mod web;
 
-use crate::helpers::create_request_get;
 use crate::settings::VERIFY_KEY;
 use models::*;
 use web::*;
@@ -507,7 +506,8 @@ impl ListingProvider for Comix {
 
 impl ImageRequestProvider for Comix {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-		Ok(create_request_get(&url)?.header("Referer", &format!("{BASE_URL}/")))
+		// images are served from third-party hosts that reject requests with a comix Referer
+		Ok(Request::get(url)?)
 	}
 }
 
