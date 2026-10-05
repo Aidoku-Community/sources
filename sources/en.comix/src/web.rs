@@ -98,9 +98,6 @@ impl ComixWebView {
 				.captures(main_module_contents.as_str())
 				.and_then(|captures| captures.get(1).map(|m| m.as_str()))
 			{
-				// the site's own scripts don't reliably run in the webview, so fetch the
-				// secure chunk natively and evaluate it as a classic script. it registers
-				// its own `vm` global, so only the trailing `export{...}` needs removing
 				let secure_module_contents =
 					create_request_get(&format!("{BASE_URL}{js_asset_path}{secure_script_path}"))?
 						.string()?;
@@ -117,7 +114,6 @@ impl ComixWebView {
 				};
 				let result = self.web_view.eval(&format!(
 					"(() => {{
-						'use strict';
 						try {{
 							{module_body}
 							return 'ok';

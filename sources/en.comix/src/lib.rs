@@ -1,9 +1,9 @@
 #![no_std]
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeComponent,
-	HomeLayout, HomePartialResult, ImageRequestProvider, Link, LinkValue, Listing, ListingProvider,
-	Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page, PageContent, PageContext,
-	Result, Source, WebLoginHandler,
+	HomeLayout, HomePartialResult, Link, LinkValue, Listing, ListingProvider, Manga,
+	MangaPageResult, MangaWithChapter, NotificationHandler, Page, PageContent, Result, Source,
+	WebLoginHandler,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -504,13 +504,6 @@ impl ListingProvider for Comix {
 	}
 }
 
-impl ImageRequestProvider for Comix {
-	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-		// images are served from third-party hosts that reject requests with a comix Referer
-		Ok(Request::get(url)?)
-	}
-}
-
 impl NotificationHandler for Comix {
 	fn handle_notification(&self, notification: String) {
 		if notification == "resetFilters" {
@@ -577,7 +570,6 @@ register_source!(
 	Comix,
 	Home,
 	ListingProvider,
-	ImageRequestProvider,
 	NotificationHandler,
 	DeepLinkHandler,
 	WebLoginHandler
