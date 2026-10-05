@@ -5,12 +5,18 @@ use aidoku::{
 	Source, UpdateStrategy, Viewer,
 	alloc::{String, Vec, string::ToString},
 	helpers::uri::QueryParameters,
-	imports::{defaults::defaults_get, net::Request, std::send_partial_result},
+	imports::{
+		defaults::defaults_get,
+		net::{HttpMethod, Request},
+		std::send_partial_result,
+	},
 	prelude::*,
 };
 
+mod cipher;
 mod helpers;
 
+use cipher::{decrypt_pages, sign_path};
 use helpers::*;
 
 const BASE_URL: &str = "https://mangaraw.best";
@@ -130,31 +136,38 @@ impl Source for MangaRawBest {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let url = format!("{BASE_URL}/raw/{}/{}", manga.key, chapter.key);
-		let html = Request::get(url)?.html()?;
+		let path = format!("{}/{}", manga.key, chapter.key);
+		let token = sign_path(&path);
+		let url = format!(
+			"{BASE_URL}/_c/mangas/{}/chapters/{}/pages?_={token}",
+			manga.key, chapter.key
+		);
+		let response = Request::get(url)?
+			.header("Accept", "application/json")
+			.header("X-Requested-With", "XMLHttpRequest")
+			.send()?;
+		// the site answers 403 once its decoder keys have been rotated
+		if response.status_code() == 403 {
+			bail!("page list token rejected");
+		}
+		let response: EncryptedPages = response.get_json_owned()?;
+		let pages: PageUrls = serde_json::from_slice(&decrypt_pages(&path, &token, &response.e)?)
+			.map_err(|_| error!("invalid page list"))?;
 
-		let server = defaults_get::<String>("imageServer").unwrap_or_else(|| String::from("1"));
+		let Some(sample) = pages.p.first() else {
+			bail!("no pages found");
+		};
+		let preferred = defaults_get::<String>("imageServer").unwrap_or_else(|| String::from("1"));
+		let server = select_image_server(preferred, sample);
 
-		let pages = html
-			.select("img.chapter-image")
-			.map(|elements| {
-				elements
-					.filter_map(|element| {
-						// data-original always holds the unproxied url, while src
-						// may already have been rewritten for another server.
-						let url = element
-							.attr("data-original")
-							.or_else(|| element.attr("abs:src"))?;
-						Some(Page {
-							content: PageContent::url(build_image_url(&server, &url)),
-							..Default::default()
-						})
-					})
-					.collect::<Vec<Page>>()
+		Ok(pages
+			.p
+			.into_iter()
+			.map(|url| Page {
+				content: PageContent::url(build_image_url(&server, &url)),
+				..Default::default()
 			})
-			.unwrap_or_default();
-
-		Ok(pages)
+			.collect())
 	}
 }
 
@@ -184,7 +197,7 @@ impl ListingProvider for MangaRawBest {
 
 impl ImageRequestProvider for MangaRawBest {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-		Ok(Request::get(url)?.header("Referer", &format!("{BASE_URL}/")))
+		image_request(&url, HttpMethod::Get)
 	}
 }
 
@@ -496,6 +509,40 @@ mod test {
 			};
 			assert!(url.starts_with("http"), "non-absolute page url: {url}");
 		}
+	}
+
+	// The page list is served encrypted, and chapters returned no pages at all
+	// while it was still read from the html.
+	#[aidoku_test]
+	fn test_encrypted_page_list() {
+		let source = MangaRawBest::new();
+		let pages = source
+			.get_page_list(
+				Manga {
+					key: String::from("wu-lun-nonu-shen-sama-nadeshikoliao-nomedarugohan"),
+					..Default::default()
+				},
+				Chapter {
+					key: String::from("di-127hua"),
+					..Default::default()
+				},
+			)
+			.expect("failed to fetch pages");
+
+		assert!(pages.len() > 10, "suspiciously short page list");
+		let Some(PageContent::Url(url, _)) = pages.first().map(|page| &page.content) else {
+			panic!("expected a url page");
+		};
+		assert!(url.ends_with("/1.jpg"), "unexpected first page: {url}");
+	}
+
+	#[aidoku_test]
+	fn test_select_image_server() {
+		let sample = "https://rbest.mgcdnxyz.cfd/8e008445-a973-40c3-a8b6-f4b7cb68000a/cff840c5-3d02-4207-93a5-a1f02bc8c163/1.jpg";
+		assert_eq!(select_image_server(String::from("2"), sample), "2");
+
+		let missing = "https://rbest.mgcdnxyz.cfd/missing/1.jpg";
+		assert_eq!(select_image_server(String::from("3"), missing), "3");
 	}
 
 	#[aidoku_test]

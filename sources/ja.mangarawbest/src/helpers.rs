@@ -1,11 +1,16 @@
 use crate::BASE_URL;
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus,
+	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Result,
 	alloc::{String, Vec, string::ToString},
 	helpers::uri::encode_uri_component,
-	imports::{html::Document, std::current_date},
+	imports::{
+		html::Document,
+		net::{HttpMethod, Request},
+		std::current_date,
+	},
 	prelude::*,
 };
+use serde::Deserialize;
 
 // same order as the options in res/filters.json
 pub const SORT_VALUES: [&str; 8] = [
@@ -109,6 +114,9 @@ pub fn clean_tag(tag: &str) -> Option<String> {
 	(!tag.is_empty()).then(|| tag.to_string())
 }
 
+// same values as the imageServer select in res/settings.json
+pub const IMAGE_SERVERS: [&str; 3] = ["1", "2", "3"];
+
 // mirrors the `switchImageServer` helper the site ships in its reader
 pub fn build_image_url(server: &str, original: &str) -> String {
 	match server {
@@ -125,6 +133,41 @@ pub fn build_image_url(server: &str, original: &str) -> String {
 		),
 		_ => original.to_string(),
 	}
+}
+
+#[derive(Deserialize)]
+pub struct EncryptedPages {
+	pub e: String,
+}
+
+#[derive(Deserialize)]
+pub struct PageUrls {
+	pub p: Vec<String>,
+}
+
+// probe the first page so a dead server falls back to the others
+pub fn select_image_server(preferred: String, sample: &str) -> String {
+	let candidates = core::iter::once(preferred.as_str()).chain(
+		IMAGE_SERVERS
+			.into_iter()
+			.filter(|server| *server != preferred),
+	);
+	for server in candidates {
+		// HEAD keeps the probe from downloading the whole image
+		let available = image_request(&build_image_url(server, sample), HttpMethod::Head)
+			// a dead origin behind a proxy can hang until the proxy gives up
+			.and_then(|request| Ok(request.timeout(5.0).send()?))
+			.is_ok_and(|response| (200..300).contains(&response.status_code()));
+		if available {
+			return server.into();
+		}
+	}
+	// No server answered, so the problem is more likely on the device's side.
+	preferred
+}
+
+pub fn image_request(url: &str, method: HttpMethod) -> Result<Request> {
+	Ok(Request::new(url, method)?.header("Referer", &format!("{BASE_URL}/")))
 }
 
 pub fn parse_page_param(href: &str) -> Option<i32> {
