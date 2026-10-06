@@ -143,7 +143,7 @@ pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResul
 			page,
 		),
 		"canvas_popular" => parse_canvas_list(
-			&format!("{base_url}/canvas/list?genreTab=ALL&sortOrder=READ_COUNT"),
+			&format!("{base_url}/canvas/list?genreTab=ALL&sortOrder=MANA"),
 			page,
 		),
 		"canvas_top" => parse_canvas_list(
