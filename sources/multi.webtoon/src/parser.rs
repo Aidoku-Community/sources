@@ -224,7 +224,12 @@ pub fn parse_canvas_list(url: &str, page: i32) -> Result<MangaPageResult> {
 			if !seen.insert(id.clone()) {
 				continue;
 			}
-			let cover = node.select_first("img").and_then(|img| img.attr("src"));
+			let cover = node
+				.select_first("img")
+				.and_then(|img| img.attr("src"))
+				.unwrap_or_default()
+				.replace("?type=f164_164", "");
+
 			let title = node
 				.select_first(".subj")
 				.and_then(|t| t.text())
@@ -238,7 +243,7 @@ pub fn parse_canvas_list(url: &str, page: i32) -> Result<MangaPageResult> {
 			entries.push(Manga {
 				key: id,
 				title,
-				cover,
+				cover: Some(cover),
 				url: Some(full_url),
 				viewer: Viewer::Webtoon,
 				content_rating: ContentRating::Safe,
