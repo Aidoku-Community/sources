@@ -2,7 +2,7 @@
 	"info": {
 		"id": "multi.webtoon",
 		"name": "WEBTOON",
-		"version": 4,
+		"version": 5,
 		"urls": [
 			"https://www.webtoons.com",
 			"https://m.webtoons.com"
