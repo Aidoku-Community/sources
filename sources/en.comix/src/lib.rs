@@ -1,9 +1,9 @@
 #![no_std]
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home, HomeComponent,
-	HomeLayout, HomePartialResult, ImageRequestProvider, Link, LinkValue, Listing, ListingProvider,
-	Manga, MangaPageResult, MangaWithChapter, NotificationHandler, Page, PageContent, PageContext,
-	Result, Source, WebLoginHandler,
+	HomeLayout, HomePartialResult, Link, LinkValue, Listing, ListingProvider, Manga,
+	MangaPageResult, MangaWithChapter, NotificationHandler, Page, PageContent, Result, Source,
+	WebLoginHandler,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
@@ -12,7 +12,6 @@ use aidoku::{
 	},
 	prelude::*,
 };
-
 use core::cell::RefCell;
 
 mod helpers;
@@ -20,9 +19,8 @@ mod models;
 mod settings;
 mod web;
 
-use crate::helpers::create_request_get;
-use crate::settings::VERIFY_KEY;
 use models::*;
+use settings::VERIFY_KEY;
 use web::*;
 
 const BASE_URL: &str = "https://comix.to";
@@ -205,7 +203,7 @@ impl Source for Comix {
 			let response = web_view.build_request(&url)?.send()?;
 			let json: SingleMangaResponse = web_view.decode_json_owned(&response)?;
 
-			manga.copy_from(json.result.into());
+			manga.copy_from(json.result.into_detailed_manga());
 
 			if needs_chapters {
 				send_partial_result(&manga);
@@ -505,12 +503,6 @@ impl ListingProvider for Comix {
 	}
 }
 
-impl ImageRequestProvider for Comix {
-	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-		Ok(create_request_get(&url)?.header("Referer", &format!("{BASE_URL}/")))
-	}
-}
-
 impl NotificationHandler for Comix {
 	fn handle_notification(&self, notification: String) {
 		if notification == "resetFilters" {
@@ -577,7 +569,6 @@ register_source!(
 	Comix,
 	Home,
 	ListingProvider,
-	ImageRequestProvider,
 	NotificationHandler,
 	DeepLinkHandler,
 	WebLoginHandler

@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.comix",
 		"name": "Comix",
-		"version": 24,
+		"version": 25,
 		"url": "https://comix.to",
 		"contentRating": 1,
 		"languages": ["en"],
