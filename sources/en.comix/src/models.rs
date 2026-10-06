@@ -161,6 +161,13 @@ impl From<ComixContentRating> for ContentRating {
 }
 
 impl ComixManga {
+	pub fn into_detailed_manga(mut self) -> Manga {
+		let description = self.synopsis.take();
+		let mut manga: Manga = self.into();
+		manga.description = description;
+		manga
+	}
+
 	pub fn is_hidden(&self, hidden_types: &[String], hidden_terms: &[i32]) -> bool {
 		if hidden_types.contains(&self.r#type) {
 			return true;
@@ -206,7 +213,7 @@ impl From<ComixManga> for Manga {
 			authors: value
 				.authors
 				.map(|v| v.into_iter().map(|t| t.title).collect()),
-			description: value.synopsis,
+			description: None,
 			url: Some(url),
 			tags: {
 				let mut tags = Vec::new();
