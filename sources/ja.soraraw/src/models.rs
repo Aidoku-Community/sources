@@ -1,10 +1,3 @@
-use aidoku::{
-	Chapter, Manga, Viewer,
-	alloc::{String, Vec},
-	imports::std::parse_date_with_options,
-};
-use serde::Deserialize;
-
 use crate::{
 	DATE_FORMAT,
 	helpers::{
@@ -12,6 +5,12 @@ use crate::{
 		manga_url, status, strip_html, viewer,
 	},
 };
+use aidoku::{
+	Chapter, Manga, MangaPageResult, Viewer,
+	alloc::{String, Vec},
+	imports::std::parse_date_with_options,
+};
+use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct NextData<T> {
@@ -29,6 +28,15 @@ pub struct DataProps<T> {
 	pub data: T,
 }
 
+// "/_next/data/soraraw38/index.json"
+#[derive(Deserialize)]
+pub struct HomeData {
+	#[serde(default)]
+	pub hot: Vec<MangaEntry>,
+	#[serde(default)]
+	pub results: Vec<MangaEntry>,
+}
+
 // "/top/{period}.json", the ranking lists the site fetches from the browser
 #[derive(Deserialize)]
 pub struct TopList {
@@ -44,6 +52,17 @@ pub struct ListData {
 	pub pagination: Option<Pagination>,
 }
 
+impl From<ListData> for MangaPageResult {
+	fn from(value: ListData) -> Self {
+		MangaPageResult {
+			has_next_page: value
+				.pagination
+				.is_some_and(|pagination| pagination.has_next_page()),
+			entries: value.results.into_iter().map(Manga::from).collect(),
+		}
+	}
+}
+
 #[derive(Deserialize)]
 pub struct Pagination {
 	pub current_page: i32,
@@ -56,7 +75,6 @@ impl Pagination {
 	}
 }
 
-// listings don't all carry the same fields, so everything but the two a cover needs is optional
 #[derive(Deserialize)]
 pub struct MangaEntry {
 	pub name: String,
@@ -69,18 +87,28 @@ pub struct MangaEntry {
 	pub is_adult: Option<String>,
 }
 
+impl MangaEntry {
+	pub fn into_full_manga(self) -> Manga {
+		Manga {
+			url: Some(manga_url(&self.slug)),
+			key: self.slug,
+			title: self.name,
+			cover: cover(self.thumbnail, self.image.as_deref()),
+			authors: authors(self.author.as_deref()),
+			status: status(self.kind.as_deref()),
+			content_rating: content_rating(self.is_adult.as_deref()),
+			..Default::default()
+		}
+	}
+}
+
 impl From<MangaEntry> for Manga {
 	fn from(value: MangaEntry) -> Self {
-		// `viewer` is left unset: listings carry no genres, and the reader is picked from those.
-		// the app fills it in from `get_manga_update` before a chapter can be opened anyway
 		Manga {
-			cover: cover(value.thumbnail, value.image.as_deref()),
-			title: value.name.trim().into(),
-			authors: authors(value.author.as_deref()),
 			url: Some(manga_url(&value.slug)),
 			key: value.slug,
-			status: status(value.kind.as_deref()),
-			content_rating: content_rating(value.is_adult.as_deref()),
+			title: value.name,
+			cover: cover(value.thumbnail, value.image.as_deref()),
 			..Default::default()
 		}
 	}
@@ -93,12 +121,14 @@ pub struct CataloguePage {
 	pub list: Vec<CatalogueEntry>,
 }
 
-#[derive(Deserialize)]
+#[derive(Clone, Deserialize)]
 pub struct CatalogueEntry {
 	pub name: String,
 	pub slug: String,
 	pub alt_names: Option<String>,
 	pub author: Option<String>,
+	#[serde(default)]
+	pub genres: Vec<i64>,
 	// the cover file name, called "image" everywhere else
 	pub img: Option<String>,
 	#[serde(rename = "type")]
@@ -120,7 +150,6 @@ impl CatalogueEntry {
 		.any(|field| contains_ignore_ascii_case(field, needle))
 	}
 
-	// for the search field "supportsAuthorSearch" enables
 	pub fn matches_author(&self, needle: &str) -> bool {
 		self.author
 			.as_deref()
@@ -130,16 +159,11 @@ impl CatalogueEntry {
 
 impl From<CatalogueEntry> for Manga {
 	fn from(value: CatalogueEntry) -> Self {
-		// the dump gives genres as bare ids, which would need the genre index to resolve, so the
-		// reader is left to the details request like it is for the listings
 		Manga {
-			cover: cover(None, value.img.as_deref()),
-			title: value.name.trim().into(),
-			authors: authors(value.author.as_deref()),
 			url: Some(manga_url(&value.slug)),
 			key: value.slug,
-			status: status(value.kind.as_deref()),
-			content_rating: content_rating(value.is_adult.as_deref()),
+			title: value.name,
+			cover: cover(None, value.img.as_deref()),
 			..Default::default()
 		}
 	}
@@ -198,7 +222,12 @@ impl MangaDetails {
 				.as_ref()
 				.and_then(|data| data.text.as_deref())
 				.map(strip_html)
-				.filter(|text| !text.is_empty())
+				.filter(|text| {
+					!text.is_empty()
+						&& !text.starts_with("<b>")
+						&& !text.ends_with("RAW FREE")
+						&& !text.ends_with("raw FREE")
+				})
 			else {
 				continue;
 			};
@@ -265,8 +294,6 @@ impl ChapterEntry {
 				.published_at
 				.and_then(|date| parse_date_with_options(date, DATE_FORMAT, "en_US_POSIX", "UTC")),
 			url: Some(chapter_url(manga_slug, &self.path)),
-			// `language` is deliberately left unset: the source is japanese only, so tagging
-			// chapters would only expose them to the app's chapter language filter for no benefit
 			..Default::default()
 		}
 	}
@@ -321,6 +348,7 @@ impl Number {
 // "/genres.json"
 #[derive(Deserialize)]
 pub struct GenreEntry {
+	pub id: i64,
 	pub name: String,
 	pub slug: String,
 }

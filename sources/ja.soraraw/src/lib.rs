@@ -1,21 +1,26 @@
 #![no_std]
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, ImageResponse,
-	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext,
-	PageImageProcessor, Result, SelectFilter, Source,
+	Listing, ListingProvider, Manga, MangaPageResult, MultiSelectFilter, Page, PageContent,
+	PageContext, PageImageProcessor, Result, Source,
 	alloc::{String, Vec, borrow::Cow, string::ToString, vec},
 	canvas::{Rect, Transform},
 	imports::{
 		canvas::{Canvas, ImageRef},
-		std::send_partial_result,
+		std::{current_date, send_partial_result},
 	},
 	prelude::*,
 };
+use core::cell::RefCell;
 
+mod catalogue;
 mod helpers;
+mod home;
 mod models;
 #[cfg(test)]
 mod test;
+
+use catalogue::*;
 use helpers::*;
 use models::*;
 
@@ -25,10 +30,14 @@ const IMAGE_API_URL: &str = "https://api.mangarawgo.site";
 // both hosts answer 403 to a user agent containing "aidoku", such as the test runner's default
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 26_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Version/26.6 Safari/605.1.15";
 const DATE_FORMAT: &str = "yyyy-MM-dd'T'HH:mm:ss.SSSXXX";
+
 const PAYLOAD_KEY: &[u8] = b"/fuCkYou!!!";
 const PATH_SECRET: &[u8] = b"202508055d0db38bae2e86cc41649f90";
 const SCRAMBLE_SECRET: &str = "6a0248ad1ca4208275aed64d336e81595ecb149422a8e621f70e23b9f01b9c1c";
 const SCRAMBLE_GRID: u32 = 8;
+
+// enough to reach the header unless the file leads with a large colour profile
+const HEADER_BYTES: usize = 16 * 1024;
 // a strip holds a handful of images at most, a scanned chapter one per page, so this keeps the
 // request that measures them off the common case
 const STRIP_IMAGE_LIMIT: usize = 4;
@@ -36,20 +45,17 @@ const STRIP_IMAGE_LIMIT: usize = 4;
 // this comes from a misread header rather than an image that deep, and slicing on it would hand
 // the reader hundreds of slivers
 const STACKED_PAGE_LIMIT: u32 = 64;
-// enough to reach the header unless the file leads with a large colour profile
-const HEADER_BYTES: usize = 16 * 1024;
 // the site lists over 1800 genres, sorted by how many series they hold
 const GENRE_LIMIT: usize = 100;
-const SEARCH_RESULT_LIMIT: usize = 50;
-// the dump held 13 pages at the time of writing and ends with a 404; this only guards against a
-// host that stops answering with one
-const CATALOGUE_PAGE_LIMIT: i32 = 40;
 
-struct Soraraw;
+#[derive(Default)]
+struct Soraraw {
+	catalogue: RefCell<Option<Catalogue>>,
+}
 
 impl Source for Soraraw {
 	fn new() -> Self {
-		Self
+		Self::default()
 	}
 
 	fn get_search_manga_list(
@@ -59,37 +65,68 @@ impl Source for Soraraw {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let mut author = None;
-		let mut genre = None;
+		let mut content = None;
+		let mut status = None;
+		let mut selected_genre = None;
+		let mut included = Vec::new();
+		let mut excluded = Vec::new();
 		for filter in filters {
 			match filter {
-				// the text field "supportsAuthorSearch" adds to the search filters, which the app
-				// fills in on its own rather than folding the name into the query
 				FilterValue::Text { id, value } if id == "author" && !value.is_empty() => {
 					author = Some(value)
 				}
-				FilterValue::Select { id, value } if id == "genre" && !value.is_empty() => {
-					genre = Some(value)
+				FilterValue::Select { id, value } if !value.is_empty() => match id.as_str() {
+					"content" => content = Some(value),
+					"status" => status = Some(value),
+					"genre" => selected_genre = Some(value),
+					_ => bail!("invalid select filter id: `{id}`"),
+				},
+				FilterValue::MultiSelect {
+					id,
+					included: selected,
+					excluded: rejected,
+				} if id == "genre-id" => {
+					included.extend(selected);
+					excluded.extend(rejected);
 				}
 				_ => {}
 			}
 		}
 
-		// searching walks the whole catalogue, so it can't be combined with the genre filter;
-		// "hidesFiltersWhileSearching" in "source.json" keeps the app from offering them together
-		let (query, author) = (query.as_deref(), author.as_deref());
-		if query.is_some() || author.is_some() {
-			// every match is collected in one go, leaving no page for the app to ask for
-			return Ok(MangaPageResult {
-				entries: Self::search_catalogue(query, author)?,
-				has_next_page: false,
-			});
-		}
-
-		let url = match genre {
-			Some(genre) => paginated(&format!("{BASE_URL}/genre/{genre}"), page),
-			None => paginated(&format!("{BASE_URL}/newest"), page),
+		let parse_id = |value: String| {
+			value
+				.parse::<i64>()
+				.map_err(|_| error!("invalid genre id: `{value}`"))
 		};
-		Self::parse_list(&url)
+		let mut included = included
+			.into_iter()
+			.map(&parse_id)
+			.collect::<Result<Vec<_>>>()?;
+		let excluded = excluded
+			.into_iter()
+			.map(&parse_id)
+			.collect::<Result<Vec<_>>>()?;
+		if let Some(name) = selected_genre {
+			// selecting tag from series page only gives the name, so the id must be fetched
+			let genres =
+				request(format!("{BASE_URL}/genres.json"))?.json_owned::<Vec<GenreEntry>>()?;
+			let id = genres
+				.iter()
+				.find(|genre| genre.name == name || genre.slug == name)
+				.map(|genre| genre.id)
+				.ok_or_else(|| error!("unknown genre: {name}"))?;
+			included.push(id);
+		}
+		let params = SearchParams {
+			query: query.as_deref(),
+			author: author.as_deref(),
+			content: content.as_deref(),
+			status: status.as_deref(),
+			included: &included,
+			excluded: &excluded,
+			page,
+		};
+		self.search_catalogue(params)
 	}
 
 	fn get_manga_update(
@@ -121,19 +158,15 @@ impl Source for Soraraw {
 			manga.tags = (!tags.is_empty()).then_some(tags);
 
 			if needs_chapters {
-				// the chapter list is parsed out of the same response, but every entry costs a
-				// date to parse, so the details are handed over before that starts
 				send_partial_result(&manga);
 			}
 		}
 
 		if needs_chapters {
-			let manga_id = details.id;
-			let slug = details.slug;
 			let chapters = details
 				.chapters
 				.into_iter()
-				.map(|chapter| chapter.into_chapter(manga_id, &slug))
+				.map(|chapter| chapter.into_chapter(details.id, &details.slug))
 				.collect::<Vec<Chapter>>();
 			manga.chapters = Some(chapters);
 		}
@@ -145,35 +178,37 @@ impl Source for Soraraw {
 		let Some((manga_id, chapter_id)) = chapter.key.split_once('/') else {
 			bail!("malformed chapter key {}", chapter.key);
 		};
-		let Ok(chapter_id) = chapter_id.parse::<i64>() else {
-			bail!("malformed chapter key {}", chapter.key);
-		};
+		let chapter_id = chapter_id
+			.parse::<i64>()
+			.map_err(|_| error!("malformed chapter key {}", chapter.key))?;
 
 		// the page list holds the paths of the images encrypted, and the key to them lives on the
 		// chapter page rather than alongside the list
-		let Some(url) = chapter.url.as_deref() else {
-			bail!("no url to read the image key of chapter {chapter_id} from");
-		};
-		let Some(details) = next_data::<DataProps<ChapterData>>(url)?.data.chapter else {
-			bail!("no chapter data at {url}");
+		let details = {
+			let url = chapter.url.as_deref().ok_or_else(|| {
+				error!("no url to read the image key of chapter {chapter_id} from")
+			})?;
+			next_data::<DataProps<ChapterData>>(url)?
+				.data
+				.chapter
+				.ok_or_else(|| error!("no chapter data at {url}"))?
 		};
 		let (Some(uuid), Some(host)) = (details.uuid, details.base) else {
 			bail!("chapter {chapter_id} hands out no image key");
 		};
 		let scrambled = details.mode.as_deref() == Some("canva2");
 
-		let payload = request(format!("{IMAGE_API_URL}/{manga_id}/{chapter_id}.json"))?
-			.json_owned::<ImagePayload>()?;
-		let Some(json) = deobfuscate(&payload.d, PAYLOAD_KEY) else {
-			bail!("could not decode the page list of chapter {chapter_id}");
+		let images = {
+			let payload = request(format!("{IMAGE_API_URL}/{manga_id}/{chapter_id}.json"))?
+				.json_owned::<ImagePayload>()?;
+			let json = deobfuscate(&payload.d, PAYLOAD_KEY)
+				.ok_or_else(|| error!("could not decode the page list of chapter {chapter_id}"))?;
+			serde_json::from_str::<Vec<PageImage>>(&json)
+				.map_err(|error| error!("unexpected page list for chapter {chapter_id}: {error}"))?
 		};
-		let images = serde_json::from_str::<Vec<PageImage>>(&json)
-			.map_err(|error| error!("unexpected page list for chapter {chapter_id}: {error}"))?;
 
 		let mut urls = Vec::with_capacity(images.len());
 		for image in images {
-			// a page that can't be placed or decrypted is not skipped: the chapter would read as
-			// complete while missing a page, which nothing downstream could tell apart
 			let (Some(order), Some(path)) = (
 				image.order.as_f32(),
 				decrypt_path(&image.b, &uuid, PATH_SECRET),
@@ -183,16 +218,13 @@ impl Source for Soraraw {
 			urls.push((order, format!("{host}/{path}")));
 		}
 		if urls.is_empty() {
-			// an empty list is indistinguishable from a failed request once it reaches the app
 			bail!("no pages returned for chapter {chapter_id}");
 		}
 		// the endpoint returns them in order, but the site sorts them anyway before reading. some
 		// chapters number an inserted page as a fraction, so the order can't be taken as an integer
 		urls.sort_by(|(left, _), (right, _)| left.total_cmp(right));
 
-		// a chapter holding few enough images to be a strip gets measured before it's handed over:
-		// some of them stack every page into one image, which the reader is handed a slice at a time
-		let measure = urls.len() <= STRIP_IMAGE_LIMIT;
+		let possibly_uses_strip_images = urls.len() <= STRIP_IMAGE_LIMIT;
 		let mut pages = Vec::with_capacity(urls.len());
 		for (_, url) in urls {
 			// the tile plan covers the whole image, so these can't be sliced
@@ -205,20 +237,24 @@ impl Source for Soraraw {
 				});
 				continue;
 			}
-			let slices = if measure { stacked_page_count(&url) } else { 1 };
-			if slices < 2 {
+			let slice_count = if possibly_uses_strip_images {
+				stacked_page_count(&url)
+			} else {
+				1
+			};
+			if slice_count == 1 {
 				pages.push(Page {
 					content: PageContent::url(url),
 					..Default::default()
 				});
 				continue;
 			}
-			for slice in 0..slices {
+			for slice in 0..slice_count {
 				let mut context = PageContext::new();
 				context.insert(String::from("slice"), slice.to_string());
-				context.insert(String::from("slices"), slices.to_string());
+				context.insert(String::from("slices"), slice_count.to_string());
 				pages.push(Page {
-					content: PageContent::url_context(url.clone(), context),
+					content: PageContent::url_context(&url, context),
 					..Default::default()
 				});
 			}
@@ -229,63 +265,28 @@ impl Source for Soraraw {
 }
 
 impl Soraraw {
-	// nothing on the site can be queried: "/search?q=" is statically generated and renders a fixed
-	// batch, the api host answers 500 for every query (`Unknown column 'Manga.number_views' in
-	// 'ORDER BY'`), and its "/mangas" ignores every parameter tried. that leaves walking the dump
-	// the browser filters itself, 13 pages of 2000 entries and about 4.7 MB gzipped
-	fn search_catalogue(query: Option<&str>, author: Option<&str>) -> Result<Vec<Manga>> {
-		let mut entries = Vec::new();
-
-		for page in 1..=CATALOGUE_PAGE_LIMIT {
-			let response = request(format!("{BASE_URL}/mangas_{page}.json"))?.send()?;
-			// the dump ends with a 404, which is how the site's own search stops walking it
-			if response.status_code() != 200 {
-				// the first page is the exception: with nothing walked yet, a dump that can't be
-				// reached hands back the empty result of a query that matched nothing
-				if page == 1 {
-					bail!(
-						"the catalogue is unreachable: page 1 answered {}",
-						response.status_code()
-					);
-				}
-				break;
-			}
-			let Ok(catalogue) = response.get_json_owned::<CataloguePage>() else {
-				// a page that stopped being json leaves the matches collected before it worth
-				// returning, except on the first page, which leaves none
-				if page == 1 {
-					bail!("could not read catalogue page 1");
-				}
-				break;
-			};
-
-			for entry in catalogue.list {
-				let matched = query.is_none_or(|query| entry.matches(query))
-					&& author.is_none_or(|author| entry.matches_author(author));
-				if !matched {
-					continue;
-				}
-				entries.push(Manga::from(entry));
-				if entries.len() >= SEARCH_RESULT_LIMIT {
-					return Ok(entries);
-				}
-			}
+	fn search_catalogue(&self, params: SearchParams<'_>) -> Result<MangaPageResult> {
+		let now = current_date();
+		let needs_refresh = self
+			.catalogue
+			.borrow()
+			.as_ref()
+			.is_none_or(|catalogue| !catalogue.is_fresh(now));
+		if needs_refresh {
+			*self.catalogue.borrow_mut() = Some(Catalogue::fetch()?);
 		}
 
-		Ok(entries)
+		let catalogue = self.catalogue.borrow();
+		Ok(catalogue
+			.as_ref()
+			.expect("catalogue was loaded")
+			.filter(params))
 	}
 
 	fn parse_list(url: &str) -> Result<MangaPageResult> {
-		let data = next_data::<DataProps<ListData>>(url)?.data;
-		Ok(MangaPageResult {
-			has_next_page: data
-				.pagination
-				.is_some_and(|pagination| pagination.has_next_page()),
-			entries: data.results.into_iter().map(Manga::from).collect(),
-		})
+		next_data::<DataProps<ListData>>(url).map(|d| d.data.into())
 	}
 
-	// a ranking arrives as one json holding every entry, leaving no page for the app to ask for
 	fn parse_top(period: &str) -> Result<MangaPageResult> {
 		let top = request(format!("{BASE_URL}/top/{period}.json"))?.json_owned::<TopList>()?;
 		if top.mangas.is_empty() {
@@ -344,6 +345,7 @@ impl PageImageProcessor for Soraraw {
 		if let Some(seed) = context.get("seed") {
 			return Ok(Self::unscramble(&response.image, seed).unwrap_or(response.image));
 		}
+
 		let number = |key: &str| context.get(key).and_then(|value| value.parse::<u32>().ok());
 		let (Some(slice), Some(slices)) = (number("slice"), number("slices")) else {
 			return Ok(response.image);
@@ -376,34 +378,35 @@ impl ListingProvider for Soraraw {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		match listing.id.as_str() {
 			"rising" => Self::parse_top("rising"),
-			// the id is kept from before the rankings were split by period
 			"trending" => Self::parse_top("last30Days"),
 			"lifetime" => Self::parse_top("lifetime"),
-			_ => Self::parse_list(&paginated(&format!("{BASE_URL}/newest"), page)),
+			"newest" => Self::parse_list(&paginated(&format!("{BASE_URL}/newest"), page)),
+			_ => bail!("invalid listing id: `{}`", listing.id),
 		}
 	}
 }
 
 impl DynamicFilters for Soraraw {
-	// the genre list is fetched instead of hardcoded, so new genres are picked up automatically
 	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
 		let genres = request(format!("{BASE_URL}/genres.json"))?.json_owned::<Vec<GenreEntry>>()?;
 
-		let mut options: Vec<Cow<'static, str>> = vec![Cow::Borrowed("All")];
-		let mut ids: Vec<Cow<'static, str>> = vec![Cow::Borrowed("")];
+		let mut options: Vec<Cow<'static, str>> = Vec::new();
+		let mut ids: Vec<Cow<'static, str>> = Vec::new();
 		for genre in genres.into_iter().take(GENRE_LIMIT) {
 			if genre.slug.is_empty() || genre.name.trim().is_empty() {
 				continue;
 			}
 			options.push(String::from(genre.name.trim()).into());
-			ids.push(genre.slug.into());
+			ids.push(genre.id.to_string().into());
 		}
 
 		Ok(vec![
-			SelectFilter {
-				id: "genre".into(),
-				title: Some("Genre".into()),
+			MultiSelectFilter {
+				id: "genre-id".into(),
+				title: Some("ジャンル".into()),
 				is_genre: true,
+				can_exclude: true,
+				uses_tag_style: true,
 				options,
 				ids: Some(ids),
 				..Default::default()
@@ -447,6 +450,7 @@ impl DeepLinkHandler for Soraraw {
 
 register_source!(
 	Soraraw,
+	Home,
 	ListingProvider,
 	DynamicFilters,
 	DeepLinkHandler,

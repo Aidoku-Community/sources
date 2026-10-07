@@ -1,0 +1,16 @@
+[
+	{
+		"type": "select",
+		"id": "content",
+		"title": "コンテンツ",
+		"options": ["すべて", "一般", "18+"],
+		"ids": ["", "no", "yes"]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "ステータス",
+		"options": ["すべて", "連載中", "完結"],
+		"ids": ["", "incomplete", "complete"]
+	}
+]

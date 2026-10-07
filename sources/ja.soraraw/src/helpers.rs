@@ -1,9 +1,13 @@
+use crate::{
+	BASE_URL, HEADER_BYTES, SCRAMBLE_GRID, SCRAMBLE_SECRET, STACKED_PAGE_LIMIT, THUMBNAIL_URL,
+	USER_AGENT, models::NextData,
+};
 use aes::{
 	Aes256,
-	cipher::{BlockEncrypt, KeyInit, generic_array::GenericArray},
+	cipher::{Block, BlockCipherEncrypt, KeyInit},
 };
 use aidoku::{
-	AidokuError, ContentRating, MangaStatus, Result, Viewer,
+	ContentRating, MangaStatus, Result, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
 	imports::{html::Html, net::Request},
 	prelude::*,
@@ -11,24 +15,17 @@ use aidoku::{
 use serde::de::DeserializeOwned;
 use sha2::{Digest, Sha256};
 
-use crate::{
-	BASE_URL, HEADER_BYTES, SCRAMBLE_GRID, SCRAMBLE_SECRET, STACKED_PAGE_LIMIT, THUMBNAIL_URL,
-	USER_AGENT, models::NextData,
-};
-
 const BLOCK_SIZE: usize = 16;
 
 pub fn manga_url(slug: &str) -> String {
 	format!("{BASE_URL}/manga/{slug}")
 }
 
-// chapter paths repeat the slug of their manga, which the url doesn't
 pub fn chapter_url(manga_slug: &str, path: &str) -> String {
 	let suffix = path.strip_prefix(&format!("{manga_slug}-")).unwrap_or(path);
 	format!("{BASE_URL}/manga/{manga_slug}/{suffix}")
 }
 
-// both ids the image endpoint takes, so pages never rely on a slug carrying its id
 pub fn chapter_key(manga_id: i64, chapter_id: i64) -> String {
 	format!("{manga_id}/{chapter_id}")
 }
@@ -46,26 +43,17 @@ pub fn request(url: impl AsRef<str>) -> Result<Request> {
 }
 
 pub fn next_data<T: DeserializeOwned>(url: &str) -> Result<T> {
-	let html = request(url)?.html()?;
-	// script contents are data nodes rather than text, so `text` would come back empty. `data` is
-	// what the app implements it with; the test runner only answers `html`, which holds the same
-	// string for a script tag
-	let Some(json) = html
+	let json = request(url)?
+		.html()?
 		.select_first("script#__NEXT_DATA__")
 		.and_then(|script| script.data().or_else(|| script.html()))
-	else {
-		bail!("no page data at {url}");
-	};
-
+		.ok_or_else(|| error!("no page data at {url}"))?;
 	serde_json::from_str::<NextData<T>>(&json)
 		.map(|data| data.props.page_props)
-		.map_err(|error| AidokuError::Message(format!("unexpected page data at {url}: {error}")))
+		.map_err(|error| error!("unexpected page data at {url}: {error}"))
 }
 
-// synopses hold inline markup, which the app doesn't render
 pub fn strip_html(text: &str) -> String {
-	// wrapped in an element of its own: reading the text off a bare fragment works in the app but
-	// not in the test runner, which only ever hands back elements a selector matched
 	Html::parse_fragment(format!("<div>{text}</div>"))
 		.ok()
 		.and_then(|document| document.select_first("div"))
@@ -187,16 +175,11 @@ pub fn status(kind: Option<&str>) -> MangaStatus {
 	}
 }
 
-// the `mode` field says how the site's own reader lays a series out, not what kind of comic it
-// is: a third of the `vertical` ones are ordinary manga. the overseas genres track the content
-// instead, appearing on 644 of 979 `vertical` entries and on 2 of 7021 `horizontal` ones.
-// image proportions don't work either, since webtoons here are as often cut into page-shaped
-// chunks as into tall strips
 pub fn viewer<'a>(genre_slugs: impl Iterator<Item = &'a str>) -> Viewer {
 	const OVERSEAS_GENRE: &str = "kaigai-manga";
 
 	for slug in genre_slugs {
-		if slug == OVERSEAS_GENRE || slug.contains("webtoon") {
+		if slug == OVERSEAS_GENRE || slug.contains("toon") {
 			return Viewer::Webtoon;
 		}
 	}
@@ -204,8 +187,6 @@ pub fn viewer<'a>(genre_slugs: impl Iterator<Item = &'a str>) -> Viewer {
 	Viewer::RightToLeft
 }
 
-// deriving anything further from genres was tried and dropped: names are not unique (41 of the
-// 1834 listed are shared), and the suggestive ones are already flagged as adult by the site
 pub fn content_rating(is_adult: Option<&str>) -> ContentRating {
 	match is_adult {
 		Some("yes") => ContentRating::NSFW,
@@ -214,8 +195,6 @@ pub fn content_rating(is_adult: Option<&str>) -> ContentRating {
 	}
 }
 
-// comparing bytes is safe for utf-8: a multi-byte character can never match part of another one,
-// so a byte window that compares equal is always a real substring
 pub fn contains_ignore_ascii_case(haystack: &str, needle: &str) -> bool {
 	let needle = needle.as_bytes();
 	if needle.is_empty() {
@@ -295,13 +274,13 @@ pub fn decrypt_path(payload: &str, uuid: &str, secret: &[u8]) -> Option<String> 
 		*byte ^= secret[index % secret.len()];
 	}
 
-	let cipher = Aes256::new(GenericArray::from_slice(&key));
+	let cipher = Aes256::new_from_slice(&key).ok()?;
 	let mut counter = [0u8; BLOCK_SIZE];
 	counter.copy_from_slice(&bytes[..BLOCK_SIZE]);
 
 	let mut path = Vec::with_capacity(bytes.len() - BLOCK_SIZE);
 	for chunk in bytes[BLOCK_SIZE..].chunks(BLOCK_SIZE) {
-		let mut block = GenericArray::from(counter);
+		let mut block = Block::<Aes256>::from(counter);
 		cipher.encrypt_block(&mut block);
 		for (byte, mask) in chunk.iter().zip(block.iter()) {
 			path.push(byte ^ mask);
