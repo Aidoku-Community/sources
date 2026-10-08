@@ -206,6 +206,7 @@ fn catalog_url(page: i32, filters: Vec<FilterValue>) -> String {
 			FilterValue::Select { id, value } if id != "section" => {
 				params.push(&id, Some(&value));
 			}
+			FilterValue::MultiSelect { id, .. } if id.starts_with("ranobe_") => {}
 			FilterValue::MultiSelect {
 				id,
 				included,
@@ -284,4 +285,25 @@ pub fn search(query: Option<String>, page: i32, filters: Vec<FilterValue>) -> Re
 		entries,
 		has_next_page: current_page < last_page,
 	})
+}
+
+#[cfg(test)]
+mod tests {
+	use super::catalog_url;
+	use aidoku::{FilterValue, alloc::vec};
+	use aidoku_test::aidoku_test;
+
+	#[aidoku_test]
+	fn manga_catalog_ignores_ranobe_only_filters() {
+		let url = catalog_url(
+			1,
+			vec![FilterValue::MultiSelect {
+				id: "ranobe_status".into(),
+				included: vec!["ongoing".into()],
+				excluded: vec![],
+			}],
+		);
+
+		assert!(!url.contains("ranobe_status"));
+	}
 }

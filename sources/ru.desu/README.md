@@ -14,12 +14,38 @@ Aidoku source for [desu.uno](https://desu.uno).
 The root `/api/manga` list endpoint is obsolete. Catalog and search use the
 HTML endpoints above instead.
 
+## Ranobe support
+
+- Catalog and metadata: `GET /ranobe/` and `GET /ranobe/{slug}.{book_id}/`
+  (HTML)
+- Chapter list: `GET /api/ranobe/{book_id}/chapters` (JSON)
+- Chapter content: `GET /api/ranobe/{book_id}/chapters/{chapter_id}` (JSON)
+
+Ranobe chapter content is an ordered sequence of text and image blocks. When a
+chapter includes text, the source combines its text blocks into one Aidoku text
+page, preserving paragraph/block boundaries, line breaks and basic bold/italic
+formatting, and omits illustrations. This lets Aidoku's dedicated text reader
+handle long chapters. If the API returns only images, the source keeps those
+image pages in their original order. Chapter IDs come from the API; older
+URL-based chapter keys are resolved against the API list for compatibility.
+
 ## Updating filters
 
-Generate `res/filters.json` from the current `/manga/` DOM. Status values come
+Manga filters are generated from the current `/manga/` DOM. Status values come
 from `data-status`, kinds from `data-kind`, and genres from both
 `data-genre-id` and `data-genre-slug`. Genre values must use the current
 `id-slug` pairs, for example `90-Dementia`, rather than numeric IDs alone.
+
+Ranobe has a separate status/genre filter set from `/ranobe/`:
+`ranobe_status` and `ranobe_genres`. Their current values are maintained in
+`res/filters.json`; genre IDs use the `id-slug` form. Genre exclusions are
+intentionally disabled for Ranobe: direct probes with excluded values were
+canonicalized by the site to inclusion-only results, so the exclusion syntax
+has not been confirmed. Keep Ranobe filters separate from Manga because their
+option IDs differ. The UI presents both sets in the shared filter sheet; each
+catalog handler ignores the other section's controls. The site's Ranobe `kind`
+checkboxes did not yield a confirmed URL parameter during probing, so they are
+deliberately not exposed by the source.
 
 The source intentionally does not register `Home` or `ListingProvider`.
 
