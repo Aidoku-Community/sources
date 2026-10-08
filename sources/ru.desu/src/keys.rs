@@ -34,7 +34,7 @@ pub fn parse_key(key: &str) -> Result<(Section, String)> {
 	} else if key.contains('.') {
 		Ok((Section::Ranobe, key.into()))
 	} else {
-		bail!("Неизвестный ключ: {key}")
+		bail!("Неизвестный ключ: {key}");
 	}
 }
 
