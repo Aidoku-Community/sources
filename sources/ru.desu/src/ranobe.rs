@@ -343,8 +343,8 @@ fn ranobe_catalog_query(
 ) -> QueryParameters {
 	let mut qs = QueryParameters::new();
 	qs.push("page", Some(page.to_string().as_str()));
-	if let Some(query) = query.filter(|query| !query.is_empty()) {
-		qs.push("search", Some(query));
+	if query.is_some() {
+		qs.push("search", query);
 	}
 
 	let mut order = "updated";
@@ -516,10 +516,8 @@ fn ranobe_content_rating(tags: &[String]) -> ContentRating {
 		ContentRating::NSFW
 	} else if has_any(&["этти", "ecchi", "suggestive"]) {
 		ContentRating::Suggestive
-	} else if tags.is_empty() {
-		ContentRating::Unknown
 	} else {
-		ContentRating::Safe
+		ContentRating::Unknown
 	}
 }
 
@@ -936,10 +934,10 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn derives_ranobe_content_rating_from_explicit_tags() {
+	fn derives_ranobe_content_rating_from_explicit_tags_and_defaults_unknown() {
 		assert_eq!(
 			ranobe_content_rating(&["Фэнтези".into()]),
-			ContentRating::Safe
+			ContentRating::Unknown
 		);
 		assert_eq!(
 			ranobe_content_rating(&["Этти".into()]),
@@ -977,6 +975,8 @@ mod tests {
 			query,
 			"page=2&search=Classroom&order_by=popular&status=ongoing&genres=100-Dementia"
 		);
+		let browse = ranobe_catalog_query(2, None, vec![]).to_string();
+		assert_eq!(browse, "page=2&order_by=updated");
 	}
 
 	#[aidoku_test]
