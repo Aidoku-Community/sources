@@ -1,4 +1,4 @@
-use crate::{BASE_URL, absolute_url};
+use crate::{BASE_URL, TAG_KINDS, absolute_url};
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, UpdateStrategy, Viewer,
 	alloc::{String, Vec, string::ToString},
@@ -188,7 +188,15 @@ impl Book {
 			let links: Vec<String> = group
 				.tags
 				.iter()
-				.map(|tag| format!("[{}]({BASE_URL}{})", escape_markdown(&tag.name), tag.url))
+				.map(|tag| {
+					let name = escape_markdown(&tag.name);
+					// Urls come from site data, so only tag page paths are linked.
+					if is_tag_page(&tag.url) {
+						format!("[{name}]({BASE_URL}{})", tag.url)
+					} else {
+						name
+					}
+				})
 				.collect();
 			info.push(format!("{}: {}", group.label, links.join(", ")));
 
@@ -277,29 +285,27 @@ pub struct ReaderBook {
 	pub url: String,
 }
 
-/// A tag returned by the artist autocomplete or the tag index.
+/// A tag, artist, parody or character, from the artist autocomplete or search results.
 #[derive(Deserialize)]
 pub struct TagRef {
 	pub id: i32,
 	pub name: String,
 }
 
-#[derive(Deserialize)]
-pub struct TagIndexProps {
-	pub tags: TagIndexPage,
-}
-
-#[derive(Deserialize)]
-pub struct TagIndexPage {
-	pub data: Vec<TagRef>,
-}
-
-/// An entry of `res/filters.json`.
-#[derive(Deserialize)]
-pub struct StaticFilter {
-	pub id: String,
-	#[serde(default)]
-	pub options: Vec<String>,
-	#[serde(default)]
-	pub ids: Vec<String>,
+/// Checks that a url is a tag page path like `/parody/751-kantai-collection`: a known tag kind,
+/// a numeric id and a slug of letters, digits and dashes.
+pub fn is_tag_page(url: &str) -> bool {
+	let Some((kind, slug)) = url.strip_prefix('/').and_then(|path| path.split_once('/')) else {
+		return false;
+	};
+	let Some((id, name)) = slug.split_once('-') else {
+		return false;
+	};
+	TAG_KINDS.contains(&kind)
+		&& !id.is_empty()
+		&& id.bytes().all(|byte| byte.is_ascii_digit())
+		&& !name.is_empty()
+		&& name
+			.chars()
+			.all(|char| char.is_alphanumeric() || char == '-')
 }

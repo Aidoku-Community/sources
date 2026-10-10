@@ -13,21 +13,19 @@ use serde::de::DeserializeOwned;
 mod models;
 mod search;
 use models::*;
-use search::{NameSearch, SearchParams};
+use search::{NameIds, NameSearch, SearchParams};
 
 pub const BASE_URL: &str = "https://hentai2read.com";
 
-/// Tapped tags are sent by name, so their ids are found in the static tag filter.
-fn tag_id(name: &str) -> Option<String> {
-	let filters: Vec<StaticFilter> =
-		serde_json::from_str(include_str!("../res/filters.json")).ok()?;
-	let tags = filters.into_iter().find(|filter| filter.id == "tags")?;
-	let index = tags
-		.options
-		.iter()
-		.position(|option| option.eq_ignore_ascii_case(name))?;
-	tags.ids.into_iter().nth(index)
-}
+/// Tag page kinds, e.g. `/parody/751-kantai-collection`, that open as listings.
+pub const TAG_KINDS: [&str; 6] = [
+	"artist",
+	"parody",
+	"character",
+	"publisher",
+	"content",
+	"category",
+];
 
 /// Sort filter options as (search value, browse path segment).
 const SORTS: [(&str, &str); 6] = [
@@ -77,34 +75,26 @@ fn fetch_props<T: DeserializeOwned>(url: &str) -> Result<T> {
 		.map_err(|err| error!("Unexpected page data at {url}: {err}"))
 }
 
-fn exact_id(tags: &[TagRef], name: &str) -> Option<i32> {
-	tags.iter()
-		.find(|tag| tag.name.eq_ignore_ascii_case(name))
-		.map(|tag| tag.id)
-}
-
-/// Prefers an exact name match over the site's first (most popular) result.
-fn best_id(tags: &[TagRef], name: &str) -> Option<i32> {
-	exact_id(tags, name).or(tags.first().map(|tag| tag.id))
-}
-
-/// Searches are by tag id, so artist names are looked up through the site's artist autocomplete.
-fn search_artists(name: &str) -> Result<Vec<TagRef>> {
-	Request::get(format!(
+/// Searches are by tag id, so artist names typed in the artist filter are looked up through the
+/// site's artist autocomplete, preferring an exact name over the first (most popular) result.
+/// Results are remembered for the session.
+fn find_artist_id(name: &str, artist_ids: &mut NameIds) -> Result<Option<String>> {
+	if let Some(ids) = artist_ids.get(name) {
+		return Ok(ids.first().cloned());
+	}
+	let artists: Vec<TagRef> = Request::get(format!(
 		"{BASE_URL}/search/artists?q={}",
 		encode_uri_component(name)
 	))?
 	.header("Accept", "application/json")
-	.json_owned()
-}
-
-/// Parodies have no autocomplete endpoint, so they are looked up through the parody tag index.
-fn search_parodies(name: &str) -> Result<Vec<TagRef>> {
-	let props: TagIndexProps = fetch_props(&format!(
-		"{BASE_URL}/tags/parody?q={}",
-		encode_uri_component(name)
-	))?;
-	Ok(props.tags.data)
+	.json_owned()?;
+	let id = artists
+		.iter()
+		.find(|artist| artist.name.eq_ignore_ascii_case(name))
+		.or(artists.first())
+		.map(|artist| artist.id.to_string());
+	artist_ids.insert(name, id.iter().cloned().collect());
+	Ok(id)
 }
 
 fn fetch_list(url: &str) -> Result<MangaPageResult> {
@@ -124,12 +114,18 @@ fn browse_url(segments: &[&str], page: i32) -> String {
 struct Hentai2Read {
 	/// The current name search, continued by the following pages.
 	name_search: RefCell<Option<NameSearch>>,
+	/// Ids of the tags, artists and parodies named exactly like earlier searches.
+	name_ids: RefCell<NameIds>,
+	/// Artist ids found for names typed in the artist filter.
+	artist_ids: RefCell<NameIds>,
 }
 
 impl Source for Hentai2Read {
 	fn new() -> Self {
 		Self {
 			name_search: RefCell::new(None),
+			name_ids: RefCell::new(NameIds::default()),
+			artist_ids: RefCell::new(NameIds::default()),
 		}
 	}
 
@@ -177,8 +173,8 @@ impl Source for Hentai2Read {
 			.map(str::trim)
 			.filter(|name| !name.is_empty())
 		{
-			match best_id(&search_artists(name)?, name) {
-				Some(id) => with.push(id.to_string()),
+			match find_artist_id(name, &mut self.artist_ids.borrow_mut())? {
+				Some(id) => with.push(id),
 				None => return Ok(MangaPageResult::default()),
 			}
 			// The artist is sent as a tag, so it would become optional when matching any tag.
@@ -211,7 +207,13 @@ impl Source for Hentai2Read {
 			.as_ref()
 			.is_some_and(|search| search.is_continued_by(&key, page))
 		{
-			*name_search = Some(NameSearch::new(key, params, query, tapped.as_deref())?);
+			*name_search = Some(NameSearch::new(
+				key,
+				params,
+				query,
+				tapped.as_deref(),
+				&mut self.name_ids.borrow_mut(),
+			)?);
 		}
 		match name_search.as_mut() {
 			Some(search) => search.next(),
@@ -317,18 +319,13 @@ impl DeepLinkHandler for Hentai2Read {
 					key: format!("/{kind}/{slug}"),
 				}))
 			}
-			(
-				Some(
-					kind @ ("artist" | "parody" | "character" | "publisher" | "content"
-					| "category"),
-				),
-				Some(slug),
-				None,
-			) => Ok(Some(DeepLinkResult::Listing(Listing {
-				id: format!("/{kind}/{slug}"),
-				name: slug_title(slug),
-				..Default::default()
-			}))),
+			(Some(kind), Some(slug), None) if TAG_KINDS.contains(&kind) => {
+				Ok(Some(DeepLinkResult::Listing(Listing {
+					id: format!("/{kind}/{slug}"),
+					name: slug_title(slug),
+					..Default::default()
+				})))
+			}
 			_ => Ok(None),
 		}
 	}

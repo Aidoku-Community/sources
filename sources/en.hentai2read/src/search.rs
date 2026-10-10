@@ -1,8 +1,12 @@
-use crate::{BASE_URL, exact_id, fetch_props, models::*, search_artists, search_parodies, tag_id};
+use crate::{BASE_URL, fetch_props, models::*};
 use aidoku::{
 	MangaPageResult, Result,
-	alloc::{String, Vec, collections::BTreeSet, string::ToString},
-	helpers::uri::QueryParameters,
+	alloc::{
+		String, Vec,
+		collections::{BTreeMap, BTreeSet},
+		string::ToString,
+	},
+	helpers::uri::{QueryParameters, encode_uri_component},
 	prelude::*,
 };
 
@@ -54,6 +58,37 @@ impl SearchParams {
 	}
 }
 
+/// Tag, artist and parody ids that exactly match a name, remembered for the session so repeated
+/// searches for the same name don't look it up again.
+#[derive(Default)]
+pub struct NameIds(BTreeMap<String, Vec<String>>);
+
+impl NameIds {
+	/// The cache is cleared when it grows past this many names.
+	const MAX_NAMES: usize = 256;
+
+	pub fn get(&self, name: &str) -> Option<&Vec<String>> {
+		self.0.get(&name.to_ascii_lowercase())
+	}
+
+	pub fn insert(&mut self, name: &str, ids: Vec<String>) {
+		if self.0.len() >= Self::MAX_NAMES {
+			self.0.clear();
+		}
+		self.0.insert(name.to_ascii_lowercase(), ids);
+	}
+}
+
+/// Search results list every tag, artist, parody and character matching the query, so a single
+/// search finds all the meanings of a name.
+fn exact_ids(matching: &[TagRef], name: &str) -> Vec<String> {
+	matching
+		.iter()
+		.filter(|tag| tag.name.eq_ignore_ascii_case(name))
+		.map(|tag| tag.id.to_string())
+		.collect()
+}
+
 /// One reading of a search: title matches, or the books of a tag, artist or parody.
 struct Part {
 	query: String,
@@ -95,36 +130,40 @@ impl NameSearch {
 		params: SearchParams,
 		query: &str,
 		tapped: Option<&str>,
+		name_ids: &mut NameIds,
 	) -> Result<Self> {
 		let mut parts = Vec::new();
-		let mut ids: Vec<String> = Vec::new();
 
-		match tapped {
-			Some(name) => {
-				ids.extend(tag_id(name));
-				ids.extend(exact_id(&search_artists(name)?, name).map(|id| id.to_string()));
-				ids.extend(exact_id(&search_parodies(name)?, name).map(|id| id.to_string()));
-			}
-			None => {
-				// Title search results list the tags, artists and parodies matching the query.
-				let props: ListProps = fetch_props(&params.url(query, None, 1))?;
-				for tag in props.matching_tags {
-					if tag.name.eq_ignore_ascii_case(query) {
-						ids.push(tag.id.to_string());
-					}
+		let ids = match tapped {
+			Some(name) => match name_ids.get(name) {
+				Some(ids) => ids.clone(),
+				None => {
+					let props: ListProps = fetch_props(&format!(
+						"{BASE_URL}/search?q={}",
+						encode_uri_component(name)
+					))?;
+					let ids = exact_ids(&props.matching_tags, name);
+					name_ids.insert(name, ids.clone());
+					ids
 				}
+			},
+			None => {
+				// The title search is needed for its results anyway, and also names the tags.
+				let props: ListProps = fetch_props(&params.url(query, None, 1))?;
+				let ids = exact_ids(&props.matching_tags, query);
+				name_ids.insert(query, ids.clone());
 				parts.push(Part {
 					query: query.into(),
 					tag: None,
 					total: props.books.total,
 					first_page: Some(props.books),
 				});
+				ids
 			}
-		}
+		};
 
 		// The query is the name itself unless a tag was tapped alongside a typed query.
 		let tag_query = if tapped.is_some() { query } else { "" };
-		ids.dedup();
 		for id in ids {
 			let books = fetch_props::<ListProps>(&params.url(tag_query, Some(&id), 1))?.books;
 			parts.push(Part {
