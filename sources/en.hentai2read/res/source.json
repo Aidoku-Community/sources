@@ -1,0 +1,42 @@
+{
+	"info": {
+		"id": "en.hentai2read",
+		"name": "Hentai2Read",
+		"version": 1,
+		"url": "https://hentai2read.com",
+		"contentRating": 2,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "Latest"
+		},
+		{
+			"id": "newest",
+			"name": "Newest"
+		},
+		{
+			"id": "trending",
+			"name": "Trending"
+		},
+		{
+			"id": "last-week",
+			"name": "Top Week"
+		},
+		{
+			"id": "last-month",
+			"name": "Top Month"
+		},
+		{
+			"id": "staff-picks",
+			"name": "Staff Picks"
+		}
+	],
+	"config": {
+		"supportsTagSearch": true
+	}
+}
