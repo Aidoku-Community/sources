@@ -49,7 +49,6 @@
 				"title": "分流伺服器",
 				"values": ["noymanga.com", "noyteam.online", "noy.asia"],
 				"titles": ["伺服器 1", "伺服器 2", "伺服器 3"],
-				"default": "noy.asia",
 				"refreshes": ["content"]
 			}
 		]
