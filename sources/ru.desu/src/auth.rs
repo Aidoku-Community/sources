@@ -293,6 +293,6 @@ pub fn require_login() -> Result<()> {
 	if is_logged_in() {
 		Ok(())
 	} else {
-		bail!("Войдите в аккаунт Desu в настройках источника")
+		bail!("Войдите в аккаунт Desu в настройках источника");
 	}
 }

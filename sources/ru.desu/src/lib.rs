@@ -11,11 +11,12 @@ mod settings;
 use crate::auth::{
 	handle_web_login, is_logged_in, logout, refresh_username, stored_username, take_just_logged_in,
 };
-use crate::helpers::{
-	apply_headers, fetch_by_id, fetch_chapter_pages, fetch_chapters, get_base_url, search,
-};
+use crate::helpers::{apply_headers, fetch_by_id, fetch_chapter_pages, fetch_chapters, search};
 use crate::keys::{Section, parse_key, ranobe_slug};
-use crate::ranobe::{fetch_ranobe, fetch_ranobe_chapter_text, search_ranobe};
+use crate::ranobe::{
+	fetch_ranobe, fetch_ranobe_chapter_list, fetch_ranobe_chapter_pages,
+	ranobe_chapter_id_from_deep_link, search_ranobe,
+};
 use aidoku::imports::net::{Request, TimeUnit, set_rate_limit};
 use aidoku::imports::std::send_partial_result;
 use aidoku::{
@@ -27,6 +28,11 @@ use aidoku::{
 };
 
 struct Desu;
+
+fn with_ranobe_chapters(mut manga: Manga, chapters: Vec<Chapter>) -> Manga {
+	manga.chapters = Some(chapters);
+	manga
+}
 
 impl Source for Desu {
 	fn new() -> Self {
@@ -96,17 +102,17 @@ impl Source for Desu {
 				Ok(item)
 			}
 			Section::Ranobe => {
-				let mut item = fetch_ranobe(id.as_str(), needs_details, needs_chapters)?;
-				if !needs_details {
-					item.title = manga.title;
-					if item.cover.is_none() {
-						item.cover = manga.cover;
-					}
-				}
+				let mut item = if needs_details {
+					fetch_ranobe(id.as_str())?
+				} else {
+					manga
+				};
 				if needs_details && needs_chapters {
-					let chapters = item.chapters.take();
 					send_partial_result(&item);
-					item.chapters = chapters;
+				}
+				if needs_chapters {
+					let chapters = fetch_ranobe_chapter_list(id.as_str())?;
+					item = with_ranobe_chapters(item, chapters);
 				}
 				Ok(item)
 			}
@@ -123,26 +129,7 @@ impl Source for Desu {
 					..Page::default()
 				})
 				.collect()),
-			Section::Ranobe => {
-				let fallback;
-				let url = match chapter.url.as_deref().filter(|u| !u.is_empty()) {
-					Some(url) => url,
-					None => {
-						fallback = format!(
-							"{}/ranobe/{}/{}",
-							get_base_url(),
-							id,
-							chapter.key.trim_start_matches('/')
-						);
-						fallback.as_str()
-					}
-				};
-				let text = fetch_ranobe_chapter_text(url)?;
-				Ok(vec![Page {
-					content: PageContent::text(text),
-					..Page::default()
-				}])
-			}
+			Section::Ranobe => fetch_ranobe_chapter_pages(id.as_str(), &chapter),
 		}
 	}
 }
@@ -158,6 +145,12 @@ impl DeepLinkHandler for Desu {
 
 		if path.starts_with("ranobe/") {
 			let slug = ranobe_slug(path).ok_or(error!("Invalid ranobe URL"))?;
+			if let Some(key) = ranobe_chapter_id_from_deep_link(&slug, path)? {
+				return Ok(Some(DeepLinkResult::Chapter {
+					manga_key: format!("r:{slug}"),
+					key,
+				}));
+			}
 			return Ok(Some(DeepLinkResult::Manga {
 				key: format!("r:{slug}"),
 			}));
@@ -254,6 +247,45 @@ mod tests {
 	use crate::keys::{Section, manga_key, parse_key, ranobe_key, ranobe_slug};
 	use crate::models::{DesuChapter, DesuCover, DesuItem};
 	use aidoku_test::aidoku_test;
+
+	#[aidoku_test]
+	fn chapter_only_ranobe_refresh_keeps_existing_details() {
+		let manga = Manga {
+			key: "r:sample.51".into(),
+			title: "Sample novel".into(),
+			cover: Some("https://static.desu.uno/cover.jpg".into()),
+			authors: Some(vec!["Author".into()]),
+			description: Some("A description".into()),
+			status: aidoku::MangaStatus::Ongoing,
+			content_rating: aidoku::ContentRating::Suggestive,
+			tags: Some(vec!["Fantasy".into()]),
+			..Default::default()
+		};
+		let chapter = Chapter {
+			key: "54535".into(),
+			..Default::default()
+		};
+
+		let updated = with_ranobe_chapters(manga, vec![chapter]);
+
+		assert_eq!(updated.title, "Sample novel");
+		assert_eq!(
+			updated.cover.as_deref(),
+			Some("https://static.desu.uno/cover.jpg")
+		);
+		assert_eq!(
+			updated.authors.as_deref(),
+			Some(["Author".into()].as_slice())
+		);
+		assert_eq!(updated.description.as_deref(), Some("A description"));
+		assert!(matches!(updated.status, aidoku::MangaStatus::Ongoing));
+		assert!(matches!(
+			updated.content_rating,
+			aidoku::ContentRating::Suggestive
+		));
+		assert_eq!(updated.tags.as_deref(), Some(["Fantasy".into()].as_slice()));
+		assert_eq!(updated.chapters.as_ref().map(Vec::len), Some(1));
+	}
 
 	#[aidoku_test]
 	fn preserves_manga_and_ranobe_keys() {

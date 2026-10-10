@@ -357,5 +357,26 @@
 			"241-Yandere",
 			"242-Japan"
 		]
+	},
+	{
+		"id": "ranobe_status",
+		"type": "multi-select",
+		"title": "Статус (ранобэ)",
+		"hideFromHeader": true,
+		"options": ["Выходит", "Издано", "Переводится", "Завершено"],
+		"ids": ["ongoing", "released", "continued", "completed"]
+	},
+	{
+		"id": "ranobe_genres",
+		"type": "multi-select",
+		"title": "Жанры ранобэ",
+		"hideFromHeader": true,
+		"isGenre": true,
+		"options": [
+			"Безумие", "Боевые искусства", "Вампиры", "Военное", "Гарем", "Героическое фэнтези", "Демоны", "Детектив", "Дзёсей", "Драма", "Игра", "Исекай", "Исторический", "Комедия", "Космос", "ЛитRPG", "Магия", "Меха", "Мистика", "Научная фантастика", "Пародия", "Повседневность", "Постапокалиптика", "Приключения", "Психологическое", "Реинкарнация", "Романтика", "Сверхъестественное", "Сёдзе", "Сейнен", "Сёнен", "Спорт", "Супер сила", "Трагедия", "Триллер", "Ужасы", "Фантастика", "Фэнтези", "Школа", "Экшен", "Эротика", "Этти"
+		],
+		"ids": [
+			"100-Dementia", "117-Martial Arts", "139-Vampire", "119-Military", "109-Harem", "110-Heroic Fantasy", "101-Demons", "120-Mystery", "114-Josei", "102-Drama", "107-Game", "113-Isekai", "111-Historical", "99-Comedy", "133-Space", "115-LitRPG", "116-Magic", "118-Mecha", "121-Mystic", "128-Sci-Fi", "122-Parody", "132-Slice of Life", "123-Post Apocalyptic", "98-Adventure", "124-Psychological", "125-Reincarnation", "126-Romance", "136-Supernatural", "130-Shoujo", "129-Seinen", "131-Shounen", "134-Sports", "135-Super Power", "138-Tragedy", "137-Thriller", "112-Horror", "106-Fiction", "105-Fantasy", "127-School", "97-Action", "104-Erotica", "103-Ecchi"
+		]
 	}
 ]
