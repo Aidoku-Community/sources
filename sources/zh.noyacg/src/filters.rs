@@ -1,11 +1,10 @@
 use aidoku::{
 	Filter, MultiSelectFilter,
 	alloc::{String, Vec},
-	prelude::format,
 };
 use serde::Deserialize;
 
-use crate::helpers::{build_form_body, get_base_url, post_with_form};
+use crate::helpers::{api_post, fetch_json};
 
 #[derive(Deserialize)]
 struct BigTagResp {
@@ -47,14 +46,6 @@ pub fn build_tag_filter(adult_mode: &str) -> Filter {
 }
 
 fn fetch_bigtaglist(adult_mode: &str) -> aidoku::Result<Vec<BigTag>> {
-	let base_url = get_base_url();
-	let body = build_form_body(&[]);
-	let resp: BigTagResp = post_with_form(
-		&format!("{base_url}/api/bigtaglist"),
-		&body,
-		&format!("{base_url}/"),
-		adult_mode,
-	)?
-	.json_owned()?;
+	let resp: BigTagResp = fetch_json(|| api_post("/api/bigtaglist", "", adult_mode))?;
 	Ok(resp.data.unwrap_or_default())
 }

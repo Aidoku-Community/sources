@@ -1,75 +1,51 @@
 use aidoku::{
 	Result,
-	alloc::String,
+	alloc::{String, string::ToString},
+	helpers::uri::QueryParameters,
 	imports::defaults::{DefaultValue, defaults_get, defaults_set},
-	imports::net::Request,
 	imports::std::current_date,
 	prelude::*,
 };
 
-use crate::helpers::{build_form_body, get_base_url};
+use crate::helpers::{api_post, fetch_json, get_adult_mode};
 use crate::models::{LoginResp, SigninRecordResp};
 
-const CREDENTIALS_KEY: &str = "credentials";
-const JUST_LOGGED_IN_KEY: &str = "justLoggedIn";
+const USERNAME_KEY: &str = "login.username";
+const PASSWORD_KEY: &str = "login.password";
 const LAST_SIGNIN_DAY_KEY: &str = "lastSigninDay";
 const UTC8_OFFSET: i64 = 28800;
 const SECS_PER_DAY: i64 = 86400;
 
-pub fn store_credentials(username: &str, password: &str) {
-	let value = format!("{}\n{}", username, password);
-	defaults_set(CREDENTIALS_KEY, DefaultValue::String(value));
-}
-
-pub fn get_credentials() -> Option<(String, String)> {
-	let raw = defaults_get::<String>(CREDENTIALS_KEY).filter(|v| !v.is_empty())?;
-	let (user, pass) = raw.split_once('\n')?;
-	Some((user.into(), pass.into()))
-}
-
-pub fn clear_credentials() {
-	defaults_set(CREDENTIALS_KEY, DefaultValue::Null);
-	defaults_set(JUST_LOGGED_IN_KEY, DefaultValue::Null);
-}
-
 pub fn is_logged_in() -> bool {
-	defaults_get::<String>(CREDENTIALS_KEY)
-		.filter(|v| !v.is_empty())
-		.is_some()
+	defaults_get::<String>(USERNAME_KEY).is_some()
 }
 
-pub fn set_just_logged_in() {
-	defaults_set(JUST_LOGGED_IN_KEY, DefaultValue::Bool(true));
-}
-
-pub fn is_just_logged_in() -> bool {
-	defaults_get::<bool>(JUST_LOGGED_IN_KEY).unwrap_or(false)
-}
-
-pub fn clear_just_logged_in() {
-	defaults_set(JUST_LOGGED_IN_KEY, DefaultValue::Null);
-}
-
-pub fn do_login(username: &str, password: &str) -> Result<bool> {
-	let base_url = get_base_url();
-	let body = build_form_body(&[("user", username), ("pass", password)]);
-	let resp: LoginResp = Request::post(format!("{base_url}/api/login"))?
-		.header("Content-Type", "application/x-www-form-urlencoded")
-		.header("Referer", &format!("{base_url}/"))
-		.body(body.as_bytes())
-		.json_owned()?;
+pub fn login(username: &str, password: &str) -> Result<bool> {
+	let mut body = QueryParameters::new();
+	body.push("user", Some(username));
+	body.push("pass", Some(password));
+	let resp: LoginResp =
+		api_post("/api/login", &body.to_string(), get_adult_mode())?.json_owned()?;
 	Ok(resp.status.as_deref() == Some("ok"))
 }
 
-pub fn ensure_session() -> Result<()> {
-	let Some((username, password)) = get_credentials() else {
-		return Ok(());
+pub fn relogin() -> Result<()> {
+	let (Some(username), Some(password)) = (
+		defaults_get::<String>(USERNAME_KEY),
+		defaults_get::<String>(PASSWORD_KEY),
+	) else {
+		bail!("請先登入以檢視內容");
 	};
-	if !do_login(&username, &password)? {
-		clear_credentials();
+	if !login(&username, &password)? {
 		bail!("登入已過期，請重新登入");
 	}
 	Ok(())
+}
+
+pub fn logout() {
+	if let Ok(request) = api_post("/api/logout", "", get_adult_mode()) {
+		_ = request.send();
+	}
 }
 
 fn today_utc8() -> String {
@@ -88,16 +64,9 @@ pub fn try_daily_signin() {
 	if defaults_get::<String>(LAST_SIGNIN_DAY_KEY).as_deref() == Some(today.as_str()) {
 		return;
 	}
-	let base_url = get_base_url();
-	let referer = format!("{base_url}/");
-	// check server record first to avoid a redundant sign request
-	let Ok(req) = Request::post(format!("{base_url}/api/v4/signin/record")) else {
-		return;
-	};
-	let Ok(record) = req
-		.header("Content-Type", "application/x-www-form-urlencoded")
-		.header("Referer", &referer)
-		.json_owned::<SigninRecordResp>()
+	let adult = get_adult_mode();
+	let Ok(record) =
+		fetch_json::<SigninRecordResp>(|| api_post("/api/v4/signin/record", "", adult))
 	else {
 		return;
 	};
@@ -105,15 +74,10 @@ pub fn try_daily_signin() {
 		defaults_set(LAST_SIGNIN_DAY_KEY, DefaultValue::String(today));
 		return;
 	}
-	let Ok(req) = Request::post(format!("{base_url}/api/v4/signin/sign")) else {
+	let Ok(request) = api_post("/api/v4/signin/sign", "", adult) else {
 		return;
 	};
-	if req
-		.header("Content-Type", "application/x-www-form-urlencoded")
-		.header("Referer", &referer)
-		.send()
-		.is_ok()
-	{
+	if request.send().is_ok() {
 		defaults_set(LAST_SIGNIN_DAY_KEY, DefaultValue::String(today));
 	}
 }

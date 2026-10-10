@@ -2,12 +2,12 @@
 	"info": {
 		"id": "zh.noyacg",
 		"name": "NoyAcg",
-		"version": 2,
+		"version": 3,
 		"languages": [
 			"zh"
 		],
 		"contentRating": 1,
-		"url": "https://beta.noyteam.online"
+		"url": "https://noymanga.com"
 	},
 	"listings": [
 		{
@@ -19,8 +19,8 @@
 			"name": "完結"
 		},
 		{
-			"id": "proportion",
-			"name": "精選"
+			"id": "random",
+			"name": "隨機"
 		},
 		{
 			"id": "favorite",
@@ -28,7 +28,7 @@
 		}
 	],
 	"config": {
-		"hidesFiltersWhileSearching": false,
+		"hidesFiltersWhileSearching": true,
 		"supportsTagSearch": true,
 		"supportsAuthorSearch": true
 	}
