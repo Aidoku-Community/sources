@@ -7,24 +7,21 @@
 		"options": [
 			"Default",
 			"Latest",
-			"A-Z",
-			"Rating",
-			"Trending",
-			"Views",
-			"Newest"
+			"Popular",
+			"Newest",
+			"A-Z"
 		]
 	},
 	{
-		"id": "status[]",
+		"id": "manga_status",
 		"type": "select",
 		"title": "Status",
 		"options": [
 			"All",
 			"Ongoing",
-			"Completed",
-			"Cancelled"
+			"Completed"
 		],
-		"ids": ["", "on-going", "end", "canceled"]
+		"ids": ["", "on-going", "end"]
 	},
 	{
 		"id": "genre[]",
@@ -33,9 +30,6 @@
 		"isGenre": true,
 		"canExclude": false,
 		"options": [
-			"Manga",
-			"Manhwa",
-			"Manhua",
 			"Academy",
 			"Action",
 			"Adaptation",
@@ -58,6 +52,9 @@
 			"Isekai",
 			"Josei",
 			"Magic",
+			"Manga",
+			"Manhua",
+			"Manhwa",
 			"Martial Arts",
 			"Mecha",
 			"Medical",
@@ -69,7 +66,7 @@
 			"Necromancer",
 			"Ninja",
 			"Office Workers",
-			"OP MC",
+			"OP-MC",
 			"Overpowered",
 			"Philosophical",
 			"Post-Apocalyptic",
@@ -81,10 +78,10 @@
 			"Revenge",
 			"Romance",
 			"School Life",
-			"Sci-Fi",
+			"Sci-fi",
 			"Seinen",
 			"Shounen",
-			"Slice of Life",
+			"Slice-of-Life",
 			"Sports",
 			"Super Power",
 			"Superhero",
@@ -99,15 +96,12 @@
 			"Video Games",
 			"Villainess",
 			"Virtual Reality",
-			"Violence",
+			"Voilence",
 			"Webcomic",
 			"Wuxia",
 			"Zombies"
 		],
 		"ids": [
-			"manga",
-			"manhwa",
-			"manhua",
 			"academy",
 			"action",
 			"adaptation",
@@ -130,6 +124,9 @@
 			"isekai",
 			"josei",
 			"magic",
+			"manga",
+			"manhua",
+			"manhwa",
 			"martial-arts",
 			"mecha",
 			"medical",
@@ -171,7 +168,7 @@
 			"video-games",
 			"villainess",
 			"virtual-reality",
-			"violence",
+			"voilence",
 			"webcomic",
 			"wuxia",
 			"zombies"
