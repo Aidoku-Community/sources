@@ -274,7 +274,7 @@ This source locally tracks and saves any series found, which can be disabled in 
 					.map(|array| parse_page_array(array))
 					.ok_or(error!("Invalid result from endpoint {endpoint}"))
 			} else {
-				bail!("Invalid `pages` type");
+				bail!("Invalid `pages` type")
 			}
 		}
 	}

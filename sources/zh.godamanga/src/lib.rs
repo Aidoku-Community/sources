@@ -109,9 +109,7 @@ impl ListingProvider for Godamanga {
 			"hots" => format!("{}/hots/page/{}", BASE_URL, page),
 			"dayup" => format!("{}/dayup/page/{}", BASE_URL, page),
 			"newss" => format!("{}/newss/page/{}", BASE_URL, page),
-			_ => {
-				bail!("Invalid listing");
-			}
+			_ => bail!("Invalid listing"),
 		};
 
 		let html = Request::get(url)?.header("Origin", BASE_URL).html()?;

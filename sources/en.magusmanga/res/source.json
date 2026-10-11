@@ -5,6 +5,7 @@
 		"version": 2,
 		"url": "https://magustoon.org",
 		"contentRating": 0,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	}
 }

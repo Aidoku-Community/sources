@@ -153,9 +153,7 @@ impl From<MangaInfo> for Manga {
 			title: capitalize(&value.name),
 			cover: format!("{}/assets/tmp/album/{}", BASE_URL, value.avatar).into(),
 			artists: value.source.map(|v| [v].to_vec()),
-			authors: value
-				.author
-				.and_then(|v| if v.is_empty() { None } else { Some(v) }),
+			authors: value.author.filter(|v| !v.is_empty()),
 			description: value.detail,
 			url: Some(format!("{}/album/{}-{}", BASE_URL, value.url, value.id)),
 			tags: Some(tags),

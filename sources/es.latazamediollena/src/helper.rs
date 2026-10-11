@@ -1,7 +1,7 @@
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaStatus, Viewer,
-	alloc::{String, Vec, format, string::ToString, vec},
+	alloc::{format, string::ToString, vec, String, Vec},
 	imports::{html::Document, net::Request, std::parse_date_with_options},
+	Chapter, ContentRating, Manga, MangaStatus, Viewer,
 };
 
 pub const BASE_URL: &str = "https://www.latazamediollena.es";

@@ -5,6 +5,7 @@
 		"version": 4,
 		"url": "https://flamecomics.xyz",
 		"contentRating": 0,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	}
 }

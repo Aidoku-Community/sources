@@ -150,9 +150,7 @@ impl ListingProvider for Picacomic {
 			"djkz" => category = Some(String::from("大家都在看")),
 			"gfdjkz" => category = Some(String::from("官方都在看")),
 			"update" => return self.get_search_manga_list(None, page, Vec::new()),
-			_ => {
-				bail!("Invalid listing");
-			}
+			_ => bail!("Invalid listing"),
 		};
 
 		if let Some(time) = rank_time {

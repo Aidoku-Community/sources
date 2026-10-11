@@ -5,7 +5,8 @@
 		"version": 4,
 		"url": "https://www.mangaworldadult.net",
 		"contentRating": 2,
-		"languages": ["it"]
+		"languages": ["it"],
+		"minAppVersion": "0.7.1"
 	},
 	"config": {
 		"breakingChangeVersion": 4

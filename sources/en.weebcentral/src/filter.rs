@@ -1,10 +1,10 @@
 use crate::helper;
 use crate::model::SortOptions;
 use aidoku::{
-	alloc::{borrow::ToOwned, String, Vec},
+	FilterValue,
+	alloc::{String, Vec, borrow::ToOwned},
 	helpers::uri::QueryParameters,
 	prelude::*,
-	FilterValue,
 };
 
 pub fn get_filters(query: Option<String>, filters: Vec<FilterValue>) -> String {

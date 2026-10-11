@@ -5,6 +5,7 @@
 		"version": 6,
 		"url": "https://tcbonepiecechapters.com",
 		"contentRating": 0,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	}
 }

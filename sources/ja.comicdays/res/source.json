@@ -6,7 +6,8 @@
 		"version": 2,
 		"url": "https://comic-days.com",
 		"contentRating": 0,
-		"languages": ["ja"]
+		"languages": ["ja"],
+		"minAppVersion": "0.7.1"
 	},
 	"listings": [
 		{

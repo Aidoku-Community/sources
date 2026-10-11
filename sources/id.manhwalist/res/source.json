@@ -5,7 +5,8 @@
 		"version": 6,
 		"url": "https://manhwalist02.site",
 		"contentRating": 0,
-		"languages": ["id"]
+		"languages": ["id"],
+		"minAppVersion": "0.7.1"
 	},
 	"config": {
 		"breakingChangeVersion": 6

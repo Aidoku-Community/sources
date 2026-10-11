@@ -218,7 +218,7 @@ pub trait Impl {
 			.json_owned::<PageListResponse>()?;
 
 		if !data.status {
-			bail!("{}", data.msg.unwrap_or_default());
+			bail!("{}", data.msg.unwrap_or_default())
 		}
 
 		let pages_html = Html::parse_fragment(data.html)?;

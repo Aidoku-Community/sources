@@ -1,5 +1,5 @@
 #![no_std]
-use aidoku::{imports::net::Request, prelude::*, Result, Source, Viewer};
+use aidoku::{Result, Source, Viewer, imports::net::Request, prelude::*};
 use madara::{Impl, Madara, Params};
 
 const BASE_URL: &str = "https://toonily.com";

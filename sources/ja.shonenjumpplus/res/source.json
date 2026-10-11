@@ -6,7 +6,8 @@
 		"version": 2,
 		"url": "https://shonenjumpplus.com",
 		"contentRating": 1,
-		"languages": ["ja"]
+		"languages": ["ja"],
+		"minAppVersion": "0.7.1"
 	},
 	"listings": [
 		{

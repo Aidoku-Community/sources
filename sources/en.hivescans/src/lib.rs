@@ -1,5 +1,5 @@
 #![no_std]
-use aidoku::{prelude::*, Source};
+use aidoku::{Source, prelude::*};
 use iken::{Iken, Impl, Params};
 
 const BASE_URL: &str = "https://hivetoons.org";

@@ -5,6 +5,7 @@
 		"version": 1,
 		"url": "https://www.go-manga.com",
 		"contentRating": 1,
-		"languages": ["th"]
+		"languages": ["th"],
+		"minAppVersion": "0.7.1"
 	}
 }

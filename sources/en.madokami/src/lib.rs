@@ -51,7 +51,7 @@ impl Source for Madokami {
 		}
 
 		if query.is_none() {
-			bail!("Enter a search term");
+			bail!("Enter a search term")
 		}
 
 		let mut qs = QueryParameters::new();

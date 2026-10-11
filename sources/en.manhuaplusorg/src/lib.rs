@@ -1,5 +1,5 @@
 #![no_std]
-use aidoku::{prelude::*, Source};
+use aidoku::{Source, prelude::*};
 use liliana::{Impl, Liliana, Params};
 
 const BASE_URL: &str = "https://manhuaplus.org";

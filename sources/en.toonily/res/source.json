@@ -5,7 +5,8 @@
 		"version": 10,
 		"url": "https://toonily.com",
 		"contentRating": 2,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	},
 	"config": {
 		"breakingChangeVersion": 10

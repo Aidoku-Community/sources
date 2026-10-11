@@ -8,7 +8,8 @@
 			"https://manhuapica.com"
 		],
 		"contentRating": 2,
-		"languages": ["zh"]
+		"languages": ["zh"],
+		"minAppVersion": "0.7.1"
 	},
 	"listings": [
 		{

@@ -82,7 +82,7 @@ fn get_token() -> Result<TokenResponse> {
 	if let Ok(wrapper) = defaults_get_json::<LocalStorageWrapper>(AUTH_KEY) {
 		return Ok(wrapper.token);
 	}
-	bail!("No token");
+	bail!("No token")
 }
 
 pub fn is_authorized() -> bool {

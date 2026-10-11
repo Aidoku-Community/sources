@@ -1,10 +1,10 @@
 #![no_std]
 use aidoku::{
-	alloc::{vec, String, Vec},
-	imports::{html::Document, net::Request},
-	prelude::*,
 	HomeComponent, HomeLayout, Link, LinkValue, Listing, ListingKind, Manga, MangaPageResult,
 	Result, Source,
+	alloc::{String, Vec, vec},
+	imports::{html::Document, net::Request},
+	prelude::*,
 };
 use gigaviewer::{GigaViewer, Impl, Params};
 

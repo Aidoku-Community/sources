@@ -5,6 +5,7 @@
 		"version": 2,
 		"url": "https://eternalmangas.org",
 		"contentRating": 1,
-		"languages": ["es"]
+		"languages": ["es"],
+		"minAppVersion": "0.7.1"
 	}
 }

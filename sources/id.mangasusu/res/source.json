@@ -5,7 +5,8 @@
 		"version": 6,
 		"url": "https://mangasusuku.com",
 		"contentRating": 2,
-		"languages": ["id"]
+		"languages": ["id"],
+		"minAppVersion": "0.7.1"
 	},
 	"config": {
 		"breakingChangeVersion": 6

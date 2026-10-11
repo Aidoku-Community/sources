@@ -482,9 +482,7 @@ impl ListingProvider for AsuraScans {
 					has_next_page,
 				})
 			}
-			_ => {
-				bail!("Invalid listing");
-			}
+			_ => bail!("Invalid listing"),
 		}
 	}
 }

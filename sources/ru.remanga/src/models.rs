@@ -338,17 +338,14 @@ fn rating_from(
 ) -> ContentRating {
 	let age_id = age.and_then(|a| a.id);
 	let age_name = age.and_then(|a| a.name.as_deref()).unwrap_or("");
-	let adult_age = age_id == Some(2)
-		|| age_name.contains("18")
-		|| age_name.eq_ignore_ascii_case("nsfw");
+	let adult_age =
+		age_id == Some(2) || age_name.contains("18") || age_name.eq_ignore_ascii_case("nsfw");
 	let teen_age = age_id == Some(1) || age_name.contains("16") || age_name.contains("17");
 
 	let mut suggestive = teen_age;
 	let mut nsfw = is_erotic || is_yaoi || adult_age;
 
-	if !nsfw
-		&& let Some(genres) = genres
-	{
+	if !nsfw && let Some(genres) = genres {
 		for genre in genres {
 			let id = genre.id;
 			let name = genre.name.as_deref().unwrap_or("");

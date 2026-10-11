@@ -7,9 +7,7 @@ pub fn get_base_url() -> Result<String, AidokuError> {
 	let base_url = defaults_get::<String>(BASE_URL_KEY);
 	match base_url {
 		Some(url) if !url.is_empty() => Ok(url),
-		_ => {
-			bail!("Missing base URL: configure in settings");
-		}
+		_ => bail!("Missing base URL: configure in settings"),
 	}
 }
 

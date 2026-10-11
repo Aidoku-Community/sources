@@ -7,7 +7,8 @@
 		"contentRating": 0,
 		"languages": [
 			"fr"
-		]
+		],
+		"minAppVersion": "0.7.1"
 	},
 	"config": {
 		"breakingChangeVersion": 4

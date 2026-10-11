@@ -8,6 +8,7 @@
 		"languages": [
 			"ru"
 		],
-		"breakingChangeVersion": 5
+		"breakingChangeVersion": 5,
+		"minAppVersion": "0.7.1"
 	}
 }

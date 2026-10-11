@@ -121,9 +121,7 @@ impl ListingProvider for Wnacg {
 			"one-shot" => format!("/albums-index-page-{}-cate-6.html", page),
 			"magazine" => format!("/albums-index-page-{}-cate-7.html", page),
 			"korean" => format!("/albums-index-page-{}-cate-19.html", page),
-			_ => {
-				bail!("Invalid listing");
-			}
+			_ => bail!("Invalid listing"),
 		};
 
 		let html = create_request(&path)?.html()?;

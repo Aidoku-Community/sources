@@ -9,8 +9,10 @@ use sha2::{Digest, Sha256};
 use crate::{LTN_URL, PAGE_SIZE, REFERER};
 
 pub fn decode_nozomi(data: &[u8]) -> Vec<i64> {
-	data.chunks_exact(4)
-		.map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as i64)
+	data.as_chunks::<4>()
+		.0
+		.iter()
+		.map(|b| u32::from_be_bytes(*b) as i64)
 		.collect()
 }
 
@@ -225,8 +227,10 @@ fn fetch_galleryids_from_data(version: &str, offset: u64, length: u32) -> Option
 	}
 
 	let ids = data[4..]
-		.chunks_exact(4)
-		.map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as i64)
+		.as_chunks::<4>()
+		.0
+		.iter()
+		.map(|b| u32::from_be_bytes(*b) as i64)
 		.collect();
 	Some(ids)
 }

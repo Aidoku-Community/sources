@@ -14,7 +14,6 @@ impl Impl for ElfToon {
 	fn params(&self) -> Params {
 		Params {
 			base_url: BASE_URL.into(),
-			..Default::default()
 		}
 	}
 }

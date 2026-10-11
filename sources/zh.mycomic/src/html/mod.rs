@@ -141,11 +141,7 @@ impl MangaPage for Document {
 				.select_first("a")
 				.and_then(|a| a.attr("href"))
 				.unwrap_or_default();
-			let id = href
-				.split('/')
-				.filter(|s| !s.is_empty())
-				.next_back()
-				.unwrap_or_default();
+			let id = href.split('/').rfind(|s| !s.is_empty()).unwrap_or_default();
 
 			let img = item.select_first("a>img");
 			let cover = img

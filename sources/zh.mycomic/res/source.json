@@ -5,7 +5,8 @@
 		"version": 2,
 		"url": "https://mycomic.com",
 		"contentRating": 1,
-		"languages": ["zh"]
+		"languages": ["zh"],
+		"minAppVersion": "0.7.1"
 	},
 	"config": {
 		"hidesFiltersWhileSearching": true,

@@ -5,7 +5,8 @@
 		"version": 4,
 		"url": "https://github.com/Difegue/LANraragi",
 		"contentRating": 1,
-		"languages": ["multi"]
+		"languages": ["multi"],
+		"minAppVersion": "0.7.1"
 	},
 	"config": {
 		"supportsTagSearch": true

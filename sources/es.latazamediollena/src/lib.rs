@@ -2,16 +2,15 @@
 mod helper;
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
-	HomeComponentValue, HomeLayout, Manga, MangaPageResult,
-	MangaWithChapter, Page, PageContent, Result, Source,
-	alloc::{String, Vec, vec},
+	alloc::{vec, String, Vec},
 	imports::net::Request,
 	prelude::*,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
+	HomeLayout, Manga, MangaPageResult, MangaWithChapter, Page, PageContent, Result, Source,
 };
 use helper::{
-	BASE_URL, MANGA_KEY, comic_info, fetch_all_chapters, fetch_archive_page,
-	parse_page_description, parse_page_image_url, slug_from_url,
+	comic_info, fetch_all_chapters, fetch_archive_page, parse_page_description,
+	parse_page_image_url, slug_from_url, BASE_URL, MANGA_KEY,
 };
 
 struct Latazamediollena;
@@ -62,9 +61,8 @@ impl Source for Latazamediollena {
 			.url
 			.unwrap_or_else(|| format!("{BASE_URL}/comic/{}/", chapter.key));
 		let html = Request::get(url)?.html()?;
-		let image_url = parse_page_image_url(&html).ok_or_else(|| {
-			error!("No se ha encontrado la imagen de la tira en la página")
-		})?;
+		let image_url = parse_page_image_url(&html)
+			.ok_or_else(|| error!("No se ha encontrado la imagen de la tira en la página"))?;
 		let description = parse_page_description(&html);
 
 		Ok(vec![Page {

@@ -11,7 +11,8 @@
 			"https://www.zaimanhua.com",
 			"https://manhua.zaimanhua.com",
 			"https://m.zaimanhua.com"
-		]
+		],
+		"minAppVersion": "0.7.1"
 	},
 	"listings": [
 		{

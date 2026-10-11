@@ -7,7 +7,8 @@
 			"zh"
 		],
 		"contentRating": 1,
-		"url": "https://noymanga.com"
+		"url": "https://noymanga.com",
+		"minAppVersion": "0.7.1"
 	},
 	"listings": [
 		{

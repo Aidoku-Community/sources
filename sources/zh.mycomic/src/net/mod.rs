@@ -157,14 +157,12 @@ impl Url {
 					id,
 					index,
 					ascending,
-				} => {
-					if id.as_str() == "排序" {
-						let sorts = ["", "update", "views"];
-						if let Some(s) = sorts.get(*index as usize) {
-							sort = s.to_string();
-							if !sort.is_empty() && !*ascending {
-								sort = format!("-{}", sort);
-							}
+				} if id.as_str() == "排序" => {
+					let sorts = ["", "update", "views"];
+					if let Some(s) = sorts.get(*index as usize) {
+						sort = s.to_string();
+						if !sort.is_empty() && !*ascending {
+							sort = format!("-{}", sort);
 						}
 					}
 				}

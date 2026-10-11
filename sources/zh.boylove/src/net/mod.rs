@@ -102,16 +102,12 @@ impl<'a> Url<'a> {
 						let search_query = SearchQuery::new(value, page);
 						return Ok(Self::Search(search_query));
 					}
-					_ => {
-						bail!("Invalid text filter ID: `{id}`");
-					}
+					_ => bail!("Invalid text filter ID: `{id}`"),
 				},
 
 				FilterValue::Sort { id, index, .. } => match id.as_str() {
 					"排序方式" => sort_by = Sort::from_repr(*index).unwrap_or_default(),
-					_ => {
-						bail!("Invalid sort filter ID: `{id}`");
-					}
+					_ => bail!("Invalid sort filter ID: `{id}`"),
 				},
 
 				FilterValue::Select { id, value } => match id.as_str() {
@@ -122,21 +118,15 @@ impl<'a> Url<'a> {
 						let search_query = SearchQuery::new(value, page);
 						return Ok(Self::Search(search_query));
 					}
-					_ => {
-						bail!("Invalid select filter ID: `{id}`");
-					}
+					_ => bail!("Invalid select filter ID: `{id}`"),
 				},
 
 				FilterValue::MultiSelect { id, included, .. } => match id.as_str() {
 					"標籤" => tags.0 = included,
-					_ => {
-						bail!("Invalid multi-select filter ID: `{id}`");
-					}
+					_ => bail!("Invalid multi-select filter ID: `{id}`"),
 				},
 
-				_ => {
-					bail!("Invalid filter: `{filter:?}`");
-				}
+				_ => bail!("Invalid filter: `{filter:?}`"),
 			}
 		}
 

@@ -262,9 +262,7 @@ impl ListingProvider for Senkuro {
 				entries: self.home_recommendations()?,
 				has_next_page: false,
 			}),
-			_ => {
-				bail!("Senkuro: неизвестная Home-секция");
-			}
+			_ => bail!("Senkuro: неизвестная Home-секция"),
 		}
 	}
 }

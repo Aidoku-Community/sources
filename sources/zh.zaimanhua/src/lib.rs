@@ -334,9 +334,7 @@ impl ListingProvider for Zaimanhua {
 					.ok_or_else(|| error!("订阅数据缺失"))?;
 				return Ok(models::manga_list_from_subscribes(data));
 			}
-			_ => {
-				bail!("未知列表请求");
-			}
+			_ => bail!("未知列表请求"),
 		};
 
 		let url = format!("{}&size=20", net::urls::filter(filter_param, page));

@@ -26,7 +26,7 @@ impl BatCaveHtml for Request {
 			.and_then(|el| el.text())
 			.is_none_or(|s| s.is_empty());
 		if is_title_empty {
-			bail!("Verification required in settings.");
+			bail!("Verification required in settings.")
 		}
 
 		Ok(html)

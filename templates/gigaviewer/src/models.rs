@@ -1,7 +1,7 @@
 use aidoku::{
-	alloc::{format, String, Vec},
-	imports::std::parse_date,
 	Chapter,
+	alloc::{String, Vec, format},
+	imports::std::parse_date,
 };
 use serde::Deserialize;
 

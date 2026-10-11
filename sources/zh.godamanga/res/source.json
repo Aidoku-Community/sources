@@ -12,7 +12,8 @@
 			"https://m.g-mh.org"
 		],
 		"contentRating": 1,
-		"languages": ["zh"]
+		"languages": ["zh"],
+		"minAppVersion": "0.7.1"
 	},
 	"listings": [
 		{

@@ -272,9 +272,7 @@ impl ListingProvider for Boylove {
 				.json_owned::<random::Root>()?
 				.into(),
 
-			name => {
-				bail!("Invalid listing name: `{name}`");
-			}
+			name => bail!("Invalid listing name: `{name}`"),
 		};
 		Ok(manga_page_result)
 	}

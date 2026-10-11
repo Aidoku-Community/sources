@@ -5,6 +5,7 @@
 		"version": 3,
 		"url": "https://vortexscans.org",
 		"contentRating": 0,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	}
 }

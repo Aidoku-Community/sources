@@ -28,7 +28,8 @@ pub fn parse_chapter_title(chapter_str: Option<String>) -> Result<(Option<f32>, 
 		if let Some(rest) = s.strip_prefix(prefix) {
 			let parts: Vec<&str> = rest.splitn(2, " - ").collect();
 
-			let chapter_number = parts.first()
+			let chapter_number = parts
+				.first()
 				.and_then(|num_str| num_str.trim().parse::<f32>().ok());
 
 			let title = if parts.len() > 1 {
@@ -59,17 +60,17 @@ pub fn parse_date_to_timestamp(date_str: &str, now_str: Option<&str>) -> Option<
 	let lowered = date_str.to_ascii_lowercase();
 	let now = NaiveDateTime::parse_from_str(now_str?, "%B %d, %Y %I:%M %p").ok()?;
 	let parts: Vec<&str> = lowered.split_whitespace().collect();
-	if parts.len() >= 2 {
-		if let Ok(value) = parts[0].parse::<i64>() {
-			let unit = parts[1];
-			let delta = match unit {
-				"minute" | "minutes" => Duration::minutes(value),
-				"hour" | "hours" => Duration::hours(value),
-				"day" | "days" => Duration::days(value),
-				_ => return None,
-			};
-			return Some((now - delta).and_utc().timestamp());
-		}
+	if parts.len() >= 2
+		&& let Ok(value) = parts[0].parse::<i64>()
+	{
+		let unit = parts[1];
+		let delta = match unit {
+			"minute" | "minutes" => Duration::minutes(value),
+			"hour" | "hours" => Duration::hours(value),
+			"day" | "days" => Duration::days(value),
+			_ => return None,
+		};
+		return Some((now - delta).and_utc().timestamp());
 	}
 
 	None

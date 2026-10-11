@@ -212,7 +212,7 @@ impl ChapterData {
 		let thumbnail = self
 			.thumbnail_url
 			.as_ref()
-            .map(|url| format!("{}{}", BASE_URL, url));
+			.map(|url| format!("{}{}", BASE_URL, url));
 
 		Chapter {
 			key: self.chapter_id,

@@ -5,7 +5,8 @@
 		"version": 2,
 		"url": "https://mangarawjp.tv",
 		"contentRating": 2,
-		"languages": ["ja"]
+		"languages": ["ja"],
+		"minAppVersion": "0.7.1"
 	},
 	"config": {
 		"hidesFiltersWhileSearching": true

@@ -308,7 +308,7 @@ pub trait Impl {
 				})
 				.collect())
 		} else {
-			bail!("No pages found");
+			bail!("No pages found")
 		}
 	}
 

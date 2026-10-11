@@ -1,5 +1,5 @@
 #![no_std]
-use aidoku::{prelude::*, Source, Viewer};
+use aidoku::{Source, Viewer, prelude::*};
 use madara::{Impl, Madara, Params};
 
 const BASE_URL: &str = "https://www.webtoon.xyz";

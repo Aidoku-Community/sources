@@ -289,7 +289,7 @@ pub trait Impl {
 					// 		.header("Referer", &format!("{}/", params.base_url))
 					// 		.html()?;
 					// 	pages = parse_pages(&html);
-					bail!("No content found");
+					bail!("No content found")
 				}
 			} else {
 				Ok(pages)

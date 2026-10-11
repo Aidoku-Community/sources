@@ -1,9 +1,9 @@
 #![no_std]
 use aidoku::{
-	alloc::{vec, Vec},
+	HomeComponent, HomeLayout, Link, Listing, MangaPageResult, Result, Source,
+	alloc::{Vec, vec},
 	imports::{html::Document, net::Request},
 	prelude::*,
-	HomeComponent, HomeLayout, Link, Listing, MangaPageResult, Result, Source,
 };
 use gigaviewer::{GigaViewer, Impl, Params};
 

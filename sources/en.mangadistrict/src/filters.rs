@@ -1,7 +1,7 @@
 use aidoku::{
+	FilterValue,
 	alloc::{format, string::String, vec::Vec},
 	helpers::uri::QueryParameters,
-	FilterValue,
 };
 
 pub fn parse_filters(query: Option<String>, filters: Vec<FilterValue>) -> String {

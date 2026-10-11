@@ -5,7 +5,8 @@
 		"version": 9,
 		"url": "https://www.mangabats.com",
 		"contentRating": 1,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	},
 	"listings": [
 		{

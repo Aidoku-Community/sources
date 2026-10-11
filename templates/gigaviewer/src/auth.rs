@@ -1,12 +1,12 @@
 use aidoku::{
+	Result,
 	alloc::String,
 	helpers::uri::encode_uri_component,
 	imports::{
-		defaults::{defaults_get, defaults_set, DefaultValue},
+		defaults::{DefaultValue, defaults_get, defaults_set},
 		net::Request,
 	},
 	prelude::*,
-	Result,
 };
 
 static EMAIL_KEY: &str = "login.username";

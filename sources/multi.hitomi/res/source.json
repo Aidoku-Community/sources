@@ -32,7 +32,8 @@
 			"ko",
 			"zh",
 			"ja"
-		]
+		],
+		"minAppVersion": "0.7.1"
 	},
 	"listings": [
 		{

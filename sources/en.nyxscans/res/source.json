@@ -5,6 +5,7 @@
 		"version": 1,
 		"url": "https://nyxscans.com",
 		"contentRating": 0,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	}
 }

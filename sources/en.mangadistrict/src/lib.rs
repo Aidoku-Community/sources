@@ -280,7 +280,7 @@ impl DeepLinkHandler for MangaDistrict {
 			let manga_key = format!("/{}/{}", parts[1], parts[2]);
 			Ok(Some(DeepLinkResult::Chapter { manga_key, key }))
 		} else if key.starts_with("/title") {
-			return Ok(Some(DeepLinkResult::Manga { key }));
+			Ok(Some(DeepLinkResult::Manga { key }))
 		} else {
 			Ok(None)
 		}

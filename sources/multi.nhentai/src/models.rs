@@ -160,11 +160,11 @@ impl From<NHentaiGallery> for Manga {
 		}
 
 		// Sort by count descending
-		tags.sort_by(|a, b| b.1.cmp(&a.1));
-		artists.sort_by(|a, b| b.1.cmp(&a.1));
-		groups.sort_by(|a, b| b.1.cmp(&a.1));
-		parodies.sort_by(|a, b| b.1.cmp(&a.1));
-		characters.sort_by(|a, b| b.1.cmp(&a.1));
+		tags.sort_by_key(|tag| core::cmp::Reverse(tag.1));
+		artists.sort_by_key(|tag| core::cmp::Reverse(tag.1));
+		groups.sort_by_key(|tag| core::cmp::Reverse(tag.1));
+		parodies.sort_by_key(|tag| core::cmp::Reverse(tag.1));
+		characters.sort_by_key(|tag| core::cmp::Reverse(tag.1));
 
 		let tags = tags.into_iter().map(|(name, _)| name).collect::<Vec<_>>();
 		let groups = groups.into_iter().map(|(name, _)| name).collect::<Vec<_>>();

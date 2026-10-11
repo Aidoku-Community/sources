@@ -1,5 +1,6 @@
 use aidoku::{
-	alloc::{string::ToString, String, Vec},
+	Chapter, Manga, Result,
+	alloc::{String, Vec, string::ToString},
 	helpers::uri::QueryParameters,
 	imports::{
 		defaults::defaults_get,
@@ -8,12 +9,11 @@ use aidoku::{
 		std::parse_local_date,
 	},
 	prelude::*,
-	Chapter, Manga, Result,
 };
 
 use crate::{
-	models::{GigaPaginationReadableProduct, GigaReadMoreResponse},
 	AuthedRequest,
+	models::{GigaPaginationReadableProduct, GigaReadMoreResponse},
 };
 
 #[allow(clippy::too_many_arguments)]

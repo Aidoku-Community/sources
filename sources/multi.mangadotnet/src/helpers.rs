@@ -41,7 +41,7 @@ fn response_is_ok(response: &Response) -> Result<()> {
 		.get_header("cf-mitigated")
 		.is_some_and(|value| value == "challenge")
 	{
-		bail!("{CF_CHALLENGE_ERROR_MESSAGE}");
+		bail!("{CF_CHALLENGE_ERROR_MESSAGE}")
 	} else if response.status_code() == 503 {
 		bail!("Website is under maintenance. Please try again later :)");
 	} else if response.status_code() == 429 {
@@ -53,7 +53,7 @@ fn response_is_ok(response: &Response) -> Result<()> {
 	} else if response.status_code() == 401 {
 		bail!("Login token expired. Please re-login in the source settings.");
 	} else if response.status_code() >= 400 {
-		bail!("Response Error: {}", response.status_code());
+		bail!("Response Error: {}", response.status_code())
 	}
 	Ok(())
 }
@@ -112,7 +112,7 @@ where
 	let json = resolve_ptr_table_json(&ptr_table_json, 0)?;
 	let page_container_json = serde_json::from_value::<HashMap<String, PageContainer<T>>>(json)?;
 	let Some(page_container) = page_container_json.into_values().next() else {
-		bail!("Page container data does not exists.");
+		bail!("Page container data does not exists.")
 	};
 	Ok(page_container.data)
 }
@@ -121,7 +121,7 @@ fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
 	// This function will convert pointer-table encoded JSON format into normal JSON format.
 	// Since the data format would most likely not have cycles, we didn't handle this inside here.
 	let Some(value) = table.get(index) else {
-		bail!("Invalid index");
+		bail!("Invalid index")
 	};
 
 	match value {
@@ -132,15 +132,15 @@ fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
 			for (k, v) in obj {
 				// "_123" -> 123
 				let Ok(key_index) = k.trim_start_matches('_').parse::<usize>() else {
-					bail!("Unable to convert key index to number");
+					bail!("Unable to convert key index to number")
 				};
 
 				let Some(key) = table.get(key_index).and_then(|v| v.as_str()) else {
-					bail!("Unable to convert key value to string");
+					bail!("Unable to convert key value to string")
 				};
 
 				let Some(value_index) = v.as_i64() else {
-					bail!("Unable to convert value index to number");
+					bail!("Unable to convert value index to number")
 				};
 
 				let resolved_value = if value_index >= 0 {
@@ -160,7 +160,7 @@ fn resolve_ptr_table_json(table: &[Value], index: usize) -> Result<Value> {
 			arr.iter()
 				.map(|v| {
 					let Some(index) = v.as_i64() else {
-						bail!("Unable to convert index to number");
+						bail!("Unable to convert index to number")
 					};
 
 					if index < 0 {

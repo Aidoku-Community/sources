@@ -5,7 +5,8 @@
 		"version": 17,
 		"url": "https://nhentai.net",
 		"contentRating": 2,
-		"languages": ["All", "en", "ja", "zh"]
+		"languages": ["All", "en", "ja", "zh"],
+		"minAppVersion": "0.7.1"
 	},
 	"listings": [
 		{

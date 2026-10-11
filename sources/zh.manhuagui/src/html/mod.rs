@@ -260,9 +260,7 @@ impl ChapterPage for Document {
 								.attr("href")
 								.ok_or_else(|| error!("Failed to get href"))?;
 							let url = format!("{}{}", crate::settings::get_base_url(), href);
-							let id = href
-								.replace("/comic/", "")
-								.replace(".html", "");
+							let id = href.replace("/comic/", "").replace(".html", "");
 							let chapter_id = match id.split('/').next_back() {
 								Some(id) => String::from(id),
 								None => String::new(),

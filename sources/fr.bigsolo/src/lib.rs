@@ -351,7 +351,7 @@ impl ListingProvider for BigSolo {
 				has_next_page: false,
 			})
 		} else {
-			bail!("Unknown listing");
+			bail!("Unknown listing")
 		}
 	}
 }

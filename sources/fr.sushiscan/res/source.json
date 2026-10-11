@@ -5,7 +5,8 @@
 		"version": 8,
 		"url": "https://sushiscan.net",
 		"contentRating": 1,
-		"languages": ["en"]
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
 	},
 	"config": {
 		"breakingChangeVersion": 8
