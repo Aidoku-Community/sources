@@ -273,7 +273,7 @@ impl JMComic {
 		if let Some(slug) = id.strip_prefix("cat:") {
 			return Ok(net::url::filter("mr", slug, page));
 		}
-		bail!("未知列表请求")
+		bail!("未知列表请求");
 	}
 
 	// returns the number of horizontal slices used to scramble the image
@@ -347,14 +347,14 @@ fn direct_manga_result(api: &ApiContext, key: &str, block: &BlockState) -> Resul
 fn visible_album(api: &ApiContext, key: &str, block: &BlockState) -> Result<AlbumResp> {
 	let resp: AlbumResp = api.get(&net::url::album(key))?;
 	if resp.is_blocked(key, block) {
-		bail!("这个内容已经被你屏蔽啦")
+		bail!("这个内容已经被你屏蔽啦");
 	}
 	Ok(resp)
 }
 
 fn finish_search_result(page: i32, result: MangaPageResult) -> Result<MangaPageResult> {
 	if page <= 1 && result.entries.is_empty() {
-		bail!("没有找到这样的内容")
+		bail!("没有找到这样的内容");
 	}
 	Ok(result)
 }

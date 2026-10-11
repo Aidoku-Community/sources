@@ -66,7 +66,9 @@ impl ListingProvider for Bakamh {
 				"{}/page/{}/?s&post_type=wp-manga&m_orderby={}",
 				BASE_URL, page, listing.id
 			),
-			_ => bail!("Invalid listing"),
+			_ => {
+				bail!("Invalid listing");
+			}
 		};
 		let html = Request::get(url)?.html()?;
 		html.manga_page_result(true)

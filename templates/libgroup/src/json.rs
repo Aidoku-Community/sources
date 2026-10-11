@@ -1,9 +1,4 @@
-use aidoku::{
-	AidokuError, Result,
-	alloc::String,
-	imports::net::Response,
-	prelude::*,
-};
+use aidoku::{AidokuError, Result, alloc::String, imports::net::Response, prelude::*};
 use serde::de::DeserializeOwned;
 
 pub trait ResponseJsonExt {

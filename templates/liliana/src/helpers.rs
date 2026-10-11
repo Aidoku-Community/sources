@@ -1,8 +1,8 @@
 use aidoku::{
+	Manga, MangaPageResult,
 	alloc::String,
 	helpers::string::StripPrefixOrSelf,
 	imports::html::{Document, Element},
-	Manga, MangaPageResult,
 };
 
 pub trait ElementImageAttr {

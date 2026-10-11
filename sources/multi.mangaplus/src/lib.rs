@@ -330,7 +330,9 @@ impl ListingProvider for MangaPlus {
 					})
 					.filter(|title| seen.insert(title.title_id))
 					.collect(),
-				_ => bail!("Invalid listing"),
+				_ => {
+					bail!("Invalid listing");
+				}
 			};
 		}
 		Ok(self.parse_directory(page))

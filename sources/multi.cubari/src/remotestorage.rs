@@ -27,7 +27,7 @@ impl RemoteStorage {
 			.send()?;
 		if response.status_code() == 401 {
 			settings::set_token("");
-			bail!("Unauthorized: Log in again to access history")
+			bail!("Unauthorized: Log in again to access history");
 		}
 
 		let json: serde_json::Value = response.get_json()?;

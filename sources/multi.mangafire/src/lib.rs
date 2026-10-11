@@ -51,7 +51,9 @@ impl Source for MangaFire {
 						}
 					}
 					"minchap" => qs.push(("min_chap".into(), value.into())),
-					_ => bail!("Invalid text filter id"),
+					_ => {
+						bail!("Invalid text filter id");
+					}
 				},
 				FilterValue::Sort { index, .. } => {
 					let (key, value) = match index {
@@ -67,7 +69,9 @@ impl Source for MangaFire {
 						9 => ("order[views_30d]", "desc"),
 						10 => ("order[views_total]", "desc"),
 						11 => ("order[follows_total]", "desc"),
-						_ => bail!("Invalid sort filter index"),
+						_ => {
+							bail!("Invalid sort filter index");
+						}
 					};
 					qs.push((key.into(), value.into()));
 				}
@@ -127,7 +131,7 @@ impl Source for MangaFire {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		if manga.key.starts_with("/manga") {
-			bail!("Migrate this title to update details.")
+			bail!("Migrate this title to update details.");
 		}
 
 		if needs_details {

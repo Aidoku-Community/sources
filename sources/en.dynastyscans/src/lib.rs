@@ -145,7 +145,7 @@ impl Source for DynastyScans {
 impl CoverImageProcessor for DynastyScans {
 	fn process_cover_image(&self, response: ImageResponse) -> Result<ImageRef> {
 		let Some(url) = response.request.url else {
-			bail!("Missing cover request URL")
+			bail!("Missing cover request URL");
 		};
 		if url.ends_with("json") {
 			let data = response.image.data();

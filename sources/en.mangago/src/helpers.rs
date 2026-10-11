@@ -266,11 +266,15 @@ const JS_FILTERS: &[&str] = &[
 pub fn get_descrambling_key(deobf_chapter_js: &str, image_url: &str) -> Result<String> {
 	let after = match deobf_chapter_js.split_once("var renImg = function(img,width,height,id){") {
 		Some((_, after)) => after,
-		None => bail!("Pattern not found"),
+		None => {
+			bail!("Pattern not found");
+		}
 	};
 	let before = match after.split_once("key = key.split(") {
 		Some((before, _)) => before,
-		None => bail!("Pattern not found"),
+		None => {
+			bail!("Pattern not found");
+		}
 	};
 
 	let imgkeys: String = before

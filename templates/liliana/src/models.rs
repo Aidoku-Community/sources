@@ -1,8 +1,8 @@
 use aidoku::{
+	Manga,
 	alloc::{String, Vec},
 	helpers::string::StripPrefixOrSelf,
 	prelude::*,
-	Manga,
 };
 use serde::Deserialize;
 

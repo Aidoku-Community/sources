@@ -143,7 +143,6 @@ impl Home for Picacomic {
 				Ok(explore_response.data.into())
 			};
 
-
 		let r7 = parse_explore(responses.remove(7));
 		let r6 = parse_explore(responses.remove(6));
 		let r5 = parse_explore(responses.remove(5));
@@ -153,8 +152,16 @@ impl Home for Picacomic {
 		let r1 = parse_rank(responses.remove(1));
 		let r0 = parse_rank(responses.remove(0));
 
-		let [daily, weekly, monthly, popular, official, recommended, today_in_history, latest] =
-			[r0, r1, r2, r3, r4, r5, r6, r7];
+		let [
+			daily,
+			weekly,
+			monthly,
+			popular,
+			official,
+			recommended,
+			today_in_history,
+			latest,
+		] = [r0, r1, r2, r3, r4, r5, r6, r7];
 
 		if let Ok(daily) = daily
 			&& !daily.entries.is_empty()

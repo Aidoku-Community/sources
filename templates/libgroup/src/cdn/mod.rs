@@ -6,12 +6,8 @@ use aidoku::{
 use spin::{Once, RwLock};
 
 use crate::{
-	auth::AuthRequest,
-	context::Context,
-	endpoints::Url,
-	json::ResponseJsonExt,
-	models::responses::ConstantsResponse,
-	settings::get_image_server_url,
+	auth::AuthRequest, context::Context, endpoints::Url, json::ResponseJsonExt,
+	models::responses::ConstantsResponse, settings::get_image_server_url,
 };
 
 const FAILURE_COOLDOWN_SECONDS: i64 = 30;

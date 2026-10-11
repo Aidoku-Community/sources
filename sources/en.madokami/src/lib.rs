@@ -39,13 +39,11 @@ impl Source for Madokami {
 						query = Some(value);
 					}
 				}
-				FilterValue::Select { id, value } => {
-					if id == "genre" {
-						if let Some(category) = value.strip_prefix("Tag: ") {
-							query = Some(format!("\"category:{category}\""));
-						} else {
-							query = Some(format!("\"genre:{value}\""));
-						}
+				FilterValue::Select { id, value } if id == "genre" => {
+					if let Some(category) = value.strip_prefix("Tag: ") {
+						query = Some(format!("\"category:{category}\""));
+					} else {
+						query = Some(format!("\"genre:{value}\""));
 					}
 				}
 				_ => {}
@@ -53,7 +51,7 @@ impl Source for Madokami {
 		}
 
 		if query.is_none() {
-			bail!("Enter a search term")
+			bail!("Enter a search term");
 		}
 
 		let mut qs = QueryParameters::new();

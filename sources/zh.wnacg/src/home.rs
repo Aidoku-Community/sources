@@ -85,7 +85,16 @@ impl Home for Wnacg {
 			.map(|res| res?.get_html()?.manga_page_result())
 			.map(|res| Ok(res?.entries));
 
-		let [daily, weekly, monthly, latest, doujinshi, single_volume, magazine, korean] = results;
+		let [
+			daily,
+			weekly,
+			monthly,
+			latest,
+			doujinshi,
+			single_volume,
+			magazine,
+			korean,
+		] = results;
 
 		if let Ok(daily) = daily
 			&& !daily.is_empty()

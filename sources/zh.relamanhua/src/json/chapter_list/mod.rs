@@ -52,8 +52,16 @@ impl From<Results> for Option<Vec<Chapter>> {
 			.collect();
 
 		groups.sort_by(|a, b| {
-			let a_max = a.iter().map(|c| c.date_uploaded.unwrap_or_default()).max().unwrap_or_default();
-			let b_max = b.iter().map(|c| c.date_uploaded.unwrap_or_default()).max().unwrap_or_default();
+			let a_max = a
+				.iter()
+				.map(|c| c.date_uploaded.unwrap_or_default())
+				.max()
+				.unwrap_or_default();
+			let b_max = b
+				.iter()
+				.map(|c| c.date_uploaded.unwrap_or_default())
+				.max()
+				.unwrap_or_default();
 			b_max.cmp(&a_max)
 		});
 

@@ -19,7 +19,7 @@ pub fn extract<T: DeserializeOwned>(body: &str, required_key: &str) -> Result<T>
 		return Ok(serde_json::from_value(found)?);
 	}
 
-	bail!("Unable to find {required_key} in RSC response")
+	bail!("Unable to find {required_key} in RSC response");
 }
 
 fn find_object(value: Value, required_key: &str) -> Option<Value> {

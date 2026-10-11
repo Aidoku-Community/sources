@@ -61,7 +61,9 @@ impl Source for Mangadotnet {
 						4 => "views",
 						5 => "tracked",
 						6 => "rating",
-						_ => bail!("Invalid sort index"),
+						_ => {
+							bail!("Invalid sort index");
+						}
 					};
 					let order = match ascending {
 						true => "asc",
@@ -105,7 +107,9 @@ impl Source for Mangadotnet {
 					}
 				}
 
-				_ => bail!("Invalid filter"),
+				_ => {
+					bail!("Invalid filter");
+				}
 			}
 		}
 
@@ -355,7 +359,9 @@ impl ListingProvider for Mangadotnet {
 						RECENTLY_ADDED_LISTING_ID => "recently-added",
 						MOST_TRACKED_LISTING_ID => "most-tracked",
 						TOP_RATED_LISTING_ID => "top-rated",
-						_ => bail!("Invalid listing id: {}", listing.id),
+						_ => {
+							bail!("Invalid listing id: {}", listing.id);
+						}
 					},
 					query_parameters
 				))?;
