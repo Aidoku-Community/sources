@@ -19,7 +19,8 @@
 			"https://reddit.com/gallery"
 		],
 		"contentRating": 0,
-		"languages": ["multi"]
+		"languages": ["multi"],
+		"minAppVersion": "0.7.1"
 	},
 	"config": {
 		"supportsTagSearch": true
