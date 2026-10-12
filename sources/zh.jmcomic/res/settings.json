@@ -1,31 +1,31 @@
 [
 	{
 		"type": "group",
-		"title": "账号",
+		"title": "帳號",
 		"items": [
 			{
 				"type": "login",
 				"key": "login",
-				"title": "登录",
+				"title": "登入",
 				"logoutTitle": "登出",
 				"method": "basic",
 				"notification": "login",
-				"refreshes": ["settings", "content"]
+				"refreshes": ["content"]
 			}
 		]
 	},
 	{
 		"type": "group",
-		"title": "屏蔽",
-		"footer": "支持填写漫画 ID，或会出现在标题、作者、简介、类别等位置的文本；命中后将会于可见处隐藏，并适时阻止访问。",
+		"title": "封鎖",
+		"footer": "可填寫漫畫 ID（JM123 或 123）、小說 ID（NVL123），或標題、作者、標籤等關鍵字。搜尋與瀏覽列表時由伺服器過濾關鍵字（連同搜尋詞合計 40 字以內），並由本地比對隱藏；開啟作品時比對完整資料並阻擋存取。",
 		"items": [
 			{
 				"type": "editable-list",
 				"key": "blockedMetadataKeywords",
-				"title": "内容屏蔽",
+				"title": "內容封鎖",
 				"lineLimit": 1,
 				"inline": true,
-				"placeholder": "输入需隐藏的关键字",
+				"placeholder": "輸入 ID 或關鍵字",
 				"refreshes": ["content"]
 			}
 		]

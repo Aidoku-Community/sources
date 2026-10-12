@@ -2,26 +2,33 @@
 	"info": {
 		"id": "zh.jmcomic",
 		"name": "禁漫天堂",
-		"version": 2,
+		"version": 3,
 		"languages": [
 			"zh"
 		],
 		"contentRating": 2,
 		"url": "https://18comic.vip",
-		"minAppVersion": "0.7.1"
+		"minAppVersion": "0.8.3"
 	},
 	"listings": [
 		{
 			"id": "o:mr",
-			"name": "最新漫画"
+			"name": "最近更新"
+		},
+		{
+			"id": "latest",
+			"name": "最新上傳"
 		},
 		{
 			"id": "o:tf",
-			"name": "最多爱心"
+			"name": "最多愛心"
+		},
+		{
+			"id": "cat:single",
+			"name": "單本推薦"
 		}
 	],
 	"config": {
-		"hidesFiltersWhileSearching": true,
 		"supportsTagSearch": true,
 		"supportsAuthorSearch": true
 	}

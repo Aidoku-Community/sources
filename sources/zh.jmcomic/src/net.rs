@@ -5,27 +5,29 @@ use aes::{
 use aidoku::{
 	Result,
 	alloc::{String, Vec, format},
-	error,
-	imports::net::{Request, Response},
+	bail, error,
+	helpers::uri::encode_uri_component,
+	imports::{
+		net::{Request, RequestError, Response},
+		std::current_date,
+	},
 };
 use base64::{Engine, engine::general_purpose::STANDARD};
+use core::cell::Cell;
 use serde::de::DeserializeOwned;
 
-use crate::models::{ApiOuter, AuthData, DomainRefreshResp, PromoteGroup, SearchResp, SettingData};
+use crate::models::{ApiOuter, AuthData, BlockState, DomainRefreshResp, SearchResp, SettingData};
 use crate::settings;
 
-const DOMAIN_REFRESH_URLS: [&str; 2] = [
-	"https://rup4a04-c01.tos-ap-southeast-1.bytepluses.com/newsvr-2025.txt",
+const DOMAIN_REFRESH_URLS: [&str; 3] = [
 	"https://rup4a04-c02.tos-cn-hongkong.bytepluses.com/newsvr-2025.txt",
+	"https://rup4a04-c01.tos-ap-southeast-1.bytepluses.com/newsvr-2025.txt",
+	"https://rup4a04-c03.tos-cn-beijing.bytepluses.com.cn/newsvr-2025.txt",
 ];
 const DOMAIN_REFRESH_SECRET: &str = "diosfjckwpqpdfjkvnqQjsik";
 
-const JM_VERSION: &str = "2.0.16";
-pub const JM_UA: &str = "Mozilla/5.0 (Linux; Android 10; K; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0.0.0 Mobile Safari/537.36";
-pub const JM_PKG: &str = "com.example.app";
-
-const JM_AUTH_KEY: &str = "18comicAPPContent";
-const JM_DATA_SECRET: &str = "185Hcomic3PAPP7R";
+const JM_VERSION: &str = "2.1.11";
+const JM_SECRET: &str = "185Hcomic3PAPP7R";
 
 // image CDN server preference order
 const PREFERRED_IMAGE_SHUNTS: [u8; 4] = [3, 2, 4, 1];
@@ -47,30 +49,105 @@ fn normalize_domain(domain: &str) -> Option<String> {
 pub struct ApiContext {
 	domain: String,
 	pub cdn_base: String,
+	failed: Cell<bool>,
 }
 
 impl ApiContext {
 	pub fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
-		api_get_on_domain(&self.domain, path)
+		let ts = current_ts();
+		decode(self.receive(self.request(path, ts)?.send())?, ts)
+	}
+
+	pub fn get_pair<A: DeserializeOwned, B: DeserializeOwned>(
+		&self,
+		first: &str,
+		second: &str,
+	) -> Result<(A, B)> {
+		let ts = current_ts();
+		let requests = [self.request(first, ts)?, self.request(second, ts)?];
+		let mut responses = Request::send_all(requests).into_iter();
+		let first = self.receive(responses.next().ok_or_else(|| error!("缺少回應"))?)?;
+		let second = self.receive(responses.next().ok_or_else(|| error!("缺少回應"))?)?;
+		Ok((decode(first, ts)?, decode(second, ts)?))
+	}
+
+	// list items have no tags, so blocked albums are also looked up by search
+	pub fn get_list<T: DeserializeOwned>(
+		&self,
+		path: &str,
+		order: &str,
+		category: &str,
+		block: &mut BlockState,
+	) -> Result<T> {
+		let Some(keywords) = block.lookup() else {
+			return self.get(path);
+		};
+		let lookup = url::search(&keywords, "site", order, category, 1);
+		let (list, matches): (T, SearchResp) = self.get_pair(path, &lookup)?;
+		block.hide(matches.content.into_iter().map(|item| item.id));
+		Ok(list)
+	}
+
+	pub fn login(&self, username: &str, password: &str) -> Result<AuthData> {
+		let ts = current_ts();
+		let url = format!("https://{}{}", self.domain, url::login_path());
+		let body = format!(
+			"username={}&password={}",
+			encode_uri_component(username),
+			encode_uri_component(password)
+		);
+		let request = with_auth(Request::post(&url)?, ts)
+			.header("content-type", "application/x-www-form-urlencoded")
+			.body(body.as_bytes());
+		let auth: AuthData = decode(self.receive(request.send())?, ts)?;
+		if !auth.is_valid() {
+			bail!("登入回應無效");
+		}
+		Ok(auth)
+	}
+
+	pub fn is_usable(&self) -> bool {
+		!self.failed.get()
+	}
+
+	fn request(&self, path: &str, ts: u64) -> Result<Request> {
+		let auth = settings::get_auth();
+		get_request_on_domain(
+			&self.domain,
+			path,
+			ts,
+			auth.as_ref().map(|auth| auth.jwt_token.as_str()),
+		)
+	}
+
+	fn receive(&self, resp: core::result::Result<Response, RequestError>) -> Result<ApiOuter> {
+		envelope(resp).inspect_err(|_| self.failed.set(true))
 	}
 }
 
-pub fn context() -> Result<ApiContext> {
+pub fn context(failed: Option<&ApiContext>) -> Result<ApiContext> {
 	let ts = current_ts();
-	for domain in fetch_domain_candidates() {
+	let mut domains = fetch_domain_candidates();
+	if let Some(i) = failed.and_then(|api| domains.iter().position(|d| *d == api.domain)) {
+		domains.rotate_left(i + 1);
+	}
+	for domain in domains {
 		for shunt in PREFERRED_IMAGE_SHUNTS {
-			if let Ok(setting) = api_get_on_domain_with_auth::<SettingData>(
-				&domain,
-				&url::setting_path(shunt),
-				ts,
-				None,
-			) && let Some(cdn_base) = setting.img_host.as_deref().and_then(normalize_cdn_base)
+			let setting = get_request_on_domain(&domain, &url::setting_path(shunt), ts, None)
+				.and_then(|request| envelope(request.send()))
+				.and_then(|outer| decode::<SettingData>(outer, ts));
+			if let Ok(setting) = setting
+				&& let Some(cdn_base) = setting.img_host.as_deref().and_then(normalize_cdn_base)
 			{
-				return Ok(ApiContext { domain, cdn_base });
+				return Ok(ApiContext {
+					domain,
+					cdn_base,
+					failed: Cell::default(),
+				});
 			}
 		}
 	}
-	Err(error!("当前所有域名都暂时不可用"))
+	bail!("目前所有網域都暫時無法使用")
 }
 
 pub mod url {
@@ -87,15 +164,20 @@ pub mod url {
 		format!("/chapter?id={}", id)
 	}
 
-	pub fn search(query: &str, order: &str, category: &str, page: i32) -> String {
+	pub fn search(
+		query: &str,
+		search_type: &str,
+		order: &str,
+		category: &str,
+		page: i32,
+	) -> String {
 		let q = encode_uri_component(query);
 		if category.is_empty() {
-			format!("/search?search_query={}&o={}&page={}", q, order, page)
+			format!("/search?search_query={q}&search_type={search_type}&o={order}&page={page}")
 		} else {
 			let c = encode_uri_component(category);
 			format!(
-				"/search?search_query={}&o={}&c={}&page={}",
-				q, order, c, page
+				"/search?search_query={q}&search_type={search_type}&o={order}&c={c}&page={page}"
 			)
 		}
 	}
@@ -113,8 +195,33 @@ pub mod url {
 		format!("/promote?page={}", page)
 	}
 
+	pub fn latest(page: i32) -> String {
+		format!("/latest?page={page}")
+	}
+
+	pub fn promote_list(id: &str, page: i32) -> String {
+		format!("/promote_list?id={id}&page={page}")
+	}
+
+	pub fn novels() -> &'static str {
+		"/novels?o=mr&t=a"
+	}
+
+	pub fn search_novels(query: &str, order: &str) -> String {
+		let q = encode_uri_component(query);
+		format!("/search_novels?search_query={q}&o={order}")
+	}
+
+	pub fn novel(id: &str) -> String {
+		format!("/novel?nid={id}")
+	}
+
+	pub fn novel_chapter(id: &str) -> String {
+		format!("/novelchapters?ncid={id}")
+	}
+
 	pub fn setting_path(shunt: u8) -> String {
-		format!("/setting?app_img_shunt={shunt}&express=")
+		format!("/setting?app_img_shunt={shunt}")
 	}
 
 	pub fn login_path() -> &'static str {
@@ -126,33 +233,14 @@ fn md5_hex(input: &[u8]) -> String {
 	format!("{:x}", md5::compute(input))
 }
 
-pub fn current_ts() -> u64 {
-	aidoku::imports::std::current_date() as u64
+fn current_ts() -> u64 {
+	current_date() as u64
 }
 
-fn api_auth(ts: u64) -> (String, String) {
-	(
-		md5_hex(format!("{ts}{JM_AUTH_KEY}").as_bytes()),
-		format!("{ts},{JM_VERSION}"),
-	)
-}
-
-fn with_user_agent(request: Request) -> Request {
-	request.header("user-agent", JM_UA)
-}
-
-fn with_api_headers(request: Request, token: &str, tokenparam: &str) -> Request {
-	with_user_agent(request)
-		.header("token", token)
-		.header("tokenparam", tokenparam)
-		.header("x-requested-with", JM_PKG)
-		.header("accept", "*/*")
-}
-
-fn with_browser_headers(request: Request) -> Request {
+fn with_auth(request: Request, ts: u64) -> Request {
 	request
-		.header("origin", "https://localhost")
-		.header("referer", "https://localhost/")
+		.header("token", &md5_hex(format!("{ts}{JM_SECRET}").as_bytes()))
+		.header("tokenparam", &format!("{ts},{JM_VERSION}"))
 }
 
 fn derive_aes_key(secret: &str) -> [u8; 32] {
@@ -162,100 +250,70 @@ fn derive_aes_key(secret: &str) -> [u8; 32] {
 	key
 }
 
-fn aes256_ecb_decrypt(ciphertext: &[u8], key: &[u8; 32]) -> Result<Vec<u8>> {
-	if ciphertext.is_empty() || !ciphertext.len().is_multiple_of(16) {
-		return Err(error!("响应数据长度异常：{}", ciphertext.len()));
+fn aes256_ecb_decrypt(mut data: Vec<u8>, key: &[u8; 32]) -> Result<Vec<u8>> {
+	if data.is_empty() || !data.len().is_multiple_of(16) {
+		bail!("回應資料長度異常：{}", data.len());
 	}
-	let cipher = Aes256::new_from_slice(key).map_err(|_| error!("解密器初始化失败"))?;
-	let mut data: Vec<u8> = ciphertext.into();
+	let cipher = Aes256::new_from_slice(key).map_err(|_| error!("解密器初始化失敗"))?;
 	for chunk in data.as_chunks_mut::<16>().0 {
 		cipher.decrypt_block(GenericArray::from_mut_slice(chunk));
 	}
-	let pad = *data.last().ok_or_else(|| error!("解密结果为空"))? as usize;
+	let pad = *data.last().ok_or_else(|| error!("解密結果為空"))? as usize;
 	if pad == 0 || pad > 16 || data.len() < pad {
-		return Err(error!("响应填充数据异常：{}", pad));
+		bail!("回應填充資料異常：{}", pad);
 	}
 	data.truncate(data.len() - pad);
 	Ok(data)
 }
 
 fn decrypt_data(data_b64: &str, ts: u64) -> Result<Vec<u8>> {
-	let key = derive_aes_key(&format!("{ts}{JM_DATA_SECRET}"));
+	let key = derive_aes_key(&format!("{ts}{JM_SECRET}"));
 	let ct = STANDARD
 		.decode(data_b64.as_bytes())
-		.map_err(|_| error!("响应解码失败"))?;
-	let raw = aes256_ecb_decrypt(&ct, &key)?;
-
-	let s = core::str::from_utf8(&raw).map_err(|_| error!("响应文本解析失败"))?;
-	if s.is_empty() {
-		return Err(error!("响应文本为空"));
+		.map_err(|_| error!("回應解碼失敗"))?;
+	let mut json = aes256_ecb_decrypt(ct, &key)?;
+	let start = json
+		.iter()
+		.position(|b| matches!(b, b'{' | b'['))
+		.unwrap_or(0);
+	let end = json
+		.iter()
+		.rposition(|b| matches!(b, b'}' | b']'))
+		.map_or(json.len(), |i| i + 1);
+	if start >= end {
+		bail!("回應邊界異常");
 	}
-	let start = s.find(['{', '[']).unwrap_or(0);
-	let end = s.rfind(['}', ']']).unwrap_or(s.len().saturating_sub(1));
-	let Some(json) = s.as_bytes().get(start..=end) else {
-		return Err(error!("响应边界异常"));
+	json.truncate(end);
+	json.drain(..start);
+	Ok(json)
+}
+
+fn envelope(resp: core::result::Result<Response, RequestError>) -> Result<ApiOuter> {
+	let body = resp?.get_string()?;
+	ApiOuter::parse(&body).map_err(|_| error!("外層回應解析失敗"))
+}
+
+fn decode<T: DeserializeOwned>(outer: ApiOuter, ts: u64) -> Result<T> {
+	let Some(data) = outer.data else {
+		match outer.error_msg.filter(|msg| !msg.is_empty()) {
+			Some(msg) => bail!("{msg}"),
+			None => bail!("外層回應解析失敗"),
+		}
 	};
-	Ok(json.into())
-}
-
-pub fn parse_response<T: DeserializeOwned>(resp: Response, ts: u64) -> Result<T> {
-	let body = resp.get_string()?;
-	let outer: ApiOuter = serde_json::from_str(&body).map_err(|_| error!("外层响应解析失败"))?;
-	let decrypted = decrypt_data(&outer.data, ts)?;
-	serde_json::from_slice(&decrypted).map_err(|_| error!("内容数据解析失败"))
-}
-
-fn api_get_on_domain<T: DeserializeOwned>(domain: &str, path: &str) -> Result<T> {
-	let auth = settings::get_auth();
-	let ts = current_ts();
-	api_get_on_domain_with_auth(
-		domain,
-		path,
-		ts,
-		auth.as_ref().map(|auth| auth.jwt_token.as_str()),
-	)
-}
-
-pub fn home_data(ctx: &ApiContext) -> Result<(Vec<PromoteGroup>, SearchResp)> {
-	let auth = settings::get_auth();
-	let ts = current_ts();
-	let bearer = auth.as_ref().map(|a| a.jwt_token.as_str());
-
-	let req1 = get_request_on_domain(&ctx.domain, &url::promote(0), ts, bearer)?;
-	let req2 = get_request_on_domain(&ctx.domain, &url::filter("mr", "single", 1), ts, bearer)?;
-
-	let mut responses = Request::send_all([req1, req2]).into_iter();
-	let groups: Vec<PromoteGroup> = responses
-		.next()
-		.ok_or_else(|| error!("响应缺失"))?
-		.map_err(|_| error!("请求失败"))
-		.and_then(|r| parse_response(r, ts))?;
-	let single: SearchResp = responses
-		.next()
-		.ok_or_else(|| error!("响应缺失"))?
-		.map_err(|_| error!("请求失败"))
-		.and_then(|r| parse_response(r, ts))?;
-
-	Ok((groups, single))
+	serde_json::from_slice(&decrypt_data(&data, ts)?).map_err(|_| error!("內容資料解析失敗"))
 }
 
 fn fetch_domain_candidates() -> Vec<String> {
 	let key = derive_aes_key(DOMAIN_REFRESH_SECRET);
 	for url in DOMAIN_REFRESH_URLS {
-		let Ok(resp) = Request::get(url)
-			.map(with_user_agent)
-			.and_then(|r| r.send())
-		else {
-			continue;
-		};
-		let Ok(ct_b64) = resp.get_string() else {
+		let Some(ct_b64) = Request::get(url).ok().and_then(|r| r.string().ok()) else {
 			continue;
 		};
 		let ct_b64 = ct_b64.trim().trim_start_matches('\u{feff}');
 		let Ok(ct) = STANDARD.decode(ct_b64.as_bytes()) else {
 			continue;
 		};
-		let Ok(raw) = aes256_ecb_decrypt(&ct, &key) else {
+		let Ok(raw) = aes256_ecb_decrypt(ct, &key) else {
 			continue;
 		};
 		if let Ok(parsed) = serde_json::from_slice::<DomainRefreshResp>(&raw)
@@ -277,70 +335,16 @@ fn fetch_domain_candidates() -> Vec<String> {
 	Vec::new()
 }
 
-fn api_get_on_domain_with_auth<T: DeserializeOwned>(
-	domain: &str,
-	path: &str,
-	ts: u64,
-	bearer_token: Option<&str>,
-) -> Result<T> {
-	let resp = get_request_on_domain(domain, path, ts, bearer_token)?.send()?;
-	parse_response(resp, ts)
-}
-
 fn get_request_on_domain(
 	domain: &str,
 	path: &str,
 	ts: u64,
 	bearer_token: Option<&str>,
 ) -> Result<Request> {
-	let (token, tokenparam) = api_auth(ts);
 	let url = format!("https://{}{}", domain, path);
-	let request = with_browser_headers(with_api_headers(Request::get(&url)?, &token, &tokenparam));
+	let request = with_auth(Request::get(&url)?, ts);
 	Ok(match bearer_token {
 		Some(t) => request.header("Authorization", &format!("Bearer {t}")),
 		None => request,
 	})
-}
-
-fn api_post_on_domain_with_token_and_ts<T: DeserializeOwned>(
-	domain: &str,
-	path: &str,
-	body: &[u8],
-	ts: u64,
-) -> Result<T> {
-	let (token, tokenparam) = api_auth(ts);
-	let url = format!("https://{}{}", domain, path);
-	let resp = with_browser_headers(with_api_headers(Request::post(&url)?, &token, &tokenparam))
-		.header("content-type", "application/x-www-form-urlencoded")
-		.body(body)
-		.send()?;
-	parse_response(resp, ts)
-}
-
-pub fn login(username: &str, password: &str) -> Result<AuthData> {
-	use aidoku::helpers::uri::encode_uri_component;
-	let body = format!(
-		"username={}&password={}",
-		encode_uri_component(username),
-		encode_uri_component(password)
-	);
-	let domains = fetch_domain_candidates();
-	if domains.is_empty() {
-		return Err(error!("域名列表为空"));
-	}
-	let mut last_error = None;
-	for domain in domains {
-		let ts = current_ts();
-		match api_post_on_domain_with_token_and_ts::<AuthData>(
-			&domain,
-			url::login_path(),
-			body.as_bytes(),
-			ts,
-		) {
-			Ok(auth) if auth.is_valid() => return Ok(auth),
-			Ok(_) => last_error = Some(error!("登录响应无效")),
-			Err(err) => last_error = Some(err),
-		}
-	}
-	Err(last_error.unwrap_or_else(|| error!("登录失败，请稍后再试")))
 }

@@ -1,71 +1,39 @@
-use crate::models::AuthData;
+use crate::models::{AuthData, BlockState};
 use aidoku::{
 	alloc::{String, Vec},
-	imports::defaults::{DefaultValue, defaults_get, defaults_set},
+	imports::defaults::{DefaultValue, defaults_get, defaults_get_json, defaults_set},
 };
-use serde::{Serialize, de::DeserializeOwned};
 
 const AUTH_DATA_KEY: &str = "authData";
-const JUST_LOGGED_IN_KEY: &str = "justLoggedIn";
+const USERNAME_KEY: &str = "login.username";
 const BLOCKED_CONTENT_KEY: &str = "blockedMetadataKeywords";
 
-fn get_str(key: &str) -> Option<String> {
-	defaults_get::<String>(key).filter(|v| !v.is_empty())
-}
-
-fn set_str(key: &str, value: &str) {
-	defaults_set(key, DefaultValue::String(value.into()));
-}
-
-fn get_json<T: DeserializeOwned>(key: &str) -> Option<T> {
-	get_str(key).and_then(|v| serde_json::from_str(&v).ok())
-}
-
-fn set_json<T: Serialize>(key: &str, value: &T) {
-	if let Ok(s) = serde_json::to_string(value) {
-		set_str(key, &s);
-	}
-}
-
 pub fn get_auth() -> Option<AuthData> {
-	get_json(AUTH_DATA_KEY).filter(AuthData::is_valid)
+	defaults_get_json(AUTH_DATA_KEY)
+		.ok()
+		.filter(AuthData::is_valid)
 }
 
 pub fn set_auth(auth: &AuthData) {
-	set_json(AUTH_DATA_KEY, auth);
+	if let Ok(json) = serde_json::to_string(auth) {
+		defaults_set(AUTH_DATA_KEY, DefaultValue::String(json));
+	}
 }
 
 pub fn clear_auth() {
 	defaults_set(AUTH_DATA_KEY, DefaultValue::Null);
-	defaults_set(JUST_LOGGED_IN_KEY, DefaultValue::Null);
 }
 
-pub fn set_just_logged_in() {
-	defaults_set(JUST_LOGGED_IN_KEY, DefaultValue::Bool(true));
+pub fn is_logged_in() -> bool {
+	defaults_get::<String>(USERNAME_KEY).is_some_and(|username| !username.is_empty())
 }
 
-pub fn is_just_logged_in() -> bool {
-	defaults_get::<bool>(JUST_LOGGED_IN_KEY).unwrap_or(false)
-}
-
-pub fn clear_just_logged_in() {
-	defaults_set(JUST_LOGGED_IN_KEY, DefaultValue::Null);
-}
-
-pub fn block_id_cache(keywords: &[String]) -> Option<Vec<String>> {
-	let (kw, ids): (Vec<String>, Vec<String>) = get_json("blockIdCache")?;
-	(kw == keywords).then_some(ids)
-}
-
-pub fn set_block_id_cache(keywords: &[String], ids: &[String]) {
-	set_json("blockIdCache", &(keywords, ids));
-}
-
-pub fn blocked_entries() -> Vec<String> {
-	defaults_get::<Vec<String>>(BLOCKED_CONTENT_KEY)
-		.unwrap_or_default()
-		.into_iter()
-		.map(|s| s.trim().to_lowercase())
-		.filter(|s| !s.is_empty())
-		.collect()
+pub fn block_state() -> BlockState {
+	BlockState::new(
+		defaults_get::<Vec<String>>(BLOCKED_CONTENT_KEY)
+			.unwrap_or_default()
+			.into_iter()
+			.map(|s| s.trim().to_lowercase())
+			.filter(|s| !s.is_empty()),
+	)
 }
