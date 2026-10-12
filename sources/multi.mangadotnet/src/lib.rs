@@ -54,7 +54,13 @@ impl Source for Mangadotnet {
 					index, ascending, ..
 				} => {
 					let value = match index {
-						0 => "relevance",
+						0 => {
+							if query.is_none() {
+								"relevance"
+							} else {
+								"latest"
+							}
+						}
 						1 => "latest",
 						2 => "alphabetical",
 						3 => "chapters",
@@ -91,17 +97,21 @@ impl Source for Mangadotnet {
 						}
 					} else {
 						let mut items = Vec::new();
+						let mut new_id = id.as_str();
+
+						if id == "genre" {
+							new_id = "genres";
+						}
 
 						for include_id in included {
 							items.push(include_id)
 						}
 
 						for excluded_id in excluded {
-							let id = format!("-{excluded_id}");
-							items.push(id)
+							items.push(format!("-{excluded_id}"))
 						}
 
-						query_parameters.push(&id, Some(&items.join(",")));
+						query_parameters.push(new_id, Some(&items.join(",")));
 					}
 				}
 
@@ -136,6 +146,7 @@ impl Source for Mangadotnet {
 			}
 		} else {
 			// Requires new search api, or it doesn't work...
+			query_parameters.push("limit", Some("28"));
 			query_parameters.push("cursor", self.cursor.borrow().as_deref());
 
 			let payload: SearchPayload =
