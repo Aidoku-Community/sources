@@ -4,8 +4,8 @@ use aidoku::{
 	imports::{defaults::defaults_get, net::Request},
 };
 
-pub const BASE_URL: &str = "https://kagane.to";
-pub const API_BASE: &str = "https://kagane.to/api/v2";
+pub const BASE_URL: &str = "https://kagane.org";
+pub const API_BASE: &str = "https://kagane.org/api/v2";
 
 /// Sort field by the position of the option in `res/filters.json`.
 pub const SORT_PARAMS: &[&str] = &[

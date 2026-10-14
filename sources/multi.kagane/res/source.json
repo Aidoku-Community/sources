@@ -2,8 +2,8 @@
 	"info": {
 		"id": "multi.kagane",
 		"name": "Kagane",
-		"version": 3,
-		"url": "https://kagane.to",
+		"version": 4,
+		"url": "https://kagane.org",
 		"minAppVersion": "0.7.1",
 		"contentRating": 1,
 		"languages": [
