@@ -156,7 +156,7 @@ impl MangaPage for Document {
 		manga.description = Some(full_description);
 		// Status is already set above based on title
 		manga.update_strategy = aidoku::UpdateStrategy::Never;
-		manga.url = Some(Url::manga(manga.key.clone()).to_string());
+		manga.url = Some(Url::manga(manga.key.clone()).to_string()?);
 
 		Ok(())
 	}
@@ -170,7 +170,7 @@ impl ChapterPage for Document {
 	fn chapters(&self, manga_id: &str) -> Result<Vec<aidoku::Chapter>> {
 		let mut chapters: Vec<aidoku::Chapter> = Vec::new();
 
-		let url = Url::manga(manga_id.to_string()).to_string();
+		let url = Url::manga(manga_id.to_string()).to_string()?;
 
 		// Try to get upload date from the page
 		let date_uploaded = self.try_select_first(".info_col")?.text().and_then(|text| {

@@ -8,19 +8,19 @@ use aidoku::{
 	prelude::*,
 };
 use html::{ChapterPage as _, MangaPage as _};
-use net::Url;
+use net::{Url, base_url};
 
 mod home;
 mod html;
 mod net;
 
-pub const BASE_URL: &str = "https://www.wnacg.com";
 pub const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
 
 pub fn create_request(path: &str) -> Result<Request> {
-	Ok(Request::get(format!("{}{}", BASE_URL, path))?
+	let base_url = base_url()?;
+	Ok(Request::get(format!("{base_url}{path}"))?
 		.header("User-Agent", USER_AGENT)
-		.header("Origin", BASE_URL))
+		.header("Origin", &base_url))
 }
 
 struct Wnacg;
@@ -88,14 +88,13 @@ impl ImageRequestProvider for Wnacg {
 	) -> Result<Request> {
 		Ok(Request::get(url)?
 			.header("User-Agent", USER_AGENT)
-			.header("Referer", BASE_URL))
+			.header("Referer", &base_url()?))
 	}
 }
 
 impl DeepLinkHandler for Wnacg {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let url = url.trim_start_matches(BASE_URL);
-		let mut splits = url.split('/').skip(1);
+		let mut splits = url.split('/').skip(3);
 		let deep_link_result = match splits.next() {
 			Some("photos-index-aid") => match splits.next() {
 				Some(id) => {

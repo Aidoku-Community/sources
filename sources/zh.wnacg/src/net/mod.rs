@@ -1,9 +1,10 @@
-use crate::{BASE_URL, USER_AGENT};
+use crate::USER_AGENT;
 use aidoku::{
 	FilterValue, Result,
-	alloc::{String, string::ToString as _},
+	alloc::{String, format},
+	error,
 	helpers::uri::encode_uri,
-	imports::net::Request,
+	imports::{defaults::defaults_get, net::Request},
 };
 use core::fmt::{Display, Formatter, Result as FmtResult};
 
@@ -26,9 +27,18 @@ pub enum Url {
 	},
 }
 
+pub fn base_url() -> Result<String> {
+	defaults_get::<String>("url")
+		.ok_or_else(|| error!("Default not exist or not string for key: `url`"))
+}
+
 impl Url {
+	pub fn to_string(&self) -> Result<String> {
+		Ok(format!("{}{self}", base_url()?))
+	}
+
 	pub fn request(&self) -> Result<Request> {
-		let url = self.to_string();
+		let url = self.to_string()?;
 		Ok(Request::get(url)?.header("User-Agent", USER_AGENT))
 	}
 
@@ -89,8 +99,8 @@ impl Display for Url {
 			Url::Search { query, page } => {
 				write!(
 					f,
-					"{}/search/index.php?q={}&s=create_time_DESC&syn=yes&p={}",
-					BASE_URL, query, page
+					"/search/index.php?q={}&s=create_time_DESC&syn=yes&p={}",
+					query, page
 				)
 			}
 			Url::Filter {
@@ -99,24 +109,16 @@ impl Display for Url {
 				page,
 			} => {
 				if tag.is_empty() {
-					write!(
-						f,
-						"{}/albums-index-page-{}-cate-{}.html",
-						BASE_URL, page, category
-					)
+					write!(f, "/albums-index-page-{}-cate-{}.html", page, category)
 				} else {
-					write!(
-						f,
-						"{}/albums-index-page-{}-tag-{}.html",
-						BASE_URL, page, tag
-					)
+					write!(f, "/albums-index-page-{}-tag-{}.html", page, tag)
 				}
 			}
 			Url::Manga { id } => {
-				write!(f, "{}/photos-index-aid-{}.html", BASE_URL, id)
+				write!(f, "/photos-index-aid-{}.html", id)
 			}
 			Url::Chapter { id } => {
-				write!(f, "{}/photos-gallery-aid-{}.html", BASE_URL, id)
+				write!(f, "/photos-gallery-aid-{}.html", id)
 			}
 		}
 	}
