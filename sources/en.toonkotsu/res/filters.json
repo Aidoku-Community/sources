@@ -1,0 +1,125 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"options": [
+			"Best Match",
+			"Updated Date",
+			"Uploaded Date",
+			"Created Date",
+			"Rating",
+			"View Count",
+			"Follow Count",
+			"Chapter Count",
+			"Year",
+			"Title"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "demographics",
+		"title": "Demographic",
+		"options": [
+			"Shounen",
+			"Shoujo",
+			"Seinen",
+			"Josei",
+			"None"
+		],
+		"ids": [
+			"shounen",
+			"shoujo",
+			"seinen",
+			"josei",
+			"none"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "languages",
+		"title": "Original Language",
+		"options": [
+			"Japanese",
+			"Japanese (Romanized)",
+			"Korean",
+			"Korean (Romanized)",
+			"Chinese",
+			"Chinese (Hong Kong)",
+			"Chinese (Romanized)",
+			"English",
+			"Other"
+		],
+		"ids": [
+			"ja",
+			"ja-ro",
+			"ko",
+			"ko-ro",
+			"zh",
+			"zh-hk",
+			"zh-ro",
+			"en",
+			"xx"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "statuses",
+		"title": "Publication Status",
+		"options": [
+			"Ongoing",
+			"Completed",
+			"Hiatus",
+			"Cancelled"
+		],
+		"ids": [
+			"Ongoing",
+			"Complete",
+			"Hiatus",
+			"Canceled"
+		]
+	},
+	{
+		"type": "select",
+		"id": "genre_mode",
+		"title": "Included Tags Must Match",
+		"options": [
+			"All",
+			"Any"
+		],
+		"ids": [
+			"all",
+			"any"
+		]
+	},
+	{
+		"type": "select",
+		"id": "exclude_mode",
+		"title": "Excluded Tags Must Match",
+		"options": [
+			"Any",
+			"All"
+		],
+		"ids": [
+			"any",
+			"all"
+		]
+	},
+	{
+		"type": "text",
+		"id": "author",
+		"title": "Author",
+		"placeholder": "e.g. Oda Eiichiro"
+	},
+	{
+		"type": "range",
+		"id": "year",
+		"title": "Release Year",
+		"min": 1900
+	},
+	{
+		"type": "range",
+		"id": "chapters",
+		"title": "Chapter Count",
+		"min": 0
+	}
+]

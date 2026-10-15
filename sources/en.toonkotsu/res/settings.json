@@ -1,0 +1,145 @@
+[
+	{
+		"type": "group",
+		"title": "Content",
+		"footer": "Applies to Discover, listings and search. Pornographic titles are only requested when that rating is on.",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "contentRatings",
+				"title": "Content Ratings",
+				"values": [
+					"safe",
+					"suggestive",
+					"erotica",
+					"pornographic"
+				],
+				"titles": [
+					"Safe",
+					"Suggestive",
+					"Erotica",
+					"Pornographic"
+				],
+				"default": [
+					"safe",
+					"suggestive",
+					"erotica"
+				],
+				"refreshes": [
+					"content",
+					"filters"
+				]
+			},
+			{
+				"type": "multi-select",
+				"key": "types",
+				"title": "Types",
+				"values": [
+					"manga",
+					"manhwa",
+					"manhua",
+					"oel",
+					"other"
+				],
+				"titles": [
+					"Manga",
+					"Manhwa",
+					"Manhua",
+					"OEL",
+					"Other"
+				],
+				"default": [
+					"manga",
+					"manhwa",
+					"manhua",
+					"oel",
+					"other"
+				],
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Chapters",
+		"footer": "Deduplicate Chapters lists only the upload the site shows first for each chapter, rather than one from every group. Upload Size keeps each of a group's uploads of a chapter, with its size at the end of the title, where otherwise only the best is listed.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "deduplicateChapters",
+				"title": "Deduplicate Chapters",
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "switch",
+				"key": "showUploadSize",
+				"title": "Upload Size",
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Home",
+		"footer": "Turn off the sections you don't read to make Discover load faster.",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "homeSections",
+				"title": "Sections",
+				"values": [
+					"views",
+					"trending",
+					"seasonal",
+					"gems",
+					"latest",
+					"new",
+					"completed"
+				],
+				"titles": [
+					"Most Read",
+					"Trending",
+					"This Season",
+					"Hidden Gems",
+					"Latest Updates",
+					"Recently Added",
+					"Completed"
+				],
+				"default": [
+					"views",
+					"trending",
+					"seasonal",
+					"gems",
+					"latest",
+					"new",
+					"completed"
+				],
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Human Check",
+		"footer": "Toonkotsu asks guests to confirm they're human after reading a while. When a chapter stops with that message, open this, read any chapter until the check appears, pass it, then close the page. Reset clears the session it kept.",
+		"items": [
+			{
+				"type": "login",
+				"method": "web",
+				"key": "verify",
+				"title": "Pass Human Check",
+				"logoutTitle": "Reset Session",
+				"url": "https://toonkotsu.com/",
+				"clearCookiesOnLogOut": true
+			}
+		]
+	}
+]

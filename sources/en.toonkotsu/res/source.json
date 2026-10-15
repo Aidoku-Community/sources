@@ -1,0 +1,39 @@
+{
+	"info": {
+		"id": "en.toonkotsu",
+		"name": "Toonkotsu",
+		"version": 1,
+		"url": "https://toonkotsu.com",
+		"contentRating": 1,
+		"minAppVersion": "0.9.0",
+		"languages": [
+			"en"
+		]
+	},
+	"listings": [
+		{
+			"id": "views",
+			"name": "Most Read"
+		},
+		{
+			"id": "trending",
+			"name": "Trending"
+		},
+		{
+			"id": "seasonal",
+			"name": "This Season"
+		},
+		{
+			"id": "gems",
+			"name": "Hidden Gems"
+		},
+		{
+			"id": "new",
+			"name": "Recently Added"
+		},
+		{
+			"id": "completed",
+			"name": "Completed"
+		}
+	]
+}
