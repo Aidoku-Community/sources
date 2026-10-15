@@ -136,8 +136,6 @@ pub struct MangaItem {
 	pub artists: Option<StringOrVec>,
 	pub authors: Option<StringOrVec>,
 	pub status: String,
-	#[serde(deserialize_with = "bool_from_any")]
-	pub hiatus: bool,
 	pub content_rating: Option<String>,
 	#[serde(deserialize_with = "bool_from_any")]
 	pub is_adult: bool,
@@ -160,13 +158,8 @@ impl From<MangaItem> for Manga {
 			url: Some(format!("{BASE_URL}/manga/{}", value.id)),
 			tags: value.genres,
 			status: match value.status.as_str() {
-				"Ongoing" => {
-					if value.hiatus {
-						MangaStatus::Hiatus
-					} else {
-						MangaStatus::Ongoing
-					}
-				}
+				"Hiatus" => MangaStatus::Hiatus,
+				"Ongoing" => MangaStatus::Ongoing,
 				"Completed" => MangaStatus::Completed,
 				_ => MangaStatus::Unknown,
 			},
