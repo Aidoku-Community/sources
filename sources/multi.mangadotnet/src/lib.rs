@@ -56,9 +56,9 @@ impl Source for Mangadotnet {
 					let value = match index {
 						0 => {
 							if query.is_none() {
-								"relevance"
-							} else {
 								"latest"
+							} else {
+								"relevance"
 							}
 						}
 						1 => "latest",
