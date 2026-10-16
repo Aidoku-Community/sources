@@ -3,6 +3,7 @@ use crate::{
 	api::{self, BASE_URL, json_request},
 	helpers::is_unlisted_tag,
 	models::{Facet, Facets},
+	settings,
 };
 use aidoku::{
 	DynamicFilters, DynamicSettings, Filter, GroupSetting, MultiSelectFilter, MultiSelectSetting,
@@ -48,7 +49,7 @@ pub fn group_index(name: &str, category: Option<&str>) -> usize {
 /// Tags the site offers for browsing, leaving out the explicit ones unless pornographic titles
 /// are on, as the site does.
 fn listed_facets() -> Result<Vec<Facet>> {
-	let sfw = if api::sfw() { 1 } else { 0 };
+	let sfw = u8::from(api::sfw(&settings::content_ratings()));
 	let facets: Facets =
 		api::parse(json_request(format!("{BASE_URL}/cdn/v1/facets?sfw={sfw}"))?.send()?)?;
 	Ok(facets

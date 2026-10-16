@@ -100,6 +100,8 @@ impl Source for Toonkotsu {
 				} => match id.as_str() {
 					"demographics" => params.demographics = included,
 					"statuses" => params.statuses = included,
+					// Overrides the content ratings setting for this search.
+					"ratings" => params.ratings = included,
 					"languages" => params.original_languages = included,
 					// Every tag group filters the one pair of catalogue parameters.
 					_ if filters::GROUPS.iter().any(|(group, _)| *group == id) => {
@@ -108,6 +110,9 @@ impl Source for Toonkotsu {
 					}
 					_ => {}
 				},
+				FilterValue::Check { id, value } if id == "has_chapters" => {
+					params.has_chapters = value == 1
+				}
 				_ => {}
 			}
 		}
@@ -121,7 +126,11 @@ impl Source for Toonkotsu {
 			params.sort = "latest".into();
 		}
 
-		api::series_page(api::browse_request(&params)?.send()?, Series::into_manga)
+		api::series_page(
+			api::browse_request(&params)?.send()?,
+			&params.ratings,
+			Series::into_manga,
+		)
 	}
 
 	/// One request carries both the details and the chapter list.
@@ -158,7 +167,7 @@ impl Source for Toonkotsu {
 impl ListingProvider for Toonkotsu {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let response = home::section_request(&listing.id, page)?.send()?;
-		api::series_page(response, Series::into_manga)
+		api::series_page(response, &settings::content_ratings(), Series::into_manga)
 	}
 }
 

@@ -58,8 +58,8 @@ fn listing(id: &str, name: &str) -> Option<Listing> {
 	})
 }
 
-fn links(response: Response) -> Result<Vec<Link>> {
-	Ok(api::series_page(response, Series::into_manga)?
+fn links(response: Response, ratings: &[String]) -> Result<Vec<Link>> {
+	Ok(api::series_page(response, ratings, Series::into_manga)?
 		.entries
 		.into_iter()
 		.map(Link::from)
@@ -67,13 +67,13 @@ fn links(response: Response) -> Result<Vec<Link>> {
 }
 
 /// The feed lists every new chapter, where the site shows each title once, at its newest.
-fn latest_entries(response: Response) -> Result<Vec<MangaWithChapter>> {
+fn latest_entries(response: Response, ratings: &[String]) -> Result<Vec<MangaWithChapter>> {
 	let mut entries: Vec<MangaWithChapter> = Vec::new();
 	for item in api::parse::<LatestList>(response)?
 		.items
 		.unwrap_or_default()
 	{
-		if !allows(&item.series) {
+		if !allows(&item.series, ratings) {
 			continue;
 		}
 		let Some(manga) = item.series.into_manga() else {
@@ -93,25 +93,31 @@ fn latest_entries(response: Response) -> Result<Vec<MangaWithChapter>> {
 	Ok(entries)
 }
 
-fn fill(layout: Layout, id: &str, name: &str, response: Response) -> Result<HomeComponentValue> {
+fn fill(
+	layout: Layout,
+	id: &str,
+	name: &str,
+	response: Response,
+	ratings: &[String],
+) -> Result<HomeComponentValue> {
 	Ok(match layout {
 		Layout::Featured => HomeComponentValue::BigScroller {
-			entries: api::series_page(response, Series::into_full_manga)?.entries,
+			entries: api::series_page(response, ratings, Series::into_full_manga)?.entries,
 			auto_scroll_interval: None,
 		},
 		Layout::Ranked => HomeComponentValue::MangaList {
 			ranking: true,
 			page_size: Some(5),
-			entries: links(response)?,
+			entries: links(response, ratings)?,
 			listing: listing(id, name),
 		},
 		Layout::Chapters => HomeComponentValue::MangaChapterList {
 			page_size: Some(5),
-			entries: latest_entries(response)?,
+			entries: latest_entries(response, ratings)?,
 			listing: None,
 		},
 		Layout::Row => HomeComponentValue::Scroller {
-			entries: links(response)?,
+			entries: links(response, ratings)?,
 			listing: listing(id, name),
 		},
 	})
@@ -144,6 +150,7 @@ impl Home for Toonkotsu {
 				.collect(),
 		}));
 
+		let ratings = settings::content_ratings();
 		let requests = sections
 			.iter()
 			.map(|(id, ..)| section_request(id, 1))
@@ -152,7 +159,7 @@ impl Home for Toonkotsu {
 		{
 			let Ok(value) = response
 				.map_err(Into::into)
-				.and_then(|response| fill(*layout, id, name, response))
+				.and_then(|response| fill(*layout, id, name, response, &ratings))
 			else {
 				continue;
 			};

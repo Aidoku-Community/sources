@@ -1,4 +1,4 @@
-use crate::{api::BASE_URL, models::Series, settings};
+use crate::{api::BASE_URL, models::Series};
 use aidoku::{
 	alloc::{String, format},
 	imports::html::Html,
@@ -29,11 +29,9 @@ pub fn rating_id(series: &Series) -> &'static str {
 	}
 }
 
-pub fn allows(series: &Series) -> bool {
+pub fn allows(series: &Series, ratings: &[String]) -> bool {
 	let rating = rating_id(series);
-	settings::content_ratings()
-		.iter()
-		.any(|value| value == rating)
+	ratings.iter().any(|value| value == rating)
 }
 
 pub fn absolute_url(path: &str) -> String {
