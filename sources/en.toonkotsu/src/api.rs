@@ -98,7 +98,6 @@ impl BrowseParams {
 	}
 }
 
-/// Pornographic titles are kept out of the catalogue unless that rating is on.
 pub fn sfw() -> bool {
 	!settings::content_ratings()
 		.iter()
@@ -118,6 +117,17 @@ pub fn json_request(url: String) -> Result<Request> {
 
 pub fn browse_request(params: &BrowseParams) -> Result<Request> {
 	json_request(format!("{BASE_URL}/cdn/v1/browse?{}", params.query()))
+}
+
+/// The latest feed takes the settings but not the search filters.
+pub fn latest_request(page: i32) -> Result<Request> {
+	let params = BrowseParams {
+		page,
+		types: settings::types(),
+		excluded_genres: settings::hidden_tags(),
+		..Default::default()
+	};
+	json_request(format!("{BASE_URL}/cdn/v1/latest?{}", params.query()))
 }
 
 /// Reader rankings, which browse does not serve.

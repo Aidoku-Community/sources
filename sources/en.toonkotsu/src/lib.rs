@@ -74,6 +74,8 @@ impl Source for Toonkotsu {
 				FilterValue::Select { id, value } => match id.as_str() {
 					"genre_mode" => params.genre_mode = value,
 					"exclude_mode" => params.exclude_mode = value,
+					// Sent when a tag is tapped
+					"genre" => params.included_genres.push(value),
 					_ => {}
 				},
 				FilterValue::Text { id, value } if id == "author" => params.author = value,

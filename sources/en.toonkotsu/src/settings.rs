@@ -42,7 +42,6 @@ pub fn show_upload_size() -> bool {
 	defaults_get::<bool>("showUploadSize").unwrap_or_default()
 }
 
-/// The home sections to load, or every one when the setting was never stored.
 pub fn home_sections() -> Option<Vec<String>> {
 	defaults_get::<Vec<String>>("homeSections")
 }

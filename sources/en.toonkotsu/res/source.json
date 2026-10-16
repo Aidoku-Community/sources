@@ -35,5 +35,8 @@
 			"id": "completed",
 			"name": "Completed"
 		}
-	]
+	],
+	"config": {
+		"supportsTagSearch": true
+	}
 }

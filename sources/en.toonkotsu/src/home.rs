@@ -1,9 +1,6 @@
 use crate::{
 	Toonkotsu,
-	api::{
-		self, BASE_URL, BrowseParams, PAGE_SIZE, browse_request, discovery_request, json_request,
-		ranking_request,
-	},
+	api::{self, BrowseParams, browse_request, discovery_request, latest_request, ranking_request},
 	helpers::allows,
 	models::{LatestList, Series},
 	settings,
@@ -42,10 +39,7 @@ pub fn section_request(id: &str, page: i32) -> Result<Request> {
 	match id {
 		"views" => ranking_request(id, &BrowseParams::new("latest", page)),
 		"trending" | "gems" => discovery_request(id, &BrowseParams::new("latest", page)),
-		"latest" => json_request(format!(
-			"{BASE_URL}/cdn/v1/latest?page={page}&limit={PAGE_SIZE}{}",
-			if api::sfw() { "&sfw=1" } else { "" }
-		)),
+		"latest" => latest_request(page),
 		"seasonal" | "completed" => {
 			let mut params = BrowseParams::new("latest", page);
 			params.discovery = id.into();
@@ -124,7 +118,6 @@ fn fill(layout: Layout, id: &str, name: &str, response: Response) -> Result<Home
 }
 
 impl Home for Toonkotsu {
-	/// Each section loads on its own, so one that fails stays empty without failing the page.
 	fn get_home(&self) -> Result<HomeLayout> {
 		let shown = settings::home_sections();
 		let sections: Vec<_> = SECTIONS
