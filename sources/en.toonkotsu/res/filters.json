@@ -17,6 +17,24 @@
 	},
 	{
 		"type": "multi-select",
+		"id": "ratings",
+		"title": "Content Rating",
+		"usesTagStyle": true,
+		"options": [
+			"Safe",
+			"Suggestive",
+			"Erotica",
+			"Pornographic"
+		],
+		"ids": [
+			"safe",
+			"suggestive",
+			"erotica",
+			"pornographic"
+		]
+	},
+	{
+		"type": "multi-select",
 		"id": "demographics",
 		"title": "Demographic",
 		"options": [
@@ -121,5 +139,10 @@
 		"id": "chapters",
 		"title": "Chapter Count",
 		"min": 0
+	},
+	{
+		"type": "check",
+		"id": "has_chapters",
+		"title": "Has Chapters"
 	}
 ]
