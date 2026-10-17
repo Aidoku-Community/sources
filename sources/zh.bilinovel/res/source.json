@@ -1,0 +1,34 @@
+{
+	"info": {
+		"id": "zh.bilinovel",
+		"name": "哔哩轻小说",
+		"version": 1,
+		"url": "https://www.bilinovel.com",
+		"contentRating": 1,
+		"languages": ["zh"],
+		"minAppVersion": "0.8.3"
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true,
+		"supportsAuthorSearch": true,
+		"supportsTagSearch": true
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "最近更新"
+		},
+		{
+			"id": "new",
+			"name": "最新入库"
+		},
+		{
+			"id": "popular",
+			"name": "排行榜"
+		},
+		{
+			"id": "completed",
+			"name": "人气完本"
+		}
+	]
+}
