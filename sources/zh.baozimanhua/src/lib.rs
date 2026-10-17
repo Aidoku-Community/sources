@@ -8,14 +8,18 @@ use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, ImageRequestProvider, Manga, MangaPageResult, Page,
 	Result, Source,
 	alloc::{String, Vec},
-	imports::net::Request,
+	imports::{defaults::defaults_get, net::Request},
 	prelude::*,
 };
 use html::{ChapterPage as _, MangaPage as _, PageList as _};
 use json::ApiResponse;
 use net::Url;
 
-pub const BASE_URL: &str = "https://www.baozimh.com";
+pub const BASE_URL: &str = "https://www.webmota.com";
+
+pub fn base_url() -> String {
+	defaults_get::<String>("url").unwrap_or_else(|| BASE_URL.into())
+}
 
 struct Baozimanhua;
 
@@ -78,15 +82,28 @@ impl ImageRequestProvider for Baozimanhua {
 		url: String,
 		_context: Option<aidoku::PageContext>,
 	) -> Result<Request> {
+		// *.bzcdn.net edge nodes are unreliable (geo-routed 302s to flaky
+		// regional nodes); the same images are served directly by baozimh.com
 		let url = url.replace(".baozicdn.com", ".baozimh.com");
-		Ok(Request::get(url)?.header("Referer", BASE_URL))
+		let url = url.replace(".bzcdn.net", ".baozimh.com");
+		Ok(Request::get(url)?.header("Referer", &base_url()))
 	}
 }
 
 impl DeepLinkHandler for Baozimanhua {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let url = url.trim_start_matches(BASE_URL);
-		let mut splits = url.split('/').skip(1);
+		// Strip scheme and host to get the path, regardless of mirror domain
+		let path = match url.find("://") {
+			Some(pos) => {
+				let rest = &url[pos + 3..];
+				match rest.find('/') {
+					Some(slash) => &rest[slash..],
+					None => "",
+				}
+			}
+			None => url.as_str(),
+		};
+		let mut splits = path.split('/').skip(1);
 		let deep_link_result = match splits.next() {
 			Some("comic") => {
 				match (splits.next(), splits.next()) {

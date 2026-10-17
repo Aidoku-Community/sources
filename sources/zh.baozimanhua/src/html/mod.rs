@@ -1,4 +1,4 @@
-use crate::{BASE_URL, net::Url};
+use crate::{base_url, net::Url};
 use aidoku::{
 	Manga, MangaPageResult, MangaStatus, Page, Result, Viewer,
 	alloc::{String, Vec, string::ToString as _, vec},
@@ -129,7 +129,7 @@ impl MangaPage for Document {
 			_ => MangaStatus::Unknown,
 		};
 
-		manga.url = Some(Url::manga(manga.key.clone()).to_string());
+		manga.url = Some(Url::manga(manga.key.clone()).to_string()?);
 		Ok(())
 	}
 
@@ -167,37 +167,11 @@ impl MangaPage for Document {
 				.and_then(|h3| h3.text())
 				.unwrap_or_default();
 
-			let artist = item
-				.select_first("small")
-				.and_then(|small| small.text())
-				.map(|text| {
-					let mut artists: Vec<String> = text
-						.split(',')
-						.map(|s| s.trim().to_string())
-						.filter(|s| !s.is_empty())
-						.collect();
-					artists.dedup();
-					artists.join(", ")
-				})
-				.unwrap_or_default();
-
-			let tags = item
-				.select("span")
-				.map(|spans| {
-					spans
-						.filter_map(|span| span.text())
-						.filter(|t| !t.is_empty())
-						.collect::<Vec<String>>()
-				})
-				.unwrap_or_default();
-
 			entries.push(Manga {
 				key,
 				cover,
 				title,
-				authors: Some(vec![artist]),
-				url: Some(format!("{}{}", BASE_URL, url)),
-				tags: Some(tags),
+				url: Some(format!("{}{}", base_url(), url)),
 				..Default::default()
 			});
 		}
@@ -266,7 +240,7 @@ impl ChapterPage for Document {
 				title: Some(title),
 				volume_number: (vo >= 0.0).then_some(vo),
 				chapter_number: (ch >= 0.0).then_some(ch),
-				url: Some(format!("{}{}", BASE_URL, url)),
+				url: Some(format!("{}{}", base_url(), url)),
 				scanlators: Some(vec![scanlator]),
 				..Default::default()
 			});
@@ -290,7 +264,7 @@ pub trait PageList {
 
 impl PageList for Document {
 	fn pages(&self) -> Result<Vec<Page>> {
-		let items = self.try_select("img.comic-contain__item")?;
+		let items = self.try_select("amp-img.comic-contain__item")?;
 
 		let pages = items
 			.filter_map(|item| {

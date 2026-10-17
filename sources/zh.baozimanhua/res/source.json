@@ -2,26 +2,30 @@
 	"info": {
 		"id": "zh.baozimanhua",
 		"name": "包子漫畫",
-		"version": 5,
+		"version": 6,
 		"urls": [
-			"https://www.baozimh.com",
-			"https://tw.baozimh.com",
 			"https://www.webmota.com",
+			"https://cn.webmota.com",
 			"https://tw.webmota.com",
-			"https://www.czmanga.com",
-			"https://tw.czmanga.com",
-			"https://www.dinnerku.com",
-			"https://tw.dinnerku.com",
-			"https://www.dociy.net",
-			"https://tw.dociy.net",
 			"https://www.twmanga.com",
-			"https://tw.twmanga.com"
+			"https://cn.twmanga.com",
+			"https://tw.twmanga.com",
+			"https://www.dinnerku.com",
+			"https://cn.dinnerku.com",
+			"https://tw.dinnerku.com",
+			"https://www.kukuc.co",
+			"https://cn.kukuc.co",
+			"https://tw.kukuc.co",
+			"https://www.baozimh.com",
+			"https://cn.baozimh.com",
+			"https://tw.baozimh.com"
 		],
 		"contentRating": 1,
 		"languages": ["zh"],
 		"minAppVersion": "0.7.1"
 	},
 	"config": {
+		"allowsBaseUrlSelect": true,
 		"hidesFiltersWhileSearching": true,
 		"supportsAuthorSearch": true,
 		"supportsTagSearch": true

@@ -1,13 +1,11 @@
-use crate::BASE_URL;
+use crate::base_url;
 use aidoku::{
 	FilterValue, Result,
-	alloc::{String, string::ToString as _},
+	alloc::{String, format, string::ToString as _},
 	helpers::uri::encode_uri,
 	imports::net::Request,
 };
 use core::fmt::{Display, Formatter, Result as FmtResult};
-
-pub const APP_BASE_URL: &str = "https://appcn.baozimh.com";
 
 const GENRE_OPTIONS: &[&str] = &[
 	"戀愛",
@@ -87,16 +85,17 @@ pub enum Url {
 }
 
 impl Url {
+	pub fn to_string(&self) -> Result<String> {
+		Ok(format!("{}{self}", base_url()))
+	}
+
 	pub fn request(&self) -> Result<Request> {
-		let url = self.to_string();
-		let referer = match self {
-			Url::Chapter { .. } => APP_BASE_URL,
-			_ => BASE_URL,
-		};
+		let base_url = crate::base_url();
+		let url = self.to_string()?;
 		Ok(Request::get(url)?
-			.header("Origin", BASE_URL)
+			.header("Origin", &base_url)
 			.header("Accept-Language", "zh-CN,zh;q=0.9")
-			.header("Referer", referer))
+			.header("Referer", &base_url))
 	}
 
 	pub fn from_query_or_filters(
@@ -175,15 +174,15 @@ impl Display for Url {
 			} => {
 				write!(
 					f,
-					"{}/api/bzmhq/amp_comic_list?type={}&region={}&state={}&filter={}&page={}",
-					BASE_URL, genre, region, status, filter, page
+					"/api/bzmhq/amp_comic_list?type={}&region={}&state={}&filter={}&page={}",
+					genre, region, status, filter, page
 				)
 			}
 			Url::Search { query } => {
-				write!(f, "{}/search?q={}", BASE_URL, query)
+				write!(f, "/search?q={}", query)
 			}
 			Url::Manga { id } => {
-				write!(f, "{}/comic/{}", BASE_URL, id)
+				write!(f, "/comic/{}", id)
 			}
 			Url::Chapter {
 				manga_id,
@@ -191,8 +190,8 @@ impl Display for Url {
 			} => {
 				write!(
 					f,
-					"{}/baozimhapp/comic/chapter/{}/0_{}.html",
-					APP_BASE_URL, manga_id, chapter_id
+					"/user/page_direct?comic_id={}&section_slot=0&chapter_slot={}",
+					manga_id, chapter_id
 				)
 			}
 		}
