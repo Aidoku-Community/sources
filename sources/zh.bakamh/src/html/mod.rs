@@ -213,6 +213,8 @@ impl ChapterPage for Document {
 					.and_then(|el| el.text())
 					.and_then(|s| parse_chapter_date(s.trim()));
 				let chapter_number = (len - index) as f32;
+				// 🔒 badge: sign-in locked or early access chapters.
+				let locked = li.select_first(".mkjp-ea-badge").is_some();
 
 				Some(Chapter {
 					key,
@@ -220,6 +222,7 @@ impl ChapterPage for Document {
 					chapter_number: Some(chapter_number),
 					date_uploaded,
 					url: Some(chapter_url),
+					locked,
 					..Default::default()
 				})
 			})
@@ -229,12 +232,15 @@ impl ChapterPage for Document {
 	}
 }
 
-pub fn get_page_list(chapter_key: &str) -> Result<Vec<Page>> {
-	let url = format!("{}{}", BASE_URL, chapter_key);
-	let html = Request::get(url)?.html()?;
+/// Whether the reader page says the chapter needs a login (`本章节需要登录后阅读`).
+fn chapter_requires_login(html: &Document) -> bool {
+	html.select_first(".mkjp-ea-lock .mkjp-ea-lock__title")
+		.and_then(|el| el.text())
+		.is_some_and(|t| t.contains("需要登录"))
+}
 
-	let pages = html
-		.select("img[id]")
+fn parse_pages(html: &Document) -> Vec<Page> {
+	html.select("img[id]")
 		.map(|imgs| {
 			imgs.filter_map(|img| {
 				let src = img
@@ -251,7 +257,18 @@ pub fn get_page_list(chapter_key: &str) -> Result<Vec<Page>> {
 			})
 			.collect::<Vec<Page>>()
 		})
-		.unwrap_or_default();
+		.unwrap_or_default()
+}
+
+pub fn get_page_list(chapter_key: &str) -> Result<Vec<Page>> {
+	let url = format!("{}{}", BASE_URL, chapter_key);
+	let mut html = crate::net::fetch_html_retrying(|| Ok(Request::get(&url)?))?;
+	let mut pages = parse_pages(&html);
+
+	if pages.is_empty() && chapter_requires_login(&html) && crate::auth::retry_after_lock() {
+		html = crate::net::fetch_html_retrying(|| Ok(Request::get(&url)?))?;
+		pages = parse_pages(&html);
+	}
 
 	Ok(pages)
 }

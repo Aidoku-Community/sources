@@ -11,7 +11,7 @@ use aidoku::{
 	prelude::*,
 };
 use html::{ChapterPage as _, MangaPage as _, PageList as _};
-use net::Url;
+use net::{Url, fetch_html, fetch_html_retrying};
 
 pub const BASE_URL: &str = "https://mycomic.com";
 
@@ -29,7 +29,7 @@ impl Source for Mycomic {
 		filters: Vec<aidoku::FilterValue>,
 	) -> Result<MangaPageResult> {
 		let url = Url::from_query_or_filters(query.as_deref(), page, &filters)?;
-		let html = url.request()?.html()?;
+		let html = fetch_html_retrying(|| url.request())?;
 		html.manga_page_result()
 	}
 
@@ -40,12 +40,12 @@ impl Source for Mycomic {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		if needs_details {
-			let manga_page = Url::manga(manga.key.clone()).request()?.html()?;
+			let manga_page = fetch_html(Url::manga(manga.key.clone()).request()?)?;
 			manga_page.update_details(&mut manga)?;
 		}
 
 		if needs_chapters {
-			let chapter_list_page = Url::chapter_list(manga.key.clone()).request()?.html()?;
+			let chapter_list_page = fetch_html(Url::chapter_list(manga.key.clone()).request()?)?;
 			manga.chapters = Some(chapter_list_page.chapters(&manga.key)?);
 		}
 
@@ -53,7 +53,8 @@ impl Source for Mycomic {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		Url::chapter(chapter.key).request()?.html()?.pages()
+		let url = Url::chapter(chapter.key);
+		fetch_html_retrying(|| url.request())?.pages()
 	}
 }
 

@@ -1,17 +1,18 @@
 #![no_std]
 
+mod auth;
 mod html;
 mod net;
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider, Listing,
-	ListingProvider, Manga, MangaPageResult, Page, Result, Source,
+	BasicLoginHandler, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider,
+	Listing, ListingProvider, Manga, MangaPageResult, NotificationHandler, Page, Result, Source,
 	alloc::{String, Vec},
 	imports::net::Request,
 	prelude::*,
 };
 use html::{ChapterPage as _, MangaPage as _};
-use net::Url;
+use net::{Url, fetch_html, fetch_html_retrying};
 
 pub const BASE_URL: &str = "https://bakamh.com";
 
@@ -30,7 +31,7 @@ impl Source for Bakamh {
 	) -> Result<MangaPageResult> {
 		let is_search = query.is_some();
 		let url = Url::from_query_or_filters(query.as_deref(), page, &filters)?;
-		let html = url.request()?.html()?;
+		let html = fetch_html_retrying(|| url.request())?;
 		html.manga_page_result(is_search)
 	}
 
@@ -41,7 +42,7 @@ impl Source for Bakamh {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		let url = format!("{}/manga/{}/", BASE_URL, manga.key);
-		let html = Request::get(url)?.html()?;
+		let html = fetch_html(Request::get(url)?)?;
 
 		if needs_details {
 			html.update_details(&mut manga)?;
@@ -68,7 +69,7 @@ impl ListingProvider for Bakamh {
 			),
 			_ => bail!("Invalid listing"),
 		};
-		let html = Request::get(url)?.html()?;
+		let html = fetch_html_retrying(|| Ok(Request::get(&url)?))?;
 		html.manga_page_result(true)
 	}
 }
@@ -101,9 +102,25 @@ impl DeepLinkHandler for Bakamh {
 	}
 }
 
+impl BasicLoginHandler for Bakamh {
+	fn handle_basic_login(&self, _key: String, username: String, password: String) -> Result<bool> {
+		auth::login(&username, &password)
+	}
+}
+
+impl NotificationHandler for Bakamh {
+	fn handle_notification(&self, notification: String) {
+		if notification == "login" && !auth::is_logged_in() {
+			auth::logout();
+		}
+	}
+}
+
 register_source!(
 	Bakamh,
 	ListingProvider,
 	ImageRequestProvider,
-	DeepLinkHandler
+	DeepLinkHandler,
+	BasicLoginHandler,
+	NotificationHandler
 );
