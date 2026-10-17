@@ -231,7 +231,7 @@ impl ChapterPage for Document {
 
 pub fn get_page_list(chapter_key: &str) -> Result<Vec<Page>> {
 	let url = format!("{}{}", BASE_URL, chapter_key);
-	let html = Request::get(url)?.html()?;
+	let html = crate::net::fetch_html_retrying(|| Ok(Request::get(&url)?))?;
 
 	let pages = html
 		.select("img[id]")
