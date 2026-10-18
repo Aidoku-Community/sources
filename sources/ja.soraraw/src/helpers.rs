@@ -9,7 +9,8 @@ use aes::{
 use aidoku::{
 	ContentRating, MangaStatus, Result, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
-	imports::{html::Html, net::Request},
+	canvas::Transform,
+	imports::{canvas::Canvas, html::Html, net::Request},
 	prelude::*,
 };
 use serde::de::DeserializeOwned;
@@ -383,6 +384,17 @@ fn spans(length: u32, count: u32) -> Vec<(u32, u32)> {
 			span
 		})
 		.collect()
+}
+
+// only a bare rotation is set: the app applies a translation in a different order than the sdk
+// splits it out for, so tiles are placed through the dst rect instead
+pub fn rotate(canvas: &mut Canvas, turns: u8) {
+	match turns {
+		1 => canvas.set_transform(&Transform::new(0.0, -1.0, 1.0, 0.0, 0.0, 0.0)),
+		2 => canvas.set_transform(&Transform::new(-1.0, 0.0, 0.0, -1.0, 0.0, 0.0)),
+		3 => canvas.set_transform(&Transform::new(0.0, 1.0, -1.0, 0.0, 0.0, 0.0)),
+		_ => {}
+	}
 }
 
 struct Mulberry32(u32);

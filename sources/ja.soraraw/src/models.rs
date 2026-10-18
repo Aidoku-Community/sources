@@ -314,6 +314,7 @@ pub struct ChapterDetails {
 	#[serde(rename = "_b")]
 	pub base: Option<String>,
 	pub mode: Option<String>,
+	pub token: Option<String>,
 }
 
 #[derive(Deserialize)]

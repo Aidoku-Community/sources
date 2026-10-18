@@ -4,7 +4,7 @@ use aidoku::{
 	Listing, ListingProvider, Manga, MangaPageResult, MultiSelectFilter, Page, PageContent,
 	PageContext, PageImageProcessor, Result, Source,
 	alloc::{String, Vec, borrow::Cow, string::ToString, vec},
-	canvas::{Rect, Transform},
+	canvas::Rect,
 	imports::{
 		canvas::{Canvas, ImageRef},
 		std::{current_date, send_partial_result},
@@ -13,6 +13,7 @@ use aidoku::{
 };
 use core::cell::RefCell;
 
+mod canva;
 mod catalogue;
 mod helpers;
 mod home;
@@ -196,7 +197,23 @@ impl Source for Soraraw {
 		let (Some(uuid), Some(host)) = (details.uuid, details.base) else {
 			bail!("chapter {chapter_id} hands out no image key");
 		};
-		let scrambled = details.mode.as_deref() == Some("canva2");
+		let scramble = match details.mode.as_deref() {
+			Some("canva") => {
+				let Some(token) = details.token.filter(|token| !token.is_empty()) else {
+					bail!("chapter {chapter_id} is scrambled but hands out no token");
+				};
+				let mut context = PageContext::new();
+				context.insert(String::from("chapter"), chapter_id.to_string());
+				context.insert(String::from("token"), token);
+				Some(context)
+			}
+			Some("canva2") => {
+				let mut context = PageContext::new();
+				context.insert(String::from("seed"), chapter_id.to_string());
+				Some(context)
+			}
+			_ => None,
+		};
 
 		let images = {
 			let payload = request(format!("{IMAGE_API_URL}/{manga_id}/{chapter_id}.json"))?
@@ -228,11 +245,9 @@ impl Source for Soraraw {
 		let mut pages = Vec::with_capacity(urls.len());
 		for (_, url) in urls {
 			// the tile plan covers the whole image, so these can't be sliced
-			if scrambled {
-				let mut context = PageContext::new();
-				context.insert(String::from("seed"), chapter_id.to_string());
+			if let Some(context) = &scramble {
 				pages.push(Page {
-					content: PageContent::url_context(url, context),
+					content: PageContent::url_context(url, context.clone()),
 					..Default::default()
 				});
 				continue;
@@ -302,16 +317,9 @@ impl Soraraw {
 		let (width, height) = (image.width(), image.height());
 		let tiles = scramble_plan(width as u32, height as u32, seed)?;
 
-		// only a bare rotation is set: the app applies a translation in a different order than the
-		// sdk splits it out for, so tiles are placed through the dst rect instead
 		let mut canvas = Canvas::new(width, height);
 		for turns in 0..4 {
-			match turns {
-				1 => canvas.set_transform(&Transform::new(0.0, -1.0, 1.0, 0.0, 0.0, 0.0)),
-				2 => canvas.set_transform(&Transform::new(-1.0, 0.0, 0.0, -1.0, 0.0, 0.0)),
-				3 => canvas.set_transform(&Transform::new(0.0, 1.0, -1.0, 0.0, 0.0, 0.0)),
-				_ => {}
-			}
+			rotate(&mut canvas, turns);
 			for tile in tiles.iter().filter(|tile| tile.turns == turns) {
 				let source = &tiles[tile.source];
 				let (x, y) = (tile.x as f32, tile.y as f32);
@@ -331,6 +339,66 @@ impl Soraraw {
 		}
 		Some(canvas.get_image())
 	}
+
+	fn restore(image: &ImageRef, chapter: &str, token: &str) -> ImageRef {
+		let (width, height) = (image.width(), image.height());
+		let (tiles, moves) = canva::plan(width as u32, height as u32, chapter, token);
+		let placements = canva::placements(width as u32, &tiles, &moves);
+
+		// on ios copy_image decodes a downloaded image again on every call, and get_image reads
+		// whichever context is current, so each canvas is finished before the next one opens
+		let image = &{
+			let mut canvas = Canvas::new(width, height);
+			canvas.draw_image(image, Rect::new(0.0, 0.0, width, height));
+			canvas.get_image()
+		};
+		let mirrored = placements
+			.iter()
+			.any(|placement| placement.mirror)
+			.then(|| {
+				let mut canvas = Canvas::new(width, height);
+				for x in 0..width as u32 {
+					let x = x as f32;
+					canvas.copy_image(
+						image,
+						Rect::new(x, 0.0, 1.0, height),
+						Rect::new(width - 1.0 - x, 0.0, 1.0, height),
+					);
+				}
+				canvas.get_image()
+			});
+
+		let mut canvas = Canvas::new(width, height);
+		for turns in 0..4 {
+			rotate(&mut canvas, turns);
+			for placement in placements
+				.iter()
+				.filter(|placement| placement.turns == turns)
+			{
+				let source = mirrored
+					.as_ref()
+					.filter(|_| placement.mirror)
+					.unwrap_or(image);
+				let (width, height) = (placement.width as f32, placement.height as f32);
+				canvas.copy_image(
+					source,
+					Rect::new(
+						placement.src_x as f32,
+						placement.src_y as f32,
+						width,
+						height,
+					),
+					Rect::new(
+						placement.dst_x as f32,
+						placement.dst_y as f32,
+						width,
+						height,
+					),
+				);
+			}
+		}
+		canvas.get_image()
+	}
 }
 
 impl PageImageProcessor for Soraraw {
@@ -342,6 +410,9 @@ impl PageImageProcessor for Soraraw {
 		let Some(context) = context else {
 			return Ok(response.image);
 		};
+		if let (Some(chapter), Some(token)) = (context.get("chapter"), context.get("token")) {
+			return Ok(Self::restore(&response.image, chapter, token));
+		}
 		if let Some(seed) = context.get("seed") {
 			return Ok(Self::unscramble(&response.image, seed).unwrap_or(response.image));
 		}

@@ -10,6 +10,7 @@ const ADULT_VERTICAL_KEY: &str = "haadowaakaa-nakata-740";
 const JPG_MANGA_KEY: &str = "my-neighbor-ms-kurokawa-tonari-no-kurokawa-san-1";
 const JPG_CHAPTER_KEY: &str = "1/786104";
 const SCRAMBLED_CHAPTER_KEY: &str = "57539/843507";
+const CANVA_MANGA_KEY: &str = "kingu-damu-294";
 const WEBP_MANGA_KEY: &str = "one-night-morning-62659";
 const SEARCHED_KEY: &str = "kobayashi-san-chino-meidoragon-57605";
 const NULL_GENRE_KEY: &str = "majime-fumajime-maji-koiji-64273";
@@ -546,6 +547,40 @@ fn test_scrambled_chapter_pages() {
 }
 
 #[aidoku_test]
+fn test_canva_chapter_pages() {
+	let source = Soraraw::new();
+	let manga = Manga {
+		key: String::from(CANVA_MANGA_KEY),
+		..Default::default()
+	};
+	let mut manga = source
+		.get_manga_update(manga, false, true)
+		.expect("chapters");
+	let chapter = manga
+		.chapters
+		.take()
+		.expect("chapters")
+		.into_iter()
+		.find(|chapter| chapter.key.ends_with("/498862"))
+		.expect("chapter 857");
+
+	let pages = source.get_page_list(manga, chapter).expect("pages");
+	assert!(!pages.is_empty());
+	for page in &pages {
+		let PageContent::Url(url, Some(context)) = &page.content else {
+			panic!("expected a page url carrying a token");
+		};
+		assert_eq!(
+			context.get("chapter").map(String::as_str),
+			Some("498862"),
+			"{url}"
+		);
+		assert!(context.get("token").is_some_and(|token| !token.is_empty()));
+		assert!(!context.contains_key("seed") && !context.contains_key("slice"));
+	}
+}
+
+#[aidoku_test]
 fn test_deep_link() {
 	let source = Soraraw::new();
 	let manga = source
@@ -758,4 +793,197 @@ fn test_scramble_plan() {
 	// narrower than the grid
 	assert!(scramble_plan(7, 1600, "843507").is_none());
 	assert!(scramble_plan(1125, 7, "843507").is_none());
+}
+
+const CANVA_TOKEN: &str = "bdbd6d08-d858-424d-8995-22e486a87b89";
+const CANVA_SIZES: [(u32, u32, &str); 4] = [
+	(1128, 1580, "498862"),
+	(450, 452, "5"),
+	(900, 900, "1"),
+	(556, 557, "3"),
+];
+
+// expected moves come from running the site's script under node: [source, rot, flip h, flip v]
+#[aidoku_test]
+fn test_canva_plan() {
+	let moves = |width, height, chapter| {
+		let (_, moves) = canva::plan(width, height, chapter, CANVA_TOKEN);
+		moves
+			.iter()
+			.map(|step| {
+				[
+					step.source,
+					usize::from(step.rot),
+					usize::from(step.flip_h),
+					usize::from(step.flip_v),
+				]
+			})
+			.collect::<Vec<_>>()
+	};
+
+	// 226x225 and 225x226 tiles trade places, and the 225x226 ones left over shuffle among themselves
+	assert_eq!(
+		moves(1128, 1580, "498862"),
+		[
+			[4, 0, 1, 0],
+			[29, 3, 1, 1],
+			[19, 3, 1, 0],
+			[14, 1, 1, 1],
+			[0, 1, 0, 0],
+			[5, 2, 0, 0],
+			[32, 1, 1, 1],
+			[13, 3, 1, 1],
+			[16, 2, 1, 1],
+			[30, 0, 0, 1],
+			[9, 2, 0, 1],
+			[8, 2, 0, 1],
+			[27, 3, 0, 1],
+			[12, 1, 1, 0],
+			[3, 1, 1, 0],
+			[22, 3, 1, 1],
+			[26, 1, 0, 1],
+			[33, 2, 0, 1],
+			[28, 2, 1, 0],
+			[2, 3, 0, 1],
+			[20, 0, 0, 1],
+			[34, 1, 0, 0],
+			[15, 3, 0, 0],
+			[25, 1, 0, 1],
+			[24, 2, 1, 0],
+			[23, 3, 0, 0],
+			[7, 1, 1, 1],
+			[6, 2, 0, 0],
+			[18, 1, 1, 1],
+			[1, 1, 0, 1],
+			[10, 0, 0, 0],
+			[31, 1, 1, 1],
+			[17, 0, 0, 1],
+			[11, 2, 1, 1],
+			[21, 3, 0, 1],
+		]
+	);
+	// non-square tiles with no counterpart only take half turns
+	assert_eq!(
+		moves(450, 452, "5"),
+		[[0, 0, 1, 0], [1, 2, 1, 0], [3, 2, 1, 1], [2, 0, 1, 1],]
+	);
+	assert_eq!(
+		moves(900, 900, "1"),
+		[
+			[10, 3, 1, 1],
+			[8, 2, 0, 1],
+			[3, 3, 0, 0],
+			[4, 3, 0, 0],
+			[1, 3, 1, 0],
+			[11, 1, 0, 1],
+			[0, 1, 1, 0],
+			[14, 2, 0, 1],
+			[13, 3, 0, 1],
+			[2, 3, 0, 1],
+			[15, 1, 1, 0],
+			[6, 0, 1, 1],
+			[9, 2, 1, 0],
+			[12, 2, 0, 1],
+			[5, 0, 0, 1],
+			[7, 3, 0, 1],
+		]
+	);
+	// four 185x186 tiles against one 186x185: the three left over in the first group
+	assert_eq!(
+		moves(556, 557, "3"),
+		[
+			[0, 2, 0, 0],
+			[6, 1, 0, 0],
+			[4, 2, 1, 1],
+			[3, 1, 0, 1],
+			[5, 2, 1, 1],
+			[2, 0, 1, 1],
+			[1, 1, 0, 0],
+			[8, 1, 1, 1],
+			[7, 3, 0, 0],
+		]
+	);
+}
+
+// x' = a x + c y, y' = b x + d y for the transforms `rotate` sets, which are also the site's
+// rotate(-turns * PI / 2)
+fn turn(turns: u8, (x, y): (i64, i64)) -> (i64, i64) {
+	let (a, b, c, d) = [(1, 0, 0, 1), (0, -1, 1, 0), (-1, 0, 0, -1), (0, 1, -1, 0)][turns as usize];
+	(a * x + c * y, b * x + d * y)
+}
+
+// replays each placement the way the canvas draws it and checks it against the site's transform
+#[aidoku_test]
+fn test_canva_placements() {
+	for (width, height, chapter) in CANVA_SIZES {
+		let (tiles, moves) = canva::plan(width, height, chapter, CANVA_TOKEN);
+		let placements = canva::placements(width, &tiles, &moves);
+		assert_eq!((moves.len(), placements.len()), (tiles.len(), tiles.len()));
+
+		let area = tiles
+			.iter()
+			.map(|tile| tile.width * tile.height)
+			.sum::<u32>();
+		assert_eq!(area, width * height);
+		let mut sources = moves.iter().map(|step| step.source).collect::<Vec<_>>();
+		sources.sort_unstable();
+		assert!(sources.into_iter().eq(0..tiles.len()));
+
+		for ((target, step), placement) in tiles.iter().zip(&moves).zip(&placements) {
+			let source = &tiles[step.source];
+			let label = format!("{width}x{height} tile at {},{}", target.x, target.y);
+			assert_eq!(
+				(placement.width, placement.height, placement.src_y),
+				(source.width, source.height, source.y),
+				"{label}"
+			);
+			// a point of the source tile, as the canvas reads and draws it
+			let draw = |(x, y): (i64, i64)| {
+				let x = if placement.mirror {
+					i64::from(width) - (i64::from(source.x) + x)
+				} else {
+					i64::from(source.x) + x
+				};
+				turn(
+					placement.turns,
+					(
+						placement.dst_x + x - i64::from(placement.src_x),
+						placement.dst_y + y,
+					),
+				)
+			};
+			let (w, h) = (i64::from(source.width), i64::from(source.height));
+			let corners = [(0, 0), (w, 0), (0, h), (w, h)].map(draw);
+			let bounds = (
+				corners.iter().map(|corner| corner.0).min(),
+				corners.iter().map(|corner| corner.1).min(),
+				corners.iter().map(|corner| corner.0).max(),
+				corners.iter().map(|corner| corner.1).max(),
+			);
+			assert_eq!(
+				bounds,
+				(
+					Some(i64::from(target.x)),
+					Some(i64::from(target.y)),
+					Some(i64::from(target.x + target.width)),
+					Some(i64::from(target.y + target.height))
+				),
+				"{label}"
+			);
+
+			let (sx, sy) = (
+				if step.flip_h { -1 } else { 1 },
+				if step.flip_v { -1 } else { 1 },
+			);
+			let origin = draw((0, 0));
+			for point in [(w, 0), (0, h)] {
+				let drawn = draw(point);
+				assert_eq!(
+					(drawn.0 - origin.0, drawn.1 - origin.1),
+					turn(step.rot, (sx * point.0, sy * point.1)),
+					"{label}"
+				);
+			}
+		}
+	}
 }
