@@ -1,6 +1,12 @@
 use aidoku::{
 	ContentRating, MangaPageResult, MangaStatus, Result, Viewer,
-	alloc::{format, string::String, vec, vec::Vec},
+	alloc::{
+		format,
+		string::{String, ToString},
+		vec,
+		vec::Vec,
+	},
+	helpers::uri::encode_uri_component,
 	imports::{
 		defaults::defaults_get,
 		net::{Request, RequestError, Response},
@@ -8,7 +14,9 @@ use aidoku::{
 	prelude::*,
 };
 
-use crate::models::{SearchResponse, SourceList, UploadSource};
+use crate::models::{
+	GroupResults, SearchResponse, SourceList, StaffResults, TagEntry, UploadSource,
+};
 
 /// The mirror picked in the app; the first url in source.json until one is.
 pub fn base_url() -> String {
@@ -46,6 +54,10 @@ pub fn sources_request() -> Result<Request> {
 		&format!("{}/sources/list", api_base()),
 		String::from(r#"{"source_types":null}"#),
 	)
+}
+
+fn hide_disturbing() -> bool {
+	defaults_get::<bool>("hideDisturbing").unwrap_or(true)
 }
 
 pub fn show_source() -> bool {
@@ -202,13 +214,65 @@ pub fn parse_content_rating(
 	}
 }
 
-pub fn build_search_body(
-	query: Option<&str>,
-	statuses: &[String],
-	formats: &[String],
-	genres_included: &[String],
-	genres_excluded: &[String],
-) -> String {
+/// The site rejects a list of more ids than this.
+const MAX_IDS: usize = 50;
+
+#[derive(Default)]
+pub struct SearchFilters {
+	pub ratings: Vec<String>,
+	pub upload_statuses: Vec<String>,
+	pub publication_statuses: Vec<String>,
+	pub formats: Vec<String>,
+	pub genres_included: Vec<String>,
+	pub genres_excluded: Vec<String>,
+	pub genres_match_any: bool,
+	pub tags_included: Vec<String>,
+	pub tags_excluded: Vec<String>,
+	pub tags_match_any: bool,
+	pub sources: Vec<String>,
+	pub staff: Option<String>,
+	pub group: Option<String>,
+	/// Overrides the hide disturbing setting when set.
+	pub include_disturbing: Option<bool>,
+	/// The API field and its lower and upper bound.
+	pub ranges: Vec<(String, Option<f32>, Option<f32>)>,
+}
+
+fn checked<'a>(ids: &'a [String], label: &str) -> Result<&'a [String]> {
+	if ids.len() > MAX_IDS {
+		bail!(
+			"Kagane allows at most {MAX_IDS} {label}, and {} are picked",
+			ids.len()
+		);
+	}
+	Ok(ids)
+}
+
+fn id_filter(
+	included: &[String],
+	excluded: &[String],
+	match_any: bool,
+	label: &str,
+) -> Result<Option<serde_json::Value>> {
+	if included.is_empty() && excluded.is_empty() {
+		return Ok(None);
+	}
+	let mut filter = serde_json::Map::new();
+	filter.insert(
+		String::from("values"),
+		serde_json::json!(checked(included, label)?),
+	);
+	filter.insert(String::from("match_all"), serde_json::json!(!match_any));
+	if !excluded.is_empty() {
+		filter.insert(
+			String::from("exclude"),
+			serde_json::json!(checked(excluded, label)?),
+		);
+	}
+	Ok(Some(serde_json::Value::Object(filter)))
+}
+
+pub fn build_search_body(query: Option<&str>, filters: SearchFilters) -> Result<String> {
 	let mut body = serde_json::Map::new();
 
 	if let Some(q) = query.filter(|q| !q.is_empty()) {
@@ -220,8 +284,13 @@ pub fn build_search_body(
 		String::from("source_type"),
 		serde_json::json!(source_types()),
 	);
+	// A rating picked in search overrides the setting for that search.
+	let ratings = if filters.ratings.is_empty() {
+		content_ratings()
+	} else {
+		filters.ratings
+	};
 	// The search takes age bands, which put Erotica and Pornographic together under 18+.
-	let ratings = content_ratings();
 	let mut age_ratings: Vec<&str> = ratings
 		.iter()
 		.map(|rating| match rating.as_str() {
@@ -241,26 +310,133 @@ pub fn build_search_body(
 			serde_json::json!(pornographic),
 		);
 	}
-
-	if !statuses.is_empty() {
-		body.insert(String::from("upload_status"), serde_json::json!(statuses));
+	if filters
+		.include_disturbing
+		.map_or_else(hide_disturbing, |include| !include)
+	{
+		body.insert(String::from("is_disturbing"), serde_json::json!(false));
 	}
 
-	if !formats.is_empty() {
-		body.insert(String::from("format"), serde_json::json!(formats));
-	}
-
-	// Genres are sent as an object with included `values`, `exclude`, and a
-	// constant `match_all: true` (the website never toggles it).
-	if !genres_included.is_empty() || !genres_excluded.is_empty() {
-		let mut genres = serde_json::Map::new();
-		genres.insert(String::from("values"), serde_json::json!(genres_included));
-		genres.insert(String::from("match_all"), serde_json::json!(true));
-		if !genres_excluded.is_empty() {
-			genres.insert(String::from("exclude"), serde_json::json!(genres_excluded));
+	for (field, values) in [
+		("upload_status", filters.upload_statuses),
+		("publication_status", filters.publication_statuses),
+		("format", filters.formats),
+	] {
+		if !values.is_empty() {
+			body.insert(String::from(field), serde_json::json!(values));
 		}
-		body.insert(String::from("genres"), serde_json::Value::Object(genres));
+	}
+	if !filters.sources.is_empty() {
+		body.insert(
+			String::from("source_id"),
+			serde_json::json!(checked(&filters.sources, "sources")?),
+		);
+	}
+	if let Some(genres) = id_filter(
+		&filters.genres_included,
+		&filters.genres_excluded,
+		filters.genres_match_any,
+		"genres",
+	)? {
+		body.insert(String::from("genres"), genres);
+	}
+	if let Some(tags) = id_filter(
+		&filters.tags_included,
+		&filters.tags_excluded,
+		filters.tags_match_any,
+		"tags",
+	)? {
+		body.insert(String::from("tags"), tags);
+	}
+	for (field, id) in [("staff", filters.staff), ("groups", filters.group)] {
+		if let Some(id) = id {
+			body.insert(String::from(field), serde_json::json!({ "values": [id] }));
+		}
+	}
+	for (field, min, max) in filters.ranges {
+		let mut range = serde_json::Map::new();
+		for (bound, value) in [("min", min), ("max", max)] {
+			if let Some(value) = value {
+				range.insert(String::from(bound), serde_json::json!(value as i64));
+			}
+		}
+		if !range.is_empty() {
+			body.insert(field, serde_json::Value::Object(range));
+		}
 	}
 
-	serde_json::to_string(&serde_json::Value::Object(body)).unwrap_or_default()
+	Ok(serde_json::to_string(&serde_json::Value::Object(body)).unwrap_or_default())
+}
+
+/// The one candidate named `name`, preferring an exact match.
+fn single_match(candidates: Vec<(String, String)>, name: &str) -> Result<String> {
+	let exact: Vec<&(String, String)> = candidates
+		.iter()
+		.filter(|(_, candidate)| candidate.eq_ignore_ascii_case(name))
+		.collect();
+	match (exact.as_slice(), candidates.as_slice()) {
+		([(id, _)], _) | ([], [(id, _)]) => Ok(id.clone()),
+		([], []) => bail!("Kagane has no matches for {name}"),
+		_ => bail!("Kagane has several matches for {name}; enter the full name"),
+	}
+}
+
+pub fn staff_id(name: &str) -> Result<String> {
+	let results: StaffResults = api_post(
+		&format!("{}/search/staff?size=8", api_base()),
+		serde_json::json!({ "name": name }).to_string(),
+	)?
+	.json_owned()?;
+	single_match(
+		results
+			.content
+			.into_iter()
+			.map(|staff| (staff.staff_id, staff.name))
+			.collect(),
+		name,
+	)
+}
+
+pub fn group_id(name: &str) -> Result<String> {
+	let results: GroupResults = api_get(&format!(
+		"{}/groups/search?q={}&limit=8",
+		api_base(),
+		encode_uri_component(name)
+	))?
+	.json_owned()?;
+	single_match(
+		results
+			.items
+			.into_iter()
+			.map(|group| (group.group_id, group.title))
+			.collect(),
+		name,
+	)
+}
+
+/// Comma-separated tag names, a leading `-` excluding one, as included and excluded ids.
+pub fn tag_ids(input: &str) -> Result<(Vec<String>, Vec<String>)> {
+	let tags: Vec<TagEntry> = api_get(&format!("{}/tags/list", api_base()))?.json_owned()?;
+	let mut included = Vec::new();
+	let mut excluded = Vec::new();
+	for name in input
+		.split(',')
+		.map(str::trim)
+		.filter(|name| !name.is_empty())
+	{
+		let (list, name) = match name.strip_prefix('-') {
+			Some(name) => (&mut excluded, name.trim()),
+			None => (&mut included, name),
+		};
+		let before = list.len();
+		list.extend(
+			tags.iter()
+				.filter(|tag| tag.tag_name.eq_ignore_ascii_case(name))
+				.map(|tag| tag.id.clone()),
+		);
+		if list.len() == before {
+			bail!("Kagane has no tag named {name}");
+		}
+	}
+	Ok((included, excluded))
 }

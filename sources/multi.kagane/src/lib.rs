@@ -1,9 +1,10 @@
 #![no_std]
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
-	HomeLayout, HomePartialResult, ImageRequestProvider, Listing, ListingKind, ListingProvider,
-	Manga, MangaPageResult, Page, PageContent, PageContext, Result, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Home,
+	HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, ImageRequestProvider,
+	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, MultiSelectFilter, Page,
+	PageContent, PageContext, Result, Source,
 	alloc::{format, string::String, vec, vec::Vec},
 	imports::{
 		net::{Request, TimeUnit, set_rate_limit},
@@ -33,10 +34,7 @@ impl Source for Kagane {
 	) -> Result<MangaPageResult> {
 		let mut sort_idx = 0usize;
 		let mut ascending = false;
-		let mut statuses: Vec<String> = Vec::new();
-		let mut formats: Vec<String> = Vec::new();
-		let mut genres_inc: Vec<String> = Vec::new();
-		let mut genres_exc: Vec<String> = Vec::new();
+		let mut search = SearchFilters::default();
 
 		for filter in filters {
 			match filter {
@@ -48,20 +46,47 @@ impl Source for Kagane {
 					sort_idx = index as usize;
 					ascending = asc;
 				}
-				FilterValue::MultiSelect { id, included, .. } if id == "status" => {
-					statuses = included;
-				}
-				FilterValue::MultiSelect { id, included, .. } if id == "format" => {
-					formats = included;
-				}
 				FilterValue::MultiSelect {
 					id,
 					included,
 					excluded,
-				} if id == "genre" => {
-					genres_inc = included;
-					genres_exc = excluded;
+				} => match id.as_str() {
+					"genre" => {
+						search.genres_included = included;
+						search.genres_excluded = excluded;
+					}
+					"status" => search.upload_statuses = included,
+					"publication_status" => search.publication_statuses = included,
+					"format" => search.formats = included,
+					"ratings" => search.ratings = included,
+					"sources" => search.sources = included,
+					_ => {}
+				},
+				FilterValue::Select { id, value } => match id.as_str() {
+					"genre_mode" => search.genres_match_any = value == "any",
+					"tag_mode" => search.tags_match_any = value == "any",
+					"disturbing" => {
+						search.include_disturbing = match value.as_str() {
+							"include" => Some(true),
+							"exclude" => Some(false),
+							_ => None,
+						}
+					}
+					_ => {}
+				},
+				FilterValue::Text { id, value } => {
+					let value = value.trim();
+					if value.is_empty() {
+						continue;
+					}
+					match id.as_str() {
+						"tags" => (search.tags_included, search.tags_excluded) = tag_ids(value)?,
+						"author" => search.staff = Some(staff_id(value)?),
+						"group" => search.group = Some(group_id(value)?),
+						_ => {}
+					}
 				}
+				FilterValue::Range { id, from, to } => search.ranges.push((id, from, to)),
 				_ => {}
 			}
 		}
@@ -73,13 +98,7 @@ impl Source for Kagane {
 			sort => sort,
 		};
 		let url = search_url(page, 35, sort, ascending);
-		let body = build_search_body(
-			query.as_deref(),
-			&statuses,
-			&formats,
-			&genres_inc,
-			&genres_exc,
-		);
+		let body = build_search_body(query.as_deref(), search)?;
 		search_page(&url, body)
 	}
 
@@ -255,7 +274,7 @@ impl ListingProvider for Kagane {
 		};
 		search_page(
 			&search_url(page, 35, sort, false),
-			build_search_body(None, &[], &[], &[], &[]),
+			build_search_body(None, SearchFilters::default())?,
 		)
 	}
 }
@@ -292,7 +311,7 @@ impl Home for Kagane {
 				.collect(),
 		}));
 
-		let body = build_search_body(None, &[], &[], &[], &[]);
+		let body = build_search_body(None, SearchFilters::default())?;
 		let mut requests = SECTIONS
 			.iter()
 			.map(|(_, sort, _)| api_post(&search_url(1, 20, sort, false), body.clone()))
@@ -349,6 +368,29 @@ impl Home for Kagane {
 	}
 }
 
+impl DynamicFilters for Kagane {
+	// Sources come from the site, which adds them as it goes.
+	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
+		let mut list: SourceList = sources_request()?.json_owned()?;
+		list.sources.sort_by(|a, b| a.title.cmp(&b.title));
+		let (ids, options) = list
+			.sources
+			.into_iter()
+			.map(|source| (source.source_id.into(), source.title.into()))
+			.unzip();
+		Ok(vec![
+			MultiSelectFilter {
+				id: "sources".into(),
+				title: Some("Sources".into()),
+				options,
+				ids: Some(ids),
+				..Default::default()
+			}
+			.into(),
+		])
+	}
+}
+
 impl DeepLinkHandler for Kagane {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		// A link can come from any of the mirrors.
@@ -378,6 +420,7 @@ register_source!(
 	Kagane,
 	ListingProvider,
 	Home,
+	DynamicFilters,
 	DeepLinkHandler,
 	ImageRequestProvider
 );

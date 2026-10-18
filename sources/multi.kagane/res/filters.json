@@ -104,6 +104,14 @@
 		]
 	},
 	{
+		"type": "select",
+		"id": "genre_mode",
+		"title": "Genres Must Match",
+		"hideFromHeader": true,
+		"options": ["All", "Any"],
+		"ids": ["all", "any"]
+	},
+	{
 		"type": "multi-select",
 		"id": "status",
 		"title": "Upload Status",
@@ -115,5 +123,64 @@
 		"id": "format",
 		"title": "Format",
 		"options": ["Manga", "Manhwa", "Manhua", "Comic", "Other"]
+	},
+	{
+		"type": "multi-select",
+		"id": "publication_status",
+		"title": "Publication Status",
+		"options": ["Ongoing", "Completed", "Hiatus", "Cancelled"],
+		"ids": ["Ongoing", "Completed", "Hiatus", "Abandoned"]
+	},
+	{
+		"type": "text",
+		"id": "tags",
+		"title": "Tags",
+		"placeholder": "e.g. Time Travel, -Tragedy"
+	},
+	{
+		"type": "select",
+		"id": "tag_mode",
+		"title": "Tags Must Match",
+		"hideFromHeader": true,
+		"options": ["All", "Any"],
+		"ids": ["all", "any"]
+	},
+	{
+		"type": "range",
+		"id": "current_books",
+		"title": "Chapters",
+		"min": 0
+	},
+	{
+		"type": "text",
+		"id": "author",
+		"title": "Person",
+		"placeholder": "Author or artist"
+	},
+	{
+		"type": "text",
+		"id": "group",
+		"title": "Group",
+		"placeholder": "Scanlation group"
+	},
+	{
+		"type": "multi-select",
+		"id": "ratings",
+		"title": "Content Rating",
+		"usesTagStyle": true,
+		"options": ["Safe", "Suggestive", "Erotica", "Pornographic"]
+	},
+	{
+		"type": "select",
+		"id": "disturbing",
+		"title": "Disturbing",
+		"hideFromHeader": true,
+		"options": ["Your Setting", "Include", "Leave Out"],
+		"ids": ["setting", "include", "exclude"]
+	},
+	{
+		"type": "range",
+		"id": "start_year",
+		"title": "Year Started"
 	}
 ]

@@ -141,6 +141,36 @@ pub struct SourceList {
 }
 
 #[derive(Deserialize)]
+pub struct TagEntry {
+	pub id: String,
+	pub tag_name: String,
+}
+
+#[derive(Deserialize)]
+pub struct StaffResults {
+	#[serde(default)]
+	pub content: Vec<StaffResult>,
+}
+
+#[derive(Deserialize)]
+pub struct StaffResult {
+	pub staff_id: String,
+	pub name: String,
+}
+
+#[derive(Deserialize)]
+pub struct GroupResults {
+	#[serde(default)]
+	pub items: Vec<GroupResult>,
+}
+
+#[derive(Deserialize)]
+pub struct GroupResult {
+	pub group_id: String,
+	pub title: String,
+}
+
+#[derive(Deserialize)]
 pub struct UploadSource {
 	pub source_id: String,
 	pub title: String,

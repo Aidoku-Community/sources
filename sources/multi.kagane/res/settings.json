@@ -18,6 +18,13 @@
 				"values": ["Official", "Unofficial", "Mixed"],
 				"default": ["Official", "Unofficial", "Mixed"],
 				"refreshes": ["content"]
+			},
+			{
+				"type": "switch",
+				"key": "hideDisturbing",
+				"title": "Hide Disturbing Content",
+				"default": true,
+				"refreshes": ["content", "listings"]
 			}
 		]
 	},
