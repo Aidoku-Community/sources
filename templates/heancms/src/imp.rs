@@ -82,7 +82,7 @@ pub trait Impl {
 			entries: data
 				.data
 				.into_iter()
-				.map(|s| s.into_manga(params))
+				.map(Series::into_basic_manga)
 				.collect(),
 		})
 	}
@@ -94,15 +94,23 @@ pub trait Impl {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let series: Series = api_get(params, &format!("/series/{}", manga.key))?;
-		let series_id = series.id;
+		let (slug, cached_id) = split_key(&manga.key);
+		let slug = slug.to_string();
 
-		if needs_details {
-			manga.copy_from(series.into_manga(params));
-			if needs_chapters {
-				send_partial_result(&manga);
+		let series_id = match cached_id {
+			Some(id) if !needs_details => id,
+			_ => {
+				let series: Series = api_get(params, &format!("/series/{slug}"))?;
+				let id = series.id;
+				if needs_details {
+					manga.copy_from(series.into_manga(params));
+					if needs_chapters {
+						send_partial_result(&manga);
+					}
+				}
+				id
 			}
-		}
+		};
 
 		if needs_chapters {
 			let now = current_date();
@@ -116,7 +124,7 @@ pub trait Impl {
 				chapters.extend(
 					data.data
 						.into_iter()
-						.map(|c| c.into_chapter(&params.base_url, &manga.key))
+						.map(|c| c.into_chapter(&params.base_url, &slug))
 						.filter(|c| c.date_uploaded.is_none_or(|d| d <= now)),
 				);
 				if !data.meta.has_next_page() {
@@ -131,8 +139,10 @@ pub trait Impl {
 	}
 
 	fn get_page_list(&self, params: &Params, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let data: ChapterResponse =
-			api_get(params, &format!("/chapter/{}/{}", manga.key, chapter.key))?;
+		let data: ChapterResponse = api_get(
+			params,
+			&format!("/chapter/{}/{}", split_key(&manga.key).0, chapter.key),
+		)?;
 
 		Ok(data
 			.chapter
@@ -204,12 +214,18 @@ pub trait Impl {
 			return Ok(None);
 		};
 
-		Ok(Some(match path.split_once('/') {
-			Some((manga_key, key)) => DeepLinkResult::Chapter {
-				manga_key: manga_key.into(),
+		let (slug, chapter_key) = match path.split_once('/') {
+			Some((slug, key)) => (slug, Some(key)),
+			None => (path, None),
+		};
+		let manga_key = api_get::<Series>(params, &format!("/series/{slug}"))?.key();
+
+		Ok(Some(match chapter_key {
+			Some(key) => DeepLinkResult::Chapter {
+				manga_key,
 				key: key.into(),
 			},
-			None => DeepLinkResult::Manga { key: path.into() },
+			None => DeepLinkResult::Manga { key: manga_key },
 		}))
 	}
 }

@@ -3,7 +3,7 @@ use aidoku::{
 	Chapter, Manga, MangaStatus, Viewer,
 	alloc::{String, Vec, vec},
 	helpers::element::ElementHelpers,
-	imports::html::Html,
+	imports::{html::Html, std::parse_date},
 	prelude::*,
 };
 use serde::Deserialize;
@@ -50,6 +50,7 @@ pub struct HeanChapter {
 	chapter_name: String,
 	chapter_title: Option<String>,
 	chapter_slug: String,
+	chapter_thumbnail: Option<String>,
 	created_at: Option<String>,
 	price: Option<i32>,
 }
@@ -79,6 +80,7 @@ fn non_empty(value: Option<String>) -> Option<Vec<String>> {
 impl Series {
 	pub fn into_manga(self, params: &Params) -> Manga {
 		Manga {
+			key: self.key(),
 			title: self.title,
 			cover: self.thumbnail.filter(|t| !t.is_empty()),
 			authors: non_empty(self.author),
@@ -100,9 +102,28 @@ impl Series {
 				_ => MangaStatus::Unknown,
 			},
 			viewer: Viewer::Webtoon,
-			key: self.series_slug,
 			..Default::default()
 		}
+	}
+
+	pub fn into_basic_manga(self) -> Manga {
+		Manga {
+			key: self.key(),
+			title: self.title,
+			cover: self.thumbnail.filter(|t| !t.is_empty()),
+			..Default::default()
+		}
+	}
+
+	pub fn key(&self) -> String {
+		format!("{}|{}", self.series_slug, self.id)
+	}
+}
+
+pub fn split_key(key: &str) -> (&str, Option<i32>) {
+	match key.split_once('|') {
+		Some((slug, id)) => (slug, id.parse().ok()),
+		None => (key, None),
 	}
 }
 
@@ -125,8 +146,8 @@ impl HeanChapter {
 			chapter_number,
 			date_uploaded: self
 				.created_at
-				.and_then(|d| chrono::DateTime::parse_from_rfc3339(&d).ok())
-				.map(|d| d.timestamp()),
+				.and_then(|d| parse_date(d, "yyyy-MM-dd'T'HH:mm:ss.SSSXXX")),
+			thumbnail: self.chapter_thumbnail.filter(|t| !t.is_empty()),
 			locked: self.price.is_some_and(|p| p > 0),
 			..Default::default()
 		}
