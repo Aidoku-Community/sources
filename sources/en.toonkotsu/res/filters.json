@@ -143,6 +143,7 @@
 	{
 		"type": "check",
 		"id": "has_chapters",
-		"title": "Has Chapters"
+		"title": "Has Chapters",
+		"hideFromHeader": true
 	}
 ]
