@@ -3,19 +3,16 @@
 		"type": "sort",
 		"id": "sort",
 		"title": "Sort By",
-		"canAscend": false,
 		"options": [
 			"Relevance",
-			"Popular (Total Views)",
-			"Popular (Average Views)",
-			"Popular (Today)",
-			"Popular (Week)",
-			"Popular (Month)",
-			"Recently Updated",
-			"Books Count",
-			"Recently Added"
-		],
-		"default": { "index": 0, "ascending": false }
+			"Most Read This Week",
+			"Popular Now",
+			"Most Read This Month",
+			"Most Read of All Time",
+			"Last Updated",
+			"Rating",
+			"Date Added"
+		]
 	},
 	{
 		"type": "multi-select",

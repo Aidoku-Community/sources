@@ -2,8 +2,8 @@
 
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
-	HomeLayout, ImageRequestProvider, Link, Listing, ListingKind, ListingProvider, Manga,
-	MangaPageResult, MangaWithChapter, Page, PageContent, PageContext, Result, Source,
+	HomeLayout, HomePartialResult, ImageRequestProvider, Listing, ListingKind, ListingProvider,
+	Manga, MangaPageResult, Page, PageContent, PageContext, Result, Source,
 	alloc::{format, string::String, vec, vec::Vec},
 	imports::{
 		net::{Request, TimeUnit, set_rate_limit},
@@ -21,7 +21,7 @@ struct Kagane;
 
 impl Source for Kagane {
 	fn new() -> Self {
-		set_rate_limit(2, 2, TimeUnit::Seconds);
+		set_rate_limit(3, 1, TimeUnit::Seconds);
 		Self
 	}
 
@@ -32,6 +32,7 @@ impl Source for Kagane {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let mut sort_idx = 0usize;
+		let mut ascending = false;
 		let mut statuses: Vec<String> = Vec::new();
 		let mut formats: Vec<String> = Vec::new();
 		let mut genres_inc: Vec<String> = Vec::new();
@@ -39,8 +40,13 @@ impl Source for Kagane {
 
 		for filter in filters {
 			match filter {
-				FilterValue::Sort { index, .. } => {
+				FilterValue::Sort {
+					index,
+					ascending: asc,
+					..
+				} => {
 					sort_idx = index as usize;
+					ascending = asc;
 				}
 				FilterValue::MultiSelect { id, included, .. } if id == "status" => {
 					statuses = included;
@@ -60,7 +66,13 @@ impl Source for Kagane {
 			}
 		}
 
-		let url = search_url(query.as_deref(), page, sort_idx);
+		let query = query.filter(|query| !query.is_empty());
+		// Relevance means nothing without a title, so browsing falls back to the most viewed.
+		let sort = match SORT_PARAMS.get(sort_idx).copied().unwrap_or_default() {
+			"" if query.is_none() => "total_views",
+			sort => sort,
+		};
+		let url = search_url(page, 35, sort, ascending);
 		let body = build_search_body(
 			query.as_deref(),
 			&statuses,
@@ -68,14 +80,7 @@ impl Source for Kagane {
 			&genres_inc,
 			&genres_exc,
 		);
-		let resp: SearchResponse = api_post(&url, body)?.json_owned()?;
-
-		let has_next_page = !resp.last;
-		let entries = resp.content.into_iter().map(Manga::from).collect();
-		Ok(MangaPageResult {
-			entries,
-			has_next_page,
-		})
+		search_page(&url, body)
 	}
 
 	fn get_manga_update(
@@ -84,10 +89,38 @@ impl Source for Kagane {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
+		// Chapters are credited to the series' source, so they need its details and the list
+		// of sources too.
+		let mut requests = vec![api_get(&format!("{}/series/{}", api_base(), manga.key))?];
+		if needs_chapters {
+			requests.push(api_get(&format!(
+				"{}/series/{}/books/index?fields=List",
+				api_base(),
+				manga.key
+			))?);
+		}
+		let show_source = show_source();
+		if needs_chapters || show_source {
+			requests.push(sources_request()?);
+		}
+		let mut responses = Request::send_all(requests).into_iter();
+		let mut next = || {
+			responses
+				.next()
+				.ok_or_else(|| error!("Kagane sent no response"))
+		};
+		let det: SeriesDetail = next()??.get_json_owned()?;
+		let index: Option<BookIndex> = if needs_chapters {
+			Some(next()??.get_json_owned()?)
+		} else {
+			None
+		};
+		let sources = parse_sources(responses.next());
+
 		if needs_details {
-			let det: SeriesDetail =
-				api_get(&format!("{}/series/{}", api_base(), manga.key))?.json_owned()?;
-			manga.title = String::from(det.title.trim());
+			// The sources may be here only to credit chapters.
+			let title_sources = if show_source { sources.as_slice() } else { &[] };
+			manga.title = source_title(&det.title, title_sources, det.source_id.as_deref());
 			manga.cover = det
 				.series_covers
 				.first()
@@ -151,21 +184,11 @@ impl Source for Kagane {
 			if !tags.is_empty() {
 				manga.tags = Some(tags);
 			}
-
-			if needs_chapters {
-				send_partial_result(&manga);
-			}
 		}
 
-		if needs_chapters {
-			// The series response has no chapters; they come from the book index.
-			let index: BookIndex = api_get(&format!(
-				"{}/series/{}/books/index?fields=List",
-				api_base(),
-				manga.key
-			))?
-			.json_owned()?;
-			manga.chapters = Some(index.into_chapters(&manga.key));
+		if let Some(index) = index {
+			let scanlator = find_source(&sources, det.source_id.as_deref()).map(scanlator);
+			manga.chapters = Some(index.into_chapters(&manga.key, scanlator.as_deref()));
 		}
 
 		Ok(manga)
@@ -228,96 +251,101 @@ impl ListingProvider for Kagane {
 		let sort = match listing.id.as_str() {
 			"Recently Added" => "created_at",
 			"Recently Updated" => "updated_at",
-			_ => "avg_views_week", // Popular This Week
+			_ => bail!("Unknown listing"),
 		};
-		let url = format!(
-			"{}/search/series?page={}&size=35&sort={},desc",
-			api_base(),
-			page - 1,
-			sort
-		);
-		let body = build_search_body(None, &[], &[], &[], &[]);
-		let resp: SearchResponse = api_post(&url, body)?.json_owned()?;
-
-		let has_next_page = !resp.last;
-		let entries = resp.content.into_iter().map(Manga::from).collect();
-		Ok(MangaPageResult {
-			entries,
-			has_next_page,
-		})
+		search_page(
+			&search_url(page, 35, sort, false),
+			build_search_body(None, &[], &[], &[], &[]),
+		)
 	}
 }
 
+#[derive(Clone, Copy)]
+enum Layout {
+	Featured,
+	Row,
+	Chapters,
+}
+
+/// Home sections: title, sort and layout. The rows link to listings of the same name.
+const SECTIONS: [(&str, &str, Layout); 3] = [
+	("Popular This Week", "avg_views_week", Layout::Featured),
+	("Recently Added", "created_at", Layout::Row),
+	("Recently Updated", "updated_at", Layout::Chapters),
+];
+
 impl Home for Kagane {
 	fn get_home(&self) -> Result<HomeLayout> {
-		let api = api_base();
-		let pop_url = format!("{api}/search/series?page=0&size=20&sort=avg_views_week,desc");
-		let added_url = format!("{api}/search/series?page=0&size=20&sort=created_at,desc");
-		let updated_url = format!("{api}/search/series?page=0&size=20&sort=updated_at,desc");
+		// The layout goes out first so the page shows while the sections load.
+		send_partial_result(&HomePartialResult::Layout(HomeLayout {
+			components: SECTIONS
+				.iter()
+				.map(|(title, _, layout)| HomeComponent {
+					title: Some(String::from(*title)),
+					subtitle: None,
+					value: match layout {
+						Layout::Featured => HomeComponentValue::empty_big_scroller(),
+						Layout::Row => HomeComponentValue::empty_scroller(),
+						Layout::Chapters => HomeComponentValue::empty_manga_chapter_list(),
+					},
+				})
+				.collect(),
+		}));
+
 		let body = build_search_body(None, &[], &[], &[], &[]);
+		let mut requests = SECTIONS
+			.iter()
+			.map(|(_, sort, _)| api_post(&search_url(1, 20, sort, false), body.clone()))
+			.collect::<Result<Vec<_>>>()?;
+		let show_source = show_source();
+		if show_source {
+			requests.push(sources_request()?);
+		}
+		let mut responses = Request::send_all(requests);
+		let sources = if show_source {
+			parse_sources(responses.pop())
+		} else {
+			Vec::new()
+		};
 
-		let popular: Vec<Link> = api_post(&pop_url, body.clone())?
-			.json_owned::<SearchResponse>()?
-			.content
-			.into_iter()
-			.map(|s| Manga::from(s).into())
-			.collect();
-
-		let recently_added: Vec<Link> = api_post(&added_url, body.clone())?
-			.json_owned::<SearchResponse>()?
-			.content
-			.into_iter()
-			.map(|s| Manga::from(s).into())
-			.collect();
-
-		let recently_updated: Vec<MangaWithChapter> = api_post(&updated_url, body)?
-			.json_owned::<SearchResponse>()?
-			.content
-			.into_iter()
-			.filter_map(|s| MangaWithChapter::try_from(s).ok())
-			.collect();
-
-		Ok(HomeLayout {
-			components: vec![
-				HomeComponent {
-					title: Some(String::from("Popular This Week")),
-					subtitle: None,
-					value: HomeComponentValue::Scroller {
-						entries: popular,
-						listing: Some(Listing {
-							id: String::from("Popular This Week"),
-							name: String::from("Popular This Week"),
-							kind: ListingKind::Default,
-						}),
-					},
+		for ((title, _, layout), response) in SECTIONS.into_iter().zip(responses) {
+			let Ok(page) = response
+				.map_err(Into::into)
+				.and_then(|response| response.get_json_owned::<SearchResponse>())
+			else {
+				continue;
+			};
+			let items = page.content.into_iter();
+			let listing = Some(Listing {
+				id: String::from(title),
+				name: String::from(title),
+				kind: ListingKind::Default,
+			});
+			let value = match layout {
+				Layout::Featured => HomeComponentValue::BigScroller {
+					entries: items.map(|item| item.into_manga(&sources)).collect(),
+					auto_scroll_interval: None,
 				},
-				HomeComponent {
-					title: Some(String::from("Recently Added")),
-					subtitle: None,
-					value: HomeComponentValue::Scroller {
-						entries: recently_added,
-						listing: Some(Listing {
-							id: String::from("Recently Added"),
-							name: String::from("Recently Added"),
-							kind: ListingKind::Default,
-						}),
-					},
+				Layout::Row => HomeComponentValue::Scroller {
+					entries: items.map(|item| item.into_manga(&sources).into()).collect(),
+					listing,
 				},
-				HomeComponent {
-					title: Some(String::from("Recently Updated")),
-					subtitle: None,
-					value: HomeComponentValue::MangaChapterList {
-						entries: recently_updated,
-						page_size: None,
-						listing: Some(Listing {
-							id: String::from("Recently Updated"),
-							name: String::from("Recently Updated"),
-							kind: ListingKind::Default,
-						}),
-					},
+				Layout::Chapters => HomeComponentValue::MangaChapterList {
+					entries: items
+						.filter_map(|item| item.into_manga_with_chapter(&sources))
+						.collect(),
+					page_size: Some(5),
+					listing,
 				},
-			],
-		})
+			};
+			send_partial_result(&HomePartialResult::Component(HomeComponent {
+				title: Some(String::from(title)),
+				subtitle: None,
+				value,
+			}));
+		}
+
+		Ok(HomeLayout::default())
 	}
 }
 

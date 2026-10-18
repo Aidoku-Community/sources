@@ -1,12 +1,12 @@
 use aidoku::{
 	Chapter, Manga, MangaWithChapter,
-	alloc::{format, string::String, vec::Vec},
+	alloc::{format, string::String, vec, vec::Vec},
 	imports::std::parse_date,
 };
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::helpers::{api_base, base_url};
+use crate::helpers::{api_base, base_url, source_title};
 
 fn default_true() -> bool {
 	true
@@ -27,6 +27,7 @@ pub struct SearchItem {
 	pub series_id: String,
 	pub title: String,
 	pub cover_image_id: Option<String>,
+	pub source_id: Option<String>,
 	#[serde(default)]
 	pub latest_chapters: Vec<LatestChapter>,
 }
@@ -40,31 +41,24 @@ pub struct LatestChapter {
 	pub created_at: Option<String>,
 }
 
-impl From<SearchItem> for Manga {
-	fn from(s: SearchItem) -> Self {
-		let url = Some(format!("{}/series/{}", base_url(), s.series_id));
+impl SearchItem {
+	/// `sources` is empty unless titles name their source.
+	pub fn into_manga(self, sources: &[UploadSource]) -> Manga {
 		Manga {
-			key: s.series_id,
-			title: String::from(s.title.trim()),
-			cover: s
+			title: source_title(&self.title, sources, self.source_id.as_deref()),
+			cover: self
 				.cover_image_id
 				.map(|id| format!("{}/image/{id}", api_base())),
-			url,
+			url: Some(format!("{}/series/{}", base_url(), self.series_id)),
+			key: self.series_id,
 			..Default::default()
 		}
 	}
-}
 
-/// Pair a series with its most recent chapter, as returned in the search
-/// endpoint's `latest_chapters` field. Fails when the series has no chapters,
-/// so it can be dropped from home-feed listings via `filter_map(.. .ok())`.
-impl TryFrom<SearchItem> for MangaWithChapter {
-	type Error = ();
-
-	fn try_from(mut item: SearchItem) -> Result<Self, Self::Error> {
-		let book = item.latest_chapters.drain(..).next().ok_or(())?;
-		let manga = Manga::from(item);
-		Ok(MangaWithChapter {
+	/// The series with its newest chapter, or `None` when it has none yet.
+	pub fn into_manga_with_chapter(mut self, sources: &[UploadSource]) -> Option<MangaWithChapter> {
+		let book = self.latest_chapters.drain(..).next()?;
+		Some(MangaWithChapter {
 			chapter: Chapter {
 				key: book.book_id,
 				chapter_number: book.chapter_no.as_deref().and_then(|s| s.parse().ok()),
@@ -83,7 +77,7 @@ impl TryFrom<SearchItem> for MangaWithChapter {
 				}),
 				..Default::default()
 			},
-			manga,
+			manga: self.into_manga(sources),
 		})
 	}
 }
@@ -99,6 +93,7 @@ pub struct SeriesDetail {
 	pub content_rating: Option<String>,
 	pub age_rating: Option<String>,
 	pub is_pornographic: Option<bool>,
+	pub source_id: Option<String>,
 	#[serde(default)]
 	pub series_staff: Vec<StaffMember>,
 	#[serde(default)]
@@ -139,6 +134,19 @@ pub struct CoverItem {
 	pub image_id: String,
 }
 
+#[derive(Deserialize)]
+pub struct SourceList {
+	#[serde(default)]
+	pub sources: Vec<UploadSource>,
+}
+
+#[derive(Deserialize)]
+pub struct UploadSource {
+	pub source_id: String,
+	pub title: String,
+	pub source_type: Option<String>,
+}
+
 /// The chapter list: each book is a row of values in the order `fields` names, and its
 /// groups are positions in `groups`.
 #[derive(Deserialize)]
@@ -156,7 +164,8 @@ fn cell(row: &[Value], at: Option<usize>) -> Option<&Value> {
 
 impl BookIndex {
 	/// Newest first by `sort_no`, the site's reading order, since chapter numbers can restart.
-	pub fn into_chapters(self, series_key: &str) -> Vec<Chapter> {
+	/// `scanlator` names the series' source, which credits a chapter better than its groups.
+	pub fn into_chapters(self, series_key: &str, scanlator: Option<&str>) -> Vec<Chapter> {
 		let column = |name: &str| self.fields.iter().position(|field| field == name);
 		let [id, title, sort, chapter, volume, released, group_ix] = [
 			"book_id",
@@ -175,13 +184,16 @@ impl BookIndex {
 			.filter_map(|row| {
 				let text = |at| cell(row, at).and_then(Value::as_str);
 				let key = text(id)?;
-				let scanlators: Vec<String> = cell(row, group_ix)
-					.and_then(Value::as_array)
-					.into_iter()
-					.flatten()
-					.filter_map(|at| self.groups.get(at.as_u64()? as usize))
-					.map(|group| group.title.clone())
-					.collect();
+				let scanlators: Vec<String> = match scanlator {
+					Some(scanlator) => vec![scanlator.into()],
+					None => cell(row, group_ix)
+						.and_then(Value::as_array)
+						.into_iter()
+						.flatten()
+						.filter_map(|at| self.groups.get(at.as_u64()? as usize))
+						.map(|group| group.title.clone())
+						.collect(),
+				};
 				let chapter = Chapter {
 					key: key.into(),
 					title: text(title)

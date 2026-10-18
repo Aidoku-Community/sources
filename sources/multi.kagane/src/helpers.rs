@@ -1,8 +1,14 @@
 use aidoku::{
-	ContentRating, MangaStatus, Result, Viewer,
+	ContentRating, MangaPageResult, MangaStatus, Result, Viewer,
 	alloc::{format, string::String, vec, vec::Vec},
-	imports::{defaults::defaults_get, net::Request},
+	imports::{
+		defaults::defaults_get,
+		net::{Request, RequestError, Response},
+	},
+	prelude::*,
 };
+
+use crate::models::{SearchResponse, SourceList, UploadSource};
 
 /// The mirror picked in the app; the first url in source.json until one is.
 pub fn base_url() -> String {
@@ -13,39 +19,105 @@ pub fn api_base() -> String {
 	format!("{}/api/v2", base_url())
 }
 
-/// Sort field by the position of the option in `res/filters.json`.
+/// Sort field by the position of the option in `res/filters.json`, as the site lists them.
 pub const SORT_PARAMS: &[&str] = &[
 	"",                // 0: Relevance
-	"total_views",     // 1: Popular (Total Views)
-	"avg_views",       // 2: Popular (Average Views)
-	"avg_views_today", // 3: Popular (Today)
-	"avg_views_week",  // 4: Popular (Week)
-	"avg_views_month", // 5: Popular (Month)
-	"updated_at",      // 6: Recently Updated
-	"current_books",   // 7: Books Count
-	"created_at",      // 8: Recently Added
+	"avg_views_week",  // 1: Most Read This Week
+	"popular_now",     // 2: Popular Now
+	"avg_views_month", // 3: Most Read This Month
+	"avg_views",       // 4: Most Read of All Time
+	"updated_at",      // 5: Last Updated
+	"rating",          // 6: Rating
+	"created_at",      // 7: Date Added
 ];
 
-pub fn search_url(query: Option<&str>, page: i32, sort_idx: usize) -> String {
-	let query = query.filter(|q| !q.is_empty());
-	let mut url = format!("{}/search/series?page={}&size=35", api_base(), page - 1);
-	let sort = SORT_PARAMS.get(sort_idx).copied().unwrap_or_default();
+/// An empty sort asks for relevance.
+pub fn search_url(page: i32, size: i32, sort: &str, ascending: bool) -> String {
+	let mut url = format!("{}/search/series?page={}&size={size}", api_base(), page - 1);
 	if !sort.is_empty() {
-		url.push_str(&format!("&sort={sort},desc"));
-	} else if query.is_none() {
-		url.push_str("&sort=total_views,desc");
+		let order = if ascending { "asc" } else { "desc" };
+		url.push_str(&format!("&sort={sort},{order}"));
 	}
 	url
 }
 
+pub fn sources_request() -> Result<Request> {
+	api_post(
+		&format!("{}/sources/list", api_base()),
+		String::from(r#"{"source_types":null}"#),
+	)
+}
+
+pub fn show_source() -> bool {
+	defaults_get::<bool>("showSourceInTitle").unwrap_or_default()
+}
+
+pub fn find_source<'a>(sources: &'a [UploadSource], id: Option<&str>) -> Option<&'a UploadSource> {
+	sources
+		.iter()
+		.find(|source| Some(source.source_id.as_str()) == id)
+}
+
+/// The title, followed by its source's name when `sources` holds it.
+pub fn source_title(title: &str, sources: &[UploadSource], id: Option<&str>) -> String {
+	let title = title.trim();
+	match find_source(sources, id) {
+		Some(source) => format!("{title} [{}]", source.title),
+		None => String::from(title),
+	}
+}
+
+/// How the series' chapters are credited: its source, ticked when it publishes officially.
+pub fn scanlator(source: &UploadSource) -> String {
+	match source.source_type.as_deref() {
+		Some("Official") => format!("{} ✓", source.title),
+		_ => source.title.clone(),
+	}
+}
+
+/// One search page, with the upload sources fetched alongside when titles name them.
+pub fn search_page(url: &str, body: String) -> Result<MangaPageResult> {
+	let mut requests = vec![api_post(url, body)?];
+	if show_source() {
+		requests.push(sources_request()?);
+	}
+	let mut responses = Request::send_all(requests).into_iter();
+	let page: SearchResponse = responses
+		.next()
+		.ok_or_else(|| error!("Kagane sent no response"))??
+		.get_json_owned()?;
+	let sources = parse_sources(responses.next());
+	Ok(MangaPageResult {
+		has_next_page: !page.last,
+		entries: page
+			.content
+			.into_iter()
+			.map(|item| item.into_manga(&sources))
+			.collect(),
+	})
+}
+
+/// The sources from their response, or none when it failed; titles and credits then go
+/// without them.
+pub fn parse_sources(
+	response: Option<core::result::Result<Response, RequestError>>,
+) -> Vec<UploadSource> {
+	response
+		.and_then(|response| response.ok()?.get_json_owned::<SourceList>().ok())
+		.map(|list| list.sources)
+		.unwrap_or_default()
+}
+
 pub fn api_get(url: &str) -> Result<Request> {
 	Ok(Request::get(url)?
+		.header("Accept", "application/json")
 		.header("Origin", &base_url())
 		.header("Referer", &format!("{}/", base_url())))
 }
 
 pub fn api_post(url: &str, body: String) -> Result<Request> {
 	Ok(Request::post(url)?
+		.header("Accept", "application/json")
 		.header("Content-Type", "application/json")
 		.header("Origin", &base_url())
 		.header("Referer", &format!("{}/", base_url()))

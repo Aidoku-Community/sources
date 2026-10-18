@@ -20,5 +20,18 @@
 				"refreshes": ["content"]
 			}
 		]
+	},
+	{
+		"type": "group",
+		"title": "Titles",
+		"footer": "Names the upload source after each title, to tell apart editions of one series.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "showSourceInTitle",
+				"title": "Show Source in Title",
+				"refreshes": ["content", "listings"]
+			}
+		]
 	}
 ]
