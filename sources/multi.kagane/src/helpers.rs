@@ -4,8 +4,14 @@ use aidoku::{
 	imports::{defaults::defaults_get, net::Request},
 };
 
-pub const BASE_URL: &str = "https://kagane.org";
-pub const API_BASE: &str = "https://kagane.org/api/v2";
+/// The mirror picked in the app; the first url in source.json until one is.
+pub fn base_url() -> String {
+	defaults_get::<String>("url").unwrap_or_else(|| String::from("https://kagane.cx"))
+}
+
+pub fn api_base() -> String {
+	format!("{}/api/v2", base_url())
+}
 
 /// Sort field by the position of the option in `res/filters.json`.
 pub const SORT_PARAMS: &[&str] = &[
@@ -16,14 +22,13 @@ pub const SORT_PARAMS: &[&str] = &[
 	"avg_views_week",  // 4: Popular (Week)
 	"avg_views_month", // 5: Popular (Month)
 	"updated_at",      // 6: Recently Updated
-	"series_name",     // 7: By Name
-	"books_count",     // 8: Books Count
-	"created_at",      // 9: Recently Added
+	"current_books",   // 7: Books Count
+	"created_at",      // 8: Recently Added
 ];
 
 pub fn search_url(query: Option<&str>, page: i32, sort_idx: usize) -> String {
 	let query = query.filter(|q| !q.is_empty());
-	let mut url = format!("{API_BASE}/search/series?page={}&size=35", page - 1);
+	let mut url = format!("{}/search/series?page={}&size=35", api_base(), page - 1);
 	let sort = SORT_PARAMS.get(sort_idx).copied().unwrap_or_default();
 	if !sort.is_empty() {
 		url.push_str(&format!("&sort={sort},desc"));
@@ -35,15 +40,15 @@ pub fn search_url(query: Option<&str>, page: i32, sort_idx: usize) -> String {
 
 pub fn api_get(url: &str) -> Result<Request> {
 	Ok(Request::get(url)?
-		.header("Origin", BASE_URL)
-		.header("Referer", &format!("{BASE_URL}/")))
+		.header("Origin", &base_url())
+		.header("Referer", &format!("{}/", base_url())))
 }
 
 pub fn api_post(url: &str, body: String) -> Result<Request> {
 	Ok(Request::post(url)?
 		.header("Content-Type", "application/json")
-		.header("Origin", BASE_URL)
-		.header("Referer", &format!("{BASE_URL}/"))
+		.header("Origin", &base_url())
+		.header("Referer", &format!("{}/", base_url()))
 		.body(body))
 }
 
@@ -103,8 +108,20 @@ pub fn parse_viewer(format: Option<&str>) -> Viewer {
 	}
 }
 
-pub fn parse_content_rating(s: Option<&str>) -> ContentRating {
-	let lower = s.map(|s| s.to_lowercase());
+/// Series are rated by age band, with a flag on the pornographic ones; the older single
+/// rating is the fallback.
+pub fn parse_content_rating(
+	age: Option<&str>,
+	pornographic: Option<bool>,
+	legacy: Option<&str>,
+) -> ContentRating {
+	match (age, pornographic) {
+		(_, Some(true)) | (Some("EighteenPlus"), _) => return ContentRating::NSFW,
+		(Some("FifteenPlus"), _) => return ContentRating::Suggestive,
+		(Some("Safe"), _) => return ContentRating::Safe,
+		_ => {}
+	}
+	let lower = legacy.map(|s| s.to_lowercase());
 	match lower.as_deref() {
 		Some("safe") => ContentRating::Safe,
 		Some("suggestive") => ContentRating::Suggestive,
@@ -131,10 +148,27 @@ pub fn build_search_body(
 		String::from("source_type"),
 		serde_json::json!(source_types()),
 	);
-	body.insert(
-		String::from("content_rating"),
-		serde_json::json!(content_ratings()),
-	);
+	// The search takes age bands, which put Erotica and Pornographic together under 18+.
+	let ratings = content_ratings();
+	let mut age_ratings: Vec<&str> = ratings
+		.iter()
+		.map(|rating| match rating.as_str() {
+			"Safe" => "Safe",
+			"Suggestive" => "FifteenPlus",
+			_ => "EighteenPlus",
+		})
+		.collect();
+	age_ratings.sort_unstable();
+	age_ratings.dedup();
+	body.insert(String::from("age_rating"), serde_json::json!(age_ratings));
+	// The flag applies to every band, so it can only ask for pornographic titles alone.
+	let pornographic = ratings.iter().any(|rating| rating == "Pornographic");
+	if !pornographic || ratings.len() == 1 {
+		body.insert(
+			String::from("is_pornographic"),
+			serde_json::json!(pornographic),
+		);
+	}
 
 	if !statuses.is_empty() {
 		body.insert(String::from("upload_status"), serde_json::json!(statuses));

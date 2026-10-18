@@ -7,7 +7,7 @@ use aidoku::{
 	alloc::{format, string::String, vec, vec::Vec},
 	imports::{
 		net::{Request, TimeUnit, set_rate_limit},
-		std::parse_date,
+		std::send_partial_result,
 	},
 	prelude::*,
 };
@@ -84,19 +84,22 @@ impl Source for Kagane {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let det: SeriesDetail =
-			api_get(&format!("{API_BASE}/series/{}", manga.key))?.json_owned()?;
-
 		if needs_details {
+			let det: SeriesDetail =
+				api_get(&format!("{}/series/{}", api_base(), manga.key))?.json_owned()?;
 			manga.title = String::from(det.title.trim());
 			manga.cover = det
 				.series_covers
 				.first()
-				.map(|c| format!("{API_BASE}/image/{}", c.image_id));
-			manga.url = Some(format!("{BASE_URL}/series/{}", manga.key));
+				.map(|c| format!("{}/image/{}", api_base(), c.image_id));
+			manga.url = Some(format!("{}/series/{}", base_url(), manga.key));
 			manga.status = parse_status(&det.upload_status);
 			manga.viewer = parse_viewer(det.format.as_deref());
-			manga.content_rating = parse_content_rating(det.content_rating.as_deref());
+			manga.content_rating = parse_content_rating(
+				det.age_rating.as_deref(),
+				det.is_pornographic,
+				det.content_rating.as_deref(),
+			);
 
 			if let Some(desc) = det.description {
 				let trimmed = desc.trim();
@@ -148,46 +151,21 @@ impl Source for Kagane {
 			if !tags.is_empty() {
 				manga.tags = Some(tags);
 			}
+
+			if needs_chapters {
+				send_partial_result(&manga);
+			}
 		}
 
 		if needs_chapters {
-			// API returns chapters oldest-first; reverse the iterator for
-			// newest-first display.
-			let chapters: Vec<Chapter> = det
-				.series_books
-				.into_iter()
-				.rev()
-				.map(|book| {
-					let url = format!("{BASE_URL}/series/{}/reader/{}", manga.key, book.book_id);
-					let scanlators: Vec<String> =
-						book.groups.into_iter().map(|g| g.title).collect();
-					Chapter {
-						key: book.book_id,
-						chapter_number: book.chapter_no.as_deref().and_then(|s| s.parse().ok()),
-						volume_number: book.volume_no.as_deref().and_then(|s| s.parse().ok()),
-						title: {
-							let t = book.title.trim();
-							if t.is_empty() {
-								None
-							} else {
-								Some(String::from(t))
-							}
-						},
-						date_uploaded: book.created_at.as_deref().and_then(|s| {
-							let s = s.split_once('.').map_or(s, |(b, _)| b);
-							parse_date(format!("{s}Z"), "yyyy-MM-dd'T'HH:mm:ss'Z'")
-						}),
-						scanlators: if scanlators.is_empty() {
-							None
-						} else {
-							Some(scanlators)
-						},
-						url: Some(url),
-						..Default::default()
-					}
-				})
-				.collect();
-			manga.chapters = Some(chapters);
+			// The series response has no chapters; they come from the book index.
+			let index: BookIndex = api_get(&format!(
+				"{}/series/{}/books/index?fields=List",
+				api_base(),
+				manga.key
+			))?
+			.json_owned()?;
+			manga.chapters = Some(index.into_chapters(&manga.key));
 		}
 
 		Ok(manga)
@@ -195,21 +173,22 @@ impl Source for Kagane {
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		// Step 1: obtain a short-lived integrity token
-		let integrity: IntegrityResponse = Request::post(format!("{BASE_URL}/api/integrity"))?
+		let integrity: IntegrityResponse = Request::post(format!("{}/api/integrity", base_url()))?
 			.header("Content-Type", "application/json")
-			.header("Origin", BASE_URL)
-			.header("Referer", &format!("{BASE_URL}/"))
+			.header("Origin", &base_url())
+			.header("Referer", &format!("{}/", base_url()))
 			.body(String::new())
 			.json_owned()?;
 
 		// Step 2: exchange the integrity token for an access token + page manifest
 		let challenge: ChallengeResponse = Request::post(format!(
-			"{API_BASE}/books/{}?is_datasaver=false",
+			"{}/books/{}?is_datasaver=false",
+			api_base(),
 			chapter.key
 		))?
 		.header("Content-Type", "application/json")
-		.header("Origin", BASE_URL)
-		.header("Referer", &format!("{BASE_URL}/"))
+		.header("Origin", &base_url())
+		.header("Referer", &format!("{}/", base_url()))
 		.header("x-integrity-token", &integrity.token)
 		.body(String::from("{}"))
 		.json_owned()?;
@@ -252,7 +231,8 @@ impl ListingProvider for Kagane {
 			_ => "avg_views_week", // Popular This Week
 		};
 		let url = format!(
-			"{API_BASE}/search/series?page={}&size=35&sort={},desc",
+			"{}/search/series?page={}&size=35&sort={},desc",
+			api_base(),
 			page - 1,
 			sort
 		);
@@ -270,9 +250,10 @@ impl ListingProvider for Kagane {
 
 impl Home for Kagane {
 	fn get_home(&self) -> Result<HomeLayout> {
-		let pop_url = format!("{API_BASE}/search/series?page=0&size=20&sort=avg_views_week,desc");
-		let added_url = format!("{API_BASE}/search/series?page=0&size=20&sort=created_at,desc");
-		let updated_url = format!("{API_BASE}/search/series?page=0&size=20&sort=updated_at,desc");
+		let api = api_base();
+		let pop_url = format!("{api}/search/series?page=0&size=20&sort=avg_views_week,desc");
+		let added_url = format!("{api}/search/series?page=0&size=20&sort=created_at,desc");
+		let updated_url = format!("{api}/search/series?page=0&size=20&sort=updated_at,desc");
 		let body = build_search_body(None, &[], &[], &[], &[]);
 
 		let popular: Vec<Link> = api_post(&pop_url, body.clone())?
@@ -342,8 +323,8 @@ impl Home for Kagane {
 
 impl DeepLinkHandler for Kagane {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let prefix = format!("{BASE_URL}/series/");
-		if let Some(rest) = url.strip_prefix(&prefix) {
+		// A link can come from any of the mirrors.
+		if let Some((_, rest)) = url.split_once("/series/") {
 			let slug = rest.split('/').next().unwrap_or(rest);
 			let slug = slug.split('?').next().unwrap_or(slug);
 			let slug = slug.split('#').next().unwrap_or(slug);
@@ -360,8 +341,8 @@ impl DeepLinkHandler for Kagane {
 impl ImageRequestProvider for Kagane {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
 		Ok(Request::get(url)?
-			.header("Origin", BASE_URL)
-			.header("Referer", &format!("{BASE_URL}/")))
+			.header("Origin", &base_url())
+			.header("Referer", &format!("{}/", base_url())))
 	}
 }
 

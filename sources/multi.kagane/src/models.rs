@@ -4,8 +4,9 @@ use aidoku::{
 	imports::std::parse_date,
 };
 use serde::Deserialize;
+use serde_json::Value;
 
-use crate::{API_BASE, BASE_URL};
+use crate::helpers::{api_base, base_url};
 
 fn default_true() -> bool {
 	true
@@ -41,11 +42,13 @@ pub struct LatestChapter {
 
 impl From<SearchItem> for Manga {
 	fn from(s: SearchItem) -> Self {
-		let url = Some(format!("{BASE_URL}/series/{}", s.series_id));
+		let url = Some(format!("{}/series/{}", base_url(), s.series_id));
 		Manga {
 			key: s.series_id,
 			title: String::from(s.title.trim()),
-			cover: s.cover_image_id.map(|id| format!("{API_BASE}/image/{id}")),
+			cover: s
+				.cover_image_id
+				.map(|id| format!("{}/image/{id}", api_base())),
 			url,
 			..Default::default()
 		}
@@ -94,14 +97,14 @@ pub struct SeriesDetail {
 	pub upload_status: String,
 	pub format: Option<String>,
 	pub content_rating: Option<String>,
+	pub age_rating: Option<String>,
+	pub is_pornographic: Option<bool>,
 	#[serde(default)]
 	pub series_staff: Vec<StaffMember>,
 	#[serde(default)]
 	pub genres: Vec<GenreItem>,
 	#[serde(default)]
 	pub tags: Vec<TagItem>,
-	#[serde(default)]
-	pub series_books: Vec<BookItem>,
 	#[serde(default)]
 	pub series_covers: Vec<CoverItem>,
 }
@@ -127,17 +130,6 @@ pub struct TagItem {
 }
 
 #[derive(Deserialize)]
-pub struct BookItem {
-	pub book_id: String,
-	pub title: String,
-	pub created_at: Option<String>,
-	pub chapter_no: Option<String>,
-	pub volume_no: Option<String>,
-	#[serde(default)]
-	pub groups: Vec<GroupItem>,
-}
-
-#[derive(Deserialize)]
 pub struct GroupItem {
 	pub title: String,
 }
@@ -145,6 +137,71 @@ pub struct GroupItem {
 #[derive(Deserialize)]
 pub struct CoverItem {
 	pub image_id: String,
+}
+
+/// The chapter list: each book is a row of values in the order `fields` names, and its
+/// groups are positions in `groups`.
+#[derive(Deserialize)]
+pub struct BookIndex {
+	pub fields: Vec<String>,
+	#[serde(default)]
+	pub groups: Vec<GroupItem>,
+	#[serde(default)]
+	pub books: Vec<Vec<Value>>,
+}
+
+fn cell(row: &[Value], at: Option<usize>) -> Option<&Value> {
+	row.get(at?)
+}
+
+impl BookIndex {
+	/// Newest first by `sort_no`, the site's reading order, since chapter numbers can restart.
+	pub fn into_chapters(self, series_key: &str) -> Vec<Chapter> {
+		let column = |name: &str| self.fields.iter().position(|field| field == name);
+		let [id, title, sort, chapter, volume, released, group_ix] = [
+			"book_id",
+			"title",
+			"sort_no",
+			"chapter_no",
+			"volume_no",
+			"released_at",
+			"group_ix",
+		]
+		.map(column);
+
+		let mut books: Vec<(f64, Chapter)> = self
+			.books
+			.iter()
+			.filter_map(|row| {
+				let text = |at| cell(row, at).and_then(Value::as_str);
+				let key = text(id)?;
+				let scanlators: Vec<String> = cell(row, group_ix)
+					.and_then(Value::as_array)
+					.into_iter()
+					.flatten()
+					.filter_map(|at| self.groups.get(at.as_u64()? as usize))
+					.map(|group| group.title.clone())
+					.collect();
+				let chapter = Chapter {
+					key: key.into(),
+					title: text(title)
+						.map(str::trim)
+						.filter(|title| !title.is_empty())
+						.map(String::from),
+					chapter_number: text(chapter).and_then(|number| number.parse().ok()),
+					volume_number: text(volume).and_then(|number| number.parse().ok()),
+					date_uploaded: cell(row, released).and_then(Value::as_i64),
+					scanlators: (!scanlators.is_empty()).then_some(scanlators),
+					url: Some(format!("{}/series/{series_key}/reader/{key}", base_url())),
+					..Default::default()
+				};
+				let order = cell(row, sort).and_then(Value::as_f64).unwrap_or_default();
+				Some((order, chapter))
+			})
+			.collect();
+		books.sort_by(|a, b| b.0.total_cmp(&a.0));
+		books.into_iter().map(|(_, chapter)| chapter).collect()
+	}
 }
 
 // ── Page listing (DRM) ──────────────────────────────────────────────────────

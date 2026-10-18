@@ -2,8 +2,14 @@
 	"info": {
 		"id": "multi.kagane",
 		"name": "Kagane",
-		"version": 4,
-		"url": "https://kagane.org",
+		"version": 5,
+		"urls": [
+			"https://kagane.cx",
+			"https://kagane.si",
+			"https://kagane.moe",
+			"https://kagane.net",
+			"https://kagane.org"
+		],
 		"minAppVersion": "0.7.1",
 		"contentRating": 1,
 		"languages": [
@@ -23,5 +29,8 @@
 			"ar",
 			"he"
 		]
+	},
+	"config": {
+		"allowsBaseUrlSelect": true
 	}
 }
