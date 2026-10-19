@@ -2,16 +2,17 @@
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider, Manga,
 	MangaPageResult, Page, PageContent, Result, Source,
-	alloc::{String, Vec, string::ToString},
-	helpers::uri::encode_uri_component,
-	imports::net::Request,
+	alloc::{String, Vec},
 	prelude::*,
 };
 use core::cell::RefCell;
-use serde::de::DeserializeOwned;
 
+mod helpers;
 mod models;
 mod search;
+pub use helpers::absolute_url;
+pub(crate) use helpers::fetch_props;
+use helpers::{browse_url, fetch_list, find_artist_id, manga_url, reader_url, slug_title};
 use models::*;
 use search::{NameIds, NameSearch, SearchParams};
 
@@ -37,80 +38,6 @@ const SORTS: [(&str, &str); 6] = [
 	("alphabetical", "alphabetical"),
 ];
 
-pub fn absolute_url(path: &str) -> String {
-	if path.starts_with("https://") || path.starts_with("http://") {
-		path.into()
-	} else {
-		format!("{BASE_URL}{path}")
-	}
-}
-
-// Keys from the previous version of this source are old site slugs (`one_hurricane`) and chapter
-// numbers (`8`). The site redirects those old urls to the current pages, so they still resolve.
-fn manga_url(key: &str) -> String {
-	if key.starts_with('/') {
-		absolute_url(key)
-	} else {
-		format!("{BASE_URL}/{key}/")
-	}
-}
-
-fn reader_url(manga_key: &str, chapter_key: &str) -> String {
-	if chapter_key.starts_with('/') {
-		format!("{BASE_URL}{chapter_key}/page-1")
-	} else {
-		format!("{BASE_URL}/{manga_key}/{chapter_key}/")
-	}
-}
-
-/// The site is an Inertia.js app, so every page embeds its full data as JSON.
-fn fetch_props<T: DeserializeOwned>(url: &str) -> Result<T> {
-	let json = Request::get(url)?
-		.html()?
-		.select_first("script[data-page=app]")
-		.and_then(|script| script.data())
-		.ok_or_else(|| error!("No page data found at {url}"))?;
-	serde_json::from_str::<InertiaPage<T>>(&json)
-		.map(|page| page.props)
-		.map_err(|err| error!("Unexpected page data at {url}: {err}"))
-}
-
-/// Searches are by tag id, so artist names typed in the artist filter are looked up through the
-/// site's artist autocomplete, preferring an exact name over the first (most popular) result.
-/// Results are remembered for the session.
-fn find_artist_id(name: &str, artist_ids: &mut NameIds) -> Result<Option<String>> {
-	if let Some(ids) = artist_ids.get(name) {
-		return Ok(ids.first().cloned());
-	}
-	let artists: Vec<TagRef> = Request::get(format!(
-		"{BASE_URL}/search/artists?q={}",
-		encode_uri_component(name)
-	))?
-	.header("Accept", "application/json")
-	.json_owned()?;
-	let id = artists
-		.iter()
-		.find(|artist| artist.name.eq_ignore_ascii_case(name))
-		.or(artists.first())
-		.map(|artist| artist.id.to_string());
-	artist_ids.insert(name, id.iter().cloned().collect());
-	Ok(id)
-}
-
-fn fetch_list(url: &str) -> Result<MangaPageResult> {
-	Ok(fetch_props::<ListProps>(url)?.books.into())
-}
-
-/// Browse pages are paginated by path, e.g. `/browse/doujinshi/completed/most-viewed/page-2`.
-fn browse_url(segments: &[&str], page: i32) -> String {
-	let mut url = format!("{BASE_URL}/browse");
-	for segment in segments.iter().filter(|segment| !segment.is_empty()) {
-		url.push('/');
-		url.push_str(segment);
-	}
-	format!("{url}/page-{page}")
-}
-
 struct Hentai2Read {
 	/// The current name search, continued by the following pages.
 	name_search: RefCell<Option<NameSearch>>,
@@ -135,12 +62,15 @@ impl Source for Hentai2Read {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let mut kind = String::new();
-		let mut status = String::new();
+		let mut params = SearchParams {
+			kind: String::new(),
+			status: String::new(),
+			sort: "",
+			with: Vec::new(),
+			without: Vec::new(),
+			match_any: false,
+		};
 		let mut sort = 0;
-		let mut match_any = false;
-		let mut with = Vec::new();
-		let mut without = Vec::new();
 		let mut artist = None;
 		let mut tapped = None;
 
@@ -148,21 +78,21 @@ impl Source for Hentai2Read {
 			match filter {
 				FilterValue::Text { id, value } if id == "author" => artist = Some(value),
 				FilterValue::Select { id, value } => match id.as_str() {
-					"type" => kind = value,
-					"status" => status = value,
+					"type" => params.kind = value,
+					"status" => params.status = value,
 					// Sent when a tag is tapped on a series page.
 					"genre" => tapped = Some(value),
 					_ => {}
 				},
 				FilterValue::Sort { index, .. } => sort = usize::try_from(index).unwrap_or(0),
-				FilterValue::Check { id, value } if id == "any" => match_any = value == 1,
+				FilterValue::Check { id, value } if id == "any" => params.match_any = value == 1,
 				FilterValue::MultiSelect {
 					id,
 					included,
 					excluded,
 				} if id == "tags" => {
-					with = included;
-					without = excluded;
+					params.with = included;
+					params.without = excluded;
 				}
 				_ => {}
 			}
@@ -174,29 +104,29 @@ impl Source for Hentai2Read {
 			.filter(|name| !name.is_empty())
 		{
 			match find_artist_id(name, &mut self.artist_ids.borrow_mut())? {
-				Some(id) => with.push(id),
+				Some(id) => params.with.push(id),
 				None => return Ok(MangaPageResult::default()),
 			}
 			// The artist is sent as a tag, so it would become optional when matching any tag.
-			match_any = false;
+			params.match_any = false;
 		}
 
 		let (search_sort, browse_sort) = SORTS.get(sort).copied().unwrap_or_default();
+		params.sort = search_sort;
 		let query = query.as_deref().map(str::trim).unwrap_or_default();
 
 		// Browsing paginates deeper than search, which is capped at 1000 results.
-		if query.is_empty() && tapped.is_none() && with.is_empty() && without.is_empty() {
-			return fetch_list(&browse_url(&[&kind, &status, browse_sort], page));
+		if query.is_empty()
+			&& tapped.is_none()
+			&& params.with.is_empty()
+			&& params.without.is_empty()
+		{
+			return fetch_list(&browse_url(
+				&[&params.kind, &params.status, browse_sort],
+				page,
+			));
 		}
 
-		let params = SearchParams {
-			kind,
-			status,
-			sort: search_sort,
-			with,
-			without,
-			match_any,
-		};
 		if query.is_empty() && tapped.is_none() {
 			return fetch_list(&params.url("", None, page));
 		}
@@ -215,10 +145,10 @@ impl Source for Hentai2Read {
 				&mut self.name_ids.borrow_mut(),
 			)?);
 		}
-		match name_search.as_mut() {
-			Some(search) => search.next(),
-			None => Ok(MangaPageResult::default()),
-		}
+		name_search
+			.as_mut()
+			.expect("name search is initialized above")
+			.next()
 	}
 
 	fn get_manga_update(
@@ -277,23 +207,6 @@ impl ListingProvider for Hentai2Read {
 		};
 		fetch_list(&browse_url(&[segment], page))
 	}
-}
-
-/// Turns a tag slug like `751-kantai-collection` into a title like `Kantai Collection`.
-fn slug_title(slug: &str) -> String {
-	let name = slug.split_once('-').map_or(slug, |(_, name)| name);
-	let mut title = String::with_capacity(name.len());
-	for (index, word) in name.split('-').enumerate() {
-		if index > 0 {
-			title.push(' ');
-		}
-		let mut chars = word.chars();
-		if let Some(first) = chars.next() {
-			title.extend(first.to_uppercase());
-			title.push_str(chars.as_str());
-		}
-	}
-	title
 }
 
 impl DeepLinkHandler for Hentai2Read {
