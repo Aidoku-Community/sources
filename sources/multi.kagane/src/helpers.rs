@@ -275,7 +275,7 @@ fn id_filter(
 pub fn build_search_body(query: Option<&str>, filters: SearchFilters) -> Result<String> {
 	let mut body = serde_json::Map::new();
 
-	if let Some(q) = query.filter(|q| !q.is_empty()) {
+	if let Some(q) = query {
 		body.insert(String::from("title"), serde_json::json!(q));
 	}
 

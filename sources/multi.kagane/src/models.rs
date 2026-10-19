@@ -6,7 +6,9 @@ use aidoku::{
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::helpers::{api_base, base_url, source_title};
+use crate::helpers::{
+	api_base, base_url, parse_content_rating, parse_status, parse_viewer, source_title,
+};
 
 fn default_true() -> bool {
 	true
@@ -28,8 +30,23 @@ pub struct SearchItem {
 	pub title: String,
 	pub cover_image_id: Option<String>,
 	pub source_id: Option<String>,
+	pub upload_status: Option<String>,
+	pub age_rating: Option<String>,
+	pub is_pornographic: Option<bool>,
+	pub format: Option<String>,
+	#[serde(default)]
+	pub genre_list: Vec<NamedItem>,
+	#[serde(default)]
+	pub tag_list: Vec<NamedItem>,
+	#[serde(default)]
+	pub staff_list: Vec<StaffMember>,
 	#[serde(default)]
 	pub latest_chapters: Vec<LatestChapter>,
+}
+
+#[derive(Deserialize)]
+pub struct NamedItem {
+	pub name: String,
 }
 
 #[derive(Deserialize)]
@@ -52,6 +69,41 @@ impl SearchItem {
 			url: Some(format!("{}/series/{}", base_url(), self.series_id)),
 			key: self.series_id,
 			..Default::default()
+		}
+	}
+
+	/// With the authors, status, rating and tags the big scroller shows.
+	pub fn into_full_manga(mut self, sources: &[UploadSource]) -> Manga {
+		let authors: Vec<String> = self
+			.staff_list
+			.drain(..)
+			.filter(|staff| {
+				let role = staff.role.to_lowercase();
+				role.contains("author") || role.contains("story")
+			})
+			.map(|staff| staff.name)
+			.collect();
+		let tags: Vec<String> = self
+			.genre_list
+			.drain(..)
+			.chain(self.tag_list.drain(..))
+			.map(|item| item.name)
+			.collect();
+		Manga {
+			authors: (!authors.is_empty()).then_some(authors),
+			status: self
+				.upload_status
+				.as_deref()
+				.map(parse_status)
+				.unwrap_or_default(),
+			content_rating: parse_content_rating(
+				self.age_rating.as_deref(),
+				self.is_pornographic,
+				None,
+			),
+			viewer: parse_viewer(self.format.as_deref()),
+			tags: (!tags.is_empty()).then_some(tags),
+			..self.into_manga(sources)
 		}
 	}
 

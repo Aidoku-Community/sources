@@ -91,7 +91,6 @@ impl Source for Kagane {
 			}
 		}
 
-		let query = query.filter(|query| !query.is_empty());
 		// Relevance means nothing without a title, so browsing falls back to the most viewed.
 		let sort = match SORT_PARAMS.get(sort_idx).copied().unwrap_or_default() {
 			"" if query.is_none() => "total_views",
@@ -342,7 +341,7 @@ impl Home for Kagane {
 			});
 			let value = match layout {
 				Layout::Featured => HomeComponentValue::BigScroller {
-					entries: items.map(|item| item.into_manga(&sources)).collect(),
+					entries: items.map(|item| item.into_full_manga(&sources)).collect(),
 					auto_scroll_interval: None,
 				},
 				Layout::Row => HomeComponentValue::Scroller {
