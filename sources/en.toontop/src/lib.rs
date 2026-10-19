@@ -1,8 +1,9 @@
 #![no_std]
 use aidoku::{
     Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
-    HomeLayout, ImageRequestProvider, Link, Listing, ListingProvider, Manga, MangaPageResult,
-    MangaStatus, MangaWithChapter, Page, PageContent, PageContext, Result, Source, Viewer,
+    HomeLayout, ImageRequestProvider, Link, Listing, ListingKind, ListingProvider, Manga,
+    MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, PageContext, Result, Source,
+    Viewer,
     alloc::{String, Vec, string::ToString, vec},
     helpers::uri::QueryParameters,
     imports::{html::Document, net::Request},
@@ -333,16 +334,13 @@ impl Home for ToonTop {
         let data = next_data(&html)?;
         let pp = &data["props"]["pageProps"];
 
-        let trending = pp["trendingItems"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|item| manga_from_value(item).map(Link::from))
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
+        let listing = |id: &str, name: &str| Listing {
+            id: id.into(),
+            name: name.into(),
+            kind: ListingKind::Default,
+        };
 
-        let rising = pp["risingItems"]
+        let trending = pp["trendingItems"]
             .as_array()
             .map(|arr| {
                 arr.iter()
@@ -376,23 +374,17 @@ impl Home for ToonTop {
                     subtitle: None,
                     value: HomeComponentValue::Scroller {
                         entries: trending,
-                        listing: None,
-                    },
-                },
-                HomeComponent {
-                    title: Some("Rising".into()),
-                    subtitle: None,
-                    value: HomeComponentValue::Scroller {
-                        entries: rising,
-                        listing: None,
+                        listing: Some(listing("Top Today", "Top Today")),
                     },
                 },
                 HomeComponent {
                     title: Some("Popular".into()),
                     subtitle: None,
-                    value: HomeComponentValue::Scroller {
+                    value: HomeComponentValue::MangaList {
+                        ranking: true,
+                        page_size: Some(10),
                         entries: popular,
-                        listing: None,
+                        listing: Some(listing("Popular", "Popular")),
                     },
                 },
                 HomeComponent {
@@ -401,7 +393,7 @@ impl Home for ToonTop {
                     value: HomeComponentValue::MangaChapterList {
                         page_size: Some(12),
                         entries: latest,
-                        listing: None,
+                        listing: Some(listing("Latest", "Latest")),
                     },
                 },
             ],
