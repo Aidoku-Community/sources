@@ -1,8 +1,8 @@
 #![no_std]
 use aidoku::{
     Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
-    HomeLayout, ImageRequestProvider, Link, Manga, MangaPageResult, MangaStatus, MangaWithChapter,
-    Page, PageContent, PageContext, Result, Source, Viewer,
+    HomeLayout, ImageRequestProvider, Link, Listing, ListingProvider, Manga, MangaPageResult,
+    MangaStatus, MangaWithChapter, Page, PageContent, PageContext, Result, Source, Viewer,
     alloc::{String, Vec, string::ToString, vec},
     helpers::uri::QueryParameters,
     imports::{html::Document, net::Request},
@@ -13,10 +13,13 @@ use serde_json::Value;
 
 const BASE_URL: &str = "https://toontop.io";
 const API_URL: &str = "https://api.toontop.io";
+const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
 struct ToonTop;
 
-const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+fn get(url: &str) -> Result<Document> {
+    Ok(Request::get(url)?.header("User-Agent", USER_AGENT).html()?)
+}
 
 fn next_data(html: &Document) -> Result<Value> {
     let script = html
@@ -42,6 +45,25 @@ fn manga_from_value(item: &Value) -> Option<Manga> {
     })
 }
 
+fn manga_with_chapter_from_value(item: &Value) -> Option<MangaWithChapter> {
+    let manga = manga_from_value(item)?;
+    let ch = &item["latestChapters"][0];
+    let ch_name = ch["name"].as_str().unwrap_or_default();
+    let ch_slug = ch["slug"].as_str().filter(|s| !s.is_empty())?;
+    let chapter_number = ch_name
+        .split_whitespace()
+        .nth(1)
+        .and_then(|n| n.parse::<f32>().ok());
+    Some(MangaWithChapter {
+        manga,
+        chapter: Chapter {
+            key: format!("/{ch_slug}"),
+            chapter_number,
+            ..Default::default()
+        },
+    })
+}
+
 fn parse_chapter(c: &Value) -> Option<Chapter> {
     let slug = c["slug"].as_str()?;
     let chapter_url = c["url"].as_str().unwrap_or_default();
@@ -61,6 +83,12 @@ fn parse_chapter(c: &Value) -> Option<Chapter> {
         url: Some(format!("{BASE_URL}{chapter_url}")),
         ..Default::default()
     })
+}
+
+fn items_from_array(arr: &Value) -> Vec<Manga> {
+    arr.as_array()
+        .map(|v| v.iter().filter_map(manga_from_value).collect())
+        .unwrap_or_default()
 }
 
 impl Source for ToonTop {
@@ -110,15 +138,10 @@ impl Source for ToonTop {
             if let Some(ref g) = genre {
                 qs.push("genre", Some(g));
             }
-            let html = Request::get(format!("{BASE_URL}/search?{qs}"))?
-                .header("User-Agent", USER_AGENT)
-                .html()?;
+            let html = get(&format!("{BASE_URL}/search?{qs}"))?;
             let data = next_data(&html)?;
             let pp = &data["props"]["pageProps"];
-            let entries = pp["ssrItems"]
-                .as_array()
-                .map(|arr| arr.iter().filter_map(manga_from_value).collect::<Vec<_>>())
-                .unwrap_or_default();
+            let entries = items_from_array(&pp["ssrItems"]);
             let has_next_page = entries.len() >= 24;
             Ok(MangaPageResult {
                 entries,
@@ -131,15 +154,10 @@ impl Source for ToonTop {
             if let Some(ref g) = genre {
                 qs.push("genre", Some(g));
             }
-            let html = Request::get(format!("{BASE_URL}/latest?{qs}"))?
-                .header("User-Agent", USER_AGENT)
-                .html()?;
+            let html = get(&format!("{BASE_URL}/latest?{qs}"))?;
             let data = next_data(&html)?;
             let pp = &data["props"]["pageProps"];
-            let entries = pp["items"]
-                .as_array()
-                .map(|arr| arr.iter().filter_map(manga_from_value).collect::<Vec<_>>())
-                .unwrap_or_default();
+            let entries = items_from_array(&pp["items"]);
             let has_next_page = pp["pagination"]["has_next"].as_bool().unwrap_or(false);
             Ok(MangaPageResult {
                 entries,
@@ -159,9 +177,7 @@ impl Source for ToonTop {
         }
 
         let page_url = format!("{BASE_URL}{}", manga.key);
-        let html = Request::get(&page_url)?
-            .header("User-Agent", USER_AGENT)
-            .html()?;
+        let html = get(&page_url)?;
         let data = next_data(&html)?;
         let m = &data["props"]["pageProps"]["initialManga"];
 
@@ -217,9 +233,7 @@ impl Source for ToonTop {
 
     fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
         let url = format!("{BASE_URL}{}{}", manga.key, chapter.key);
-        let html = Request::get(&url)?
-            .header("User-Agent", USER_AGENT)
-            .html()?;
+        let html = get(&url)?;
         let data = next_data(&html)?;
         let pages_arr = data["props"]["pageProps"]["initialChapter"]["pages"]
             .as_array()
@@ -236,15 +250,99 @@ impl Source for ToonTop {
     }
 }
 
+impl ListingProvider for ToonTop {
+    fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+        let p = page.to_string();
+        match listing.name.as_str() {
+            "Popular" => {
+                let html = get(&format!("{BASE_URL}/popular?page={p}"))?;
+                let data = next_data(&html)?;
+                let pp = &data["props"]["pageProps"];
+                let entries = items_from_array(&pp["items"]);
+                let has_next_page = pp["pagination"]["has_next"].as_bool().unwrap_or(false);
+                Ok(MangaPageResult {
+                    entries,
+                    has_next_page,
+                })
+            }
+            "Latest" => {
+                let html = get(&format!("{BASE_URL}/latest?page={p}"))?;
+                let data = next_data(&html)?;
+                let pp = &data["props"]["pageProps"];
+                let entries = items_from_array(&pp["items"]);
+                let has_next_page = pp["pagination"]["has_next"].as_bool().unwrap_or(false);
+                Ok(MangaPageResult {
+                    entries,
+                    has_next_page,
+                })
+            }
+            "Uncensored" => {
+                let html = get(&format!("{BASE_URL}/search?uncensored=true&page={p}"))?;
+                let data = next_data(&html)?;
+                let pp = &data["props"]["pageProps"];
+                let entries = items_from_array(&pp["ssrItems"]);
+                let has_next_page = pp["ssrPagination"]["has_next"]
+                    .as_bool()
+                    .unwrap_or(entries.len() >= 24);
+                Ok(MangaPageResult {
+                    entries,
+                    has_next_page,
+                })
+            }
+            "Raw" => {
+                let html = get(&format!("{BASE_URL}/search?raw=true&page={p}"))?;
+                let data = next_data(&html)?;
+                let pp = &data["props"]["pageProps"];
+                let entries = items_from_array(&pp["ssrItems"]);
+                let has_next_page = pp["ssrPagination"]["has_next"]
+                    .as_bool()
+                    .unwrap_or(entries.len() >= 24);
+                Ok(MangaPageResult {
+                    entries,
+                    has_next_page,
+                })
+            }
+            tab => {
+                let tab_id = match tab {
+                    "Top Today" => "top-day",
+                    "Top This Week" => "top-week",
+                    "Top This Month" => "top-month",
+                    "Most Views" => "most-views",
+                    "Most Bookmarks" => "most-bookmarks",
+                    _ => "top-day",
+                };
+                let html = get(&format!("{BASE_URL}/ranking?tab={tab_id}&page={p}"))?;
+                let data = next_data(&html)?;
+                let pp = &data["props"]["pageProps"];
+                let entries = items_from_array(&pp["initialItems"]);
+                let has_next_page = pp["initialPagination"]["has_next"]
+                    .as_bool()
+                    .unwrap_or(false);
+                Ok(MangaPageResult {
+                    entries,
+                    has_next_page,
+                })
+            }
+        }
+    }
+}
+
 impl Home for ToonTop {
     fn get_home(&self) -> Result<HomeLayout> {
-        let html = Request::get(format!("{BASE_URL}/home"))?
-            .header("User-Agent", USER_AGENT)
-            .html()?;
+        let html = get(&format!("{BASE_URL}/home"))?;
         let data = next_data(&html)?;
         let pp = &data["props"]["pageProps"];
 
         let trending = pp["trendingItems"]
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|item| manga_from_value(item).map(Link::from))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        let rising = pp["risingItems"]
             .as_array()
             .map(|arr| {
                 arr.iter()
@@ -266,27 +364,7 @@ impl Home for ToonTop {
             .as_array()
             .map(|arr| {
                 arr.iter()
-                    .filter_map(|item| {
-                        let manga = manga_from_value(item)?;
-                        let ch = &item["latestChapters"][0];
-                        let ch_name = ch["name"].as_str().unwrap_or_default();
-                        let ch_slug = ch["slug"].as_str().unwrap_or_default();
-                        if ch_slug.is_empty() {
-                            return None;
-                        }
-                        let chapter_number = ch_name
-                            .split_whitespace()
-                            .nth(1)
-                            .and_then(|n| n.parse::<f32>().ok());
-                        Some(MangaWithChapter {
-                            manga,
-                            chapter: Chapter {
-                                key: format!("/{ch_slug}"),
-                                chapter_number,
-                                ..Default::default()
-                            },
-                        })
-                    })
+                    .filter_map(manga_with_chapter_from_value)
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
@@ -298,6 +376,14 @@ impl Home for ToonTop {
                     subtitle: None,
                     value: HomeComponentValue::Scroller {
                         entries: trending,
+                        listing: None,
+                    },
+                },
+                HomeComponent {
+                    title: Some("Rising".into()),
+                    subtitle: None,
+                    value: HomeComponentValue::Scroller {
+                        entries: rising,
                         listing: None,
                     },
                 },
@@ -351,4 +437,10 @@ impl ImageRequestProvider for ToonTop {
     }
 }
 
-register_source!(ToonTop, Home, DeepLinkHandler, ImageRequestProvider);
+register_source!(
+    ToonTop,
+    ListingProvider,
+    Home,
+    DeepLinkHandler,
+    ImageRequestProvider
+);

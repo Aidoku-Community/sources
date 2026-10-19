@@ -7,5 +7,16 @@
 		"contentRating": 2,
 		"languages": ["en"],
 		"minAppVersion": "0.7.1"
-	}
+	},
+	"listings": [
+		{ "id": "Popular" },
+		{ "id": "Latest" },
+		{ "id": "Top Today" },
+		{ "id": "Top This Week" },
+		{ "id": "Top This Month" },
+		{ "id": "Most Views" },
+		{ "id": "Most Bookmarks" },
+		{ "id": "Uncensored" },
+		{ "id": "Raw" }
+	]
 }
