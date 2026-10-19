@@ -1,9 +1,9 @@
 {
 	"info": {
-		"id": "en.toonilyme",
-		"name": "Toonily.me",
+		"id": "en.toontop",
+		"name": "ToonTop",
 		"version": 1,
-		"url": "https://toonily.me",
+		"url": "https://toontop.io",
 		"contentRating": 2,
 		"languages": ["en"],
 		"minAppVersion": "0.7.1"
