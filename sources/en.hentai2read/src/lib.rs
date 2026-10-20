@@ -28,14 +28,15 @@ pub const TAG_KINDS: [&str; 6] = [
 	"category",
 ];
 
-/// Sort filter options as (search value, browse path segment).
-const SORTS: [(&str, &str); 6] = [
-	("", ""), // Relevance; browsing has no relevance, so it falls back to recently updated
-	("latest", ""),
-	("newest", "newest"),
-	("most-viewed", "most-viewed"),
-	("top-rated", "top-rated"),
-	("alphabetical", "alphabetical"),
+/// Sort filter values, used as the search `sort` and the browse path segment. Browsing has no
+/// relevance, so an empty sort falls back to recently updated.
+const SORTS: [&str; 6] = [
+	"",
+	"latest",
+	"newest",
+	"most-viewed",
+	"top-rated",
+	"alphabetical",
 ];
 
 struct Hentai2Read {
@@ -71,12 +72,20 @@ impl Source for Hentai2Read {
 			match_any: false,
 		};
 		let mut sort = 0;
-		let mut artist = None;
+		let mut artist_id = None;
 		let mut tapped = None;
 
 		for filter in filters {
 			match filter {
-				FilterValue::Text { id, value } if id == "author" => artist = Some(value),
+				FilterValue::Text { id, value } if id == "author" => {
+					let name = value.trim();
+					if !name.is_empty() {
+						match find_artist_id(name, &mut self.artist_ids.borrow_mut())? {
+							Some(id) => artist_id = Some(id),
+							None => return Ok(MangaPageResult::default()),
+						}
+					}
+				}
 				FilterValue::Select { id, value } => match id.as_str() {
 					"type" => params.kind = value,
 					"status" => params.status = value,
@@ -98,21 +107,13 @@ impl Source for Hentai2Read {
 			}
 		}
 
-		if let Some(name) = artist
-			.as_deref()
-			.map(str::trim)
-			.filter(|name| !name.is_empty())
-		{
-			match find_artist_id(name, &mut self.artist_ids.borrow_mut())? {
-				Some(id) => params.with.push(id),
-				None => return Ok(MangaPageResult::default()),
-			}
-			// The artist is sent as a tag, so it would become optional when matching any tag.
+		// The artist is sent as a tag, so it would become optional when matching any tag.
+		if let Some(id) = artist_id {
+			params.with.push(id);
 			params.match_any = false;
 		}
 
-		let (search_sort, browse_sort) = SORTS.get(sort).copied().unwrap_or_default();
-		params.sort = search_sort;
+		params.sort = SORTS.get(sort).copied().unwrap_or_default();
 		let query = query.as_deref().map(str::trim).unwrap_or_default();
 
 		// Browsing paginates deeper than search, which is capped at 1000 results.
@@ -122,7 +123,7 @@ impl Source for Hentai2Read {
 			&& params.without.is_empty()
 		{
 			return fetch_list(&browse_url(
-				&[&params.kind, &params.status, browse_sort],
+				&[&params.kind, &params.status, params.sort],
 				page,
 			));
 		}
@@ -157,10 +158,6 @@ impl Source for Hentai2Read {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		if !needs_details && !needs_chapters {
-			return Ok(manga);
-		}
-
 		let BookProps {
 			book,
 			chapters,
@@ -197,15 +194,13 @@ impl Source for Hentai2Read {
 
 impl ListingProvider for Hentai2Read {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		// Tag pages opened from description links, e.g. `/parody/751-kantai-collection`.
+		// Tag pages from `handle_deep_link`, e.g. `/parody/751-kantai-collection`. Series
+		// descriptions link each artist, parody, character and publisher to its tag page, and
+		// tapping one of those links opens it through the deep link handler.
 		if listing.id.starts_with('/') {
 			return fetch_list(&format!("{BASE_URL}{}/page-{page}", listing.id));
 		}
-		let segment = match listing.id.as_str() {
-			"latest" => "",
-			id => id,
-		};
-		fetch_list(&browse_url(&[segment], page))
+		fetch_list(&browse_url(&[&listing.id], page))
 	}
 }
 
