@@ -7,5 +7,8 @@
 		"contentRating": 0,
 		"minAppVersion": "0.7.1",
 		"languages": ["en"]
+	},
+	"config": {
+		"supportsTagSearch": true
 	}
 }

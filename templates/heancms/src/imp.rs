@@ -28,6 +28,8 @@ const SORTS: [(&str, &str); 4] = [
 	("Created at", "created_at"),
 ];
 
+const DEFAULT_SORT: i32 = 3;
+
 fn api_get<T: DeserializeOwned>(params: &Params, path: &str) -> Result<T> {
 	Request::get(format!("{}{path}", params.api_url))?
 		.header("Referer", &format!("{}/", params.base_url))
@@ -44,8 +46,18 @@ pub trait Impl {
 		params: &Params,
 		query: Option<String>,
 		page: i32,
-		filters: Vec<FilterValue>,
+		mut filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
+		if !filters
+			.iter()
+			.any(|f| matches!(f, FilterValue::Sort { .. }))
+		{
+			filters.push(FilterValue::Sort {
+				id: "orderBy".into(),
+				index: DEFAULT_SORT,
+				ascending: false,
+			});
+		}
 		let mut qs = QueryParameters::new();
 		if let Some(query) = &query {
 			qs.push("query_string", Some(query.trim()));
@@ -56,6 +68,13 @@ pub trait Impl {
 		qs.push("perPage", Some("12"));
 		for filter in filters {
 			match filter {
+				FilterValue::Select { id, value } if id == "genre" => {
+					let tags: Vec<Tag> = api_get(params, "/tags")?;
+					let Some(tag) = tags.into_iter().find(|t| t.name == value) else {
+						return Ok(MangaPageResult::default());
+					};
+					qs.push("tags_ids", Some(&format!("[{}]", tag.id)));
+				}
 				FilterValue::Select { id, value } => qs.push(&id, Some(&value)),
 				FilterValue::Sort {
 					id,
@@ -161,22 +180,22 @@ pub trait Impl {
 		let tags: Vec<Tag> = api_get(params, "/tags")?;
 
 		let mut filters = vec![
-			SelectFilter {
-				id: "status".into(),
-				title: Some("Status".into()),
-				options: STATUSES.iter().map(|s| s.0.into()).collect(),
-				ids: Some(STATUSES.iter().map(|s| s.1.into()).collect()),
-				..Default::default()
-			}
-			.into(),
 			SortFilter {
 				id: "orderBy".into(),
 				title: Some("Sort By".into()),
 				options: SORTS.iter().map(|s| s.0.into()).collect(),
 				default: Some(SortFilterDefault {
-					index: 1,
+					index: DEFAULT_SORT,
 					ascending: false,
 				}),
+				..Default::default()
+			}
+			.into(),
+			SelectFilter {
+				id: "status".into(),
+				title: Some("Status".into()),
+				options: STATUSES.iter().map(|s| s.0.into()).collect(),
+				ids: Some(STATUSES.iter().map(|s| s.1.into()).collect()),
 				..Default::default()
 			}
 			.into(),
