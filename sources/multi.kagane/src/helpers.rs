@@ -370,13 +370,13 @@ pub fn build_search_body(query: Option<&str>, filters: SearchFilters) -> Result<
 
 /// The one candidate named `name`, preferring an exact match.
 fn single_match(candidates: Vec<(String, String)>, name: &str) -> Result<String> {
-	let exact: Vec<&(String, String)> = candidates
-		.iter()
-		.filter(|(_, candidate)| candidate.eq_ignore_ascii_case(name))
-		.collect();
-	match (exact.as_slice(), candidates.as_slice()) {
-		([(id, _)], _) | ([], [(id, _)]) => Ok(id.clone()),
-		([], []) => bail!("Kagane has no matches for {name}"),
+	let count = candidates.len();
+	let mut matches = candidates
+		.into_iter()
+		.filter(|(_, candidate)| count == 1 || candidate.eq_ignore_ascii_case(name));
+	match (matches.next(), matches.next()) {
+		(Some((id, _)), None) => Ok(id),
+		(None, None) if count == 0 => bail!("Kagane has no matches for {name}"),
 		_ => bail!("Kagane has several matches for {name}; enter the full name"),
 	}
 }
