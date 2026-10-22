@@ -55,7 +55,8 @@
 		"type": "check",
 		"id": "any",
 		"title": "Tag matching",
-		"name": "Match any included tag"
+		"name": "Match any included tag",
+		"hideFromHeader": true
 	},
 	{
 		"type": "multi-select",
