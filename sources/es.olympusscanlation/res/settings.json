@@ -1,0 +1,22 @@
+[
+	{
+		"type": "group",
+		"title": "Dominio",
+		"footer": "Déjalo en blanco para detección automática de dominio.",
+		"items": [
+			{
+				"key": "baseUrl",
+				"type": "text",
+				"title": "URL del sitio",
+				"placeholder": "Automático",
+				"keyboardType": 3,
+				"returnKeyType": 9,
+				"autocorrectionDisabled": true,
+				"autocapitalizationType": 0,
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	}
+]

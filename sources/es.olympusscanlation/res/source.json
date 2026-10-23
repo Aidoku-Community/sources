@@ -1,0 +1,21 @@
+{
+	"info": {
+		"id": "es.olympusscanlation",
+		"name": "Olympus Scanlation",
+		"version": 1,
+		"urls": ["https://olympusxyz.com", "https://olympusbiblioteca.com"],
+		"contentRating": 0,
+		"minAppVersion": "0.8.3",
+		"languages": ["es"]
+	},
+	"listings": [
+		{
+			"id": "Popular",
+			"name": "Populares"
+		},
+		{
+			"id": "Latest",
+			"name": "Últimas actualizaciones"
+		}
+	]
+}
