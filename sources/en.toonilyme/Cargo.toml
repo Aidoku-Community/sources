@@ -1,11 +1,11 @@
 [package]
 name = "toonilyme"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", version = "0.3.0" }
-madtheme = { path = "../../templates/madtheme" }
+mangak = { path = "../../templates/mangak" }
 
 [dev-dependencies]
 aidoku = { git = "https://github.com/Aidoku/aidoku-rs.git", features = ["test"] }
