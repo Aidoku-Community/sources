@@ -1,0 +1,36 @@
+{
+	"info": {
+		"id": "en.toonilyme",
+		"name": "ToonTop",
+		"version": 2,
+		"url": "https://toontop.io",
+		"contentRating": 2,
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{
+			"id": "today",
+			"name": "Popular Today"
+		},
+		{
+			"id": "week",
+			"name": "Popular This Week"
+		},
+		{
+			"id": "latest",
+			"name": "Latest"
+		},
+		{
+			"id": "uncensored",
+			"name": "Uncensored"
+		},
+		{
+			"id": "raw",
+			"name": "Raw"
+		}
+	],
+	"config": {
+		"breakingChangeVersion": 2
+	}
+}

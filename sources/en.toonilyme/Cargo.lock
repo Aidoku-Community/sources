@@ -56,15 +56,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
-name = "chrono"
-version = "0.4.45"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
 name = "cobs"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -167,6 +158,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
 dependencies = [
  "scopeguard",
+]
+
+[[package]]
+name = "mangak"
+version = "0.1.0"
+dependencies = [
+ "aidoku",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -353,14 +353,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "toontop"
-version = "0.1.0"
+name = "toonilyme"
+version = "0.2.0"
 dependencies = [
  "aidoku",
  "aidoku-test",
- "chrono",
- "serde",
- "serde_json",
+ "mangak",
 ]
 
 [[package]]
