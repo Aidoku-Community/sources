@@ -308,32 +308,31 @@ impl Source for Mangago {
 
 		let cols = helpers::find_cols(&deobf_chapter_js).unwrap_or_default();
 
-		Ok(image_list
-			.split(",")
-			.filter_map(|url| {
-				if url.is_empty() {
-					return None;
-				}
-				Some(Page {
-					content: if url.contains("cspiclink") {
-						let key = match helpers::get_descrambling_key(&deobf_chapter_js, url) {
-							Ok(key) => key,
-							Err(e) => {
-								println!("Failed to get descrambling key: {e:?}");
-								return None;
-							}
-						};
-						let mut context = PageContext::new();
-						context.insert("desckey".into(), key);
-						context.insert("cols".into(), cols.into());
-						PageContent::url_context(url, context)
-					} else {
-						PageContent::url(url)
-					},
-					..Default::default()
-				})
-			})
-			.collect())
+		let mut descrambling: Option<helpers::DescramblingKeys> = None;
+		let mut pages: Vec<Page> = Vec::new();
+		for url in image_list.split(',') {
+			if url.is_empty() {
+				continue;
+			}
+			let content = if url.contains("cspiclink") {
+				let keys = match descrambling {
+					Some(ref keys) => keys,
+					None => descrambling.insert(helpers::DescramblingKeys::new(&deobf_chapter_js)?),
+				};
+				let key = keys.key_for(url)?;
+				let mut context = PageContext::new();
+				context.insert("desckey".into(), key);
+				context.insert("cols".into(), cols.into());
+				PageContent::url_context(url, context)
+			} else {
+				PageContent::url(url)
+			};
+			pages.push(Page {
+				content,
+				..Default::default()
+			});
+		}
+		Ok(pages)
 	}
 }
 

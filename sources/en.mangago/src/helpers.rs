@@ -263,33 +263,45 @@ const JS_FILTERS: &[&str] = &[
 	"height",
 ];
 
-pub fn get_descrambling_key(deobf_chapter_js: &str, image_url: &str) -> Result<String> {
-	let after = match deobf_chapter_js.split_once("var renImg = function(img,width,height,id){") {
-		Some((_, after)) => after,
-		None => bail!("Pattern not found"),
-	};
-	let before = match after.split_once("key = key.split(") {
-		Some((before, _)) => before,
-		None => bail!("Pattern not found"),
-	};
+/// A JS context with the descrambling-key function evaluated once per chapter.
+pub struct DescramblingKeys {
+	context: JsContext,
+}
 
-	let imgkeys: String = before
-		.lines()
-		.filter(|line| JS_FILTERS.iter().all(|f| !line.contains(f)))
-		.collect::<Vec<_>>()
-		.join("\n")
-		.replace("img.src", "url");
+impl DescramblingKeys {
+	pub fn new(deobf_chapter_js: &str) -> Result<Self> {
+		let after = match deobf_chapter_js.split_once("var renImg = function(img,width,height,id){")
+		{
+			Some((_, after)) => after,
+			None => bail!("Pattern not found"),
+		};
+		let before = match after.split_once("key = key.split(") {
+			Some((before, _)) => before,
+			None => bail!("Pattern not found"),
+		};
 
-	let js = format!(
-		"function getDescramblingKey(url) {{ {}; return key; }}\ngetDescramblingKey(\"{}\");",
-		imgkeys, image_url
-	);
+		let imgkeys: String = before
+			.lines()
+			.filter(|line| JS_FILTERS.iter().all(|f| !line.contains(f)))
+			.collect::<Vec<_>>()
+			.join("\n")
+			.replace("img.src", "url");
 
-	let context = JsContext::new();
-	context.eval(REPLACE_POS_JS)?;
-	let result = context.eval(&js)?;
+		let context = JsContext::new();
+		context.eval(REPLACE_POS_JS)?;
+		context.eval(&format!(
+			"function getDescramblingKey(url) {{ {}; return key; }}",
+			imgkeys
+		))?;
 
-	Ok(result)
+		Ok(Self { context })
+	}
+
+	pub fn key_for(&self, image_url: &str) -> Result<String> {
+		Ok(self
+			.context
+			.eval(&format!("getDescramblingKey(\"{image_url}\");"))?)
+	}
 }
 
 pub fn parse_chapter_title(input: &str) -> (Option<f32>, Option<f32>, Option<String>) {
