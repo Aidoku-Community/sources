@@ -6,17 +6,22 @@ use aidoku::{
 	prelude::*,
 };
 use regex::Regex;
+use spin::Lazy;
 
 /// Extracts the leading number from a chapter/volume title and reports whether
 /// the unit attached to that number marks it as a volume (卷/册/冊) rather than a
 /// chapter (话/話/章/回). The unit is anchored to the matched number so that a 卷
 /// appearing inside a word does not misclassify a chapter.
+// Compile the regex once instead of per chapter to keep the details call
+// fast on interpreted runtimes (see Aidoku-Community/sources#829).
+static CHAPTER_RE: Lazy<Regex> = Lazy::new(|| {
+	#[expect(clippy::unwrap_used)]
+	Regex::new(r"第\s*(\d+(?:\.\d+)?)\s*([话話章回卷册冊])?|(\d+(?:\.\d+)?)\s*([话話章回卷册冊])")
+		.unwrap()
+});
+
 fn extract_chapter_number(title: &str) -> Option<(f32, bool)> {
-	let re = Regex::new(
-		r"第\s*(\d+(?:\.\d+)?)\s*([话話章回卷册冊])?|(\d+(?:\.\d+)?)\s*([话話章回卷册冊])",
-	)
-	.ok()?;
-	let caps = re.captures(title)?;
+	let caps = CHAPTER_RE.captures(title)?;
 	let (num, unit) = if let Some(n) = caps.get(1) {
 		(n, caps.get(2))
 	} else {

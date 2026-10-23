@@ -10,6 +10,18 @@ use aidoku::{
 	prelude::*,
 };
 use regex::Regex;
+use spin::Lazy;
+
+// Compile the regexes once instead of per chapter to keep the details call
+// fast on interpreted runtimes (see Aidoku-Community/sources#829).
+static CHAPTER_RES: Lazy<[Regex; 2]> = Lazy::new(|| {
+	#[expect(clippy::unwrap_used)]
+	[
+		Regex::new(r"(?:第\s*)(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:话|話|章|回|卷|册|冊)").unwrap(),
+		// Fallback: find any standalone number in the string
+		Regex::new(r"(?:\s|\.)+(\d+(?:\.\d+)?)\s*$").unwrap(),
+	]
+});
 
 fn extract_chapter_number(title: &str) -> Option<f32> {
 	// Normalize fullwidth digits and dot to ASCII, and lowercase for matching
@@ -35,18 +47,14 @@ fn extract_chapter_number(title: &str) -> Option<f32> {
 
 	let s = normalize(title);
 
-	if let Ok(re) =
-		Regex::new(r"(?:第\s*)(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:话|話|章|回|卷|册|冊)")
-		&& let Some(captures) = re.captures(&s)
+	if let Some(captures) = CHAPTER_RES[0].captures(&s)
 		&& let Some(m) = captures.get(1).or_else(|| captures.get(2))
 		&& let Ok(num) = m.as_str().parse::<f32>()
 	{
 		return Some(num);
 	}
 
-	// Fallback: find any standalone number in the string
-	if let Ok(re2) = Regex::new(r"(?:\s|\.)+(\d+(?:\.\d+)?)\s*$")
-		&& let Some(captures) = re2.captures(&s)
+	if let Some(captures) = CHAPTER_RES[1].captures(&s)
 		&& let Some(m) = captures.get(1)
 		&& let Ok(num) = m.as_str().parse::<f32>()
 	{
