@@ -17,5 +17,8 @@
 			"id": "Latest",
 			"name": "Últimas actualizaciones"
 		}
-	]
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
 }

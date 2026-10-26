@@ -5,6 +5,8 @@ use aidoku::{
 };
 use serde::Deserialize;
 
+use crate::helpers::manga_key;
+
 /// Laravel-style pagination used by `rankings`, `new-chapters` and `series`.
 #[derive(Deserialize)]
 pub struct Paginated<T> {
@@ -49,7 +51,7 @@ impl MangaListItemDto {
 
 	pub fn to_manga(&self) -> Manga {
 		Manga {
-			key: self.id.to_string(),
+			key: manga_key(self.id, &self.slug),
 			title: self.name.clone(),
 			cover: self.cover.clone(),
 			..Default::default()
@@ -60,7 +62,7 @@ impl MangaListItemDto {
 impl From<MangaListItemDto> for Manga {
 	fn from(dto: MangaListItemDto) -> Self {
 		Manga {
-			key: dto.id.to_string(),
+			key: manga_key(dto.id, &dto.slug),
 			title: dto.name,
 			cover: dto.cover,
 			..Default::default()
@@ -106,6 +108,8 @@ pub struct DetailsResponse {
 
 #[derive(Deserialize)]
 pub struct MangaDto {
+	pub id: i32,
+	pub slug: String,
 	pub name: String,
 	pub cover: Option<String>,
 	pub summary: Option<String>,
