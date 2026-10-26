@@ -1,9 +1,9 @@
 #![no_std]
 use aidoku::{
-	BaseUrlProvider, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent,
-	HomeComponentValue, HomeLayout, HomePartialResult, Listing, ListingProvider, Manga,
-	MangaPageResult, MangaWithChapter, Page, PageContent, Result, Source,
-	alloc::{String, Vec, vec},
+	BaseUrlProvider, Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, Home,
+	HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, Listing, ListingProvider,
+	Manga, MangaPageResult, MangaWithChapter, Page, PageContent, Result, Source,
+	alloc::{String, Vec, string::ToString, vec},
 	imports::{defaults::defaults_get, net::Request, std::send_partial_result},
 	prelude::*,
 };
@@ -12,9 +12,7 @@ use serde::de::DeserializeOwned;
 
 mod helpers;
 mod models;
-use helpers::{
-	detect_base_url, get_json, latest_url, manga_key, manga_links, parse_manga_key, rankings_url,
-};
+use helpers::{detect_base_url, get_json, latest_url, manga_links, parse_manga_id, rankings_url};
 use models::{
 	ChaptersResponse, DetailsResponse, LatestItemDto, MangaListItemDto, Paginated,
 	SeriesListResponse, SeriesResponse,
@@ -27,9 +25,12 @@ const BASE_URL_SETTING: &str = "baseUrl";
 const SEARCH_PAGE_SIZE: usize = 20;
 
 struct OlympusScanlation {
-	/// Every comic on the site, from `/api/series/list`. Used for search (the API
-	/// can't search by title) and to find a series' current slug. Loaded on first use.
+	/// Every comic on the site, from `/api/series/list`. Used for search, since the
+	/// API can't search by title. Loaded on first use.
 	series: RefCell<Option<Vec<MangaListItemDto>>>,
+	/// Series id -> slug. Keys are ids, but the API only accepts slugs, which change
+	/// over time. Updated from every response that includes slugs.
+	slugs: RefCell<HashMap<i32, String>>,
 	/// Domain found by `detect_base_url`, kept for the rest of the session.
 	detected_base_url: RefCell<Option<String>>,
 }
@@ -38,6 +39,7 @@ impl Source for OlympusScanlation {
 	fn new() -> Self {
 		Self {
 			series: RefCell::new(None),
+			slugs: RefCell::new(HashMap::new()),
 			detected_base_url: RefCell::new(None),
 		}
 	}
@@ -70,7 +72,9 @@ impl Source for OlympusScanlation {
 			}
 		}
 
-		Ok(get_json::<SeriesResponse>(&url)?.data.series.into())
+		let series = get_json::<SeriesResponse>(&url)?.data.series;
+		self.remember_slugs(&series.data);
+		Ok(series.into())
 	}
 
 	fn get_manga_update(
@@ -79,9 +83,8 @@ impl Source for OlympusScanlation {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let (id, slug) = parse_manga_key(&manga.key)?;
-		// Replaced by `series_api` if the slug in the key turns out to be stale.
-		let mut slug = String::from(slug);
+		let id = parse_manga_id(&manga.key)?;
+		let mut slug = self.slug_for(id)?;
 		let base_url = self.base_url();
 
 		if needs_details {
@@ -126,7 +129,9 @@ impl Source for OlympusScanlation {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let (_, slug) = parse_manga_key(&manga.key)?;
+		let slug = self.slug_for(parse_manga_id(&manga.key)?)?;
+		// The site redirects this to the chapter's reader page. Only the chapter id
+		// matters, so a slug that changed in the meantime still works.
 		let url = format!("{}/capitulo/{}/comic-{slug}", self.base_url(), chapter.key);
 
 		Request::get(&url)?
@@ -166,20 +171,48 @@ impl OlympusScanlation {
 		url
 	}
 
+	fn remember_slug(&self, id: i32, slug: &str) {
+		let mut slugs = self.slugs.borrow_mut();
+		if slugs.get(&id).map(String::as_str) != Some(slug) {
+			slugs.insert(id, slug.into());
+		}
+	}
+
+	fn remember_slugs(&self, items: &[MangaListItemDto]) {
+		for item in items {
+			self.remember_slug(item.id, &item.slug);
+		}
+	}
+
 	fn refresh_series(&self) -> Result<()> {
 		let url = format!("{}/api/series/list", self.base_url());
-		let comics = get_json::<SeriesListResponse>(&url)?
+		let comics: Vec<MangaListItemDto> = get_json::<SeriesListResponse>(&url)?
 			.data
 			.into_iter()
 			.filter(MangaListItemDto::is_comic)
 			.collect();
+		self.remember_slugs(&comics);
 		*self.series.borrow_mut() = Some(comics);
 		Ok(())
 	}
 
-	/// Requests `/api/series/{slug}{rest}`. If the API answers 404, the slug is
-	/// probably stale (they change over time), so the current one is looked up by
-	/// id and the request is retried once. `slug` is updated in that case.
+	fn slug_for(&self, id: i32) -> Result<String> {
+		if let Some(slug) = self.slugs.borrow().get(&id) {
+			return Ok(slug.clone());
+		}
+		// Not seen in this session yet (e.g. a series opened from the library), so
+		// load the full list once.
+		self.refresh_series()?;
+		self.slugs
+			.borrow()
+			.get(&id)
+			.cloned()
+			.ok_or_else(|| error!("Serie no encontrada: {id}"))
+	}
+
+	/// Requests `/api/series/{slug}{rest}`. A 404 means the slug changed since it was
+	/// cached, so the series list is reloaded and the request retried once with the
+	/// new slug. `slug` is updated in that case.
 	fn series_api<T: DeserializeOwned>(
 		&self,
 		base_url: &str,
@@ -191,29 +224,20 @@ impl OlympusScanlation {
 		if response.status_code() != 404 {
 			return response.get_json_owned();
 		}
-		*slug = self.current_slug(id, slug)?;
+
+		self.refresh_series()?;
+		let current = self
+			.slugs
+			.borrow()
+			.get(&id)
+			.filter(|current| *current != slug)
+			.cloned()
+			.ok_or_else(|| error!("Serie no encontrada: {id}"))?;
+		*slug = current;
 		get_json(&format!("{base_url}/api/series/{slug}{rest}"))
 	}
 
-	/// Finds the slug a series has now. Only used when `stale` stopped working, so
-	/// the cached list is reloaded if it still has the stale slug.
-	fn current_slug(&self, id: i32, stale: &str) -> Result<String> {
-		let find = || {
-			self.series
-				.borrow()
-				.as_deref()
-				.and_then(|series| series.iter().find(|item| item.id == id))
-				.map(|item| item.slug.clone())
-				.filter(|slug| slug != stale)
-		};
-		if let Some(slug) = find() {
-			return Ok(slug);
-		}
-		self.refresh_series()?;
-		find().ok_or_else(|| error!("Serie no encontrada: {id}"))
-	}
-
-	/// Turns a slug from a URL into a manga key.
+	/// Turns a slug from a URL into a manga key (the series id).
 	fn key_for_slug(&self, slug: &str) -> Result<String> {
 		let url = format!("{}/api/series/{slug}?type=comic", self.base_url());
 		let response = Request::get(url)?.send()?;
@@ -221,8 +245,9 @@ impl OlympusScanlation {
 			// Old links can point to a slug that no longer exists.
 			bail!("Serie no encontrada: {slug}");
 		}
-		let details: DetailsResponse = response.get_json_owned()?;
-		Ok(manga_key(details.data.id, &details.data.slug))
+		let series = response.get_json_owned::<DetailsResponse>()?.data;
+		self.remember_slug(series.id, &series.slug);
+		Ok(series.id.to_string())
 	}
 
 	fn search_by_title(&self, query: &str, page: i32) -> Result<MangaPageResult> {
@@ -261,7 +286,9 @@ impl ListingProvider for OlympusScanlation {
 			"Latest" => latest_url(&base_url, page),
 			_ => bail!("Listado no válido: {}", listing.id),
 		};
-		Ok(get_json::<Paginated<MangaListItemDto>>(&url)?.into())
+		let response = get_json::<Paginated<MangaListItemDto>>(&url)?;
+		self.remember_slugs(&response.data);
+		Ok(response.into())
 	}
 }
 
@@ -296,6 +323,7 @@ impl Home for OlympusScanlation {
 			"monthly_ranking",
 			1,
 		))?;
+		self.remember_slugs(&trending.data);
 		send_partial_result(&HomePartialResult::Component(HomeComponent {
 			title: Some("Tendencias del mes".into()),
 			subtitle: None,
@@ -313,12 +341,13 @@ impl Home for OlympusScanlation {
 			.into_iter()
 			.filter(|item| item.kind.as_deref() == Some("comic"))
 			.filter_map(|item| {
+				self.remember_slug(item.id, &item.slug);
 				// The newest chapter comes first.
 				let chapter = item.last_chapters.into_iter().next()?;
 				Some(MangaWithChapter {
 					chapter: chapter.into_chapter(&base_url, &item.slug),
 					manga: Manga {
-						key: manga_key(item.id, &item.slug),
+						key: item.id.to_string(),
 						title: item.name,
 						cover: item.cover,
 						..Default::default()
@@ -342,6 +371,7 @@ impl Home for OlympusScanlation {
 
 		let popular =
 			get_json::<Paginated<MangaListItemDto>>(&rankings_url(&base_url, "total_ranking", 1))?;
+		self.remember_slugs(&popular.data);
 		send_partial_result(&HomePartialResult::Component(HomeComponent {
 			title: Some("Populares".into()),
 			subtitle: None,

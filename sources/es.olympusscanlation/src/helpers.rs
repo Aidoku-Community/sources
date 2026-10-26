@@ -11,16 +11,11 @@ use crate::models::MangaListItemDto;
 /// Olympus keeps this page's og:url pointed at its current domain.
 const DOMAIN_FINDER_URL: &str = "https://olympus.pages.dev";
 
-/// Manga keys are "{id}|{slug}". The API only accepts slugs, but slugs change over
-/// time, so the id is kept to find the current slug when the stored one is stale.
-pub fn manga_key(id: i32, slug: &str) -> String {
-	format!("{id}|{slug}")
-}
-
-pub fn parse_manga_key(key: &str) -> Result<(i32, &str)> {
-	key.split_once('|')
-		.and_then(|(id, slug)| Some((id.parse().ok()?, slug)))
-		.ok_or_else(|| error!("Clave de serie no válida: {key}"))
+/// Manga keys are the series id. Slugs aren't used in keys because they change
+/// over time.
+pub fn parse_manga_id(key: &str) -> Result<i32> {
+	key.parse()
+		.map_err(|_| error!("Clave de serie no válida: {key}"))
 }
 
 pub fn get_json<T: DeserializeOwned>(url: &str) -> Result<T> {
