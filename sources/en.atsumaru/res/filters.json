@@ -1,0 +1,195 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"title": "Sort",
+		"options": [
+			"Popularity",
+			"Title",
+			"Trending",
+			"Recently Added",
+			"Release Date",
+			"Top Rated",
+			"Hot Updates",
+			"Recently Updated",
+			"Rising",
+			"Hot Arrivals",
+			"Most Bookmarked",
+			"Most Talked About",
+			"Binge-Worthy",
+			"Most Polarizing",
+			"Hidden Gems",
+			"Random"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "genre",
+		"title": "Genres",
+		"isGenre": true,
+		"canExclude": true,
+		"options": [
+			"Action",
+			"Adult",
+			"Adventure",
+			"Boys Love",
+			"Comedy",
+			"Drama",
+			"Fantasy",
+			"Girls Love",
+			"Hentai",
+			"Historical",
+			"Horror",
+			"Martial Arts",
+			"Mystery",
+			"Psychological",
+			"Romance",
+			"Sci-Fi",
+			"Slice of Life",
+			"Smut",
+			"Supernatural",
+			"Thriller",
+			"Tragedy"
+		],
+		"ids": [
+			"39",
+			"46",
+			"37",
+			"180",
+			"6",
+			"31",
+			"36",
+			"4",
+			"10",
+			"45",
+			"44",
+			"29",
+			"32",
+			"18",
+			"9",
+			"1",
+			"7",
+			"41",
+			"22",
+			"19",
+			"5"
+		]
+	},
+	{
+		"type": "select",
+		"id": "genre_match",
+		"title": "Match Genres",
+		"hideFromHeader": true,
+		"options": [
+			"All",
+			"Any"
+		],
+		"ids": [
+			"all",
+			"any"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "demographic",
+		"title": "Demographic",
+		"canExclude": true,
+		"options": [
+			"Shounen",
+			"Seinen",
+			"Shoujo",
+			"Josei",
+			"Male Demographic with Female Lead",
+			"Male Demographic with Female Author",
+			"Female Demographic with Male Lead",
+			"Kodomo",
+			"Female Oriented",
+			"Male Oriented"
+		],
+		"ids": [
+			"38",
+			"8",
+			"40",
+			"43",
+			"70",
+			"1048",
+			"1934",
+			"431",
+			"912",
+			"911"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "type",
+		"title": "Content Type",
+		"options": [
+			"Manga",
+			"Manhwa",
+			"Manhua",
+			"OEL",
+			"Other",
+			"Novel"
+		],
+		"ids": [
+			"Manga",
+			"Manwha",
+			"Manhua",
+			"OEL",
+			"Other",
+			"Novel"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"Ongoing",
+			"Completed",
+			"Hiatus",
+			"Canceled"
+		],
+		"ids": [
+			"Ongoing",
+			"Completed",
+			"Hiatus",
+			"Canceled"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "rating",
+		"title": "Content Rating",
+		"options": [
+			"Safe",
+			"Suggestive",
+			"Erotica",
+			"Pornographic"
+		]
+	},
+	{
+		"type": "text",
+		"id": "author",
+		"title": "Author",
+		"placeholder": "e.g. Chugong"
+	},
+	{
+		"type": "range",
+		"id": "year",
+		"title": "Release Year",
+		"min": 1900
+	},
+	{
+		"type": "range",
+		"id": "chapters",
+		"title": "Chapter Count",
+		"min": 0
+	},
+	{
+		"type": "check",
+		"id": "official",
+		"title": "Official Translations Only",
+		"hideFromHeader": true
+	}
+]
