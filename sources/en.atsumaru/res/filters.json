@@ -123,6 +123,7 @@
 		"type": "multi-select",
 		"id": "type",
 		"title": "Content Type",
+		"canExclude": false,
 		"options": [
 			"Manga",
 			"Manhwa",
@@ -144,6 +145,7 @@
 		"type": "multi-select",
 		"id": "status",
 		"title": "Status",
+		"canExclude": false,
 		"options": [
 			"Ongoing",
 			"Completed",
@@ -161,6 +163,7 @@
 		"type": "multi-select",
 		"id": "rating",
 		"title": "Content Rating",
+		"canExclude": false,
 		"options": [
 			"Safe",
 			"Suggestive",

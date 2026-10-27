@@ -12,6 +12,7 @@ use core::cmp::Ordering;
 
 /// Genre ids that stand in for a rating the site leaves out.
 pub const HENTAI: &str = "10";
+pub const NOVEL_PREFIX: &str = "novel/";
 pub const ADULT_GENRES: [&str; 2] = ["46", "41"];
 
 // The site's spotlight genres, one a day in this order.
@@ -101,9 +102,16 @@ pub fn chapter_url(manga_id: &str, chapter_id: &str, novel: bool) -> String {
 	format!("{BASE_URL}/{kind}/{manga_id}/{chapter_id}")
 }
 
-pub fn is_novel_url(url: Option<&str>) -> bool {
-	url.and_then(|url| url.strip_prefix(BASE_URL))
-		.is_some_and(|path| path.starts_with("/novel/"))
+pub fn manga_key(id: String, novel: bool) -> String {
+	if novel {
+		format!("{NOVEL_PREFIX}{id}")
+	} else {
+		id
+	}
+}
+
+pub fn manga_id(key: &str) -> &str {
+	key.strip_prefix(NOVEL_PREFIX).unwrap_or(key)
 }
 
 pub fn parse_link(url: &str) -> Option<(String, Option<String>)> {
@@ -118,9 +126,10 @@ pub fn parse_link(url: &str) -> Option<(String, Option<String>)> {
 	let mut parts = path.split('/').filter(|part| !part.is_empty());
 	match (parts.next()?, parts.next()?, parts.next()) {
 		("manga", id, None) => Some((id.into(), None)),
-		("novel", id, chapter) | ("read", id, chapter @ Some(_)) => {
-			Some((id.into(), chapter.map(Into::into)))
-		}
+		(kind @ "novel", id, chapter) | (kind @ "read", id, chapter @ Some(_)) => Some((
+			manga_key(id.into(), kind == "novel"),
+			chapter.map(Into::into),
+		)),
 		_ => None,
 	}
 }

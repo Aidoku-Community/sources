@@ -1,6 +1,6 @@
 use crate::helpers::{
-	chapter_title, chapter_url, content_rating, cover_url, display_title, is_novel, manga_status,
-	manga_url, viewer,
+	chapter_title, chapter_url, content_rating, cover_url, display_title, is_novel, manga_key,
+	manga_status, manga_url, viewer,
 };
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult,
@@ -48,7 +48,7 @@ impl FeedItem {
 			} else {
 				ContentRating::default()
 			},
-			key: self.id,
+			key: manga_key(self.id, is_novel(self.medium.as_deref())),
 			..Default::default()
 		}
 	}
@@ -155,7 +155,7 @@ impl SearchDocument {
 				.map(|path| cover_url(&path)),
 			status: manga_status(self.status.as_deref()),
 			content_rating,
-			key: self.id,
+			key: manga_key(self.id, is_novel(self.medium.as_deref())),
 			..Default::default()
 		}
 	}
@@ -281,7 +281,7 @@ impl MangaInfo {
 			status: manga_status(self.status.as_deref()),
 			content_rating,
 			viewer: viewer(self.kind.as_deref(), self.medium.as_deref()),
-			key: self.id,
+			key: manga_key(self.id, novel),
 			..Default::default()
 		}
 	}

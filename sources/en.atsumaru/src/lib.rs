@@ -18,7 +18,7 @@ use aidoku::{
 	prelude::*,
 };
 use api::{API_URL, CARD_FIELDS, RATING_FIELDS, SearchParams, get, lookup_url, parse, request};
-use helpers::{arrange_chapters, is_novel, is_novel_url, page_url, parse_link};
+use helpers::{NOVEL_PREFIX, arrange_chapters, is_novel, manga_id, page_url, parse_link};
 use models::{
 	ChaptersResponse, MangaPage, NovelResponse, PageResponse, ReadResponse, SearchResponse,
 };
@@ -42,7 +42,7 @@ impl Source for Atsumaru {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		if let Some((key, _)) = query.as_deref().map(str::trim).and_then(parse_link) {
-			let found: SearchResponse = get(&lookup_url(&[&key], CARD_FIELDS))?;
+			let found: SearchResponse = get(&lookup_url(&[manga_id(&key)], CARD_FIELDS))?;
 			if !found.hits.is_empty() {
 				return Ok(found.into_page(settings::label_novels()));
 			}
@@ -121,10 +121,11 @@ impl Source for Atsumaru {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let page_request = request(&format!("{API_URL}/manga/page?id={}", manga.key))?;
+		let id = manga_id(&manga.key);
+		let page_request = request(&format!("{API_URL}/manga/page?id={id}"))?;
 		// The page has no content rating, so details also look the series up in search.
 		let (page, rating) = if needs_details {
-			let rating_request = request(&lookup_url(&[&manga.key], RATING_FIELDS))?;
+			let rating_request = request(&lookup_url(&[id], RATING_FIELDS))?;
 			let mut responses = Request::send_all([page_request, rating_request]).into_iter();
 			let (Some(page), Some(rating)) = (responses.next(), responses.next()) else {
 				bail!("Atsumaru didn't answer");
@@ -157,9 +158,10 @@ impl Source for Atsumaru {
 		}
 
 		if needs_chapters {
+			let id = manga_id(&manga.key);
 			// The series page carries only the first chapters of a long list.
 			let chapters = if has_more_chapters {
-				let url = format!("{API_URL}/manga/allChapters?mangaId={}", manga.key);
+				let url = format!("{API_URL}/manga/allChapters?mangaId={id}");
 				get::<ChaptersResponse>(&url)?.chapters
 			} else {
 				chapters
@@ -168,7 +170,7 @@ impl Source for Atsumaru {
 			let chapters =
 				arrange_chapters(chapters, &scanlators, &excluded, settings::deduplicate())
 					.into_iter()
-					.map(|chapter| chapter.into_chapter(&manga.key, novel, &scanlators))
+					.map(|chapter| chapter.into_chapter(id, novel, &scanlators))
 					.collect();
 			manga.chapters = Some(chapters);
 		}
@@ -177,11 +179,12 @@ impl Source for Atsumaru {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let novel = is_novel_url(chapter.url.as_deref()) || is_novel_url(manga.url.as_deref());
+		let novel = manga.key.starts_with(NOVEL_PREFIX);
+		let id = manga_id(&manga.key);
 		let kind = if novel { "novelChapter" } else { "chapter" };
 		let url = format!(
 			"{API_URL}/read/{kind}?mangaId={}&chapterId={}",
-			manga.key, chapter.key
+			id, chapter.key
 		);
 
 		if novel {
