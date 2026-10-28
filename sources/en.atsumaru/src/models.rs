@@ -8,7 +8,7 @@ use aidoku::{
 };
 use serde::Deserialize;
 
-/// Search errors carry a message; the other endpoints don't.
+// Only search errors have a message field.
 #[derive(Deserialize)]
 pub struct ErrorResponse {
 	pub message: String,
@@ -42,7 +42,7 @@ impl FeedItem {
 				.medium_image
 				.or(self.image)
 				.map(|path| cover_url(&path)),
-			// The feeds only flag adult titles.
+			// Feeds omit finer content ratings.
 			content_rating: if self.is_adult {
 				ContentRating::NSFW
 			} else {
@@ -53,21 +53,12 @@ impl FeedItem {
 		}
 	}
 
-	pub fn into_featured(self, label_novels: bool, document: Option<SearchDocument>) -> Manga {
+	pub fn into_featured(mut self, label_novels: bool, document: Option<SearchDocument>) -> Manga {
 		let viewer = viewer(self.kind.as_deref(), self.medium.as_deref());
-		let cover = self
-			.large_image
-			.as_deref()
-			.or(self.medium_image.as_deref())
-			.or(self.image.as_deref())
-			.map(cover_url);
+		self.medium_image = self.large_image.take().or(self.medium_image);
 		let manga = self.into_manga(label_novels);
 		let Some(document) = document else {
-			return Manga {
-				viewer,
-				cover,
-				..manga
-			};
+			return Manga { viewer, ..manga };
 		};
 		Manga {
 			content_rating: document.content_rating(),
@@ -76,7 +67,6 @@ impl FeedItem {
 			authors: Some(document.authors).filter(|authors| !authors.is_empty()),
 			tags: Some(document.tags).filter(|tags| !tags.is_empty()),
 			viewer,
-			cover,
 			..manga
 		}
 	}
@@ -124,9 +114,8 @@ pub struct SearchDocument {
 	synopsis: Option<String>,
 	#[serde(default)]
 	authors: Vec<String>,
-	/// Genre names.
 	#[serde(default)]
-	tags: Vec<String>,
+	tags: Vec<String>, // Genre names.
 	#[serde(default)]
 	is_adult: bool,
 	mb_content_rating: Option<String>,
@@ -164,7 +153,7 @@ impl SearchDocument {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PageResponse {
-	// Null for an id the site doesn't know.
+	// Unknown ids return null.
 	pub manga_page: Option<MangaPage>,
 }
 
@@ -255,7 +244,6 @@ impl MangaInfo {
 			)
 			.filter(|names| !names.is_empty())
 		};
-		// Incidental and recurring tags are too loose to show.
 		let tags = self
 			.genres
 			.into_iter()
@@ -303,8 +291,8 @@ pub struct ChaptersResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChapterItem {
-	id: String,
-	scanlation_manga_id: Option<String>,
+	pub id: String,
+	pub scanlation_manga_id: Option<String>,
 	title: Option<String>,
 	pub number: Option<f32>,
 	pub created_at: Option<i64>,

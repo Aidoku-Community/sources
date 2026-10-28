@@ -17,7 +17,7 @@ use aidoku::{
 	},
 	prelude::*,
 };
-use api::{API_URL, CARD_FIELDS, RATING_FIELDS, SearchParams, get, lookup_url, parse, request};
+use api::{API_URL, CARD_FIELDS, SearchParams, get, lookup_url, parse, request};
 use helpers::{NOVEL_PREFIX, arrange_chapters, is_novel, manga_id, page_url, parse_link};
 use models::{
 	ChaptersResponse, MangaPage, NovelResponse, PageResponse, ReadResponse, SearchResponse,
@@ -104,7 +104,7 @@ impl Source for Atsumaru {
 			search.tags.extend(tags);
 		}
 
-		// A hidden genre or tag the search asks for is shown for that search.
+		// Explicit search filters override hidden genres and tags.
 		let genres = &search.genres;
 		search.excluded_genres.retain(|id| !genres.contains(id));
 		let (tags, demographics) = (&search.tags, &search.demographics);
@@ -123,9 +123,10 @@ impl Source for Atsumaru {
 	) -> Result<Manga> {
 		let id = manga_id(&manga.key);
 		let page_request = request(&format!("{API_URL}/manga/page?id={id}"))?;
-		// The page has no content rating, so details also look the series up in search.
+		// Series responses omit content ratings.
 		let (page, rating) = if needs_details {
-			let rating_request = request(&lookup_url(&[id], RATING_FIELDS))?;
+			let rating_request =
+				request(&lookup_url(&[id], "id,isAdult,mbContentRating,genreIds"))?;
 			let mut responses = Request::send_all([page_request, rating_request]).into_iter();
 			let (Some(page), Some(rating)) = (responses.next(), responses.next()) else {
 				bail!("Atsumaru didn't answer");
@@ -159,7 +160,7 @@ impl Source for Atsumaru {
 
 		if needs_chapters {
 			let id = manga_id(&manga.key);
-			// The series page carries only the first chapters of a long list.
+			// Series responses cap chapter lists.
 			let chapters = if has_more_chapters {
 				let url = format!("{API_URL}/manga/allChapters?mangaId={id}");
 				get::<ChaptersResponse>(&url)?.chapters
@@ -167,11 +168,17 @@ impl Source for Atsumaru {
 				chapters
 			};
 			let excluded = settings::excluded_scanlators();
-			let chapters =
-				arrange_chapters(chapters, &scanlators, &excluded, settings::deduplicate())
-					.into_iter()
-					.map(|chapter| chapter.into_chapter(id, novel, &scanlators))
-					.collect();
+			let preferred = settings::preferred_scanlators();
+			let chapters = arrange_chapters(
+				chapters,
+				&scanlators,
+				&excluded,
+				&preferred,
+				settings::deduplicate(),
+			)
+			.into_iter()
+			.map(|chapter| chapter.into_chapter(id, novel, &scanlators))
+			.collect();
 			manga.chapters = Some(chapters);
 		}
 

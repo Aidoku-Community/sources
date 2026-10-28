@@ -45,7 +45,7 @@ pub fn hidden_tags() -> Vec<String> {
 		.collect()
 }
 
-/// Discover ranking periods; search uses the site defaults.
+// Ranking periods apply only to Discover and its listings.
 pub fn timeframe(feed: &str) -> String {
 	defaults_get::<String>(&format!("{feed}Timeframe")).unwrap_or_else(|| "weekly".into())
 }
@@ -71,13 +71,20 @@ pub fn deduplicate() -> Option<Keep> {
 	})
 }
 
-/// Lowercased names; an entry may hold several, separated by commas.
-pub fn excluded_scanlators() -> Vec<String> {
-	defaults_get::<Vec<String>>("excludedScanlators")
+fn scanlator_names(key: &str) -> Vec<String> {
+	defaults_get::<Vec<String>>(key)
 		.unwrap_or_default()
 		.iter()
 		.flat_map(|entry| entry.split(','))
 		.map(|name| name.trim().to_lowercase())
 		.filter(|name| !name.is_empty())
 		.collect()
+}
+
+pub fn excluded_scanlators() -> Vec<String> {
+	scanlator_names("excludedScanlators")
+}
+
+pub fn preferred_scanlators() -> Vec<String> {
+	scanlator_names("preferredScanlators")
 }

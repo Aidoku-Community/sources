@@ -10,12 +10,11 @@ use aidoku::{
 };
 use core::cmp::Ordering;
 
-/// Genre ids that stand in for a rating the site leaves out.
+// Rating fallbacks for unrated titles.
 pub const HENTAI: &str = "10";
-pub const NOVEL_PREFIX: &str = "novel/";
 pub const ADULT_GENRES: [&str; 2] = ["46", "41"];
+pub const NOVEL_PREFIX: &str = "novel/";
 
-// The site's spotlight genres, one a day in this order.
 const SPOTLIGHT_GENRES: [&str; 15] = [
 	"Action",
 	"Romance",
@@ -38,7 +37,6 @@ pub fn spotlight_genre() -> &'static str {
 	SPOTLIGHT_GENRES[(current_date() / 86_400).rem_euclid(15) as usize]
 }
 
-/// The site's rating, raised by the Hentai, Adult and Smut genres.
 pub fn content_rating<S: AsRef<str>>(
 	is_adult: bool,
 	rating: Option<&str>,
@@ -78,7 +76,7 @@ pub fn page_url(path: &str) -> String {
 	format!("{CDN_URL}/{}", static_path(path))
 }
 
-/// Search answers in its own order, so a feed item takes its document by id.
+// Lookup order differs from feed order.
 pub fn take_document(documents: &mut Vec<SearchDocument>, id: &str) -> Option<SearchDocument> {
 	let index = documents.iter().position(|document| document.id == id)?;
 	Some(documents.swap_remove(index))
@@ -187,6 +185,7 @@ pub fn arrange_chapters(
 	mut chapters: Vec<ChapterItem>,
 	scanlators: &[Scanlator],
 	excluded: &[String],
+	preferred: &[String],
 	keep: Option<Keep>,
 ) -> Vec<ChapterItem> {
 	if !excluded.is_empty() {
@@ -206,6 +205,17 @@ pub fn arrange_chapters(
 			.scanlator(scanlators)
 			.map_or(i32::MIN, |group| group.score)
 	};
+	let priority = |chapter: &ChapterItem| {
+		chapter
+			.scanlator(scanlators)
+			.and_then(|group| {
+				preferred.iter().position(|name| {
+					name.chars()
+						.eq(group.name.chars().flat_map(char::to_lowercase))
+				})
+			})
+			.unwrap_or(usize::MAX)
+	};
 	chapters.sort_by(|a, b| {
 		let by_number = match (a.number, b.number) {
 			(Some(a), Some(b)) => b.partial_cmp(&a).unwrap_or(Ordering::Equal),
@@ -219,14 +229,28 @@ pub fn arrange_chapters(
 			Keep::Newest => Ordering::Equal,
 		};
 		by_number
+			.then_with(|| priority(a).cmp(&priority(b)))
 			.then(by_keep)
 			.then(b.created_at.cmp(&a.created_at))
+			.then_with(|| a.id.cmp(&b.id))
 	});
-	chapters.dedup_by(|later, kept| later.number.is_some() && later.number == kept.number);
+	let mut selected = None;
+	let mut group = None;
+	chapters.retain(|chapter| {
+		let Some(number) = chapter.number else {
+			return true;
+		};
+		if selected == Some(number) {
+			chapter.scanlation_manga_id == group
+		} else {
+			selected = Some(number);
+			group = chapter.scanlation_manga_id.clone();
+			true
+		}
+	});
 	chapters
 }
 
-/// The feeds can't apply every content type, so items are checked here.
 pub fn feed_allows(kind: Option<&str>, medium: Option<&str>, types: &[String]) -> bool {
 	if is_novel(medium) {
 		allows(types, "Novel")

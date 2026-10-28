@@ -88,7 +88,7 @@
 	{
 		"type": "group",
 		"title": "Chapters",
-		"footer": "Atsumaru often lists a chapter once per uploading group. Deduplicating keeps one upload of each: from the highest rated group that has it, the newest, or the one with the most pages. Chapters from excluded scanlators are left out; names aren't case-sensitive.",
+		"footer": "When deduplicating, Group Preference is tried from top to bottom, then Keep is used as a fallback. The selected group's same-number parts and extras and all unnumbered chapters are preserved. Excluded groups are removed first; group names aren't case-sensitive.",
 		"items": [
 			{
 				"type": "switch",
@@ -114,6 +114,18 @@
 					"Most Pages"
 				],
 				"default": "rated",
+				"requires": "deduplicateChapters",
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "editable-list",
+				"key": "preferredScanlators",
+				"title": "Group Preference",
+				"placeholder": "Group name",
+				"lineLimit": 1,
+				"default": [],
 				"requires": "deduplicateChapters",
 				"refreshes": [
 					"content"

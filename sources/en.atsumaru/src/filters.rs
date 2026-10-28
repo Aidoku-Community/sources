@@ -32,7 +32,7 @@ pub const GROUPS: [&str; 19] = [
 	"World Building",
 ];
 
-/// Explicit tags are offered only when pornographic titles are, as the site does.
+// Match the site's adult-tag visibility.
 fn grouped_tags(tags: Vec<TagOption>) -> Vec<(&'static str, Vec<String>, Vec<String>)> {
 	let explicit = settings::adult_only() || allows(&settings::content_ratings(), "Pornographic");
 	let mut tags = tags
@@ -55,12 +55,11 @@ fn grouped_tags(tags: Vec<TagOption>) -> Vec<(&'static str, Vec<String>, Vec<Str
 	groups
 }
 
-/// The site keeps adding tags, so its genre and tag lists are fetched rather than kept here.
 fn available_filters() -> Result<AvailableFilters> {
 	get(&format!("{API_URL}/explore/availableFilters"))
 }
 
-/// A tapped tag arrives by name, but search only matches tags by id.
+// Tag taps pass names; the API needs ids.
 pub fn tag_ids(names: &[String]) -> Result<(Vec<String>, Vec<String>)> {
 	let AvailableFilters { genres, tags } = available_filters()?;
 	let wanted = |name: &str| names.iter().any(|wanted| wanted.eq_ignore_ascii_case(name));

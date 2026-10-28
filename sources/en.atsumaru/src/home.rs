@@ -1,6 +1,6 @@
 use crate::{
 	Atsumaru,
-	api::{FEATURED_FIELDS, FEED_PAGE_SIZE, RANKED, SearchParams, get, lookup_url, parse, request},
+	api::{FEED_PAGE_SIZE, RANKED, SearchParams, get, lookup_url, parse, request},
 	helpers::{feed_allows, spotlight_genre, take_document},
 	models::{FeedItem, FeedResponse, SearchResponse},
 	settings,
@@ -21,7 +21,7 @@ const NOVELS: &str = "novels";
 const SPOTLIGHT: &str = "genreSpotlight";
 
 const SECTIONS: [(&str, &str); 14] = [
-	(POPULAR, "Popular This Week"),
+	(POPULAR, "Popular"),
 	("hotUpdates", "Hot Updates"),
 	("recentlyUpdated", "Recently Updated"),
 	("rising", "Rising"),
@@ -29,8 +29,8 @@ const SECTIONS: [(&str, &str); 14] = [
 	(NOVELS, "Most Popular Novels"),
 	(SPOTLIGHT, "Spotlight"),
 	("hotArrivals", "Hot Arrivals"),
-	("mostBookmarked", "Most Bookmarked This Week"),
-	("mostTalkedAbout", "Most Talked About This Week"),
+	("mostBookmarked", "Most Bookmarked"),
+	("mostTalkedAbout", "Most Talked About"),
 	("recentlyAdded", "Recently Added"),
 	("hiddenGems", "Hidden Gems"),
 	("bingeWorthy", "Binge-Worthy"),
@@ -55,7 +55,7 @@ fn section_request(id: &str, page: i32) -> Result<Option<Request>> {
 
 fn feed_items(response: Response) -> Result<(Vec<FeedItem>, bool)> {
 	let items = parse::<FeedResponse>(response)?.items;
-	// Feeds give no total, so a full page is the only sign of another.
+	// Feeds have no total.
 	let has_next_page = items.len() as i32 == FEED_PAGE_SIZE;
 	let types = settings::content_types();
 	let items = items
@@ -85,34 +85,39 @@ pub fn listing_page(id: &str, page: i32) -> Result<MangaPageResult> {
 
 fn fill(id: &str, name: &str, response: Response) -> Result<HomeComponentValue> {
 	let label_novels = settings::label_novels();
-	let listing = Some(Listing {
-		id: id.into(),
-		name: name.into(),
-		kind: ListingKind::Default,
-	});
+	let listing = || {
+		Some(Listing {
+			id: id.into(),
+			name: name.into(),
+			kind: ListingKind::Default,
+		})
+	};
 	if id == NOVELS {
 		let page = parse::<SearchResponse>(response)?.into_page(label_novels);
 		return Ok(HomeComponentValue::Scroller {
 			entries: page.entries.into_iter().map(Into::into).collect(),
-			listing,
+			listing: listing(),
 		});
 	}
 	let (items, _) = feed_items(response)?;
 	Ok(if id == POPULAR {
-		// The feed has no descriptions or authors, so one search request fills them in.
+		// Feeds omit featured metadata.
 		let ids = items
 			.iter()
 			.map(|item| item.id.as_str())
 			.collect::<Vec<_>>();
-		let mut documents = get::<SearchResponse>(&lookup_url(&ids, FEATURED_FIELDS))
-			.map(|response| {
-				response
-					.hits
-					.into_iter()
-					.map(|hit| hit.document)
-					.collect::<Vec<_>>()
-			})
-			.unwrap_or_default();
+		let mut documents = get::<SearchResponse>(&lookup_url(
+			&ids,
+			"id,synopsis,authors,status,tags,isAdult,mbContentRating,genreIds",
+		))
+		.map(|response| {
+			response
+				.hits
+				.into_iter()
+				.map(|hit| hit.document)
+				.collect::<Vec<_>>()
+		})
+		.unwrap_or_default();
 		HomeComponentValue::BigScroller {
 			entries: items
 				.into_iter()
@@ -129,7 +134,7 @@ fn fill(id: &str, name: &str, response: Response) -> Result<HomeComponentValue> 
 				.into_iter()
 				.map(|item| item.into_manga(label_novels).into())
 				.collect(),
-			listing,
+			listing: listing(),
 		}
 	})
 }
@@ -157,7 +162,7 @@ impl Home for Atsumaru {
 						"all" => "All Time",
 						_ => "This Week",
 					};
-					format!("{} {period}", name.trim_end_matches(" This Week"))
+					format!("{name} {period}")
 				} else {
 					name.into()
 				};
@@ -166,7 +171,6 @@ impl Home for Atsumaru {
 			}
 		}
 
-		// The layout goes out first so the page shows while the sections load.
 		send_partial_result(&HomePartialResult::Layout(HomeLayout {
 			components: sections
 				.iter()
@@ -183,7 +187,7 @@ impl Home for Atsumaru {
 		}));
 
 		let requested = sections.len();
-		// Returned, not sent as partials: the app would keep an empty row for a failed section.
+		// Returning the final layout removes failed-section placeholders.
 		let components = sections
 			.into_iter()
 			.zip(Request::send_all(requests))

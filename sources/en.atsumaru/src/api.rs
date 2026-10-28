@@ -20,11 +20,8 @@ pub const FEED_PAGE_SIZE: i32 = 24;
 
 pub const CARD_FIELDS: &str =
 	"id,title,poster,posterMedium,isAdult,mbContentRating,genreIds,medium,status";
-pub const RATING_FIELDS: &str = "id,isAdult,mbContentRating,genreIds";
-pub const FEATURED_FIELDS: &str =
-	"id,synopsis,authors,status,tags,isAdult,mbContentRating,genreIds";
 
-/// Indexed sorts in `filters.json` order, then the ranked feeds, then Random.
+// Sort indices must match filters.json.
 const SORTS: [&str; 6] = [
 	"views",
 	"title",
@@ -44,7 +41,6 @@ const FEEDS: [&str; 9] = [
 	"mostPolarizing",
 	"hiddenGems",
 ];
-/// The feeds the site ranks over a period.
 pub const RANKED: [&str; 3] = ["popular", "mostBookmarked", "mostTalkedAbout"];
 const RANDOM: usize = SORTS.len() + FEEDS.len();
 const POPULARITY: usize = 0;
@@ -83,7 +79,7 @@ fn list<S: AsRef<str>>(values: &[S]) -> String {
 	format!("[{}]", quoted.join(","))
 }
 
-/// Genres the ratings leave out, standing in for titles the site hasn't rated.
+// Unrated titles need genre-based exclusions.
 fn excluded_rating_genres(ratings: &[String]) -> Vec<&'static str> {
 	let mut genres = Vec::new();
 	if !allows(ratings, "Pornographic") {
@@ -171,8 +167,7 @@ impl SearchParams {
 		let (comics, novels) = split_types(&self.types);
 		query.push("offset", Some(&((page - 1) * FEED_PAGE_SIZE).to_string()));
 		query.push("limit", Some(&FEED_PAGE_SIZE.to_string()));
-		// A full selection is left out, as in search. The feeds AND types with mediums, so with
-		// novels on, types are filtered locally.
+		// Feeds AND types with mediums; mixed selections need local filtering.
 		if comics.is_empty() {
 			query.push("mediums", Some("Novel"));
 		} else if !novels {
@@ -190,9 +185,9 @@ impl SearchParams {
 		if self.adult_only {
 			query.push("adult", Some("1"));
 		} else {
-			// The feeds take genre and tag ids in one parameter; the two never share an id.
+			// Feed exclusions accept both genre and tag ids.
 			excluded.extend(excluded_rating_genres(&self.ratings));
-			// Left out, it hides adult titles, so even every rating is sent.
+			// Omitting contentRatings enables safe mode.
 			query.push("contentRatings", Some(&self.ratings.join(",")));
 		}
 		if !excluded.is_empty() {
@@ -218,7 +213,7 @@ impl SearchParams {
 		if novels && comics.len() == CONTENT_TYPES.len() - 1 {
 			return None;
 		}
-		// Some comics have no medium set, so comics are matched as "not a novel".
+		// Unclassified comics can have no medium.
 		let mut parts = Vec::new();
 		if comics.len() == CONTENT_TYPES.len() - 1 {
 			parts.push("medium:!=[`Novel`]".into());
@@ -239,7 +234,7 @@ impl SearchParams {
 			));
 			return;
 		}
-		// Most novels are unrated, so exclude unwanted ratings rather than match wanted ones.
+		// Exclusions retain unrated titles.
 		let genres = excluded_rating_genres(&self.ratings);
 		if !allows(&self.ratings, "Pornographic") {
 			clauses.push("isAdult:=false".into());
@@ -270,7 +265,6 @@ impl SearchParams {
 			clauses.push(format!("genreIds:!={}", list(&self.excluded_genres)));
 		}
 		Self::push_ids(&mut clauses, "tagIds", &self.tags, false);
-		// A series has one demographic, so several can only mean any of them.
 		Self::push_ids(&mut clauses, "tagIds", &self.demographics, true);
 		if !self.excluded_tags.is_empty() {
 			clauses.push(format!("tagIds:!={}", list(&self.excluded_tags)));
@@ -339,7 +333,7 @@ impl SearchParams {
 				format!("_eval({first}:>={seed}):desc,{first}:asc,{second}:asc")
 			}
 		} else {
-			// A feed sort only uses this for its lookup, whose order is discarded.
+			// Feed lookups discard index order.
 			let field = SORTS.get(self.sort).copied().unwrap_or(SORTS[POPULARITY]);
 			format!("{field}:{}", if self.ascending { "asc" } else { "desc" })
 		};
@@ -362,7 +356,7 @@ impl SearchParams {
 			if response.items.is_empty() {
 				return Ok(MangaPageResult::default());
 			}
-			// One indexed lookup applies every search filter while preserving feed order.
+			// Apply search-only filters in one lookup; retain feed order.
 			let ids = response
 				.items
 				.iter()
