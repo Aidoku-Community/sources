@@ -49,8 +49,7 @@
 				],
 				"default": [
 					"Safe",
-					"Suggestive",
-					"Erotica"
+					"Suggestive"
 				],
 				"refreshes": [
 					"content",

@@ -6,7 +6,7 @@ use aidoku::{
 
 pub const CONTENT_TYPES: [&str; 6] = ["Manga", "Manwha", "Manhua", "OEL", "Other", "Novel"]; // "Manwha" is the site's spelling.
 pub const CONTENT_RATINGS: [&str; 4] = ["Safe", "Suggestive", "Erotica", "Pornographic"];
-const DEFAULT_RATINGS: [&str; 3] = ["Safe", "Suggestive", "Erotica"];
+const DEFAULT_RATINGS: [&str; 2] = ["Safe", "Suggestive"];
 
 fn stored_list(key: &str, default: &[&str]) -> Vec<String> {
 	defaults_get::<Vec<String>>(key)

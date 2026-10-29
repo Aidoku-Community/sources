@@ -57,9 +57,10 @@ impl FeedItem {
 		let viewer = viewer(self.kind.as_deref(), self.medium.as_deref());
 		self.medium_image = self.large_image.take().or(self.medium_image);
 		let manga = self.into_manga(label_novels);
-		let Some(document) = document else {
+		let Some(mut document) = document else {
 			return Manga { viewer, ..manga };
 		};
+		document.tags.sort();
 		Manga {
 			content_rating: document.content_rating(),
 			status: manga_status(document.status.as_deref()),
@@ -244,7 +245,7 @@ impl MangaInfo {
 			)
 			.filter(|names| !names.is_empty())
 		};
-		let tags = self
+		let mut tags = self
 			.genres
 			.into_iter()
 			.map(|genre| genre.name)
@@ -255,6 +256,7 @@ impl MangaInfo {
 					.map(|tag| tag.name),
 			)
 			.collect::<Vec<_>>();
+		tags.sort();
 		Manga {
 			title: display_title(self.title, self.medium.as_deref(), label_novels),
 			cover: self
