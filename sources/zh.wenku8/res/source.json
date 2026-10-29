@@ -1,0 +1,41 @@
+{
+	"info": {
+		"id": "zh.wenku8",
+		"name": "轻小说文库",
+		"version": 1,
+		"url": "https://www.wenku8.net",
+		"contentRating": 1,
+		"languages": ["zh"],
+		"minAppVersion": "0.8.5"
+	},
+	"listings": [
+		{
+			"id": "dayvisit",
+			"name": "今日热榜"
+		},
+		{
+			"id": "lastupdate",
+			"name": "最近更新"
+		},
+		{
+			"id": "allvisit",
+			"name": "总点击榜"
+		},
+		{
+			"id": "allvote",
+			"name": "总推荐榜"
+		},
+		{
+			"id": "monthvisit",
+			"name": "月点击榜"
+		},
+		{
+			"id": "postdate",
+			"name": "最新入库"
+		},
+		{
+			"id": "fullbooks",
+			"name": "全本书库"
+		}
+	]
+}

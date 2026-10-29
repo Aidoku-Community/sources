@@ -1,0 +1,18 @@
+[
+	{
+		"type": "select",
+		"id": "search-type",
+		"title": "搜索方式",
+		"options": ["按书名", "按作者"],
+		"ids": ["articlename", "author"],
+		"default": "articlename"
+	},
+	{
+		"type": "select",
+		"id": "collection",
+		"title": "书库范围（仅列表页生效）",
+		"options": ["连载中", "全本"],
+		"ids": ["0", "1"],
+		"default": "0"
+	}
+]
