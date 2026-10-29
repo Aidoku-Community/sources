@@ -176,7 +176,7 @@ impl Source for Soraraw {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let Some((manga_id, chapter_id)) = chapter.key.split_once('/') else {
+		let Some((_, chapter_id)) = chapter.key.split_once('/') else {
 			bail!("malformed chapter key {}", chapter.key);
 		};
 		let chapter_id = chapter_id
@@ -216,8 +216,12 @@ impl Source for Soraraw {
 		};
 
 		let images = {
-			let payload = request(format!("{IMAGE_API_URL}/{manga_id}/{chapter_id}.json"))?
-				.json_owned::<ImagePayload>()?;
+			let payload = request(image_api_url(
+				details.manga_id,
+				chapter_id,
+				details.updated_at.as_deref(),
+			))?
+			.json_owned::<ImagePayload>()?;
 			let json = deobfuscate(&payload.d, PAYLOAD_KEY)
 				.ok_or_else(|| error!("could not decode the page list of chapter {chapter_id}"))?;
 			serde_json::from_str::<Vec<PageImage>>(&json)

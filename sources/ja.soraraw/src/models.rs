@@ -28,7 +28,7 @@ pub struct DataProps<T> {
 	pub data: T,
 }
 
-// "/_next/data/soraraw38/index.json"
+// the page data of "/"
 #[derive(Deserialize)]
 pub struct HomeData {
 	#[serde(default)]
@@ -315,6 +315,8 @@ pub struct ChapterDetails {
 	pub base: Option<String>,
 	pub mode: Option<String>,
 	pub token: Option<String>,
+	// the image endpoint is cached at the edge for a year, so it is keyed on this
+	pub updated_at: Option<String>,
 }
 
 #[derive(Deserialize)]

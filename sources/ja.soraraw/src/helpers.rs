@@ -1,6 +1,6 @@
 use crate::{
-	BASE_URL, HEADER_BYTES, SCRAMBLE_GRID, SCRAMBLE_SECRET, STACKED_PAGE_LIMIT, THUMBNAIL_URL,
-	USER_AGENT, models::NextData,
+	BASE_URL, HEADER_BYTES, IMAGE_API_URL, SCRAMBLE_GRID, SCRAMBLE_SECRET, STACKED_PAGE_LIMIT,
+	THUMBNAIL_URL, USER_AGENT, models::NextData,
 };
 use aes::{
 	Aes256,
@@ -10,7 +10,11 @@ use aidoku::{
 	ContentRating, MangaStatus, Result, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
 	canvas::Transform,
-	imports::{canvas::Canvas, html::Html, net::Request},
+	imports::{
+		canvas::Canvas,
+		html::{Document, Html},
+		net::Request,
+	},
 	prelude::*,
 };
 use serde::de::DeserializeOwned;
@@ -31,6 +35,17 @@ pub fn chapter_key(manga_id: i64, chapter_id: i64) -> String {
 	format!("{manga_id}/{chapter_id}")
 }
 
+// the image endpoint answers with whatever was cached when it was first fetched, and an edge
+// holds that for a year: a request made while a chapter was still processing leaves a one page
+// payload that no plain retry can get past. the site keys its own requests on the update time
+pub fn image_api_url(manga_id: i64, chapter_id: i64, updated_at: Option<&str>) -> String {
+	let url = format!("{IMAGE_API_URL}/{manga_id}/{chapter_id}.json");
+	match updated_at.filter(|updated_at| !updated_at.is_empty()) {
+		Some(updated_at) => format!("{url}?t={updated_at}"),
+		None => url,
+	}
+}
+
 pub fn paginated(url: &str, page: i32) -> String {
 	if page > 1 {
 		format!("{url}/page/{page}")
@@ -44,8 +59,11 @@ pub fn request(url: impl AsRef<str>) -> Result<Request> {
 }
 
 pub fn next_data<T: DeserializeOwned>(url: &str) -> Result<T> {
-	let json = request(url)?
-		.html()?
+	page_data(&request(url)?.html()?, url)
+}
+
+pub fn page_data<T: DeserializeOwned>(document: &Document, url: &str) -> Result<T> {
+	let json = document
 		.select_first("script#__NEXT_DATA__")
 		.and_then(|script| script.data().or_else(|| script.html()))
 		.ok_or_else(|| error!("no page data at {url}"))?;
