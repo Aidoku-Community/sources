@@ -1,6 +1,7 @@
 [
 	{
 		"type": "select",
+		"id": "sortType",
 		"title": "排序",
 		"options": [
 			"更新时间",
@@ -9,12 +10,13 @@
 		"ids": [
 			"1",
 			"2"
-		],
-		"default": "1"
+		]
 	},
 	{
 		"type": "select",
+		"id": "rank",
 		"title": "榜单",
+		"hideFromHeader": true,
 		"options": [
 			"禁用",
 			"日榜",
@@ -23,12 +25,15 @@
 			"总榜"
 		],
 		"ids": [
+			"",
 			"0",
 			"1",
 			"2",
-			"3",
-			"4"
-		],
-		"hide_from_header": true
+			"3"
+		]
+	},
+	{
+		"type": "note",
+		"text": "选择榜单后，题材、受众等分类筛选不会生效"
 	}
 ]

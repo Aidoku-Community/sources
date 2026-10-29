@@ -1,0 +1,26 @@
+[
+	{
+		"type": "group",
+		"title": "账号",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"title": "登录",
+				"logoutTitle": "登出",
+				"method": "basic",
+				"notification": "login",
+				"refreshes": [
+					"settings",
+					"content"
+				]
+			},
+			{
+				"type": "switch",
+				"key": "autoCheckin",
+				"title": "自动签到",
+				"requires": "login"
+			}
+		]
+	}
+]
