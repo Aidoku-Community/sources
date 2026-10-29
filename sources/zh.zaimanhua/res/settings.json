@@ -12,45 +12,26 @@
 				"notification": "login",
 				"refreshes": [
 					"settings",
-					"content",
-					"filters"
+					"content"
 				]
 			},
 			{
 				"type": "switch",
 				"key": "autoCheckin",
 				"title": "自动签到",
-				"default": false,
 				"requires": "login"
 			}
 		]
 	},
 	{
 		"type": "group",
-		"title": "高级",
+		"title": "内容",
 		"items": [
 			{
 				"type": "switch",
-				"key": "useProxy",
-				"title": "使用代理",
-				"subtitle": "通过代理中转请求",
-				"default": false,
-				"refreshes": [
-					"settings"
-				]
-			},
-			{
-				"type": "text",
-				"key": "proxyUrl",
-				"title": "代理地址",
-				"placeholder": "https://your-worker.workers.dev",
-				"keyboardType": 10,
-				"autocapitalizationType": 0,
-				"autocorrectionDisabled": true,
-				"requires": "useProxy",
-				"refreshes": [
-					"content"
-				]
+				"key": "chapterComments",
+				"title": "章末吐槽",
+				"subtitle": "在章节末尾附加一页读者吐槽"
 			}
 		]
 	}

@@ -2,7 +2,7 @@
 	"info": {
 		"id": "zh.zaimanhua",
 		"name": "再漫画",
-		"version": 6,
+		"version": 7,
 		"languages": [
 			"zh"
 		],
@@ -10,7 +10,7 @@
 		"urls": [
 			"https://www.zaimanhua.com",
 			"https://manhua.zaimanhua.com",
-			"https://m.zaimanhua.com"
+			"https://m.zaimanhua.com/pages/comic"
 		],
 		"minAppVersion": "0.7.1"
 	},

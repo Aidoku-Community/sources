@@ -350,10 +350,17 @@ version = "0.1.0"
 dependencies = [
  "aidoku",
  "aidoku-test",
- "hashbrown",
+ "serde",
+ "zaimanhua_template",
+]
+
+[[package]]
+name = "zaimanhua_template"
+version = "0.1.0"
+dependencies = [
+ "aidoku",
  "md5",
  "serde",
- "serde_json",
 ]
 
 [[package]]
