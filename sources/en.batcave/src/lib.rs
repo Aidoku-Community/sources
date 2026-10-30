@@ -206,9 +206,8 @@ impl Source for BatCave {
 							return None;
 						}
 
-						let page_json_str =
-							text.strip_prefix("window.__DATA__ = ")?.strip_suffix(";")?;
-
+						let page_json_str = text.strip_prefix("window.__DATA__ = ")?;
+						let page_json_str = &page_json_str[..=page_json_str.rfind("};")?];
 						let page_list = serde_json::from_str::<PageList>(page_json_str).ok()?;
 
 						let pages = page_list
