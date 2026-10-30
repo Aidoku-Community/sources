@@ -1,7 +1,7 @@
 use crate::{
 	BASE_URL, Soraraw,
-	helpers::request,
-	models::{DataProps, HomeData, MangaEntry, Props, TopList},
+	helpers::{page_data, request},
+	models::{DataProps, HomeData, MangaEntry, TopList},
 };
 use aidoku::{
 	Home, HomeComponent, HomeComponentValue, HomeLayout, Link, Listing, ListingKind, Manga, Result,
@@ -13,17 +13,15 @@ use aidoku::{
 impl Home for Soraraw {
 	fn get_home(&self) -> Result<HomeLayout> {
 		let responses: [core::result::Result<Response, RequestError>; 3] = Request::send_all([
-			request(format!("{BASE_URL}/_next/data/soraraw38/index.json"))?,
+			// "/_next/data/<build id>/index.json" moves with every deploy of the site
+			request(BASE_URL)?,
 			request(format!("{BASE_URL}/top/today.json"))?,
 			request(format!("{BASE_URL}/top/rising.json"))?,
 		])
 		.try_into()
 		.expect("three home requests");
 		let [home, today, rising] = responses;
-		let home = home?
-			.get_json_owned::<Props<DataProps<HomeData>>>()?
-			.page_props
-			.data;
+		let home = page_data::<DataProps<HomeData>>(&home?.get_html()?, BASE_URL)?.data;
 		let today = today?.get_json_owned::<TopList>()?;
 		let rising = rising?.get_json_owned::<TopList>()?;
 

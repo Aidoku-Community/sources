@@ -1,5 +1,7 @@
 use super::*;
-use aidoku::{ContentRating, FilterKind, MangaStatus, Viewer, imports::net::Request};
+use aidoku::{
+	ContentRating, FilterKind, Home, HomeComponentValue, MangaStatus, Viewer, imports::net::Request,
+};
 use aidoku_test::aidoku_test;
 
 const MANGA_KEY: &str = "majo-to-youhei-57539";
@@ -79,6 +81,21 @@ fn test_listings() {
 				.is_some_and(|cover| cover.starts_with("http")),
 			"{id} entry has no absolute cover"
 		);
+	}
+}
+
+// the home used to be read off "/_next/data/<build id>", which broke on the next deploy
+#[aidoku_test]
+fn test_home() {
+	let home = Soraraw::new().get_home().expect("home");
+	assert_eq!(home.components.len(), 4);
+	for component in home.components {
+		let count = match component.value {
+			HomeComponentValue::BigScroller { entries, .. } => entries.len(),
+			HomeComponentValue::Scroller { entries, .. } => entries.len(),
+			_ => panic!("unexpected home component"),
+		};
+		assert!(count > 0, "{:?} came back empty", component.title);
 	}
 }
 
@@ -690,6 +707,26 @@ fn test_decrypt_path() {
 		None
 	);
 	assert_eq!(decrypt_path("QUJD", uuid, PATH_SECRET), None);
+}
+
+// the image endpoint is edge cached for a year, so a payload fetched while a chapter was still
+// being processed used to stick: the chapter's update time has to key the request
+#[aidoku_test]
+fn test_image_api_url_is_keyed_on_the_chapter_update() {
+	assert_eq!(
+		image_api_url(3220, 891883, Some("2026-10-26T01:15:54.000Z")),
+		"https://api.mangarawgo.site/3220/891883.json?t=2026-10-26T01:15:54.000Z"
+	);
+
+	// a chapter the site never stamped still has to resolve
+	assert_eq!(
+		image_api_url(3220, 891883, None),
+		"https://api.mangarawgo.site/3220/891883.json"
+	);
+	assert_eq!(
+		image_api_url(3220, 891883, Some("")),
+		"https://api.mangarawgo.site/3220/891883.json"
+	);
 }
 
 // the header of a jpeg is what counting the pages of a stacked chapter rests on, and a frame
