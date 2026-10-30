@@ -1,4 +1,3 @@
-// reference: https://github.com/nobottomline/extensions-source/blob/c8fe930f315f3baee23587559edfceab5e969202/src/en/comix/src/eu/kanade/tachiyomi/extension/en/comix/Signer.kt
 use crate::{BASE_URL, helpers::create_request_get, models::ErrorResponse};
 use aidoku::{
 	HashMap, Result,
@@ -10,16 +9,8 @@ use aidoku::{
 	},
 	prelude::*,
 };
-use regex::Regex;
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
-
-const GET_VMOBJ_JS: &str = "\
-const vmKey = Object.keys(window).find(key => key.startsWith('vm'));\
-const vmObj = window[vmKey];\
-if (!vmObj || typeof vmObj !== 'object' || vmObj === window) {\
-	return '';\
-}";
 
 const INSTALLER_REQUEST_TOKEN: &str = "__AIDOKU_INSTALLER_REQUEST_TOKEN__";
 const INSTALLER_RESPONSE_TOKEN: &str = "__AIDOKU_INSTALLER_RESPONSE_TOKEN__";
@@ -74,115 +65,198 @@ impl ComixWebView {
 
 		self.web_view
 			.load_html_blocking(response.get_string()?.as_str(), Some(BASE_URL))?;
-		if self.find_functions().is_err() {
-			self.find_secure_module_src(&response)?;
-			self.find_functions()?;
-		}
+		self.find_functions(&response)?;
 		self.is_initialized = true;
 		Ok(())
 	}
 
-	fn find_secure_module_src(&mut self, response: &Response) -> Result<()> {
+	fn find_functions(&mut self, response: &Response) -> Result<()> {
 		let main_module_src = response
 			.get_html()?
-			.select("head > script[type=\"module\"][src*=\"main\"]")
-			.and_then(|e| e.first())
+			.select_first("head > script[type=\"module\"][src*=\"main\"]")
 			.and_then(|e| e.attr("src"))
-			.ok_or(error!("Main module not found"))?;
-		if let Some(js_asset_path_index) = main_module_src.rfind("/") {
-			let js_asset_path = &main_module_src[0..js_asset_path_index + 1];
-			let secure_script_regex = Regex::new("(secure-[A-Za-z0-9-_]+?\\.js)").unwrap();
-			let main_module_contents =
-				create_request_get(&format!("{BASE_URL}{main_module_src}"))?.string()?;
-			if let Some(secure_script_path) = secure_script_regex
-				.captures(main_module_contents.as_str())
-				.and_then(|captures| captures.get(1).map(|m| m.as_str()))
-			{
-				let secure_module_contents =
-					create_request_get(&format!("{BASE_URL}{js_asset_path}{secure_script_path}"))?
-						.string()?;
-				let Some(module_body) = secure_module_contents
-					.rfind("export")
-					.filter(|&index| {
-						secure_module_contents[index + "export".len()..]
-							.trim_start()
-							.starts_with('{')
-					})
-					.map(|index| &secure_module_contents[..index])
-				else {
-					bail!("Secure module exports not found");
-				};
-				let result = self.web_view.eval(&format!(
-					"(() => {{
-						try {{
-							{module_body}
-							return 'ok';
-						}} catch (e) {{
-							return 'error: ' + e;
-						}}
-					}})()"
-				))?;
-				if result != "ok" {
-					bail!("Failed to load secure module: {result}");
-				}
-				Ok(())
-			} else {
-				bail!("Secure module not found");
-			}
-		} else {
-			bail!("Invalid path")
-		}
-	}
+			.ok_or_else(|| error!("Main module not found"))?;
+		let main_module_url = Self::module_url(BASE_URL, &main_module_src)?;
+		let main_module = create_request_get(&main_module_url)?.string()?;
+		let api_module = main_module
+			.split(['\'', '"'])
+			.find(|path| {
+				path.strip_prefix("./")
+					.unwrap_or(path)
+					.starts_with("apicore-")
+					&& path.ends_with(".js")
+			})
+			.ok_or_else(|| error!("API module not found"))?;
+		let api_module_url = Self::module_url(&main_module_url, api_module)?;
+		let source = create_request_get(&api_module_url)?.string()?;
+		let module_body = Self::load_module_body(&api_module_url, &source, 0)?;
 
-	fn find_functions(&mut self) -> Result<()> {
+		let names: Vec<&str> = {
+			let words: Vec<&str> = source
+				.split(|c: char| !c.is_ascii() || !Self::is_identifier_byte(c as u8))
+				.filter(|s| !s.is_empty())
+				.collect();
+			let mut names: Vec<&str> = words
+				.windows(2)
+				.filter(|pair| {
+					matches!(pair[0], "var" | "let" | "const") && Self::is_identifier(pair[1])
+				})
+				.map(|pair| pair[1])
+				.collect();
+			names.sort_unstable();
+			names.dedup();
+			names
+		};
+		let names = serde_json::to_string(&names)?;
 		let result = self.web_view.eval(&format!(
 			"(() => {{
-			try {{
-				{GET_VMOBJ_JS}
-				let fnames = Object.keys(vmObj);
-				let inst = '';
-				for (let j = 0; j < fnames.length; j++) {{
-					let fn = vmObj[fnames[j]];
-					if (typeof fn !== 'function') continue;
-					let ref = 'window[' + JSON.stringify(vmKey) + '].' + fnames[j];
-					if (!inst) {{
+				try {{
+					{module_body}
+					for (const name of {names}) {{
 						try {{
-							let got = false;
-							fn({{
-								interceptors: {{
-									request: {{ use: function() {{ got = true; }} }},
-									response: {{ use: function() {{ got = true; }} }}
-								}}
-							}});
-							if (got) {{
-								inst = ref;
-								fn({{
-									interceptors: {{
-										request: {{
-											use: function (fn) {{ window['{INSTALLER_REQUEST_TOKEN}'] = fn; }},
-										}},
-										response: {{
-											use: function (fn) {{ window['{INSTALLER_RESPONSE_TOKEN}'] = fn; }},
-										}},
-									}}
-								}});
-							}}
+							const client = eval(name);
+							const requests = client?.interceptors?.request?.handlers;
+							const responses = client?.interceptors?.response?.handlers;
+							if (!requests?.length || !responses?.length) continue;
+							const request = requests[requests.length - 1]?.fulfilled;
+							const response = responses[responses.length - 1]?.fulfilled;
+							if (typeof request !== 'function' || typeof response !== 'function') continue;
+							window['{INSTALLER_REQUEST_TOKEN}'] = request;
+							window['{INSTALLER_RESPONSE_TOKEN}'] = response;
+							return 'ok';
 						}} catch (e) {{}}
 					}}
-
+					return 'API interceptors not found';
+				}} catch (e) {{
+					return 'JS error: ' + e;
 				}}
-				return inst;
-			}} catch (e) {{}}
-			return '';
-		}})()",
+			}})()"
 		))?;
-		let expr: Vec<&str> = result.split("||").collect();
-		if expr.is_empty() || expr[0].is_empty() {
-			bail!("Failed to find installer function");
+		if result != "ok" {
+			bail!("Failed to load API client: {result}");
 		}
 		Ok(())
 	}
 
+	fn module_url(base: &str, path: &str) -> Result<String> {
+		if path.starts_with("https://") {
+			return Ok(path.into());
+		}
+		if path.starts_with('/') {
+			return Ok(format!("{BASE_URL}{path}"));
+		}
+		let path = path.strip_prefix("./").unwrap_or(path);
+		let directory = base
+			.rsplit_once('/')
+			.filter(|(dir, _)| dir.len() > "https://".len());
+		Ok(format!(
+			"{}/{}",
+			directory.map_or(base, |(dir, _)| dir),
+			path
+		))
+	}
+
+	fn load_module_body(url: &str, source: &str, depth: usize) -> Result<String> {
+		if depth > 4 {
+			bail!("API module dependency limit exceeded");
+		}
+		let (body, _) = Self::split_module(source)?;
+
+		let mut result = String::new();
+		let mut offset = 0;
+
+		let keyword = "import";
+		let keyword_positions = body.match_indices(keyword).filter_map(move |(start, _)| {
+			let end = start + keyword.len();
+			let before = start.checked_sub(1).map(|i| body.as_bytes()[i]);
+			let after = body.as_bytes().get(end).copied();
+			(!before.is_some_and(Self::is_identifier_byte)
+				&& !after.is_some_and(Self::is_identifier_byte))
+			.then_some(start)
+		});
+
+		for start in keyword_positions {
+			let Some(rest) = body[start + keyword.len()..].trim_start().strip_prefix('{') else {
+				continue;
+			};
+			let (bindings, rest) = rest
+				.split_once('}')
+				.ok_or_else(|| error!("Invalid API module import"))?;
+			let rest = rest
+				.trim_start()
+				.strip_prefix("from")
+				.ok_or_else(|| error!("Invalid API module import"))?
+				.trim_start();
+			let quote = rest
+				.chars()
+				.next()
+				.filter(|c| matches!(c, '\'' | '"'))
+				.ok_or_else(|| error!("Invalid API module import path"))?;
+			let (path, rest) = rest[1..]
+				.split_once(quote)
+				.ok_or_else(|| error!("Invalid API module import path"))?;
+			result.push_str(&body[offset..start]);
+			offset = body.len() - rest.len();
+			let dependency_url = Self::module_url(url, path)?;
+			let dependency = create_request_get(&dependency_url)?.string()?;
+			let (_, exports) = Self::split_module(&dependency)?;
+			let dependency_body = Self::load_module_body(&dependency_url, &dependency, depth + 1)?;
+			let bindings = Self::module_bindings(bindings, true)?;
+			let exports = Self::module_bindings(exports, false)?;
+			result.push_str(&format!(
+				"const {{{bindings}}} = (() => {{{dependency_body}; return {{{exports}}};}})();"
+			));
+		}
+		result.push_str(&body[offset..]);
+		Ok(result)
+	}
+
+	fn split_module(source: &str) -> Result<(&str, &str)> {
+		let (body, exports) = source
+			.rsplit_once("export")
+			.ok_or_else(|| error!("API module exports not found"))?;
+		let exports = exports.trim().trim_end_matches(';').trim_end();
+		let exports = exports
+			.strip_prefix('{')
+			.and_then(|s| s.strip_suffix('}'))
+			.filter(|s| !s.contains(['{', '}']))
+			.ok_or_else(|| error!("API module exports not found"))?;
+		Ok((body, exports))
+	}
+
+	fn module_bindings(bindings: &str, import: bool) -> Result<String> {
+		let mut result = Vec::new();
+		for binding in bindings.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+			let parts: Vec<&str> = binding.split_whitespace().collect();
+			let (local, exported) = match parts.as_slice() {
+				[name] => (*name, *name),
+				[name, "as", alias] => (*name, *alias),
+				_ => bail!("Unsupported API module binding"),
+			};
+			if !Self::is_identifier(local) || !Self::is_identifier(exported) {
+				bail!("Invalid API module binding");
+			}
+			result.push(if import {
+				format!("{local}:{exported}")
+			} else {
+				format!("{exported}:{local}")
+			});
+		}
+		Ok(result.join(","))
+	}
+
+	fn is_identifier_byte(byte: u8) -> bool {
+		byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'$')
+	}
+
+	fn is_identifier(name: &str) -> bool {
+		!name.is_empty()
+			&& !name.as_bytes()[0].is_ascii_digit()
+			&& name.bytes().all(Self::is_identifier_byte)
+	}
+}
+
+impl ComixWebView {
 	pub fn build_request(&mut self, url: &str) -> Result<Request> {
 		if !self.is_initialized {
 			self.load_webview()?
@@ -194,11 +268,11 @@ impl ComixWebView {
 			const result = {{}};
 
 			for (const [key, rawValue] of url.searchParams) {{
-				const value = /^\\d+$/.test(rawValue)
+				const value = rawValue.length > 0 && [...rawValue].every(c => c >= '0' && c <= '9')
 					? Number(rawValue)
 					: rawValue;
 
-				const parts = key.replace(/\\]/g, '').split('[');
+				const parts = key.split(']').join('').split('[');
 
 				let current = result;
 
@@ -324,19 +398,17 @@ impl ComixWebView {
 				bail!("Response Error: {}", response.status_code())
 			}
 		} else if let Some(enc) = response.get_header("x-enc") {
-			let encoded_response = response
-				.get_string()?
-				.replace("\\", "\\\\")
-				.replace("'", "\\'");
+			let encoded_response = serde_json::to_string(&response.get_string()?)?;
+			let enc = serde_json::to_string(&enc)?;
 
 			let result = self.web_view.eval(&format!(
 				"(() => {{
 					try {{
 						let decoded = window['{INSTALLER_RESPONSE_TOKEN}']({{
-							data: JSON.parse('{encoded_response}'),
+							data: JSON.parse({encoded_response}),
 							status: 200,
 							headers: {{
-								'x-enc': '{enc}',
+								'x-enc': {enc},
 							}},
 						}});
 						return JSON.stringify({{ result: decoded && decoded.data }});
