@@ -1,0 +1,24 @@
+{
+	"info": {
+		"id": "es.mangaoni",
+		"name": "MangaOni",
+		"version": 1,
+		"urls": ["https://manga-oni.com", "https://www.manga-oni.com"],
+		"contentRating": 1,
+		"minAppVersion": "0.8.3",
+		"languages": ["es"]
+	},
+	"listings": [
+		{
+			"id": "Popular",
+			"name": "Populares"
+		},
+		{
+			"id": "Latest",
+			"name": "Últimas actualizaciones"
+		}
+	],
+	"config": {
+		"hidesFiltersWhileSearching": true
+	}
+}

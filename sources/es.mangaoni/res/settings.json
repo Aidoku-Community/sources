@@ -1,0 +1,16 @@
+[
+	{
+		"type": "group",
+		"title": "Contenido",
+		"footer": "Oculta las series +18 en Populares, en la sección Populares del inicio y al usar filtros. No afecta a las últimas actualizaciones ni a la búsqueda por título.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "hideNsfw",
+				"title": "Ocultar contenido +18",
+				"default": false,
+				"refreshes": ["content", "listings"]
+			}
+		]
+	}
+]
