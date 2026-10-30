@@ -1,0 +1,282 @@
+[
+	{
+		"type": "group",
+		"title": "Content",
+		"footer": "Applies to the home page, listings and search; the Content Type and Content Rating filters override them for one search. Titles the site leaves unrated are rated from their genres: Hentai as Pornographic, Adult and Smut as Erotica.",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "contentTypes",
+				"title": "Content Types",
+				"values": [
+					"Manga",
+					"Manwha",
+					"Manhua",
+					"OEL",
+					"Other",
+					"Novel"
+				],
+				"titles": [
+					"Manga",
+					"Manhwa",
+					"Manhua",
+					"OEL",
+					"Other",
+					"Novel"
+				],
+				"default": [
+					"Manga",
+					"Manwha",
+					"Manhua",
+					"OEL",
+					"Other",
+					"Novel"
+				],
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			},
+			{
+				"type": "multi-select",
+				"key": "contentRatings",
+				"title": "Content Ratings",
+				"values": [
+					"Safe",
+					"Suggestive",
+					"Erotica",
+					"Pornographic"
+				],
+				"default": [
+					"Safe",
+					"Suggestive"
+				],
+				"refreshes": [
+					"content",
+					"listings",
+					"filters",
+					"settings"
+				]
+			},
+			{
+				"type": "switch",
+				"key": "adultOnly",
+				"title": "18+ Only",
+				"subtitle": "Show only adult titles.",
+				"default": false,
+				"refreshes": [
+					"content",
+					"listings",
+					"filters",
+					"settings"
+				]
+			},
+			{
+				"type": "switch",
+				"key": "labelNovels",
+				"title": "Label Novels",
+				"subtitle": "Add (Novel) after the titles of novels.",
+				"default": true,
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Chapters",
+		"footer": "When deduplicating, Group Preference is tried from top to bottom, then Keep is used as a fallback. The selected group's same-number parts and extras and all unnumbered chapters are preserved. Excluded groups are removed first; group names aren't case-sensitive.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "deduplicateChapters",
+				"title": "Deduplicate Chapters",
+				"default": false,
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "select",
+				"key": "deduplicateKeep",
+				"title": "Keep",
+				"values": [
+					"rated",
+					"newest",
+					"pages"
+				],
+				"titles": [
+					"Highest Rated Group",
+					"Newest Upload",
+					"Most Pages"
+				],
+				"default": "rated",
+				"requires": "deduplicateChapters",
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "editable-list",
+				"key": "preferredScanlators",
+				"title": "Group Preference",
+				"placeholder": "Group name",
+				"lineLimit": 1,
+				"default": [],
+				"requires": "deduplicateChapters",
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "editable-list",
+				"key": "excludedScanlators",
+				"title": "Excluded Scanlators",
+				"placeholder": "Group name",
+				"lineLimit": 1,
+				"default": [],
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Rankings",
+		"footer": "The period covered by Popularity, Most Bookmarked and Most Talked About on Discover and their listings. Search uses the site defaults.",
+		"items": [
+			{
+				"type": "select",
+				"key": "popularTimeframe",
+				"title": "Popularity",
+				"values": [
+					"daily",
+					"weekly",
+					"monthly",
+					"all"
+				],
+				"titles": [
+					"Today",
+					"This Week",
+					"This Month",
+					"All Time"
+				],
+				"default": "weekly",
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			},
+			{
+				"type": "select",
+				"key": "mostBookmarkedTimeframe",
+				"title": "Most Bookmarked",
+				"values": [
+					"daily",
+					"weekly",
+					"monthly",
+					"all"
+				],
+				"titles": [
+					"Today",
+					"This Week",
+					"This Month",
+					"All Time"
+				],
+				"default": "weekly",
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			},
+			{
+				"type": "select",
+				"key": "mostTalkedAboutTimeframe",
+				"title": "Most Talked About",
+				"values": [
+					"daily",
+					"weekly",
+					"monthly",
+					"all"
+				],
+				"titles": [
+					"Today",
+					"This Week",
+					"This Month",
+					"All Time"
+				],
+				"default": "weekly",
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Home",
+		"footer": "Turn off the sections you don't read to make the home page load faster.",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "homeSections",
+				"title": "Sections",
+				"values": [
+					"popular",
+					"hotUpdates",
+					"recentlyUpdated",
+					"rising",
+					"topRated",
+					"novels",
+					"genreSpotlight",
+					"hotArrivals",
+					"mostBookmarked",
+					"mostTalkedAbout",
+					"recentlyAdded",
+					"hiddenGems",
+					"bingeWorthy",
+					"mostPolarizing"
+				],
+				"titles": [
+					"Popular",
+					"Hot Updates",
+					"Recently Updated",
+					"Rising",
+					"Top Rated",
+					"Most Popular Novels",
+					"Genre Spotlight",
+					"Hot Arrivals",
+					"Most Bookmarked",
+					"Most Talked About",
+					"Recently Added",
+					"Hidden Gems",
+					"Binge-Worthy",
+					"Most Polarizing"
+				],
+				"default": [
+					"popular",
+					"hotUpdates",
+					"recentlyUpdated",
+					"rising",
+					"topRated",
+					"novels",
+					"genreSpotlight",
+					"hotArrivals",
+					"mostBookmarked",
+					"mostTalkedAbout",
+					"recentlyAdded",
+					"hiddenGems",
+					"bingeWorthy",
+					"mostPolarizing"
+				],
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	}
+]
