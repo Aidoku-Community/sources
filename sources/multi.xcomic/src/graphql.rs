@@ -3,6 +3,7 @@ use crate::{
 	models::{
 		BrowseResponse, ChapterData, ChapterListResponse, ChapterPagesResponse, ComicData,
 		ComicNodeResponse, GraphQlResponse, LatestUploadsResponse, RecentlyAddedResponse,
+		TitleNodeResponse,
 	},
 	settings,
 };
@@ -131,7 +132,16 @@ query get_comicNode($id: ID!) {
       tagNodes { data { name } }
       summary { text }
       urlPath urlCover
+      work: title_titleNode { data { authors artists description format_ids } }
     }
+  }
+}
+"#;
+
+const TITLE_QUERY: &str = r#"
+query get_title_titleNode($id: ID!) {
+  title: get_title_titleNode(id: $id) {
+    comicNodes { data { id name subName urlPath translatedLanguage chaps_normal dbStatus isPublic } }
   }
 }
 "#;
@@ -146,8 +156,7 @@ query get_comic_chapterList_fullList($select: Select_Comic_ChapterList) {
       data {
         id dbStatus serial chaNum volNum dname title urlPath
         dateCreate dateModify datePublic srcName
-        profileNodes { data { name } }
-        groupNodes { data { name } }
+        comicNode { data { translatedLanguage } }
       }
     }
   }
@@ -162,8 +171,7 @@ query get_comic_chapterList_uniqList($select: Select_Comic_ChapterList_UniqList)
       data {
         id dbStatus serial chaNum volNum dname title urlPath
         dateCreate dateModify datePublic srcName
-        profileNodes { data { name } }
-        groupNodes { data { name } }
+        comicNode { data { translatedLanguage } }
       }
     }
   }
@@ -191,7 +199,7 @@ pub struct BrowseParams {
 	pub content_ratings: Vec<String>,
 	pub original_languages: Vec<String>,
 	pub translated_languages: Vec<String>,
-	pub original_status: String,
+	pub original_status: Vec<String>,
 	pub chapter_count: String,
 	pub year_min: Option<i64>,
 	pub year_max: Option<i64>,
@@ -249,7 +257,7 @@ impl BrowseParams {
 			"incContentRatings": content_ratings,
 			"releaseYearMin": self.year_min,
 			"releaseYearMax": self.year_max,
-			"origStatus": (!self.original_status.is_empty()).then_some(&self.original_status),
+			"origStatus": self.original_status,
 			"chapCount": (!self.chapter_count.is_empty()).then_some(&self.chapter_count),
 			// Off, as the site sends them: its blocklist hides unapproved uploads.
 			"ignoreGlobalULangs": false,
@@ -297,13 +305,15 @@ fn graphql_request(base_url: &str, query: &str, variables: serde_json::Value) ->
 			.collect::<Vec<_>>()
 			.join(",")
 	};
+	let mut body = serde_json::json!({ "query": query.trim() });
+	body["variables"] = variables;
 	Ok(Request::post(format!("{base_url}/query/"))?
 		.header("Content-Type", "application/json")
 		.header("Accept", "application/json")
 		.header("Accept-Language", &accept_language)
 		.header("Referer", &format!("{base_url}/"))
 		.header("Origin", base_url)
-		.body(serde_json::json!({ "query": query.trim(), "variables": variables }).to_string()))
+		.body(body.to_string()))
 }
 
 fn parse_graphql<T: DeserializeOwned>(response: Response) -> Result<T> {
@@ -455,6 +465,29 @@ pub fn fetch_comic(base_url: &str, id: &str) -> Result<ComicData> {
 		.ok_or_else(|| error!("Manga not found"))
 }
 
+/// A `/title/` page is not itself readable, so it opens the edition browse would show.
+pub fn title_edition(base_url: &str, title_id: &str) -> Result<String> {
+	let response: TitleNodeResponse =
+		graphql(base_url, TITLE_QUERY, serde_json::json!({ "id": title_id }))?;
+	let title = response
+		.title
+		.ok_or_else(|| error!("No comics are available for this series"))?;
+	// The reader's languages rank first, but a work with none of them still opens.
+	let mut languages = settings::languages();
+	languages.extend(
+		title
+			.comic_nodes
+			.iter()
+			.flatten()
+			.filter_map(|node| node.data.as_ref()?.translated_language.clone()),
+	);
+	editions_of(title, &languages, false)
+		.into_iter()
+		.next()
+		.map(|comic| comic.id)
+		.ok_or_else(|| error!("No comics are available for this series"))
+}
+
 pub fn fetch_chapters(base_url: &str, comic_id: &str) -> Result<Vec<ChapterData>> {
 	// The full list carries every scanlator's upload, so it is paged smaller.
 	let (query, size) = if settings::deduplicate_chapters() {
@@ -513,6 +546,13 @@ pub fn fetch_chapters(base_url: &str, comic_id: &str) -> Result<Vec<ChapterData>
 				);
 			}
 		}
+	}
+	// The total is exact, so a short list lost a page and would otherwise read as complete.
+	if (chapters.len() as i64) < total {
+		bail!(
+			"Received {} of {total} chapters; refresh to try again",
+			chapters.len()
+		);
 	}
 	Ok(chapters)
 }

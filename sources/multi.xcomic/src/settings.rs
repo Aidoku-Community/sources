@@ -3,6 +3,14 @@ use aidoku::{
 	imports::defaults::defaults_get,
 };
 
+const BASE_URL: &str = "https://xcomic.me";
+
+pub fn base_url() -> String {
+	defaults_get::<String>("url")
+		.filter(|url| !url.is_empty())
+		.unwrap_or_else(|| BASE_URL.into())
+}
+
 pub const CONTENT_TYPES: &[&str] = &[
 	"cartoon", "imageset", "manga", "manhua", "manhwa", "oel", "other", "western",
 ];

@@ -62,6 +62,17 @@ pub struct ComicData {
 	/// An edition the site has taken down still answers, so both mark a live one.
 	pub db_status: Option<String>,
 	pub is_public: Option<bool>,
+	pub work: Option<Node<Option<WorkData>>>,
+}
+
+/// An edition often leaves out the artists and formats its work names.
+#[derive(Deserialize, Default)]
+#[serde(default)]
+pub struct WorkData {
+	pub authors: Option<Vec<String>>,
+	pub artists: Option<Vec<String>>,
+	pub description: Option<String>,
+	pub format_ids: Option<Vec<String>>,
 }
 
 /// A work and its editions; the edition carries the id the source is keyed by.
@@ -112,6 +123,12 @@ pub struct RecentlyAddedResponse {
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
+pub struct TitleNodeResponse {
+	pub title: Option<TitleNode>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
 pub struct ComicNodeResponse {
 	#[serde(rename = "get_comicNode")]
 	pub comic: Option<Node<ComicData>>,
@@ -132,9 +149,7 @@ pub struct ChapterData {
 	pub date_modify: Option<i64>,
 	pub date_public: Option<i64>,
 	pub src_name: Option<String>,
-	pub profile_nodes: Option<Vec<Node<Option<NamedData>>>>,
-	pub group_nodes: Option<Vec<Node<Option<NamedData>>>>,
-	/// Only the latest-uploads feed sets this.
+	/// Its edition: the whole comic in the latest-uploads feed, its language in chapter lists.
 	pub comic_node: Option<Node<Option<ComicData>>>,
 }
 

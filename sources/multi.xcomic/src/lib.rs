@@ -1,7 +1,5 @@
 #![no_std]
-extern crate alloc;
 
-mod filters;
 mod graphql;
 mod helpers;
 mod home;
@@ -13,30 +11,13 @@ use aidoku::{
 	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContent, PageContext, Result,
 	Source,
 	alloc::{String, Vec, vec},
-	imports::{defaults::defaults_get, net::Request, std::send_partial_result},
+	imports::{net::Request, std::send_partial_result},
 	prelude::*,
 };
 use graphql::BrowseParams;
 use helpers::{chapter_from_data, manga_from_data};
 
-const DEFAULT_BASE_URL: &str = "https://xcomic.me";
-
 struct XComic;
-
-impl XComic {
-	fn browse_page(&self, base_url: &str, params: BrowseParams) -> Result<MangaPageResult> {
-		let response = graphql::browse_request(base_url, &params)?.send()?;
-		let (comics, has_next_page) = graphql::parse_browse(response, &params)?;
-		let entries = comics
-			.into_iter()
-			.map(|comic| manga_from_data(comic, base_url))
-			.collect();
-		Ok(MangaPageResult {
-			has_next_page,
-			entries,
-		})
-	}
-}
 
 impl Source for XComic {
 	fn new() -> Self {
@@ -69,7 +50,6 @@ impl Source for XComic {
 					}
 				}
 				FilterValue::Select { id, value } => match id.as_str() {
-					"original_status" => params.original_status = value,
 					"include_mode" => params.include_mode = value,
 					"exclude_mode" => params.exclude_mode = value,
 					"chapter_count" => params.chapter_count = value,
@@ -89,11 +69,13 @@ impl Source for XComic {
 					included,
 					excluded,
 				} => match id.as_str() {
-					"genres" => {
-						params.included_genres = included;
+					// The API takes formats as genres.
+					"genres" | "formats" => {
+						params.included_genres.extend(included);
 						params.excluded_genres.extend(excluded);
 					}
 					"demographics" => params.demographics = included,
+					"original_status" => params.original_status = included,
 					"original_languages" => params.original_languages = included,
 					// An empty selection means the reader narrowed nothing, so the
 					// settings default this carries has to survive it.
@@ -104,7 +86,7 @@ impl Source for XComic {
 			}
 		}
 
-		self.browse_page(&base_url, params)
+		helpers::browse_page(&base_url, &params)
 	}
 
 	fn get_manga_update(
@@ -166,9 +148,9 @@ impl Source for XComic {
 impl ListingProvider for XComic {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		let base_url = self.get_base_url()?;
-		self.browse_page(
+		helpers::browse_page(
 			&base_url,
-			BrowseParams::new(&listing.id, page, graphql::PAGE_SIZE),
+			&BrowseParams::new(&listing.id, page, graphql::PAGE_SIZE),
 		)
 	}
 }
@@ -200,9 +182,7 @@ impl DeepLinkHandler for XComic {
 
 impl BaseUrlProvider for XComic {
 	fn get_base_url(&self) -> Result<String> {
-		Ok(defaults_get::<String>("url")
-			.filter(|url| !url.is_empty())
-			.unwrap_or_else(|| DEFAULT_BASE_URL.into()))
+		Ok(settings::base_url())
 	}
 }
 
@@ -210,8 +190,6 @@ register_source!(
 	XComic,
 	Home,
 	ListingProvider,
-	DynamicFilters,
-	DynamicSettings,
 	ImageRequestProvider,
 	DeepLinkHandler,
 	BaseUrlProvider
