@@ -1,0 +1,36 @@
+[
+	{
+		"type": "group",
+		"title": "Server",
+		"items": [
+			{
+				"type": "text",
+				"key": "baseUrl",
+				"title": "BASE_URL",
+				"placeholder": "https://sumidoku.example.com",
+				"keyboardType": 3,
+				"returnKeyType": 9,
+				"autocorrectionDisabled": true,
+				"autocapitalizationType": 0,
+				"refreshes": ["content", "listings"]
+			},
+			{
+				"type": "text",
+				"key": "apiToken",
+				"title": "API Token",
+				"placeholder": "Optional Bearer token",
+				"autocorrectionDisabled": true,
+				"refreshes": ["content", "listings"]
+			},
+			{
+				"type": "login",
+				"method": "basic",
+				"key": "credentials",
+				"title": "LOGIN",
+				"requires": "baseUrl",
+				"refreshes": ["content", "listings"]
+			}
+		],
+		"footer": "Enter your Sumidoku server URL. You may log in or paste an API token."
+	}
+]
