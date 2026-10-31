@@ -78,7 +78,11 @@ impl Source for Mangadotnet {
 				}
 
 				FilterValue::Select { id, value } => {
-					query_parameters.push(&id, Some(&value));
+					if id == "genre" && value.starts_with("Tag:") {
+						query_parameters.push("tag", Some(&value[5..]));
+					} else {
+						query_parameters.push(&id, Some(&value));
+					}
 				}
 
 				FilterValue::MultiSelect {

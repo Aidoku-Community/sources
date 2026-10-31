@@ -141,13 +141,43 @@ pub struct MangaItem {
 	pub is_adult: bool,
 	pub description: Option<String>,
 	pub genres: Option<Vec<String>>,
+	pub tags: Option<Vec<MangaItemTag>>,
 	pub country_of_origin: Option<String>,
 	#[serde(deserialize_with = "bool_from_any_optional")]
 	pub is_longstrip: Option<bool>,
 }
 
+#[derive(Deserialize)]
+pub struct MangaItemTag {
+	pub category: String,
+	#[serde(deserialize_with = "bool_from_any")]
+	pub is_adult: bool,
+	pub tags: Vec<MangaItemTagData>,
+}
+
+#[derive(Deserialize)]
+pub struct MangaItemTagData {
+	pub name: String,
+}
+
 impl From<MangaItem> for Manga {
 	fn from(value: MangaItem) -> Self {
+		let mut new_tags = Vec::<String>::new();
+
+		if let Some(genres) = value.genres {
+			for g in genres {
+				new_tags.push(g)
+			}
+		}
+
+		if let Some(tags) = value.tags {
+			for t in tags {
+				for td in t.tags {
+					new_tags.push(format!("Tag: {}", td.name))
+				}
+			}
+		}
+
 		Self {
 			key: value.id.to_string(),
 			title: value.title,
@@ -156,7 +186,7 @@ impl From<MangaItem> for Manga {
 			authors: value.authors.map(|a| a.into_vec()),
 			description: value.description,
 			url: Some(format!("{BASE_URL}/manga/{}", value.id)),
-			tags: value.genres,
+			tags: Some(new_tags),
 			status: match value.status.as_str() {
 				"Hiatus" => MangaStatus::Hiatus,
 				"Ongoing" => MangaStatus::Ongoing,
