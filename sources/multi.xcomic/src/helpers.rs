@@ -1,287 +1,17 @@
 use crate::{
+	graphql::{
+		BrowseParams, browse_request, editions, fetch_chapters, parse_browse, title_edition,
+	},
 	models::{ChapterData, ComicData, NamedData, Node, TitleNode},
-	settings::{self, languages, normalize_language},
+	settings::{self, normalize_language},
 };
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaStatus, Result, Viewer,
-	alloc::{String, Vec, format, string::ToString, vec},
-	imports::net::Request,
-	prelude::*,
+	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Result, Viewer,
+	alloc::{String, Vec, collections::BTreeMap, format, string::ToString},
 };
-use core::cmp::Reverse;
+use core::cmp::{Ordering, Reverse};
 
 pub const PORNOGRAPHIC_GENRES: &[&str] = &["adult", "hentai", "pornographic", "smut"];
-
-/// `(id, title)` for the original-language filter; `_t` is the site's catch-all.
-pub const LANGUAGES: &[(&str, &str)] = &[
-	("en", "English"),
-	("fr", "French"),
-	("pt", "Portuguese"),
-	("ko", "Korean"),
-	("ja", "Japanese"),
-	("id", "Indonesian"),
-	("zh", "Chinese"),
-	("ab", "Abkhazian"),
-	("af", "Afrikaans"),
-	("hy", "Armenian"),
-	("ar", "Arabic"),
-	("sq", "Albanian"),
-	("az", "Azerbaijani"),
-	("be", "Belarusian"),
-	("bn", "Bengali"),
-	("my", "Burmese"),
-	("bg", "Bulgarian"),
-	("bs", "Bosnian"),
-	("km", "Cambodian"),
-	("ca", "Catalan"),
-	("ceb", "Cebuano"),
-	("cs", "Czech"),
-	("hr", "Croatian"),
-	("cv", "Chuvash"),
-	("da", "Danish"),
-	("nl", "Dutch"),
-	("et", "Estonian"),
-	("eo", "Esperanto"),
-	("eu", "Basque"),
-	("fil", "Filipino"),
-	("fi", "Finnish"),
-	("de", "German"),
-	("ka", "Georgian"),
-	("el", "Greek"),
-	("gn", "Guarani"),
-	("gu", "Gujarati"),
-	("hi", "Hindi"),
-	("he", "Hebrew"),
-	("ht", "Haitian Creole"),
-	("hu", "Hungarian"),
-	("is", "Icelandic"),
-	("ig", "Igbo"),
-	("gl", "Galician"),
-	("ga", "Irish"),
-	("it", "Italian"),
-	("kk", "Kazakh"),
-	("ky", "Kyrgyz"),
-	("lt", "Lithuanian"),
-	("la", "Latin"),
-	("lo", "Laothian"),
-	("ku", "Kurdish"),
-	("jv", "Javanese"),
-	("mg", "Malagasy"),
-	("lv", "Latvian"),
-	("ms", "Malay"),
-	("ml", "Malayalam"),
-	("mt", "Maltese"),
-	("mo", "Moldavian"),
-	("mr", "Marathi"),
-	("mi", "Maori"),
-	("mn", "Mongolian"),
-	("ny", "Nyanja"),
-	("ne", "Nepali"),
-	("ps", "Pashto"),
-	("no", "Norwegian"),
-	("fa", "Persian"),
-	("pt_br", "Portuguese (BR)"),
-	("sr", "Serbian"),
-	("st", "Sesotho"),
-	("ru", "Russian"),
-	("ro", "Romanian"),
-	("pl", "Polish"),
-	("sh", "Serbo-Croatian"),
-	("si", "Sinhalese"),
-	("so", "Somali"),
-	("sv", "Swedish"),
-	("th", "Thai"),
-	("tr", "Turkish"),
-	("ss", "Swati"),
-	("sk", "Slovak"),
-	("es", "Spanish"),
-	("ti", "Tigrinya"),
-	("ta", "Tamil"),
-	("tk", "Turkmen"),
-	("uk", "Ukrainian"),
-	("to", "Tonga"),
-	("te", "Telugu"),
-	("es_419", "Spanish (LA)"),
-	("sl", "Slovenian"),
-	("vi", "Vietnamese"),
-	("_t", "Other"),
-	("uz", "Uzbek"),
-	("zu", "Zulu"),
-	("am", "Amharic"),
-	("fo", "Faroese"),
-	("ha", "Hausa"),
-	("kn", "Kannada"),
-	("lb", "Luxembourgish"),
-	("mk", "Macedonian"),
-	("rm", "Romansh"),
-	("sd", "Sindhi"),
-	("sm", "Samoan"),
-	("sn", "Shona"),
-	("sw", "Swahili"),
-	("tg", "Tajik"),
-	("ur", "Urdu"),
-	("yo", "Yoruba"),
-];
-
-/// `(id, title)` pairs shared by search and the global exclusion setting.
-pub const GENRES: &[(&str, &str)] = &[
-	("action", "Action"),
-	("adult", "Adult"),
-	("adventure", "Adventure"),
-	("age_gap", "Age Gap"),
-	("aliens", "Aliens"),
-	("animals", "Animals"),
-	("art_by_ai", "Art-by-AI"),
-	("bara", "Bara"),
-	("beasts", "Beasts"),
-	("blackmail", "Blackmail"),
-	("bloody", "Bloody"),
-	("bodyswap", "Bodyswap"),
-	("boys", "Boys"),
-	("boys_love", "Boys Love"),
-	("brocon_siscon", "Brocon Siscon"),
-	("cars", "Cars"),
-	("cheating_infidelity", "Cheating/Infidelity"),
-	("childhood_friends", "Childhood Friends"),
-	("college_life", "College life"),
-	("comedy", "Comedy"),
-	("comic", "Comic"),
-	("contest_winning", "Contest winning"),
-	("cooking", "Cooking"),
-	("crime", "Crime"),
-	("crossdressing", "Crossdressing"),
-	("cultivation", "Cultivation"),
-	("death_game", "Death Game"),
-	("degeneratemc", "Degeneratemc"),
-	("delinquents", "Delinquents"),
-	("dementia", "Dementia"),
-	("demons", "Demons"),
-	("drama", "Drama"),
-	("dungeons", "Dungeons"),
-	("ecchi", "Ecchi"),
-	("emperors_daughter", "Emperor's Daughter"),
-	("fantasy", "Fantasy"),
-	("female_protagonists", "Female-protagonists"),
-	("fetish", "Fetish"),
-	("futa", "Futa"),
-	("game", "Game"),
-	("genderswap", "Genderswap"),
-	("ghosts", "Ghosts"),
-	("girls", "Girls"),
-	("girls_love", "Girls Love"),
-	("gore", "Gore"),
-	("gyaru", "Gyaru"),
-	("harem", "Harem"),
-	("harlequin", "Harlequin"),
-	("hentai", "Hentai"),
-	("historical", "Historical"),
-	("horror", "Horror"),
-	("incest", "Incest"),
-	("isekai", "Isekai"),
-	("kids", "Kids"),
-	("loli", "Loli"),
-	("mafia", "Mafia"),
-	("magic", "Magic"),
-	("magical_girls", "Magical Girls"),
-	("mahjong", "Mahjong"),
-	("male_protagonists", "Male-protagonists"),
-	("martial_arts", "Martial Arts"),
-	("master_servant", "Master-Servant"),
-	("mature", "Mature"),
-	("mecha", "Mecha"),
-	("medical", "Medical"),
-	("milf", "Milf"),
-	("military", "Military"),
-	("monster_girls", "Monster Girls"),
-	("monsters", "Monsters"),
-	("music", "Music"),
-	("mystery", "Mystery"),
-	("netorare_ntr", "Netorare/NTR"),
-	("netori", "Netori"),
-	("ninja", "Ninja"),
-	("office_workers", "Office Workers"),
-	("omegaverse", "Omegaverse"),
-	("parody", "Parody"),
-	("philosophical", "Philosophical"),
-	("police", "Police"),
-	("post_apocalyptic", "Post-Apocalyptic"),
-	("psychological", "Psychological"),
-	("regression", "Regression"),
-	("reincarnation", "Reincarnation"),
-	("revenge", "Revenge"),
-	("reverse_harem", "Reverse Harem"),
-	("reverse_isekai", "Reverse Isekai"),
-	("romance", "Romance"),
-	("royal_family", "Royal family"),
-	("royalty", "Royalty"),
-	("samurai", "Samurai"),
-	("school_life", "School Life"),
-	("sci_fi", "Sci-Fi"),
-	("sexual_violence", "Sexual Violence"),
-	("shota", "Shota"),
-	("shoujo_ai", "Shoujo ai"),
-	("shounen_ai", "Shounen ai"),
-	("showbiz", "Showbiz"),
-	("slice_of_life", "Slice of Life"),
-	("sm_bdsm_sub_dom", "SM/BDSM/SUB-DOM"),
-	("smut", "Smut"),
-	("space", "Space"),
-	("sports", "Sports"),
-	("spy", "Spy"),
-	("step_family", "Step-family"),
-	("story_by_ai", "Story-by-AI"),
-	("super_power", "Super Power"),
-	("superhero", "Superhero"),
-	("supernatural", "Supernatural"),
-	("survival", "Survival"),
-	("teacher_student", "Teacher-Student"),
-	("thriller", "Thriller"),
-	("time_travel", "Time Travel"),
-	("tower_climbing", "Tower Climbing"),
-	("traditional_games", "Traditional Games"),
-	("tragedy", "Tragedy"),
-	("transmigration", "Transmigration"),
-	("vampires", "Vampires"),
-	("video_games", "Video Games"),
-	("villainess", "Villainess"),
-	("violence", "Violence"),
-	("virtual_reality", "Virtual Reality"),
-	("wuxia", "Wuxia"),
-	("xianxia", "Xianxia"),
-	("xuanhuan", "Xuanhuan"),
-	("yakuzas", "Yakuzas"),
-	("youkai", "Youkai"),
-	("zombies", "Zombies"),
-	("1_koma", "1-Koma"),
-	("2_koma", "2-koma"),
-	("3_koma", "3-koma"),
-	("4_koma", "4-Koma"),
-	("adaptation", "Adaptation"),
-	("anthology", "Anthology"),
-	("artbook", "Artbook"),
-	("award_winning", "Award Winning"),
-	("doujinshi", "Doujinshi"),
-	("fan_colored", "Fan Colored"),
-	("fanbook", "Fanbook"),
-	("fanwork", "Fanwork"),
-	("full_color", "Full Color"),
-	("guidebook", "Guidebook"),
-	("illustbook", "Illustbook"),
-	("illustration_book", "Illustration Book"),
-	("japanese_novel", "Japanese Novel"),
-	("light_novel", "Light Novel"),
-	("long_strip", "Long Strip"),
-	("longstrip", "Longstrip"),
-	("novels", "Novels"),
-	("official_colored", "Official Colored"),
-	("oneshot", "Oneshot"),
-	("original_doujinshi", "Original Doujinshi"),
-	("partially_colored", "Partially Colored"),
-	("partially_colored_webtoon", "Partially Colored Webtoon"),
-	("web_comic", "Web Comic"),
-	("web_novel", "Web Novel"),
-	("webtoon", "Webtoon"),
-];
 
 pub fn absolute_url(base_url: &str, url: &str) -> String {
 	let url = url.trim();
@@ -343,14 +73,21 @@ fn title_case(value: &str) -> String {
 	output
 }
 
-fn node_names(nodes: Vec<Node<Option<NamedData>>>) -> Vec<String> {
-	nodes
+fn clean_names(names: impl IntoIterator<Item = String>) -> Vec<String> {
+	names
 		.into_iter()
-		.filter_map(|node| node.data)
-		.filter_map(|data| data.name)
 		.map(|name| clean(&name))
 		.filter(|name| !name.is_empty())
 		.collect()
+}
+
+fn node_names(nodes: Vec<Node<Option<NamedData>>>) -> Vec<String> {
+	clean_names(
+		nodes
+			.into_iter()
+			.filter_map(|node| node.data)
+			.filter_map(|data| data.name),
+	)
 }
 
 pub fn is_pornographic(rating: Option<&str>, genres: Option<&[String]>) -> bool {
@@ -517,8 +254,11 @@ pub fn manga_from_data(comic: ComicData, base_url: &str) -> Manga {
 		chapter_count: _,
 		db_status: _,
 		is_public: _,
+		work,
 	} = comic;
+	let work = work.and_then(|node| node.data).unwrap_or_default();
 	let mut raw_tags = genres.unwrap_or_default();
+	raw_tags.extend(work.format_ids.unwrap_or_default());
 	raw_tags.extend(demographics.unwrap_or_default());
 	raw_tags.extend(tags.unwrap_or_default());
 	if let Some(nodes) = tag_nodes {
@@ -548,13 +288,19 @@ pub fn manga_from_data(comic: ComicData, base_url: &str) -> Manga {
 	let url = site_url(base_url, url_path).unwrap_or_else(|| format!("{base_url}/source/{id}"));
 	let authors = author_nodes
 		.map(node_names)
+		.filter(|names| !names.is_empty())
+		.or_else(|| work.authors.map(clean_names))
 		.filter(|names| !names.is_empty());
 	let artists = artist_nodes
 		.map(node_names)
+		.filter(|names| !names.is_empty())
+		.or_else(|| work.artists.map(clean_names))
 		.filter(|names| !names.is_empty());
 	let description = summary
 		.and_then(|summary| summary.text)
+		.filter(|summary| !summary.trim().is_empty())
 		.or(description)
+		.or(work.description)
 		.map(|summary| summary.trim().to_string())
 		.filter(|description| !description.is_empty());
 	let publish_status = status(original_status.as_deref(), upload_status.as_deref());
@@ -567,8 +313,10 @@ pub fn manga_from_data(comic: ComicData, base_url: &str) -> Manga {
 		title.truncate(open);
 		title = title.trim_end().into();
 	}
-	// Editions of one title are identical on a shelf without the team's name.
+	// Editions of one title are identical on a shelf without the team's name. Merged
+	// editions name their teams on each chapter instead.
 	if settings::show_source_in_title()
+		&& !settings::merge_editions()
 		&& let Some(team) = team
 		&& !title.contains(team.as_str())
 	{
@@ -642,61 +390,11 @@ pub fn target_from_query(query: &str) -> Option<Target> {
 		.then(|| Target::Comic(id.into(), None))
 }
 
-/// A `/title/` page is not itself readable; its "Sources" list links one comic
-/// per language, so prefer one the reader picked over the site's first choice.
-fn resolve_title(base_url: &str, title_id: &str) -> Option<String> {
-	let document = Request::get(format!("{base_url}/title/{title_id}"))
-		.ok()?
-		.html()
-		.ok()?;
-	let mut editions: Vec<(String, String)> = Vec::new();
-	for anchor in document.select("a[href]")? {
-		let Some(href) = anchor.attr("href") else {
-			continue;
-		};
-		let Some(path) = EDITION_PREFIXES
-			.iter()
-			.find_map(|prefix| href.split(prefix).nth(1))
-		else {
-			continue;
-		};
-		// Chapter links live under an edition, so they carry a second segment.
-		let mut segments = path.trim_end_matches('/').split('/');
-		let Some(edition) = segments.next() else {
-			continue;
-		};
-		if segments.next().is_some() {
-			continue;
-		}
-		let mut fields = edition.split('-');
-		let (Some(id), Some(language)) = (fields.next(), fields.next()) else {
-			continue;
-		};
-		if !id.is_empty() && !editions.iter().any(|(seen, _)| seen == id) {
-			editions.push((id.into(), language.into()));
-		}
-	}
-
-	let languages = languages();
-	editions
-		.iter()
-		.find(|(_, language)| languages.iter().any(|wanted| wanted == language))
-		.or_else(|| editions.first())
-		.map(|(id, _)| id.clone())
-}
-
 pub fn comic_key(base_url: &str, target: Target) -> Result<String> {
 	match target {
 		Target::Comic(key, _) => Ok(key),
-		Target::Title(id) => resolve_title(base_url, &id)
-			.ok_or_else(|| error!("No comics are available for this series")),
+		Target::Title(id) => title_edition(base_url, &id),
 	}
-}
-
-/// Language code from a chapter path, whose last segment is `{id}-{lang}-{name}`.
-fn language_from_path(url_path: Option<&str>) -> Option<String> {
-	let segment = url_path?.trim_end_matches('/').rsplit('/').next()?;
-	segment.split('-').nth(1).and_then(normalize_language)
 }
 
 fn unix_seconds(timestamp: i64) -> Option<i64> {
@@ -707,6 +405,93 @@ fn unix_seconds(timestamp: i64) -> Option<i64> {
 			timestamp
 		}
 	})
+}
+
+pub fn browse_page(base_url: &str, params: &BrowseParams) -> Result<MangaPageResult> {
+	let response = browse_request(base_url, params)?.send()?;
+	let (comics, has_next_page) = parse_browse(response, params)?;
+	let entries = comics
+		.into_iter()
+		.map(|comic| manga_from_data(comic, base_url))
+		.collect();
+	Ok(MangaPageResult {
+		has_next_page,
+		entries,
+	})
+}
+
+/// One edition's chapters, or with Merge Editions every edition's, each naming its team.
+pub fn chapters(base_url: &str, key: &str, team: Option<&str>) -> Result<Vec<Chapter>> {
+	if !settings::merge_editions() {
+		return Ok(fetch_chapters(base_url, &[key])?
+			.into_iter()
+			.flatten()
+			.filter_map(|chapter| chapter_from_data(chapter, base_url, None, team, false))
+			.collect());
+	}
+	let editions = editions(base_url, key)?;
+	let ids: Vec<&str> = editions.iter().map(|edition| edition.id.as_str()).collect();
+	// One team's editions read as one scanlator, spelled as its leading edition spells it,
+	// and keep one copy of each numbered chapter per language and volume: the leading
+	// edition's.
+	let mut teams: Vec<String> = Vec::new();
+	let mut owners: BTreeMap<(usize, Option<String>, Option<u32>, u32), usize> = BTreeMap::new();
+	let mut chapters = Vec::new();
+	for (index, (edition, list)) in editions
+		.iter()
+		.zip(fetch_chapters(base_url, &ids)?)
+		.enumerate()
+	{
+		let team = team_of(edition);
+		for chapter in list {
+			let Some(mut chapter) =
+				chapter_from_data(chapter, base_url, None, team.as_deref(), false)
+			else {
+				continue;
+			};
+			if let Some(name) = chapter
+				.scanlators
+				.as_mut()
+				.and_then(|names| names.first_mut())
+			{
+				let team_index = match teams
+					.iter()
+					.position(|seen| seen.eq_ignore_ascii_case(name))
+				{
+					Some(position) => {
+						name.clone_from(&teams[position]);
+						position
+					}
+					None => {
+						teams.push(name.clone());
+						teams.len() - 1
+					}
+				};
+				// An unnumbered chapter may be any extra, so only numbered ones collapse.
+				if let Some(number) = chapter.chapter_number
+					&& *owners
+						.entry((
+							team_index,
+							chapter.language.clone(),
+							chapter.volume_number.map(f32::to_bits),
+							number.to_bits(),
+						))
+						.or_insert(index) != index
+				{
+					continue;
+				}
+			}
+			chapters.push(chapter);
+		}
+	}
+	// Each list arrives newest first, so interleave them by number, then by upload.
+	chapters.sort_by(|a, b| {
+		b.chapter_number
+			.partial_cmp(&a.chapter_number)
+			.unwrap_or(Ordering::Equal)
+			.then(b.date_uploaded.cmp(&a.date_uploaded))
+	});
+	Ok(chapters)
 }
 
 /// `published_first` dates by publication instead of revision: the feed reports
@@ -731,9 +516,7 @@ pub fn chapter_from_data(
 		date_modify,
 		date_public,
 		src_name,
-		profile_nodes,
-		group_nodes,
-		comic_node: _,
+		comic_node,
 	} = data;
 	if db_status.as_deref().unwrap_or("normal") != "normal" {
 		return None;
@@ -753,29 +536,21 @@ pub fn chapter_from_data(
 		_ => None,
 	};
 	// `srcName` is only the aggregator the upload came through.
-	let mut scanlators = team
+	let scanlators: Vec<String> = team
 		.map(str::trim)
 		.filter(|team| !team.is_empty())
-		.map(|team| vec![team.into()])
-		.unwrap_or_default();
-	if scanlators.is_empty() {
-		scanlators = src_name
-			.map(|name| title_case(&name))
-			.filter(|name| !name.is_empty())
-			.map(|name| vec![name])
-			.unwrap_or_default();
-	}
-	if scanlators.is_empty() {
-		scanlators = profile_nodes.map(node_names).unwrap_or_default();
-	}
-	if scanlators.is_empty() {
-		scanlators = group_nodes.map(node_names).unwrap_or_default();
-	}
-	// Every chapter path repeats its comic's language, so listing chapters needs no
-	// lookup of the comic itself.
-	let language = language
 		.map(Into::into)
-		.or_else(|| language_from_path(url_path.as_deref()));
+		.or_else(|| src_name.map(|name| title_case(&name)))
+		.filter(|name| !name.is_empty())
+		.into_iter()
+		.collect();
+	// Chapter paths no longer name a language, but each chapter can carry its edition's.
+	let language = language.map(Into::into).or_else(|| {
+		comic_node
+			.and_then(|node| node.data)
+			.and_then(|comic| comic.translated_language)
+			.and_then(|language| normalize_language(&language))
+	});
 	// The shape the site's own rewriter takes when it has only a chapter id.
 	let url = site_url(base_url, url_path).unwrap_or_else(|| format!("{base_url}/chapter/{id}"));
 	Some(Chapter {

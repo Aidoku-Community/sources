@@ -2,7 +2,8 @@ use crate::{
 	helpers::{editions_of, is_pornographic},
 	models::{
 		BrowseResponse, ChapterData, ChapterListResponse, ChapterPagesResponse, ComicData,
-		ComicNodeResponse, GraphQlResponse, LatestUploadsResponse, RecentlyAddedResponse,
+		ComicNodeResponse, EditionsResponse, GraphQlResponse, LatestUploadsResponse,
+		RecentlyAddedResponse, TitleNodeResponse,
 	},
 	settings,
 };
@@ -19,8 +20,8 @@ pub const PAGE_SIZE: i32 = 48;
 pub const HOME_LATEST_SIZE: i32 = 20;
 const RECENTLY_ADDED_SIZE: i32 = 50;
 const RANDOM_AMOUNT: i32 = 12;
-const CHAPTER_PAGE_SIZE: i32 = 100;
-const UNIQUE_CHAPTER_PAGE_SIZE: i32 = 1000;
+const CHAPTER_PAGE_SIZE: i64 = 100;
+const UNIQUE_CHAPTER_PAGE_SIZE: i64 = 1000;
 
 pub const SORT_IDS: &[&str] = &[
 	"field_score",
@@ -131,7 +132,28 @@ query get_comicNode($id: ID!) {
       tagNodes { data { name } }
       summary { text }
       urlPath urlCover
+      work: title_titleNode { data { authors artists description format_ids } }
     }
+  }
+}
+"#;
+
+const EDITIONS_QUERY: &str = r#"
+query get_comicNode($id: ID!) {
+  get_comicNode(id: $id) {
+    data {
+      work: title_titleNode {
+        comicNodes { data { id name subName urlPath translatedLanguage chaps_normal dbStatus isPublic } }
+      }
+    }
+  }
+}
+"#;
+
+const TITLE_QUERY: &str = r#"
+query get_title_titleNode($id: ID!) {
+  title: get_title_titleNode(id: $id) {
+    comicNodes { data { id name subName urlPath translatedLanguage chaps_normal dbStatus isPublic } }
   }
 }
 "#;
@@ -146,8 +168,7 @@ query get_comic_chapterList_fullList($select: Select_Comic_ChapterList) {
       data {
         id dbStatus serial chaNum volNum dname title urlPath
         dateCreate dateModify datePublic srcName
-        profileNodes { data { name } }
-        groupNodes { data { name } }
+        comicNode { data { translatedLanguage } }
       }
     }
   }
@@ -162,8 +183,7 @@ query get_comic_chapterList_uniqList($select: Select_Comic_ChapterList_UniqList)
       data {
         id dbStatus serial chaNum volNum dname title urlPath
         dateCreate dateModify datePublic srcName
-        profileNodes { data { name } }
-        groupNodes { data { name } }
+        comicNode { data { translatedLanguage } }
       }
     }
   }
@@ -191,7 +211,7 @@ pub struct BrowseParams {
 	pub content_ratings: Vec<String>,
 	pub original_languages: Vec<String>,
 	pub translated_languages: Vec<String>,
-	pub original_status: String,
+	pub original_status: Vec<String>,
 	pub chapter_count: String,
 	pub year_min: Option<i64>,
 	pub year_max: Option<i64>,
@@ -249,7 +269,7 @@ impl BrowseParams {
 			"incContentRatings": content_ratings,
 			"releaseYearMin": self.year_min,
 			"releaseYearMax": self.year_max,
-			"origStatus": (!self.original_status.is_empty()).then_some(&self.original_status),
+			"origStatus": self.original_status,
 			"chapCount": (!self.chapter_count.is_empty()).then_some(&self.chapter_count),
 			// Off, as the site sends them: its blocklist hides unapproved uploads.
 			"ignoreGlobalULangs": false,
@@ -297,13 +317,15 @@ fn graphql_request(base_url: &str, query: &str, variables: serde_json::Value) ->
 			.collect::<Vec<_>>()
 			.join(",")
 	};
+	let mut body = serde_json::json!({ "query": query.trim() });
+	body["variables"] = variables;
 	Ok(Request::post(format!("{base_url}/query/"))?
 		.header("Content-Type", "application/json")
 		.header("Accept", "application/json")
 		.header("Accept-Language", &accept_language)
 		.header("Referer", &format!("{base_url}/"))
 		.header("Origin", base_url)
-		.body(serde_json::json!({ "query": query.trim(), "variables": variables }).to_string()))
+		.body(body.to_string()))
 }
 
 fn parse_graphql<T: DeserializeOwned>(response: Response) -> Result<T> {
@@ -433,9 +455,11 @@ pub fn parse_titles(response: Response, params: &BrowseParams) -> Result<(Vec<Co
 	let response: BrowseResponse = parse_graphql(response)?;
 	let titles = response.items.unwrap_or_default();
 	let served = titles.len();
+	// Merged editions share one chapter list, so one card stands for them all.
+	let every = !params.word.is_empty() && !settings::merge_editions();
 	let comics = titles
 		.into_iter()
-		.flat_map(|title| editions_of(title, &params.translated_languages, !params.word.is_empty()))
+		.flat_map(|title| editions_of(title, &params.translated_languages, every))
 		.collect();
 	Ok((comics, served))
 }
@@ -455,69 +479,125 @@ pub fn fetch_comic(base_url: &str, id: &str) -> Result<ComicData> {
 		.ok_or_else(|| error!("Manga not found"))
 }
 
-pub fn fetch_chapters(base_url: &str, comic_id: &str) -> Result<Vec<ChapterData>> {
+/// A `/title/` page is not itself readable, so it opens the edition browse would show.
+pub fn title_edition(base_url: &str, title_id: &str) -> Result<String> {
+	let response: TitleNodeResponse =
+		graphql(base_url, TITLE_QUERY, serde_json::json!({ "id": title_id }))?;
+	let title = response
+		.title
+		.ok_or_else(|| error!("No comics are available for this series"))?;
+	// The reader's languages rank first, but a work with none of them still opens.
+	let mut languages = settings::languages();
+	languages.extend(
+		title
+			.comic_nodes
+			.iter()
+			.flatten()
+			.filter_map(|node| node.data.as_ref()?.translated_language.clone()),
+	);
+	editions_of(title, &languages, false)
+		.into_iter()
+		.next()
+		.map(|comic| comic.id)
+		.ok_or_else(|| error!("No comics are available for this series"))
+}
+
+/// Every live edition of the work `comic_id` belongs to, in the reader's languages.
+pub fn editions(base_url: &str, comic_id: &str) -> Result<Vec<ComicData>> {
+	let response: EditionsResponse = graphql(
+		base_url,
+		EDITIONS_QUERY,
+		serde_json::json!({ "id": comic_id }),
+	)?;
+	let work = response
+		.comic
+		.and_then(|node| node.data.work)
+		.ok_or_else(|| error!("Manga not found"))?;
+	let mut editions = editions_of(work, &settings::languages(), true);
+	// A shelved edition keeps its chapters after the reader's languages change.
+	if !editions.iter().any(|edition| edition.id == comic_id) {
+		editions.insert(
+			0,
+			ComicData {
+				id: comic_id.into(),
+				..Default::default()
+			},
+		);
+	}
+	Ok(editions)
+}
+
+fn chapter_page(response: Response) -> Result<(Vec<ChapterData>, Option<i64>, bool)> {
+	let response: ChapterListResponse = parse_graphql(response)?;
+	let result = response.chapter_list.unwrap_or_default();
+	let paging = result.paging.unwrap_or_default();
+	Ok((
+		result
+			.items
+			.unwrap_or_default()
+			.into_iter()
+			.map(|node| node.data)
+			.collect(),
+		paging.total,
+		paging.next.unwrap_or_default() != 0,
+	))
+}
+
+/// One list per comic, in the order given.
+pub fn fetch_chapters(base_url: &str, comic_ids: &[&str]) -> Result<Vec<Vec<ChapterData>>> {
 	// The full list carries every scanlator's upload, so it is paged smaller.
 	let (query, size) = if settings::deduplicate_chapters() {
 		(UNIQUE_CHAPTERS_QUERY, UNIQUE_CHAPTER_PAGE_SIZE)
 	} else {
 		(CHAPTERS_QUERY, CHAPTER_PAGE_SIZE)
 	};
-	let first: ChapterListResponse =
-		graphql(base_url, query, chapter_variables(comic_id, 1, size))?;
-	let paging = first
-		.chapter_list
-		.as_ref()
-		.and_then(|result| result.paging.as_ref());
-	let total = paging.and_then(|paging| paging.total);
-	let has_next = paging.and_then(|paging| paging.next).unwrap_or_default() != 0;
-	let mut chapters: Vec<ChapterData> = first
-		.chapter_list
-		.map(|result| {
-			result
-				.items
-				.unwrap_or_default()
-				.into_iter()
-				.map(|node| node.data)
-				.collect()
-		})
-		.unwrap_or_default();
-
-	let total = total.unwrap_or(chapters.len() as i64);
-	let pages = if has_next && total > size as i64 {
-		(total + size as i64 - 1) / size as i64
-	} else {
-		1
+	let request = |comic_id: &str, page: i64| {
+		graphql_request(base_url, query, chapter_variables(comic_id, page, size))
 	};
-	// More than three pages at once and the site answers 429, losing the list.
-	let remaining: Vec<i64> = (2..=pages).collect();
+
+	// More than three requests at once and the site answers 429, losing the list.
+	let mut lists = Vec::with_capacity(comic_ids.len());
+	let mut totals = Vec::with_capacity(comic_ids.len());
+	let mut remaining: Vec<(usize, i64)> = Vec::new();
+	for batch in comic_ids.chunks(3) {
+		let requests = batch
+			.iter()
+			.map(|comic_id| request(comic_id, 1))
+			.collect::<Result<Vec<Request>>>()?;
+		for response in Request::send_all(requests) {
+			let (chapters, total, has_next) = chapter_page(response?)?;
+			let total = total.unwrap_or(chapters.len() as i64);
+			if has_next && total > size {
+				let index = lists.len();
+				remaining.extend((2..=(total + size - 1) / size).map(|page| (index, page)));
+			}
+			lists.push(chapters);
+			totals.push(total);
+		}
+	}
 	for batch in remaining.chunks(3) {
 		let requests = batch
 			.iter()
-			.map(|page| {
-				graphql_request(
-					base_url,
-					query,
-					chapter_variables(comic_id, *page as i32, size),
-				)
-			})
+			.map(|(index, page)| request(comic_ids[*index], *page))
 			.collect::<Result<Vec<Request>>>()?;
-		for response in Request::send_all(requests) {
-			let response: ChapterListResponse = parse_graphql(response?)?;
-			if let Some(result) = response.chapter_list {
-				chapters.extend(
-					result
-						.items
-						.unwrap_or_default()
-						.into_iter()
-						.map(|node| node.data),
-				);
-			}
+		for ((index, _), response) in batch.iter().zip(Request::send_all(requests)) {
+			lists[*index].extend(chapter_page(response?)?.0);
 		}
 	}
-	Ok(chapters)
+
+	// The total is exact, so a short list lost a page and would otherwise read as complete.
+	for (list, total) in lists.iter().zip(&totals) {
+		if (list.len() as i64) < *total {
+			bail!(
+				"Received {} of {total} chapters; refresh to try again",
+				list.len()
+			);
+		}
+	}
+	Ok(lists)
 }
 
-fn chapter_variables(comic_id: &str, page: i32, size: i32) -> serde_json::Value {
+fn chapter_variables(comic_id: &str, page: i64, size: i64) -> serde_json::Value {
 	serde_json::json!({
 		"select": {
 			"comic_id": comic_id,
