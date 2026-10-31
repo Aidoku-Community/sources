@@ -188,9 +188,10 @@ impl From<MangaItem> for Manga {
 			url: Some(format!("{BASE_URL}/manga/{}", value.id)),
 			tags: Some(new_tags),
 			status: match value.status.as_str() {
-				"Hiatus" => MangaStatus::Hiatus,
 				"Ongoing" => MangaStatus::Ongoing,
 				"Completed" => MangaStatus::Completed,
+				"Cancelled" => MangaStatus::Cancelled,
+				"Hiatus" => MangaStatus::Hiatus,
 				_ => MangaStatus::Unknown,
 			},
 			content_rating: if value.is_adult {
