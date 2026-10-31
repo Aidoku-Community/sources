@@ -16,6 +16,7 @@ impl Impl for ToonTop {
 		Params {
 			base_url: BASE_URL.into(),
 			api_url: API_URL.into(),
+			..Default::default()
 		}
 	}
 }
@@ -33,7 +34,8 @@ mod test {
 	use super::*;
 	use aidoku::{
 		DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponentValue, Listing,
-		ListingProvider, Manga, MangaStatus, alloc::vec,
+		ListingProvider, Manga, MangaStatus,
+		alloc::{Vec, vec},
 	};
 	use aidoku_test::aidoku_test;
 
@@ -103,8 +105,26 @@ mod test {
 	#[aidoku_test]
 	fn home_sections() {
 		let home = MangaK::<ToonTop>::new().get_home().expect("home failed");
-		assert_eq!(home.components.len(), 3);
-		let HomeComponentValue::MangaChapterList { entries, .. } = &home.components[2].value else {
+		let titles = home
+			.components
+			.iter()
+			.map(|component| component.title.as_deref().unwrap_or_default())
+			.collect::<Vec<_>>();
+		assert_eq!(
+			titles,
+			[
+				"Top This Week",
+				"Trending This Week",
+				"Popular Updates",
+				"New Manga",
+				"Latest Updates"
+			]
+		);
+		let HomeComponentValue::BigScroller { entries, .. } = &home.components[0].value else {
+			panic!("top this week is not a big scroller");
+		};
+		assert!(entries.iter().all(|manga| manga.tags.is_some()));
+		let HomeComponentValue::MangaChapterList { entries, .. } = &home.components[4].value else {
 			panic!("latest updates is not a chapter list");
 		};
 		assert!(!entries.is_empty());
