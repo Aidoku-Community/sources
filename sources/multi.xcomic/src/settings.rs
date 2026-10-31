@@ -39,6 +39,11 @@ pub fn show_source_in_title() -> bool {
 	defaults_get::<bool>("showSourceInTitle").unwrap_or(true)
 }
 
+/// Off by default: a work has a median of 14 English editions, each a chapter list request.
+pub fn merge_editions() -> bool {
+	defaults_get::<bool>("mergeEditions").unwrap_or(false)
+}
+
 /// On by default: a title with hundreds of sources pages its full list far enough
 /// to draw a 429, which loses the list entirely.
 pub fn deduplicate_chapters() -> bool {

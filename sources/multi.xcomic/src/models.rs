@@ -129,6 +129,19 @@ pub struct TitleNodeResponse {
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
+pub struct EditionsData {
+	pub work: Option<TitleNode>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+pub struct EditionsResponse {
+	#[serde(rename = "get_comicNode")]
+	pub comic: Option<Node<EditionsData>>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
 pub struct ComicNodeResponse {
 	#[serde(rename = "get_comicNode")]
 	pub comic: Option<Node<ComicData>>,

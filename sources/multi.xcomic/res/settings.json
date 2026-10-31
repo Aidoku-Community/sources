@@ -406,7 +406,7 @@
 	{
 		"type": "group",
 		"title": "Title Preferences",
-		"footer": "A title can publish through several editions. The team behind each one tells them apart; chapters name it either way.",
+		"footer": "A title can publish through several editions. The team behind each one tells them apart; chapters name it either way. Merging lists every edition in your languages under one title, at one request per edition, and the chapter list's Scanlator filter picks between teams.",
 		"items": [
 			{
 				"type": "switch",
@@ -414,6 +414,16 @@
 				"title": "Show Source in Title",
 				"subtitle": "Tag duplicate titles with the team that uploaded them.",
 				"default": true,
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "switch",
+				"key": "mergeEditions",
+				"title": "Merge Editions",
+				"subtitle": "Show one title per series with every edition's chapters.",
+				"default": false,
 				"refreshes": [
 					"content"
 				]

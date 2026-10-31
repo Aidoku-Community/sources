@@ -1,13 +1,15 @@
 use crate::{
-	graphql::{BrowseParams, browse_request, parse_browse, title_edition},
+	graphql::{
+		BrowseParams, browse_request, editions, fetch_chapters, parse_browse, title_edition,
+	},
 	models::{ChapterData, ComicData, NamedData, Node, TitleNode},
 	settings::{self, normalize_language},
 };
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Result, Viewer,
-	alloc::{String, Vec, format, string::ToString},
+	alloc::{String, Vec, collections::BTreeMap, format, string::ToString},
 };
-use core::cmp::Reverse;
+use core::cmp::{Ordering, Reverse};
 
 pub const PORNOGRAPHIC_GENRES: &[&str] = &["adult", "hentai", "pornographic", "smut"];
 
@@ -311,8 +313,10 @@ pub fn manga_from_data(comic: ComicData, base_url: &str) -> Manga {
 		title.truncate(open);
 		title = title.trim_end().into();
 	}
-	// Editions of one title are identical on a shelf without the team's name.
+	// Editions of one title are identical on a shelf without the team's name. Merged
+	// editions name their teams on each chapter instead.
 	if settings::show_source_in_title()
+		&& !settings::merge_editions()
 		&& let Some(team) = team
 		&& !title.contains(team.as_str())
 	{
@@ -414,6 +418,80 @@ pub fn browse_page(base_url: &str, params: &BrowseParams) -> Result<MangaPageRes
 		has_next_page,
 		entries,
 	})
+}
+
+/// One edition's chapters, or with Merge Editions every edition's, each naming its team.
+pub fn chapters(base_url: &str, key: &str, team: Option<&str>) -> Result<Vec<Chapter>> {
+	if !settings::merge_editions() {
+		return Ok(fetch_chapters(base_url, &[key])?
+			.into_iter()
+			.flatten()
+			.filter_map(|chapter| chapter_from_data(chapter, base_url, None, team, false))
+			.collect());
+	}
+	let editions = editions(base_url, key)?;
+	let ids: Vec<&str> = editions.iter().map(|edition| edition.id.as_str()).collect();
+	// One team's editions read as one scanlator, spelled as its leading edition spells it,
+	// and keep one copy of each numbered chapter per language and volume: the leading
+	// edition's.
+	let mut teams: Vec<String> = Vec::new();
+	let mut owners: BTreeMap<(usize, Option<String>, Option<u32>, u32), usize> = BTreeMap::new();
+	let mut chapters = Vec::new();
+	for (index, (edition, list)) in editions
+		.iter()
+		.zip(fetch_chapters(base_url, &ids)?)
+		.enumerate()
+	{
+		let team = team_of(edition);
+		for chapter in list {
+			let Some(mut chapter) =
+				chapter_from_data(chapter, base_url, None, team.as_deref(), false)
+			else {
+				continue;
+			};
+			if let Some(name) = chapter
+				.scanlators
+				.as_mut()
+				.and_then(|names| names.first_mut())
+			{
+				let team_index = match teams
+					.iter()
+					.position(|seen| seen.eq_ignore_ascii_case(name))
+				{
+					Some(position) => {
+						name.clone_from(&teams[position]);
+						position
+					}
+					None => {
+						teams.push(name.clone());
+						teams.len() - 1
+					}
+				};
+				// An unnumbered chapter may be any extra, so only numbered ones collapse.
+				if let Some(number) = chapter.chapter_number
+					&& *owners
+						.entry((
+							team_index,
+							chapter.language.clone(),
+							chapter.volume_number.map(f32::to_bits),
+							number.to_bits(),
+						))
+						.or_insert(index) != index
+				{
+					continue;
+				}
+			}
+			chapters.push(chapter);
+		}
+	}
+	// Each list arrives newest first, so interleave them by number, then by upload.
+	chapters.sort_by(|a, b| {
+		b.chapter_number
+			.partial_cmp(&a.chapter_number)
+			.unwrap_or(Ordering::Equal)
+			.then(b.date_uploaded.cmp(&a.date_uploaded))
+	});
+	Ok(chapters)
 }
 
 /// `published_first` dates by publication instead of revision: the feed reports

@@ -15,7 +15,7 @@ use aidoku::{
 	prelude::*,
 };
 use graphql::BrowseParams;
-use helpers::{chapter_from_data, manga_from_data};
+use helpers::manga_from_data;
 
 struct XComic;
 
@@ -112,14 +112,7 @@ impl Source for XComic {
 		};
 		Ok(if needs_chapters {
 			Manga {
-				chapters: Some(
-					graphql::fetch_chapters(&base_url, &manga.key)?
-						.into_iter()
-						.filter_map(|chapter| {
-							chapter_from_data(chapter, &base_url, None, team.as_deref(), false)
-						})
-						.collect(),
-				),
+				chapters: Some(helpers::chapters(&base_url, &manga.key, team.as_deref())?),
 				..manga
 			}
 		} else {
