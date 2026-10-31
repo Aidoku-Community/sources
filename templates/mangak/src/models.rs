@@ -1,5 +1,6 @@
+use crate::helpers::{content_rating, manga_status};
 use aidoku::{
-	Chapter, ContentRating, Manga, MangaStatus, MangaWithChapter, Viewer,
+	Chapter, Manga, MangaPageResult, MangaWithChapter, Viewer,
 	alloc::{String, Vec, format},
 	imports::std::parse_date,
 };
@@ -23,12 +24,30 @@ pub struct Pagination {
 	pub has_next: bool,
 }
 
+impl SearchData {
+	// The trending feed has no pagination, so it reads as one page
+	pub fn into_page(self, base_url: &str) -> MangaPageResult {
+		MangaPageResult {
+			entries: self
+				.items
+				.into_iter()
+				.map(|item| item.into_manga(base_url))
+				.collect(),
+			has_next_page: self.pagination.has_next,
+		}
+	}
+}
+
+// The trending feed shares this shape without genres or chapters
 #[derive(Default, Deserialize)]
 #[serde(default)]
 pub struct SearchItem {
 	pub name: String,
 	pub url: String,
 	pub cover: Option<String>,
+	pub summary: Option<String>,
+	pub status: Option<String>,
+	pub genres: Vec<Entity>,
 	pub latest_chapters: Vec<ChapterItem>,
 }
 
@@ -40,6 +59,18 @@ impl SearchItem {
 			title: self.name,
 			cover: self.cover,
 			..Default::default()
+		}
+	}
+
+	// Details list genres in the same order
+	pub fn into_featured(mut self, base_url: &str) -> Manga {
+		let tags: Vec<String> = self.genres.drain(..).map(|genre| genre.name).collect();
+		Manga {
+			description: self.summary.take().filter(|summary| !summary.is_empty()),
+			content_rating: content_rating(&tags),
+			status: manga_status(self.status.take()),
+			tags: Some(tags).filter(|tags| !tags.is_empty()),
+			..self.into_manga(base_url)
 		}
 	}
 
@@ -72,12 +103,15 @@ pub struct ChapterItem {
 
 impl ChapterItem {
 	pub fn into_chapter(self, base_url: &str) -> Chapter {
+		let chapter_number = self
+			.name
+			.split_whitespace()
+			.nth(1)
+			.and_then(|number| number.parse().ok());
 		Chapter {
-			chapter_number: self
-				.name
-				.split_whitespace()
-				.nth(1)
-				.and_then(|number| number.parse().ok()),
+			// Extras and prologues have no number, only a name
+			title: chapter_number.is_none().then_some(self.name),
+			chapter_number,
 			date_uploaded: self
 				.updated_at
 				.and_then(|date| parse_date(date, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")),
@@ -130,19 +164,8 @@ impl MangaDetails {
 			list.map(|list| list.into_iter().map(|entity| entity.name).collect())
 		};
 		let tags: Option<Vec<String>> = names(self.genres);
-		let has_tag = |wanted: &[&str]| {
-			tags.iter()
-				.flatten()
-				.any(|tag| wanted.contains(&tag.as_str()))
-		};
-		let content_rating = if has_tag(&["Adult", "Hentai", "Mature", "Smut"]) {
-			ContentRating::NSFW
-		} else if has_tag(&["Ecchi"]) {
-			ContentRating::Suggestive
-		} else {
-			ContentRating::Safe
-		};
 		Manga {
+			content_rating: content_rating(tags.as_deref().unwrap_or_default()),
 			url: Some(format!("{base_url}{key}")),
 			key,
 			title: self.name,
@@ -151,14 +174,7 @@ impl MangaDetails {
 			authors: names(self.authors),
 			artists: names(self.artists),
 			tags,
-			content_rating,
-			status: match self.status.unwrap_or_default().to_lowercase().as_str() {
-				"ongoing" => MangaStatus::Ongoing,
-				"completed" => MangaStatus::Completed,
-				"hiatus" => MangaStatus::Hiatus,
-				"cancelled" | "dropped" => MangaStatus::Cancelled,
-				_ => MangaStatus::Unknown,
-			},
+			status: manga_status(self.status),
 			viewer: Viewer::Webtoon,
 			..Default::default()
 		}

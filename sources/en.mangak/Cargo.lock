@@ -176,7 +176,6 @@ dependencies = [
  "aidoku",
  "aidoku-test",
  "mangak",
- "serde",
 ]
 
 [[package]]
