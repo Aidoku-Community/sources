@@ -1,20 +1,32 @@
 use crate::models::NextData;
 use aidoku::{
-	Listing, Result, alloc::string::ToString, helpers::uri::QueryParameters, imports::net::Request,
-	prelude::*,
+	ContentRating, MangaStatus, Result, alloc::string::String, imports::net::Request, prelude::*,
 };
 use serde::de::DeserializeOwned;
 
-pub const SORTS: [&str; 8] = [
-	"latest",
-	"popular",
-	"newest",
-	"rating",
-	"views_today",
-	"views_7days",
-	"views_30days",
-	"views",
+pub const SORTS: [Option<&str>; 10] = [
+	None, // Best Match sends no sort, as on the site
+	Some("latest"),
+	Some("newest"),
+	Some("popular"),
+	Some("rating"),
+	Some("views_today"),
+	Some("views_7days"),
+	Some("views_30days"),
+	Some("views"),
+	Some("chapters"),
 ];
+
+pub fn listing_path(id: &str) -> &'static str {
+	match id {
+		"trending" => "trending/titles?window=week",
+		"popular_updates" => "titles/search?sort=bookmarks&window=today",
+		"new" => "titles/search?sort=newest",
+		"uncensored" => "titles/search?is_uncensored=true",
+		"raw" => "titles/search?is_raw=true",
+		_ => "titles/search?sort=latest",
+	}
+}
 
 pub fn next_data<T: DeserializeOwned>(url: &str) -> Result<T> {
 	let html = Request::get(url)?.html()?;
@@ -28,23 +40,23 @@ pub fn next_data<T: DeserializeOwned>(url: &str) -> Result<T> {
 	Ok(serde_json::from_str::<NextData<T>>(&json)?.props.page_props)
 }
 
-pub fn listing_query(id: &str) -> QueryParameters {
-	let mut qs = QueryParameters::new();
-	match id {
-		"today" | "week" => {
-			qs.push("sort", Some("popular"));
-			qs.push("window", Some(id));
-		}
-		"uncensored" | "raw" => qs.push(&format!("is_{id}"), Some("true")),
-		_ => qs.push("sort", Some("latest")),
+pub fn content_rating(genres: &[String]) -> ContentRating {
+	let has = |wanted: &[&str]| genres.iter().any(|genre| wanted.contains(&genre.as_str()));
+	if has(&["Adult", "Hentai", "Mature", "Smut"]) {
+		ContentRating::NSFW
+	} else if has(&["Ecchi"]) {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
 	}
-	qs
 }
 
-pub fn listing(id: &str, name: &str) -> Option<Listing> {
-	Some(Listing {
-		id: id.to_string(),
-		name: name.to_string(),
-		..Default::default()
-	})
+pub fn manga_status(status: Option<String>) -> MangaStatus {
+	match status.unwrap_or_default().to_lowercase().as_str() {
+		"ongoing" => MangaStatus::Ongoing,
+		"completed" => MangaStatus::Completed,
+		"hiatus" => MangaStatus::Hiatus,
+		"cancelled" | "dropped" => MangaStatus::Cancelled,
+		_ => MangaStatus::Unknown,
+	}
 }

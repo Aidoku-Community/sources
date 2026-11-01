@@ -5,19 +5,17 @@
 		"title": "Sort",
 		"canAscend": false,
 		"options": [
+			"Best Match",
 			"Latest Updated",
-			"Most Followed",
 			"Recently Added",
+			"Most Followed",
 			"Highest Rating",
-			"Most Viewed Today",
-			"Most Viewed This Week",
-			"Most Viewed This Month",
-			"Most Viewed All Time"
-		],
-		"default": {
-			"index": 0,
-			"ascending": false
-		}
+			"Most Viewed: Today",
+			"Most Viewed: 7 Days",
+			"Most Viewed: 30 Days",
+			"Most Viewed: All Time",
+			"Most Chapters"
+		]
 	},
 	{
 		"type": "multi-select",
@@ -143,6 +141,37 @@
 			"yaoi",
 			"yuri"
 		]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"Any",
+			"Ongoing",
+			"Completed",
+			"Hiatus",
+			"Cancelled"
+		],
+		"ids": [
+			"",
+			"ongoing",
+			"completed",
+			"hiatus",
+			"cancelled"
+		]
+	},
+	{
+		"type": "range",
+		"id": "chapters",
+		"title": "Chapters",
+		"hideFromHeader": true
+	},
+	{
+		"type": "text",
+		"id": "author",
+		"title": "Author",
+		"hideFromHeader": true
 	},
 	{
 		"type": "check",

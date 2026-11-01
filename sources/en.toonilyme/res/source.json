@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.toonilyme",
 		"name": "ToonTop",
-		"version": 2,
+		"version": 3,
 		"url": "https://toontop.io",
 		"contentRating": 2,
 		"languages": ["en"],
@@ -10,16 +10,20 @@
 	},
 	"listings": [
 		{
-			"id": "today",
-			"name": "Popular Today"
+			"id": "trending",
+			"name": "Trending This Week"
 		},
 		{
-			"id": "week",
-			"name": "Popular This Week"
+			"id": "popular_updates",
+			"name": "Popular Updates"
+		},
+		{
+			"id": "new",
+			"name": "New Manga"
 		},
 		{
 			"id": "latest",
-			"name": "Latest"
+			"name": "Latest Updates"
 		},
 		{
 			"id": "uncensored",
