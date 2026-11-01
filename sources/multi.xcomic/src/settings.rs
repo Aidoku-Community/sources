@@ -3,6 +3,14 @@ use aidoku::{
 	imports::defaults::defaults_get,
 };
 
+const BASE_URL: &str = "https://xcomic.me";
+
+pub fn base_url() -> String {
+	defaults_get::<String>("url")
+		.filter(|url| !url.is_empty())
+		.unwrap_or_else(|| BASE_URL.into())
+}
+
 pub const CONTENT_TYPES: &[&str] = &[
 	"cartoon", "imageset", "manga", "manhua", "manhwa", "oel", "other", "western",
 ];
@@ -29,6 +37,11 @@ pub fn excluded_genres() -> Vec<String> {
 
 pub fn show_source_in_title() -> bool {
 	defaults_get::<bool>("showSourceInTitle").unwrap_or(true)
+}
+
+/// Off by default: a work has a median of 14 English editions, each a chapter list request.
+pub fn merge_editions() -> bool {
+	defaults_get::<bool>("mergeEditions").unwrap_or(false)
 }
 
 /// On by default: a title with hundreds of sources pages its full list far enough
