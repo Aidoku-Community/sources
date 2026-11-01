@@ -1,21 +1,22 @@
 [
 	{
 		"type": "sort",
-		"name": "Sort",
-		"canAscend": true,
+		"id": "sort",
 		"options": [
-			"A-Z"
+			"Title",
+			"Popularity"
 		],
 		"default": {
 			"index": 0,
-			"ascending": false
+			"ascending": true
 		}
 	},
 	{
-		"type": "select",
+		"type": "multi-select",
 		"id": "genre",
+		"title": "Genres",
 		"isGenre": true,
-		"title": "Tags",
+		"canExclude": true,
 		"options": [
 			"Academy",
 			"Action",
@@ -25,10 +26,13 @@
 			"Calm Protagonist",
 			"Comedy",
 			"Cultivation",
+			"Dragons",
 			"Drama",
 			"Dungeons",
 			"Ecchi",
+			"Ecchi comedy",
 			"Fantasy",
+			"Fusion Fantasy",
 			"Games",
 			"Harem",
 			"Historical",
@@ -39,35 +43,93 @@
 			"Leveling",
 			"Magic",
 			"Martial Arts",
-			"Mecha",
+			"Mature",
+			"Military",
 			"Modern Fantasy",
 			"Monster",
 			"Murim",
 			"Mystery",
+			"Noir",
+			"Novel",
 			"Official",
 			"Pokemon",
 			"Post-Apocalyptic",
 			"Psychological",
 			"Regression",
-			"Revenge",
 			"Reincarnation",
+			"Revenge",
 			"Romance",
 			"School Life",
 			"Sci-fi",
 			"Seinen",
 			"Shoujo",
+			"Shoujo Ai",
 			"Shounen",
 			"Slice of Life",
-			"Sword and Magic",
 			"Supernatural",
 			"Survival",
+			"Sword and Magic",
 			"Swordmaster",
 			"System",
 			"Thriller",
 			"Time Travel",
 			"Tragedy",
+			"Transmigration",
 			"VR",
-			"Youth"
+			"Vampires",
+			"Video Games",
+			"Youth",
+			"Zombies"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "type",
+		"title": "Type",
+		"canExclude": false,
+		"options": [
+			"Comic",
+			"Manga",
+			"Manhua",
+			"Manhwa",
+			"Novel",
+			"Russian",
+			"Web Novel"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "status",
+		"title": "Status",
+		"canExclude": false,
+		"options": [
+			"Cancelled",
+			"Coming Soon",
+			"Completed",
+			"Dropped",
+			"Hiatus",
+			"Ongoing"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "year",
+		"title": "Year",
+		"canExclude": false,
+		"options": [
+			"2026",
+			"2025",
+			"2024",
+			"2023",
+			"2022",
+			"2021",
+			"2020",
+			"2019",
+			"2018",
+			"2017",
+			"2015",
+			"2014",
+			"2010"
 		]
 	}
 ]
