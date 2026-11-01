@@ -30,11 +30,11 @@ pub fn next_data<T: DeserializeOwned>(path: &str) -> Result<T> {
 }
 
 /// Novel and series ids overlap, so a key keeps the site's path.
-pub fn key(novel_id: Option<u32>, series_id: Option<u32>) -> Option<String> {
+pub fn key(novel_id: Option<u32>, series_id: Option<u32>) -> Result<String> {
 	match (novel_id, series_id) {
-		(Some(id), _) => Some(format!("/novel/{id}")),
-		(None, Some(id)) => Some(format!("/series/{id}")),
-		(None, None) => None,
+		(Some(id), _) => Ok(format!("/novel/{id}")),
+		(None, Some(id)) => Ok(format!("/series/{id}")),
+		(None, None) => bail!("A Flame Comics entry has no id"),
 	}
 }
 

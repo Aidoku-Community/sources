@@ -3,7 +3,8 @@ use crate::{
 	helpers::{key, markdown},
 };
 use aidoku::{
-	Chapter, ContentRating, Link, LinkValue, Manga, MangaStatus, MangaWithChapter, Viewer,
+	AidokuError, Chapter, ContentRating, Link, LinkValue, Manga, MangaStatus, MangaWithChapter,
+	Result, Viewer,
 	alloc::{String, Vec, collections::BTreeMap, string::ToString},
 	prelude::*,
 };
@@ -72,18 +73,16 @@ impl Entry {
 
 	pub fn into_latest(mut self) -> Option<MangaWithChapter> {
 		let chapter = mem::take(&mut self.chapters).into_iter().next()?;
-		let url = format!(
-			"{BASE_URL}{}",
-			key(self.novel_id, self.series_id).unwrap_or_default()
-		);
+		let manga = Manga::try_from(self).ok()?;
+		let url = format!("{BASE_URL}{}", manga.key);
 		Some(MangaWithChapter {
 			chapter: chapter.into_chapter(&url, false),
-			manga: self.into(),
+			manga,
 		})
 	}
 
-	pub fn into_details(self) -> Manga {
-		let key = key(self.novel_id, self.series_id).unwrap_or_default();
+	pub fn into_details(self) -> Result<Manga> {
+		let key = key(self.novel_id, self.series_id)?;
 		let status = match self.status.as_deref().map(str::to_lowercase).as_deref() {
 			Some("ongoing") => MangaStatus::Ongoing,
 			Some("completed") => MangaStatus::Completed,
@@ -114,7 +113,7 @@ impl Entry {
 				.collect();
 			(!list.is_empty()).then_some(list)
 		};
-		Manga {
+		Ok(Manga {
 			cover: self.cover_url(),
 			url: Some(format!("{BASE_URL}{key}")),
 			description: self
@@ -131,19 +130,21 @@ impl Entry {
 			content_rating,
 			viewer,
 			..Default::default()
-		}
+		})
 	}
 }
 
 /// A card: key, title and cover only.
-impl From<Entry> for Manga {
-	fn from(entry: Entry) -> Self {
-		Manga {
-			key: key(entry.novel_id, entry.series_id).unwrap_or_default(),
+impl TryFrom<Entry> for Manga {
+	type Error = AidokuError;
+
+	fn try_from(entry: Entry) -> Result<Self> {
+		Ok(Manga {
+			key: key(entry.novel_id, entry.series_id)?,
 			cover: entry.cover_url(),
 			title: entry.title,
 			..Default::default()
-		}
+		})
 	}
 }
 
@@ -217,7 +218,7 @@ pub struct Slide {
 
 impl Slide {
 	pub fn into_link(self) -> Option<Link> {
-		let key = key(self.novel_id, self.series_id)?;
+		let key = key(self.novel_id, self.series_id).ok()?;
 		Some(Link {
 			title: self.title,
 			image_url: Some(format!("{CDN_URL}/uploads/images/carousel/{}", self.image)),

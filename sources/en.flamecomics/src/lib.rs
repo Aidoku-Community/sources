@@ -74,7 +74,10 @@ impl Source for FlameComics {
 			series.reverse();
 		}
 		Ok(MangaPageResult {
-			entries: series.into_iter().map(Into::into).collect(),
+			entries: series
+				.into_iter()
+				.filter_map(|entry| Manga::try_from(entry).ok())
+				.collect(),
 			has_next_page: false,
 		})
 	}
@@ -100,7 +103,7 @@ impl Source for FlameComics {
 			);
 		}
 		if needs_details {
-			manga.copy_from(series.into_details());
+			manga.copy_from(series.into_details()?);
 		}
 		Ok(manga)
 	}
@@ -174,7 +177,8 @@ impl Home for FlameComics {
 				entries: block
 					.series
 					.into_iter()
-					.map(|entry| Manga::from(entry).into())
+					.filter_map(|entry| Manga::try_from(entry).ok())
+					.map(Into::into)
 					.collect(),
 				listing: None,
 			},
