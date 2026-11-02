@@ -1,17 +1,22 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeLayout, Link,
-	Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page, PageContent, Result, Source,
-	Viewer,
-	alloc::{String, Vec, string::ToString, vec},
-	imports::{html::*, net::*},
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
+	HomeLayout, Link, Manga, MangaPageResult, Page, PageContent, Result, Source,
+	alloc::{String, Vec, vec},
+	helpers::uri::encode_uri_component,
+	imports::std::current_date,
 	prelude::*,
 };
-use chrono::{DateTime, FixedOffset, NaiveDateTime, TimeZone, Utc};
 
-mod filter;
+mod helpers;
+mod models;
+mod settings;
+
+use helpers::{SearchParams, locked_chapters, markdown, next_data};
+use models::{Block, BrowseProps, ChapterProps, Entry, HomeProps, SeriesProps, Slide};
 
 const BASE_URL: &str = "https://flamecomics.xyz";
+const CDN_URL: &str = "https://cdn.flamecomics.xyz";
 
 struct FlameComics;
 
@@ -26,45 +31,53 @@ impl Source for FlameComics {
 		_page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let query = query.unwrap_or_default().to_ascii_lowercase();
-		let genre = filter::get_genre_filter(&filters);
-		let url = if !genre.is_empty() {
-			format!("{BASE_URL}/{genre}")
-		} else {
-			format!("{BASE_URL}/browse")
+		let mut params = SearchParams {
+			query: query.map(|query| query.to_lowercase()),
+			..Default::default()
 		};
-		let html = Request::get(url)?.html()?;
-		let entries = html
-			.select(".mantine-Container-root .mantine-Grid-root:nth-of-type(2) .mantine-Grid-col .mantine-Group-root")
-			.map(|els| {
-				els.filter_map(|el| {
-					let manga_url = el.select_first("a")?.attr("abs:href").unwrap_or_default();
-					let cover = el.select_first("img")?.attr("abs:src").unwrap_or_default();
-					let manga_key = manga_url.strip_prefix(BASE_URL)?.into();
-					let title = el.select_first(".mantine-Stack-root a")?.text()?;
-					Some(Manga {
-						key: manga_key,
-						title,
-						cover: Some(cover),
-						url: Some(manga_url),
-						..Default::default()
-					})
-				})
-				.collect::<Vec<Manga>>()
-			})
-			.unwrap_or_default();
-		// Filtering out the search query
-		let mut entries = if query.is_empty() {
-			entries
-		} else {
-			entries
-				.into_iter()
-				.filter(|manga| manga.title.to_lowercase().contains(&query))
-				.collect()
-		};
-		entries = filter::sort(&filters, entries);
+		for filter in filters {
+			match filter {
+				FilterValue::Sort {
+					index, ascending, ..
+				} => {
+					params.popular = index == 1;
+					params.descending = !ascending;
+				}
+				FilterValue::MultiSelect {
+					id,
+					included,
+					excluded,
+				} => match id.as_str() {
+					"genre" => {
+						params.genres = included;
+						params.hidden_genres = excluded;
+					}
+					"type" => params.types = included,
+					"status" => params.statuses = included,
+					"year" => params.years = included,
+					_ => {}
+				},
+				_ => {}
+			}
+		}
+		let mut series = next_data::<BrowseProps>("/browse")?.series;
+		series.retain(|entry| params.matches(entry));
+		// As on the site: descending popularity starts at rank 1, and ties stay A to Z.
+		series.sort_by_cached_key(|entry| {
+			let rank = params.popular.then(|| {
+				let rank = i64::from(entry.popularity_rank.unwrap_or(u32::MAX));
+				if params.descending { rank } else { -rank }
+			});
+			(rank, entry.title.to_lowercase())
+		});
+		if params.descending && !params.popular {
+			series.reverse();
+		}
 		Ok(MangaPageResult {
-			entries,
+			entries: series
+				.into_iter()
+				.filter_map(|entry| Manga::try_from(entry).ok())
+				.collect(),
 			has_next_page: false,
 		})
 	}
@@ -75,276 +88,145 @@ impl Source for FlameComics {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let manga_url = format!("{BASE_URL}{}", manga.key);
-		let html = Request::get(&manga_url)?.html()?;
-
-		if needs_details {
-			const MANGA_AUTHORS: &str = ".mantine-Grid-root .mantine-Grid-col:nth-of-type(1) .mantine-Stack-root .mantine-Stack-root";
-			const MANGA_DETAILS: &str = ".mantine-Grid-root .mantine-Grid-col:nth-of-type(2) .mantine-Stack-root .mantine-Paper-root:nth-of-type(1)";
-			let details = html
-				.select_first(MANGA_DETAILS)
-				.ok_or(error!("Missing manga details"))?;
-			let authors = html
-				.select_first(MANGA_AUTHORS)
-				.ok_or(error!("Missing manga authors"))?;
-			let description = details
-				.select("p")
-				.and_then(|desc| desc.text())
-				.unwrap_or_default();
-			// Extract text between <p> and </p> tags of the description...
-			let description = Html::parse_fragment(&description)?
-				.select("p")
-				.map(|els| {
-					els.filter_map(|el| el.text())
-						.collect::<Vec<String>>()
-						.join("\n")
-				})
-				.unwrap_or_default();
-			manga.description = Some(description);
-			let status_str = details
-				.select(".mantine-Badge-root")
-				.and_then(|el| el.select_first("span"))
-				.and_then(|status| status.text())
-				.unwrap_or_default();
-			manga.status = match status_str.as_str() {
-				"Complete" => MangaStatus::Completed,
-				"Ongoing" => MangaStatus::Ongoing,
-				"Hiatus" => MangaStatus::Hiatus,
-				"Canceled" | "Dropped" => MangaStatus::Cancelled,
-				_ => MangaStatus::Unknown,
-			};
-			let manga_tags: Vec<String> = details
-				.select(".mantine-Group-root:last-of-type .mantine-Badge-label")
-				.map(|els| els.filter_map(|el| el.text()).collect())
-				.unwrap_or_default();
-			manga.tags = Some(manga_tags);
-			let manga_artist = authors
-				.select(".mantine-Paper-root:nth-of-type(1) p:last-of-type")
-				.and_then(|el| el.text())
-				.unwrap_or_default()
-				.split(",")
-				.map(|s| s.to_string())
-				.collect::<Vec<String>>();
-			manga.artists = Some(manga_artist);
-			let manga_author = authors
-				.select(".mantine-Paper-root:nth-of-type(2) p:last-of-type")
-				.and_then(|el| el.text())
-				.unwrap_or_default()
-				.split(",")
-				.map(|s| s.to_string())
-				.collect::<Vec<String>>();
-			manga.authors = Some(manga_author);
-			manga.viewer = Viewer::Webtoon;
-		}
-
+		let SeriesProps { series, chapters } = next_data(&manga.key)?;
 		if needs_chapters {
-			const CHAPTER_SELECTOR: &str = ".mantine-Grid-root .mantine-Grid-col:nth-of-type(2) .mantine-Stack-root .mantine-Paper-root:nth-of-type(2) .mantine-ScrollArea-viewport a";
-			manga.chapters = html.select(CHAPTER_SELECTOR).map(|elements| {
-				elements
-					.map(|element| {
-						let url = element.attr("abs:href").unwrap_or_default();
-						let key: String = url.strip_prefix(&manga_url).unwrap_or_default().into();
-						let title: String = element
-							.select_first(".mantine-Stack-root p")
-							.and_then(|e| e.text())
-							.unwrap_or_default();
-						let chapter_number: Option<f32> = title
-							.split(" ")
-							.nth(1)
-							.and_then(|num| num.parse::<f32>().ok());
-						let date_uploaded: String = element
-							.select_first(".mantine-Stack-root p:last-of-type")
-							.and_then(|e| e.attr("title"))
-							.unwrap_or_default();
-						let format: &str = "%B %e, %Y %l:%M %p";
-						let naive_date = NaiveDateTime::parse_from_str(&date_uploaded, format)
-							.expect("Error: Expected date string");
-						let offset = FixedOffset::west_opt(7 * 3600).unwrap();
-						let dt_with_tz: DateTime<FixedOffset> =
-							offset.from_local_datetime(&naive_date).unwrap();
-						let utc_dt: DateTime<Utc> = dt_with_tz.with_timezone(&Utc);
-						let chapter_date = utc_dt.timestamp();
-						Chapter {
-							key,
-							chapter_number,
-							date_uploaded: Some(chapter_date),
-							url: Some(url),
-							..Default::default()
-						}
-					})
-					.collect::<Vec<Chapter>>()
-			});
+			let locks = locked_chapters(&series.unlock, &chapters, current_date());
+			let show_locked = settings::show_locked();
+			let url = format!("{BASE_URL}{}", manga.key);
+			manga.chapters = Some(
+				chapters
+					.into_iter()
+					.zip(locks)
+					.filter(|(_, locked)| show_locked || !locked)
+					.map(|(chapter, locked)| chapter.into_chapter(&url, locked))
+					.collect(),
+			);
+		}
+		if needs_details {
+			manga.copy_from(series.into_details()?);
 		}
 		Ok(manga)
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let chapter_url = format!("{BASE_URL}{}{}", manga.key, chapter.key);
-		let html = Request::get(&chapter_url)?.html()?;
-		const BLOCKED_KEYWORD: &str = "read_on_flame";
-		let pages = html
-			.select(".mantine-Container-root .mantine-Stack-root img")
-			.map(|els| {
-				els.filter_map(|el| {
-					let page_url = el.attr("abs:src")?;
-					if page_url.contains(BLOCKED_KEYWORD) {
-						return None;
-					}
-					Some(Page {
-						content: PageContent::url(page_url),
-						..Default::default()
-					})
-				})
-				.collect::<Vec<Page>>()
+		let reader = next_data::<ChapterProps>(&format!("{}{}", manga.key, chapter.key))?.chapter;
+		if manga.key.starts_with("/novel/") {
+			let Some(content) = reader.content else {
+				bail!("This chapter is in early access on Flame Comics");
+			};
+			let text = markdown(&content);
+			if text.is_empty() {
+				bail!("This chapter has no text");
+			}
+			return Ok(vec![Page {
+				content: PageContent::text(text),
+				..Default::default()
+			}]);
+		}
+		// Image folders follow the series and chapter paths. The site's reader adds the edit
+		// time, so re-uploaded pages aren't served from a cache.
+		let pages: Vec<Page> = reader
+			.images
+			.into_values()
+			.map(|image| Page {
+				content: PageContent::url(format!(
+					"{CDN_URL}/uploads/images{}{}/{}?{}",
+					manga.key,
+					chapter.key,
+					encode_uri_component(image.name),
+					reader.edit_time.unwrap_or_default()
+				)),
+				..Default::default()
 			})
-			.unwrap_or_default();
+			.collect();
+		if pages.is_empty() {
+			bail!("This chapter has no pages");
+		}
 		Ok(pages)
 	}
 }
 
 impl Home for FlameComics {
 	fn get_home(&self) -> Result<HomeLayout> {
-		let html = Request::get(BASE_URL)?.html()?;
+		let home = next_data::<HomeProps>("/")?;
+		let mut components = Vec::new();
 
-		fn parse_manga_with_chapter(el: &Element) -> Option<MangaWithChapter> {
-			let manga_url = el.select_first("a")?.attr("abs:href").unwrap_or_default();
-			let cover = el.select_first("img")?.attr("abs:src");
-			let manga_key: String = manga_url.strip_prefix(BASE_URL)?.into();
-			let title = el
-				.select_first(".mantine-Stack-root:nth-of-type(2) a")
-				.and_then(|e| e.text())
-				.unwrap_or_default();
-			let chapter_details: ElementList = el.select(".mantine-Text-root:nth-of-type(1)")?;
-			let binding = chapter_details
-				.select_first("p")
-				.and_then(|t| t.text())
-				.unwrap_or_default();
-			let chapter_number = binding
-				.split(' ')
-				.next_back()
-				.and_then(|num| num.parse::<f32>().ok());
-			Some(MangaWithChapter {
-				manga: Manga {
-					key: manga_key,
-					title,
-					cover,
-					..Default::default()
+		let banners: Vec<Link> = home
+			.carousel
+			.into_iter()
+			.filter_map(Slide::into_link)
+			.collect();
+		if !banners.is_empty() {
+			components.push(HomeComponent {
+				title: Some("Featured".into()),
+				subtitle: None,
+				// The banners are about 8:3; a fixed size smooths preloading.
+				value: HomeComponentValue::ImageScroller {
+					links: banners,
+					auto_scroll_interval: Some(6.0),
+					width: Some(400),
+					height: Some(150),
 				},
-				chapter: Chapter {
-					chapter_number,
-					..Default::default()
-				},
-			})
+			});
 		}
 
-		fn parse_manga(el: &Element) -> Option<Manga> {
-			let a = el.select_first("a")?;
-			let url = a.attr("abs:href")?;
-			let key = url.strip_prefix(BASE_URL)?.into();
-			let cover = el.select_first("img")?.attr("abs:src");
-			let title = a.attr("title")?;
-			Some(Manga {
-				key,
-				title,
-				cover,
-				url: Some(url),
-				..Default::default()
+		let scroller = |block: Block| HomeComponent {
+			title: Some(block.title),
+			subtitle: None,
+			value: HomeComponentValue::Scroller {
+				entries: block
+					.series
+					.into_iter()
+					.filter_map(|entry| Manga::try_from(entry).ok())
+					.map(Into::into)
+					.collect(),
+				listing: None,
+			},
+		};
+		let latest = |block: Block| HomeComponent {
+			title: Some(block.title),
+			subtitle: None,
+			value: HomeComponentValue::MangaChapterList {
+				page_size: Some(5),
+				entries: block
+					.series
+					.into_iter()
+					.filter_map(Entry::into_latest)
+					.collect(),
+				listing: None,
+			},
+		};
+		components.extend(home.popular.into_block().map(scroller));
+		components.extend(home.latest.into_block().map(|block| {
+			latest(Block {
+				title: "Latest Updates".into(),
+				..block
 			})
-		}
-
-		let popular = html
-			.select(
-				".mantine-Container-root \
-					> .mantine-Grid-root:nth-of-type(1) \
-					> .mantine-Grid-inner \
-					> .mantine-Grid-col",
-			)
-			.map(|els| {
-				els.filter_map(|el| parse_manga(&el).map(Into::into))
-					.collect::<Vec<Link>>()
-			})
-			.unwrap_or_default();
-
-		let staff_picks = html
-			.select(
-				".mantine-Container-root \
-					> .mantine-Grid-root:nth-of-type(2) \
-					> .mantine-Grid-inner \
-					> .mantine-Grid-col",
-			)
-			.map(|els| {
-				els.filter_map(|el| parse_manga(&el).map(Into::into))
-					.collect::<Vec<Link>>()
-			})
-			.unwrap_or_default();
-
-		let latest = html
-			.select(
-				".mantine-Container-root \
-					> .mantine-Grid-root:nth-of-type(3) \
-					> .mantine-Grid-inner \
-					> .mantine-Grid-col",
-			)
-			.map(|els| {
-				els.filter_map(|el| parse_manga_with_chapter(&el))
-					.collect::<Vec<MangaWithChapter>>()
-			})
-			.unwrap_or_default();
-
-		Ok(HomeLayout {
-			components: vec![
-				HomeComponent {
-					title: Some("Popular".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::Scroller {
-						entries: popular,
-						listing: None,
-					},
-				},
-				HomeComponent {
-					title: Some("Staff Picks".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::Scroller {
-						entries: staff_picks,
-						listing: None,
-					},
-				},
-				HomeComponent {
-					title: Some("Latest".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::MangaChapterList {
-						page_size: Some(13),
-						entries: latest,
-						listing: None,
-					},
-				},
-			],
-		})
+		}));
+		components.extend(home.novels.into_block().map(scroller));
+		components.extend(home.staff_picks.into_block().map(scroller));
+		components.extend(home.latest_novels.into_block().map(latest));
+		Ok(HomeLayout { components })
 	}
 }
 
 impl DeepLinkHandler for FlameComics {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		if !url.starts_with(BASE_URL) {
+		let Some(path) = url.strip_prefix(BASE_URL) else {
 			return Ok(None);
-		}
-		let key = &url[BASE_URL.len()..]; // remove base url prefix
-		let num_sections: usize = url.split("/").count();
-		if num_sections == 2 {
-			// ex: https://flamecomics.xyz/series/2
-			Ok(Some(DeepLinkResult::Manga { key: key.into() }))
-		} else if num_sections == 3 {
-			// ex: https://flamecomics.xyz/series/2/79c2cf38ecc5fd25
-			let mut chapter_key = key.rsplit("/").next().unwrap_or_default().to_string(); // 79c2cf38ecc5fd25
-			chapter_key = format!("/{chapter_key}"); // add leading slash
-			let manga_key = key.strip_suffix(&chapter_key).unwrap_or_default().into();
-			Ok(Some(DeepLinkResult::Chapter {
-				manga_key,
-				key: chapter_key,
-			}))
-		} else {
-			Ok(None)
-		}
+		};
+		let path = path.split(['?', '#']).next().unwrap_or_default();
+		let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+		Ok(match segments.as_slice() {
+			[kind @ ("series" | "novel"), id] => Some(DeepLinkResult::Manga {
+				key: format!("/{kind}/{id}"),
+			}),
+			[kind @ ("series" | "novel"), id, token] => Some(DeepLinkResult::Chapter {
+				manga_key: format!("/{kind}/{id}"),
+				key: format!("/{token}"),
+			}),
+			_ => None,
+		})
 	}
 }
 

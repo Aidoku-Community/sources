@@ -2,10 +2,12 @@
 	"info": {
 		"id": "en.flamecomics",
 		"name": "Flame Comics",
-		"version": 4,
+		"version": 5,
 		"url": "https://flamecomics.xyz",
 		"contentRating": 0,
-		"languages": ["en"],
-		"minAppVersion": "0.7.1"
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
 	}
 }
