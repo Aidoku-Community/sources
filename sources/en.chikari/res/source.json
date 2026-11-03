@@ -32,6 +32,14 @@
 		{
 			"id": "most_bookmarked",
 			"name": "Most Bookmarked"
+		},
+		{
+			"id": "bingeable",
+			"name": "Complete & Bingeable"
+		},
+		{
+			"id": "random",
+			"name": "Random"
 		}
 	]
 }

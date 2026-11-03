@@ -1,34 +1,12 @@
 [
 	{
 		"type": "group",
-		"title": "Content",
-		"items": [
-			{
-				"type": "select",
-				"key": "content_type",
-				"title": "Content Type",
-				"values": [
-					"novels",
-					"series"
-				],
-				"titles": [
-					"Novels",
-					"Series"
-				],
-				"refreshes": ["content"],
-				"default": "novels"
-			}
-		]
-	},
-	{
-		"type": "group",
 		"title": "Experimental",
 		"items": [
 			{
 				"type": "switch",
 				"key": "hideWatermark",
 				"title": "Hide Watermark",
-				"subtitle": "No injected credit was found in sampled chapters. Enabling may remove legitimate non-Latin prose (CJK, Cyrillic, Korean).",
 				"default": false
 			}
 		]
