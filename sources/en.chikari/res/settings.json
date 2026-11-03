@@ -23,9 +23,28 @@
 				],
 				"default": [],
 				"refreshes": ["content"]
+			},
+			{
+				"type": "multi-select",
+				"key": "ratings",
+				"title": "Content Rating",
+				"titles": [
+					"Safe",
+					"Suggestive",
+					"Erotica",
+					"Pornographic"
+				],
+				"values": [
+					"safe",
+					"suggestive",
+					"erotica",
+					"pornographic"
+				],
+				"default": [],
+				"refreshes": ["content"]
 			}
 		],
-		"footer": "Used when no Type filter is applied. Selected types are combined; empty means all types."
+		"footer": "Each selection applies when its matching filter is absent. Empty means all."
 	},
 	{
 		"type": "group",

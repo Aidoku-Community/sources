@@ -20,6 +20,9 @@ pub const SERIES_KEY_PREFIX: &str = "series:";
 // The API hides novels unless a type is given, so browse sends every type.
 const TYPES: &[&str] = &["manga", "manhwa", "manhua", "oel", "novel"];
 
+// The API hides erotica and pornographic tiers unless ratings are given, so browse sends every tier.
+const RATINGS: &[&str] = &["safe", "suggestive", "erotica", "pornographic"];
+
 impl ContentType {
 	pub fn api_base(self) -> &'static str {
 		match self {
@@ -103,31 +106,18 @@ pub fn list_url(
 	if let Some(query) = query {
 		qs.push("q", Some(query));
 	}
-	let types = filters
-		.iter()
-		.find_map(|filter| match filter {
-			FilterValue::MultiSelect {
-				id,
-				included,
-				excluded,
-			} if id == "types" => Some((included.as_slice(), excluded.as_slice())),
-			_ => None,
-		})
-		.unwrap_or((&[], &[]));
-	let (included, excluded) = types;
-	// The API hides novels when no type is given: no selection means all.
-	let mut effective: Vec<&str> = if included.is_empty() {
-		TYPES.to_vec()
-	} else {
-		included.iter().map(|kind| kind.as_str()).collect()
-	};
-	effective.retain(|kind| !excluded.iter().any(|e| e.as_str() == *kind));
-	if effective.is_empty() {
+	let (types_in, types_ex) = multi_select(filters, "types");
+	let (ratings_in, ratings_ex) = multi_select(filters, "ratings");
+	let (Some(types), Some(ratings)) = (
+		effective(TYPES, types_in, types_ex),
+		effective(RATINGS, ratings_in, ratings_ex),
+	) else {
 		return None;
-	}
-	for kind in effective {
+	};
+	for kind in types {
 		qs.push("type", Some(kind));
 	}
+	qs.push("content_rating", Some(&ratings.join(",")));
 	for filter in filters {
 		let FilterValue::MultiSelect {
 			id,
@@ -147,6 +137,41 @@ pub fn list_url(
 		}
 	}
 	Some(format!("{BASE_URL}/api/series?{qs}"))
+}
+
+fn multi_select<'a>(filters: &'a [FilterValue], id: &str) -> (&'a [String], &'a [String]) {
+	filters
+		.iter()
+		.find_map(|filter| match filter {
+			FilterValue::MultiSelect {
+				id: found,
+				included,
+				excluded,
+			} if found == id => Some((included.as_slice(), excluded.as_slice())),
+			_ => None,
+		})
+		.unwrap_or((&[], &[]))
+}
+
+fn effective(
+	all: &[&'static str],
+	included: &[String],
+	excluded: &[String],
+) -> Option<Vec<&'static str>> {
+	let mut values: Vec<&'static str> = if included.is_empty() {
+		all.to_vec()
+	} else {
+		included
+			.iter()
+			.filter_map(|value| {
+				all.iter()
+					.copied()
+					.find(|known| value.eq_ignore_ascii_case(known))
+			})
+			.collect()
+	};
+	values.retain(|value| !excluded.iter().any(|e| e.eq_ignore_ascii_case(value)));
+	(!values.is_empty()).then_some(values)
 }
 
 pub fn has_next(len: usize, total: u32, offset: u32, limit: u32) -> bool {
@@ -464,6 +489,28 @@ mod tests {
 			id: "types".into(),
 			included: vec![],
 			excluded: TYPES.iter().map(|kind| (*kind).into()).collect(),
+		}];
+		assert!(list_url("popular", 36, 0, None, &filters).is_none());
+	}
+
+	#[aidoku_test]
+	fn list_url_sends_content_ratings() {
+		let filters = [FilterValue::MultiSelect {
+			id: "ratings".into(),
+			included: vec!["safe".into(), "erotica".into()],
+			excluded: vec![],
+		}];
+		let url = list_url("popular", 36, 0, None, &filters).unwrap();
+		assert!(url.contains("content_rating=safe"));
+		assert!(url.contains("erotica"));
+		assert!(!url.contains("pornographic"));
+		let url = list_url("popular", 36, 0, None, &[]).unwrap();
+		assert!(url.contains("content_rating=safe"));
+		assert!(url.contains("pornographic"));
+		let filters = [FilterValue::MultiSelect {
+			id: "ratings".into(),
+			included: vec![],
+			excluded: RATINGS.iter().map(|rating| (*rating).into()).collect(),
 		}];
 		assert!(list_url("popular", 36, 0, None, &filters).is_none());
 	}
