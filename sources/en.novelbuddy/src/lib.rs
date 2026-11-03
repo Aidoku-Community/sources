@@ -279,8 +279,6 @@ mod tests {
 			"expected >100 chapters, got {}",
 			chapters.len()
 		);
-		// The ISO-8601 format string must keep matching the API's timestamps;
-		// a silent mismatch would leave every chapter without an upload date.
 		assert!(
 			chapters.iter().any(|c| c.date_uploaded.is_some()),
 			"expected at least one parsed upload date"
@@ -294,8 +292,7 @@ mod tests {
 			key: "VYPGVZ8z".into(),
 			..Default::default()
 		};
-		// Resolve a chapter key from the live list rather than hardcoding
-		// one: the site occasionally removes or re-publishes chapters.
+		// Resolved from the live list: chapters get removed or re-published.
 		let chapters = fetch_chapter_list(&manga.key).expect("chapter list failed");
 		let key = chapters
 			.last()
