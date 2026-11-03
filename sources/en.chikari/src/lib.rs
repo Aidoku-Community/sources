@@ -116,7 +116,12 @@ fn apply_settings(filters: Vec<FilterValue>) -> Vec<FilterValue> {
 	let hidden = settings::hidden_genres();
 	let selected_types = settings::type_filters();
 	let selected_ratings = settings::rating_filters();
-	if hidden.is_empty() && selected_types.is_empty() && selected_ratings.is_empty() {
+	let selected_status = settings::status_filters();
+	if hidden.is_empty()
+		&& selected_types.is_empty()
+		&& selected_ratings.is_empty()
+		&& selected_status.is_empty()
+	{
 		return filters;
 	}
 	let mut filters = filters;
@@ -147,6 +152,16 @@ fn apply_settings(filters: Vec<FilterValue>) -> Vec<FilterValue> {
 			included: selected_ratings
 				.iter()
 				.map(|rating| (*rating).into())
+				.collect(),
+			excluded: Vec::new(),
+		});
+	}
+	if !selected_status.is_empty() && !has_filter(&filters, "status") {
+		filters.push(FilterValue::MultiSelect {
+			id: "status".into(),
+			included: selected_status
+				.iter()
+				.map(|status| (*status).into())
 				.collect(),
 			excluded: Vec::new(),
 		});

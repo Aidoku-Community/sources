@@ -23,6 +23,8 @@ const TYPES: &[&str] = &["manga", "manhwa", "manhua", "oel", "novel"];
 // The API hides erotica and pornographic tiers unless ratings are given, so browse sends every tier.
 const RATINGS: &[&str] = &["safe", "suggestive", "erotica", "pornographic"];
 
+const STATUS: &[&str] = &["releasing", "completed", "hiatus", "cancelled", "upcoming"];
+
 impl ContentType {
 	pub fn api_base(self) -> &'static str {
 		match self {
@@ -108,6 +110,7 @@ pub fn list_url(
 	}
 	let (types_in, types_ex) = multi_select(filters, "types");
 	let (ratings_in, ratings_ex) = multi_select(filters, "ratings");
+	let (status_in, status_ex) = multi_select(filters, "status");
 	let (Some(types), Some(ratings)) = (
 		effective(TYPES, types_in, types_ex),
 		effective(RATINGS, ratings_in, ratings_ex),
@@ -118,6 +121,11 @@ pub fn list_url(
 		qs.push("type", Some(kind));
 	}
 	qs.push("content_rating", Some(&ratings.join(",")));
+	if !status_in.is_empty() || !status_ex.is_empty() {
+		for status in effective(STATUS, status_in, status_ex)? {
+			qs.push("status", Some(status));
+		}
+	}
 	for filter in filters {
 		let FilterValue::MultiSelect {
 			id,
@@ -511,6 +519,27 @@ mod tests {
 			id: "ratings".into(),
 			included: vec![],
 			excluded: RATINGS.iter().map(|rating| (*rating).into()).collect(),
+		}];
+		assert!(list_url("popular", 36, 0, None, &filters).is_none());
+	}
+
+	#[aidoku_test]
+	fn list_url_sends_status_only_when_restricted() {
+		let url = list_url("popular", 36, 0, None, &[]).unwrap();
+		assert!(!url.contains("status="));
+		let filters = [FilterValue::MultiSelect {
+			id: "status".into(),
+			included: vec!["completed".into(), "hiatus".into()],
+			excluded: vec![],
+		}];
+		let url = list_url("popular", 36, 0, None, &filters).unwrap();
+		assert!(url.contains("status=completed"));
+		assert!(url.contains("status=hiatus"));
+		assert!(!url.contains("status=releasing"));
+		let filters = [FilterValue::MultiSelect {
+			id: "status".into(),
+			included: vec![],
+			excluded: STATUS.iter().map(|status| (*status).into()).collect(),
 		}];
 		assert!(list_url("popular", 36, 0, None, &filters).is_none());
 	}

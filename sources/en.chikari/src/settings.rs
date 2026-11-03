@@ -4,10 +4,12 @@ use aidoku::imports::defaults::defaults_get;
 const HIDE_WATERMARK_KEY: &str = "hideWatermark";
 const TYPES_KEY: &str = "types";
 const RATINGS_KEY: &str = "ratings";
+const STATUS_KEY: &str = "status";
 const HIDDEN_GENRES_KEY: &str = "hiddenGenres";
 
 const KNOWN_TYPES: &[&str] = &["manga", "manhwa", "manhua", "oel", "novel"];
 const KNOWN_RATINGS: &[&str] = &["safe", "suggestive", "erotica", "pornographic"];
+const KNOWN_STATUS: &[&str] = &["releasing", "completed", "hiatus", "cancelled", "upcoming"];
 
 pub fn hide_watermark() -> bool {
 	defaults_get::<bool>(HIDE_WATERMARK_KEY).unwrap_or(false)
@@ -28,6 +30,13 @@ pub fn rating_filters() -> Vec<&'static str> {
 	known_values(
 		defaults_get::<Vec<String>>(RATINGS_KEY).unwrap_or_default(),
 		KNOWN_RATINGS,
+	)
+}
+
+pub fn status_filters() -> Vec<&'static str> {
+	known_values(
+		defaults_get::<Vec<String>>(STATUS_KEY).unwrap_or_default(),
+		KNOWN_STATUS,
 	)
 }
 
