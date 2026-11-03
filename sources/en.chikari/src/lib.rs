@@ -47,6 +47,7 @@ impl Source for Chikari {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
+		let filters = apply_settings(filters);
 		let limit = SEARCH_PAGE_SIZE;
 		let offset = (page.max(1) as u32 - 1) * limit;
 		let sort = filters
@@ -111,6 +112,69 @@ impl Source for Chikari {
 	}
 }
 
+fn apply_settings(filters: Vec<FilterValue>) -> Vec<FilterValue> {
+	let hidden = settings::hidden_genres();
+	let selected_types = settings::type_filters();
+	let selected_ratings = settings::rating_filters();
+	let selected_status = settings::status_filters();
+	if hidden.is_empty()
+		&& selected_types.is_empty()
+		&& selected_ratings.is_empty()
+		&& selected_status.is_empty()
+	{
+		return filters;
+	}
+	let mut filters = filters;
+	if !hidden.is_empty() {
+		if let Some(FilterValue::MultiSelect { excluded, .. }) = filters
+			.iter_mut()
+			.find(|filter| matches!(filter, FilterValue::MultiSelect { id, .. } if id == "genres"))
+		{
+			excluded.extend(hidden);
+		} else {
+			filters.push(FilterValue::MultiSelect {
+				id: "genres".into(),
+				included: Vec::new(),
+				excluded: hidden,
+			});
+		}
+	}
+	if !selected_types.is_empty() && !has_filter(&filters, "types") {
+		filters.push(FilterValue::MultiSelect {
+			id: "types".into(),
+			included: selected_types.iter().map(|kind| (*kind).into()).collect(),
+			excluded: Vec::new(),
+		});
+	}
+	if !selected_ratings.is_empty() && !has_filter(&filters, "ratings") {
+		filters.push(FilterValue::MultiSelect {
+			id: "ratings".into(),
+			included: selected_ratings
+				.iter()
+				.map(|rating| (*rating).into())
+				.collect(),
+			excluded: Vec::new(),
+		});
+	}
+	if !selected_status.is_empty() && !has_filter(&filters, "status") {
+		filters.push(FilterValue::MultiSelect {
+			id: "status".into(),
+			included: selected_status
+				.iter()
+				.map(|status| (*status).into())
+				.collect(),
+			excluded: Vec::new(),
+		});
+	}
+	filters
+}
+
+fn has_filter(filters: &[FilterValue], id: &str) -> bool {
+	filters
+		.iter()
+		.any(|filter| matches!(filter, FilterValue::MultiSelect { id: found, .. } if found == id))
+}
+
 fn novel_text_pages(data: ChapterBody) -> Result<Vec<Page>> {
 	let text = if data.locked || data.body.trim().is_empty() {
 		"This chapter is locked (early access)".into()
@@ -140,7 +204,8 @@ impl ListingProvider for Chikari {
 			.find(|s| **s == listing.id)
 			.ok_or_else(|| error!("Unknown listing: {}", listing.id))?;
 		let offset = (page.max(1) as u32 - 1) * LIST_PAGE_SIZE;
-		let Some(url) = list_url(sort, LIST_PAGE_SIZE, offset, None, &[]) else {
+		let filters = apply_settings(Vec::new());
+		let Some(url) = list_url(sort, LIST_PAGE_SIZE, offset, None, &filters) else {
 			return Ok(MangaPageResult {
 				entries: Vec::new(),
 				has_next_page: false,
@@ -278,6 +343,17 @@ mod tests {
 			pages
 				.iter()
 				.all(|page| matches!(&page.content, PageContent::Url(_, _)))
+		);
+	}
+
+	#[aidoku_test]
+	fn search_sees_every_content_rating() {
+		let result = Chikari
+			.get_search_manga_list(Some("city of witches".into()), 1, Vec::new())
+			.expect("search failed");
+		assert!(
+			result.entries.iter().any(|m| m.key == "city-of-witches"),
+			"expected the erotica-tier title in default results (update the slug if the catalog dropped it)"
 		);
 	}
 
