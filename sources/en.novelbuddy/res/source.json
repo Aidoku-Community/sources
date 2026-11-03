@@ -2,10 +2,12 @@
 	"info": {
 		"id": "en.novelbuddy",
 		"name": "NovelBuddy",
-		"version": 8,
+		"version": 9,
 		"url": "https://novelbuddy.me",
 		"contentRating": 1,
-		"languages": ["en"],
+		"languages": [
+			"en"
+		],
 		"minAppVersion": "0.8.3"
 	},
 	"config": {
