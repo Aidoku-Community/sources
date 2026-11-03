@@ -21,26 +21,32 @@ pub fn hidden_genres() -> Vec<String> {
 
 pub fn type_filters() -> Vec<&'static str> {
 	known_values(
-		defaults_get::<Vec<String>>(TYPES_KEY).unwrap_or_default(),
+		defaults_get::<Vec<String>>(TYPES_KEY)
+			.as_deref()
+			.unwrap_or_default(),
 		KNOWN_TYPES,
 	)
 }
 
 pub fn rating_filters() -> Vec<&'static str> {
 	known_values(
-		defaults_get::<Vec<String>>(RATINGS_KEY).unwrap_or_default(),
+		defaults_get::<Vec<String>>(RATINGS_KEY)
+			.as_deref()
+			.unwrap_or_default(),
 		KNOWN_RATINGS,
 	)
 }
 
 pub fn status_filters() -> Vec<&'static str> {
 	known_values(
-		defaults_get::<Vec<String>>(STATUS_KEY).unwrap_or_default(),
+		defaults_get::<Vec<String>>(STATUS_KEY)
+			.as_deref()
+			.unwrap_or_default(),
 		KNOWN_STATUS,
 	)
 }
 
-fn known_values(values: Vec<String>, known: &[&'static str]) -> Vec<&'static str> {
+fn known_values(values: &[String], known: &[&'static str]) -> Vec<&'static str> {
 	values
 		.iter()
 		.filter_map(|value| {
@@ -61,13 +67,13 @@ mod tests {
 	#[aidoku_test]
 	fn settings_keep_known_values() {
 		assert_eq!(
-			known_values(vec!["novel".into(), "manga".into()], KNOWN_TYPES),
+			known_values(&vec!["novel".into(), "manga".into()], KNOWN_TYPES),
 			vec!["novel", "manga"]
 		);
 		assert_eq!(
-			known_values(vec!["Erotica".into(), "bogus".into()], KNOWN_RATINGS),
+			known_values(&vec!["Erotica".into(), "bogus".into()], KNOWN_RATINGS),
 			vec!["erotica"]
 		);
-		assert_eq!(known_values(Vec::new(), KNOWN_TYPES), Vec::<&str>::new());
+		assert_eq!(known_values(&[], KNOWN_TYPES), Vec::<&str>::new());
 	}
 }
