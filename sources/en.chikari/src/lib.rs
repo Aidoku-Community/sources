@@ -47,6 +47,7 @@ impl Source for Chikari {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
+		let filters = apply_settings(filters);
 		let limit = SEARCH_PAGE_SIZE;
 		let offset = (page.max(1) as u32 - 1) * limit;
 		let sort = filters
@@ -106,6 +107,41 @@ impl Source for Chikari {
 	}
 }
 
+fn apply_settings(filters: Vec<FilterValue>) -> Vec<FilterValue> {
+	let hidden = settings::hidden_genres();
+	let selected = settings::type_filters();
+	if hidden.is_empty() && selected.is_empty() {
+		return filters;
+	}
+	let mut filters = filters;
+	if !hidden.is_empty() {
+		if let Some(FilterValue::MultiSelect { excluded, .. }) = filters
+			.iter_mut()
+			.find(|filter| matches!(filter, FilterValue::MultiSelect { id, .. } if id == "genres"))
+		{
+			excluded.extend(hidden);
+		} else {
+			filters.push(FilterValue::MultiSelect {
+				id: "genres".into(),
+				included: Vec::new(),
+				excluded: hidden,
+			});
+		}
+	}
+	if !selected.is_empty()
+		&& !filters
+			.iter()
+			.any(|filter| matches!(filter, FilterValue::MultiSelect { id, .. } if id == "types"))
+	{
+		filters.push(FilterValue::MultiSelect {
+			id: "types".into(),
+			included: selected.iter().map(|kind| (*kind).into()).collect(),
+			excluded: Vec::new(),
+		});
+	}
+	filters
+}
+
 fn novel_text_pages(data: ChapterBody) -> Result<Vec<Page>> {
 	let text = if data.locked || data.body.trim().is_empty() {
 		"This chapter is locked (early access)".into()
@@ -135,7 +171,8 @@ impl ListingProvider for Chikari {
 			.find(|s| **s == listing.id)
 			.ok_or_else(|| error!("Unknown listing: {}", listing.id))?;
 		let offset = (page.max(1) as u32 - 1) * LIST_PAGE_SIZE;
-		let data: ListResponse = request(&list_url(sort, LIST_PAGE_SIZE, offset, None, &[]))?;
+		let filters = apply_settings(Vec::new());
+		let data: ListResponse = request(&list_url(sort, LIST_PAGE_SIZE, offset, None, &filters))?;
 		Ok(manga_page_result(data, offset, LIST_PAGE_SIZE))
 	}
 }
