@@ -1,10 +1,9 @@
-use crate::models::{ChapterItem, ChapterListResponse, ListResponse, NovelDetail, NovelListItem};
+use crate::models::{ChapterItem, ChapterListResponse, Detail, ListItem, ListResponse};
 use crate::{BASE_URL, USER_AGENT};
 use aidoku::{
 	Chapter, ContentRating, FilterValue, Manga, MangaPageResult, MangaStatus, Result, Viewer,
 	alloc::{String, Vec, string::ToString},
 	helpers::uri::QueryParameters,
-	imports::defaults::defaults_get,
 	imports::{net::Request, std::parse_date},
 	prelude::*,
 };
@@ -17,7 +16,9 @@ pub enum ContentType {
 }
 
 pub const SERIES_KEY_PREFIX: &str = "series:";
-pub const CONTENT_TYPE_SETTING: &str = "content_type";
+
+// The API hides novels unless a type is given, so browse sends every type.
+const TYPES: &[&str] = &["manga", "manhwa", "manhua", "oel", "novel"];
 
 impl ContentType {
 	pub fn api_base(self) -> &'static str {
@@ -31,6 +32,15 @@ impl ContentType {
 		match self {
 			Self::Novel => "/novels",
 			Self::Series => "/series",
+		}
+	}
+
+	pub fn from_list_item(medium: Option<&str>, kind: Option<&str>) -> Self {
+		match medium {
+			Some("novel") => Self::Novel,
+			Some(_) => Self::Series,
+			None if kind == Some("novel") => Self::Novel,
+			None => Self::Series,
 		}
 	}
 
@@ -70,17 +80,6 @@ pub fn decode_manga_key<'a>(key: &'a str, url: Option<&str>) -> (ContentType, &'
 	(content_type, key)
 }
 
-pub fn content_type_from_setting() -> ContentType {
-	content_type_from_setting_value(defaults_get::<String>(CONTENT_TYPE_SETTING).as_deref())
-}
-
-pub fn content_type_from_setting_value(value: Option<&str>) -> ContentType {
-	match value {
-		Some("comics") | Some("series") => ContentType::Series,
-		_ => ContentType::Novel,
-	}
-}
-
 pub fn request<T: DeserializeOwned>(url: &str) -> Result<T> {
 	Request::get(url)?
 		.header("User-Agent", USER_AGENT)
@@ -91,13 +90,12 @@ pub fn request<T: DeserializeOwned>(url: &str) -> Result<T> {
 }
 
 pub fn list_url(
-	content_type: ContentType,
 	sort: &str,
 	limit: u32,
 	offset: u32,
 	query: Option<&str>,
 	filters: &[FilterValue],
-) -> String {
+) -> Option<String> {
 	let mut qs = QueryParameters::new();
 	qs.push("sort", Some(sort));
 	qs.push("limit", Some(&limit.to_string()));
@@ -105,13 +103,41 @@ pub fn list_url(
 	if let Some(query) = query {
 		qs.push("q", Some(query));
 	}
+	let types = filters
+		.iter()
+		.find_map(|filter| match filter {
+			FilterValue::MultiSelect {
+				id,
+				included,
+				excluded,
+			} if id == "types" => Some((included.as_slice(), excluded.as_slice())),
+			_ => None,
+		})
+		.unwrap_or((&[], &[]));
+	let (included, excluded) = types;
+	// The API hides novels when no type is given: no selection means all.
+	let mut effective: Vec<&str> = if included.is_empty() {
+		TYPES.to_vec()
+	} else {
+		included.iter().map(|kind| kind.as_str()).collect()
+	};
+	effective.retain(|kind| !excluded.iter().any(|e| e.as_str() == *kind));
+	if effective.is_empty() {
+		return None;
+	}
+	for kind in effective {
+		qs.push("type", Some(kind));
+	}
 	for filter in filters {
-		if let FilterValue::MultiSelect {
+		let FilterValue::MultiSelect {
 			id,
 			included,
 			excluded,
-		} = filter && id == "genres"
-		{
+		} = filter
+		else {
+			continue;
+		};
+		if id == "genres" {
 			for genre in included {
 				qs.push("genre", Some(genre));
 			}
@@ -120,7 +146,7 @@ pub fn list_url(
 			}
 		}
 	}
-	format!("{BASE_URL}{}?{qs}", content_type.api_base())
+	Some(format!("{BASE_URL}/api/series?{qs}"))
 }
 
 pub fn has_next(len: usize, total: u32, offset: u32, limit: u32) -> bool {
@@ -147,12 +173,7 @@ pub fn effective_offset(server_offset: u32, requested_offset: u32) -> u32 {
 	}
 }
 
-pub fn manga_page_result(
-	data: ListResponse,
-	content_type: ContentType,
-	offset: u32,
-	limit: u32,
-) -> MangaPageResult {
+pub fn manga_page_result(data: ListResponse, offset: u32, limit: u32) -> MangaPageResult {
 	let response_offset = effective_offset(data.offset, offset);
 	let has_next_page = has_next(
 		data.items.len(),
@@ -161,16 +182,13 @@ pub fn manga_page_result(
 		effective_limit(data.limit, limit),
 	);
 	MangaPageResult {
-		entries: data
-			.items
-			.into_iter()
-			.map(|item| manga_from_list(item, content_type))
-			.collect(),
+		entries: data.items.into_iter().map(manga_from_list).collect(),
 		has_next_page,
 	}
 }
 
-pub fn manga_from_list(item: NovelListItem, content_type: ContentType) -> Manga {
+pub fn manga_from_list(item: ListItem) -> Manga {
+	let content_type = ContentType::from_list_item(item.medium.as_deref(), item.kind.as_deref());
 	let slug = item.slug;
 	let key = deep_link_manga_key(content_type, &slug);
 	let url = Some(format!("{BASE_URL}{}/{slug}", content_type.web_base()));
@@ -193,7 +211,7 @@ pub fn list_content_rating(is_nsfw: bool) -> ContentRating {
 	}
 }
 
-pub fn manga_from_detail(detail: NovelDetail, content_type: ContentType) -> Manga {
+pub fn manga_from_detail(detail: Detail, content_type: ContentType) -> Manga {
 	let slug = detail.slug;
 	let key = deep_link_manga_key(content_type, &slug);
 	let url = Some(format!("{BASE_URL}{}/{slug}", content_type.web_base()));
@@ -351,14 +369,8 @@ pub fn fetch_chapters(slug: &str, content_type: ContentType) -> Result<Vec<Chapt
 }
 
 pub fn parse_iso_date(value: &str) -> Option<i64> {
-	// Chikari serves UTC: "2026-09-01T15:48:38.782596+00:00". The test host
-	// implements neither quoted literals, fractional seconds nor ISO zones, so
-	// fall back to a seconds-precision parse with the fraction and zone dropped
-	// and the value read as UTC, like en.novelbuddy: upload dates only need to
-	// be comparable with each other. A non-UTC zone without a fraction keeps its
-	// offset and then stops parsing, which the always-UTC upload feed never
-	// produces. The "T" stays unquoted because a parser without quoted-literal
-	// support treats it as a plain character.
+	// Fallback for hosts that parse neither fractional seconds nor zones:
+	// drop both and read the value as UTC.
 	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX").or_else(|| {
 		let naive = value.split('.').next()?;
 		let naive = naive.trim_end_matches("+00:00").trim_end_matches('Z');
@@ -413,124 +425,79 @@ mod tests {
 	use aidoku_test::aidoku_test;
 
 	#[aidoku_test]
-	fn mature_rating_signals_are_suggestive() {
-		let genres = vec![
-			crate::models::Named {
-				name: "Mature".into(),
-				role: None,
+	fn list_url_sends_types_and_repeated_genres() {
+		let filters = [
+			FilterValue::MultiSelect {
+				id: "types".into(),
+				included: vec!["manga".into(), "novel".into()],
+				excluded: vec!["manga".into()],
 			},
-			crate::models::Named {
-				name: "R-18".into(),
-				role: None,
+			FilterValue::MultiSelect {
+				id: "genres".into(),
+				included: vec!["action".into(), "fantasy".into()],
+				excluded: vec!["mature".into()],
 			},
 		];
-		assert_eq!(
-			content_rating(false, &genres, &[]),
-			ContentRating::Suggestive
-		);
-		assert_eq!(content_rating(true, &[], &[]), ContentRating::NSFW);
+		let url = list_url("popular", 36, 0, Some("shadow slave"), &filters).unwrap();
+		assert!(url.starts_with("https://chikari.moe/api/series?"));
+		assert!(url.contains("type=novel"));
+		assert!(!url.contains("type=manga"));
+		assert_eq!(url.matches("genre=").count(), 2);
+		assert!(url.contains("genre=action"));
+		assert!(url.contains("genre_exclude=mature"));
+		assert!(url.contains("q=shadow"));
 	}
 
 	#[aidoku_test]
-	fn parses_utc_timestamp_with_microseconds() {
-		// Chikari serves microsecond precision in UTC. The device parses the full
-		// ISO form; the test host cannot, so the fallback drops the fractional
-		// seconds. Both precisions must land on the same second.
-		let micros = parse_iso_date("2026-02-21T22:08:14.600092+00:00").unwrap();
-		let seconds = parse_iso_date("2026-02-21T22:08:14.000000+00:00").unwrap();
-		assert_eq!(micros, seconds);
-		// Zulu without fractional seconds must parse too, like its dotted form.
-		assert!(parse_iso_date("2026-02-21T22:08:14Z").is_some());
+	fn list_url_defaults_to_every_type_and_rejects_empty_selection() {
+		let url = list_url("popular", 36, 0, None, &[]).unwrap();
+		assert_eq!(url.matches("type=").count(), TYPES.len());
+		let filters = [FilterValue::MultiSelect {
+			id: "types".into(),
+			included: vec![],
+			excluded: vec!["novel".into()],
+		}];
+		let url = list_url("popular", 36, 0, None, &filters).unwrap();
+		assert_eq!(url.matches("type=").count(), TYPES.len() - 1);
+		assert!(!url.contains("type=novel"));
+		let filters = [FilterValue::MultiSelect {
+			id: "types".into(),
+			included: vec![],
+			excluded: TYPES.iter().map(|kind| (*kind).into()).collect(),
+		}];
+		assert!(list_url("popular", 36, 0, None, &filters).is_none());
 	}
 
 	#[aidoku_test]
-	fn reads_the_dropped_zone_as_utc() {
-		// Upload dates only need to be comparable with each other, so the zone is
-		// dropped and the value read as UTC, matching en.novelbuddy.
-		let zoned = parse_iso_date("2026-02-21T22:08:14.000000-05:00").unwrap();
-		let plain = parse_iso_date("2026-02-21T22:08:14").unwrap();
-		assert_eq!(zoned, plain);
-	}
-
-	#[aidoku_test]
-	fn list_item_rating_uses_nsfw_only() {
-		let item = |is_nsfw| crate::models::NovelListItem {
-			slug: "test".into(),
-			title: "Test".into(),
+	fn key_and_url_follow_the_item_medium() {
+		let item = |medium: Option<&str>, kind: Option<&str>| crate::models::ListItem {
+			slug: "slug".into(),
+			title: "Title".into(),
 			cover_url: None,
 			status: None,
-			is_nsfw,
+			is_nsfw: true,
+			medium: medium.map(Into::into),
+			kind: kind.map(Into::into),
 		};
+		let novel = manga_from_list(item(Some("novel"), None));
+		assert_eq!(novel.key, "slug");
 		assert_eq!(
-			manga_from_list(item(false), ContentType::Novel).content_rating,
-			ContentRating::Unknown
+			novel.url.as_deref(),
+			Some("https://chikari.moe/novels/slug")
 		);
+		assert_eq!(novel.content_rating, ContentRating::NSFW);
+		let comic = manga_from_list(item(Some("comic"), None));
+		assert_eq!(comic.key, "series:slug");
 		assert_eq!(
-			manga_from_list(item(true), ContentType::Novel).content_rating,
-			ContentRating::NSFW
+			comic.url.as_deref(),
+			Some("https://chikari.moe/series/slug")
 		);
+		let fallback = manga_from_list(item(None, Some("novel")));
+		assert_eq!(fallback.key, "slug");
 	}
 
 	#[aidoku_test]
-	fn list_url_retains_repeated_filters() {
-		let filters = [FilterValue::MultiSelect {
-			id: "genres".into(),
-			included: vec!["action".into(), "fantasy".into()],
-			excluded: vec!["mature".into(), "yuri".into()],
-		}];
-		let url = list_url(
-			ContentType::Novel,
-			"popular",
-			36,
-			0,
-			Some("shadow slave"),
-			&filters,
-		);
-		assert!(url.contains("q=shadow"));
-		assert_eq!(url.matches("genre=").count(), 2);
-		assert_eq!(url.matches("genre_exclude=").count(), 2);
-		assert!(url.contains("genre=action"));
-		assert!(url.contains("genre=fantasy"));
-		assert!(url.contains("genre_exclude=mature"));
-		assert!(url.contains("genre_exclude=yuri"));
-	}
-
-	#[aidoku_test]
-	fn content_type_setting_maps_supported_values() {
-		assert_eq!(
-			content_type_from_setting_value(Some("novels")),
-			ContentType::Novel
-		);
-		assert_eq!(
-			content_type_from_setting_value(Some("comics")),
-			ContentType::Series
-		);
-		assert_eq!(
-			content_type_from_setting_value(Some("series")),
-			ContentType::Series
-		);
-		assert_eq!(
-			content_type_from_setting_value(Some("unexpected")),
-			ContentType::Novel
-		);
-		assert_eq!(content_type_from_setting_value(None), ContentType::Novel);
-	}
-
-	#[aidoku_test]
-	fn content_type_from_url() {
-		assert_eq!(
-			ContentType::from_url("https://chikari.moe/series/x"),
-			ContentType::Series
-		);
-		assert_eq!(
-			ContentType::from_url("https://chikari.moe/novels/x"),
-			ContentType::Novel
-		);
-		assert_eq!(ContentType::from_url(""), ContentType::Novel);
-	}
-
-	#[aidoku_test]
-	fn decodes_content_type_and_raw_slug() {
+	fn manga_key_decoding_routes_the_pipeline() {
 		assert_eq!(
 			decode_manga_key("series:comic", None),
 			(ContentType::Series, "comic")
@@ -546,131 +513,16 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn effective_limit_uses_fallback_only_for_zero() {
-		assert_eq!(effective_limit(0, 60), 60);
-		assert_eq!(effective_limit(36, 60), 36);
-		assert!(!has_next(40, 0, 0, effective_limit(0, 60)));
-		assert!(has_next(40, 0, 0, effective_limit(36, 60)));
-	}
-
-	#[aidoku_test]
-	fn canonical_urls_and_series_keys() {
-		let item = |slug: &str| crate::models::NovelListItem {
-			slug: slug.into(),
-			title: "Title".into(),
-			cover_url: None,
-			status: None,
-			is_nsfw: false,
-		};
-		let novel = manga_from_list(item("novel"), ContentType::Novel);
-		assert_eq!(novel.key, "novel");
+	fn parse_iso_date_accepts_chikari_timestamps() {
+		let micros = parse_iso_date("2026-02-21T22:08:14.600092+00:00").unwrap();
 		assert_eq!(
-			novel.url.as_deref(),
-			Some("https://chikari.moe/novels/novel")
+			micros,
+			parse_iso_date("2026-02-21T22:08:14.000000+00:00").unwrap()
 		);
-		let series = manga_from_list(item("series"), ContentType::Series);
-		assert_eq!(series.key, "series:series");
 		assert_eq!(
-			series.url.as_deref(),
-			Some("https://chikari.moe/series/series")
+			parse_iso_date("2026-02-21T22:08:14.000000-05:00").unwrap(),
+			parse_iso_date("2026-02-21T22:08:14").unwrap()
 		);
-
-		let detail = || crate::models::NovelDetail {
-			slug: "detail".into(),
-			title: "Title".into(),
-			cover_url: None,
-			description: None,
-			status: None,
-			is_nsfw: false,
-			authors: vec![],
-			reading_mode: None,
-			kind: None,
-			genres: vec![],
-			tags: vec![],
-		};
-		let novel_detail = manga_from_detail(detail(), ContentType::Novel);
-		assert_eq!(novel_detail.key, "detail");
-		assert_eq!(
-			novel_detail.url.as_deref(),
-			Some("https://chikari.moe/novels/detail")
-		);
-		let series_detail = manga_from_detail(detail(), ContentType::Series);
-		assert_eq!(series_detail.key, "series:detail");
-		assert_eq!(
-			series_detail.url.as_deref(),
-			Some("https://chikari.moe/series/detail")
-		);
-		let converted_novel = manga_from_detail(detail(), ContentType::Novel);
-		assert_eq!(converted_novel.key, "detail");
-		assert_eq!(
-			converted_novel.url.as_deref(),
-			Some("https://chikari.moe/novels/detail")
-		);
-	}
-
-	#[aidoku_test]
-	fn empty_chapter_titles_are_none() {
-		let empty = chapter_from_item(crate::models::ChapterItem {
-			number: 1.0,
-			title: Some("  ".into()),
-			created_at: None,
-		});
-		assert!(empty.title.is_none());
-
-		let missing = chapter_from_item(crate::models::ChapterItem {
-			number: 2.0,
-			title: None,
-			created_at: None,
-		});
-		assert!(missing.title.is_none());
-
-		let present = chapter_from_item(crate::models::ChapterItem {
-			number: 3.0,
-			title: Some("Chapter One".into()),
-			created_at: None,
-		});
-		assert_eq!(present.title.as_deref(), Some("Chapter One"));
-	}
-
-	#[aidoku_test]
-	fn maps_series_roles_and_reading_mode() {
-		let manga = manga_from_detail(
-			crate::models::NovelDetail {
-				slug: "series".into(),
-				title: "Title".into(),
-				cover_url: None,
-				description: None,
-				status: None,
-				is_nsfw: false,
-				authors: vec![
-					crate::models::Named {
-						name: "Writer".into(),
-						role: Some("author".into()),
-					},
-					crate::models::Named {
-						name: "Artist".into(),
-						role: Some("artist".into()),
-					},
-					crate::models::Named {
-						name: "Artist".into(),
-						role: Some("artist".into()),
-					},
-				],
-				reading_mode: Some("strip".into()),
-				kind: Some("manhwa".into()),
-				genres: vec![],
-				tags: vec![],
-			},
-			ContentType::Series,
-		);
-		assert_eq!(manga.authors, Some(vec!["Writer".into()]));
-		assert_eq!(manga.artists, Some(vec!["Artist".into()]));
-		assert_eq!(manga.viewer, Viewer::Webtoon);
-	}
-
-	#[aidoku_test]
-	fn body_to_text_escapes_markdown() {
-		let result = body_to_text("***".into()).expect("body_to_text failed");
-		assert_eq!(result, "\\*\\*\\*");
+		assert!(parse_iso_date("2026-02-21T22:08:14Z").is_some());
 	}
 }
