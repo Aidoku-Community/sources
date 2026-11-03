@@ -114,8 +114,9 @@ impl Source for Chikari {
 
 fn apply_settings(filters: Vec<FilterValue>) -> Vec<FilterValue> {
 	let hidden = settings::hidden_genres();
-	let selected = settings::type_filters();
-	if hidden.is_empty() && selected.is_empty() {
+	let selected_types = settings::type_filters();
+	let selected_ratings = settings::rating_filters();
+	if hidden.is_empty() && selected_types.is_empty() && selected_ratings.is_empty() {
 		return filters;
 	}
 	let mut filters = filters;
@@ -133,18 +134,30 @@ fn apply_settings(filters: Vec<FilterValue>) -> Vec<FilterValue> {
 			});
 		}
 	}
-	if !selected.is_empty()
-		&& !filters
-			.iter()
-			.any(|filter| matches!(filter, FilterValue::MultiSelect { id, .. } if id == "types"))
-	{
+	if !selected_types.is_empty() && !has_filter(&filters, "types") {
 		filters.push(FilterValue::MultiSelect {
 			id: "types".into(),
-			included: selected.iter().map(|kind| (*kind).into()).collect(),
+			included: selected_types.iter().map(|kind| (*kind).into()).collect(),
+			excluded: Vec::new(),
+		});
+	}
+	if !selected_ratings.is_empty() && !has_filter(&filters, "ratings") {
+		filters.push(FilterValue::MultiSelect {
+			id: "ratings".into(),
+			included: selected_ratings
+				.iter()
+				.map(|rating| (*rating).into())
+				.collect(),
 			excluded: Vec::new(),
 		});
 	}
 	filters
+}
+
+fn has_filter(filters: &[FilterValue], id: &str) -> bool {
+	filters
+		.iter()
+		.any(|filter| matches!(filter, FilterValue::MultiSelect { id: found, .. } if found == id))
 }
 
 fn novel_text_pages(data: ChapterBody) -> Result<Vec<Page>> {
@@ -315,6 +328,17 @@ mod tests {
 			pages
 				.iter()
 				.all(|page| matches!(&page.content, PageContent::Url(_, _)))
+		);
+	}
+
+	#[aidoku_test]
+	fn search_sees_every_content_rating() {
+		let result = Chikari
+			.get_search_manga_list(Some("city of witches".into()), 1, Vec::new())
+			.expect("search failed");
+		assert!(
+			result.entries.iter().any(|m| m.key == "city-of-witches"),
+			"expected an erotica-tier title in default results"
 		);
 	}
 
