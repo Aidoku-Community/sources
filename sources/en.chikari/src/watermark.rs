@@ -154,9 +154,9 @@ mod tests {
 	#[aidoku_test]
 	fn keeps_prose_layout_breaks_and_quotes() {
 		let out = strip("Caf\u{00E9} \u{201C}wait\u{2026}\u{201D} \u{2014} it\u{2019}s fine\n\n");
-		assert!(
-			out.contains("Caf\u{00E9}") && out.contains('\u{2014}'),
-			"{out}"
+		assert_eq!(
+			out,
+			"Caf\u{00E9} \u{201C}wait\u{2026}\u{201D} \u{2014} it\u{2019}s fine"
 		);
 		assert_eq!(strip("First\n\n  \n     \n  Second\n\n"), "First\n\nSecond");
 		assert_eq!(strip("First  \nsecond\n\n"), "First  \nsecond");

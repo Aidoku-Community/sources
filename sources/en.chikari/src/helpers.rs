@@ -35,11 +35,12 @@ impl ContentType {
 		}
 	}
 
-	pub fn from_medium(medium: Option<&str>) -> Self {
-		if medium == Some("novel") {
-			Self::Novel
-		} else {
-			Self::Series
+	pub fn from_list_item(medium: Option<&str>, kind: Option<&str>) -> Self {
+		match medium {
+			Some("novel") => Self::Novel,
+			Some(_) => Self::Series,
+			None if kind == Some("novel") => Self::Novel,
+			None => Self::Series,
 		}
 	}
 
@@ -94,7 +95,7 @@ pub fn list_url(
 	offset: u32,
 	query: Option<&str>,
 	filters: &[FilterValue],
-) -> String {
+) -> Option<String> {
 	let mut qs = QueryParameters::new();
 	qs.push("sort", Some(sort));
 	qs.push("limit", Some(&limit.to_string()));
@@ -115,17 +116,17 @@ pub fn list_url(
 		.unwrap_or((&[], &[]));
 	let (included, excluded) = types;
 	// The API hides novels when no type is given: no selection means all.
-	if included.is_empty() {
-		for kind in TYPES
-			.iter()
-			.filter(|kind| !excluded.iter().any(|e| e.as_str() == **kind))
-		{
-			qs.push("type", Some(kind));
-		}
+	let mut effective: Vec<&str> = if included.is_empty() {
+		TYPES.to_vec()
 	} else {
-		for kind in included {
-			qs.push("type", Some(kind));
-		}
+		included.iter().map(|kind| kind.as_str()).collect()
+	};
+	effective.retain(|kind| !excluded.iter().any(|e| e.as_str() == *kind));
+	if effective.is_empty() {
+		return None;
+	}
+	for kind in effective {
+		qs.push("type", Some(kind));
 	}
 	for filter in filters {
 		let FilterValue::MultiSelect {
@@ -145,7 +146,7 @@ pub fn list_url(
 			}
 		}
 	}
-	format!("{BASE_URL}/api/series?{qs}")
+	Some(format!("{BASE_URL}/api/series?{qs}"))
 }
 
 pub fn has_next(len: usize, total: u32, offset: u32, limit: u32) -> bool {
@@ -187,7 +188,7 @@ pub fn manga_page_result(data: ListResponse, offset: u32, limit: u32) -> MangaPa
 }
 
 pub fn manga_from_list(item: ListItem) -> Manga {
-	let content_type = ContentType::from_medium(item.medium.as_deref());
+	let content_type = ContentType::from_list_item(item.medium.as_deref(), item.kind.as_deref());
 	let slug = item.slug;
 	let key = deep_link_manga_key(content_type, &slug);
 	let url = Some(format!("{BASE_URL}{}/{slug}", content_type.web_base()));
@@ -429,7 +430,7 @@ mod tests {
 			FilterValue::MultiSelect {
 				id: "types".into(),
 				included: vec!["manga".into(), "novel".into()],
-				excluded: vec![],
+				excluded: vec!["manga".into()],
 			},
 			FilterValue::MultiSelect {
 				id: "genres".into(),
@@ -437,11 +438,10 @@ mod tests {
 				excluded: vec!["mature".into()],
 			},
 		];
-		let url = list_url("popular", 36, 0, Some("shadow slave"), &filters);
+		let url = list_url("popular", 36, 0, Some("shadow slave"), &filters).unwrap();
 		assert!(url.starts_with("https://chikari.moe/api/series?"));
-		assert!(url.contains("type=manga"));
 		assert!(url.contains("type=novel"));
-		assert!(!url.contains("type=manhwa"));
+		assert!(!url.contains("type=manga"));
 		assert_eq!(url.matches("genre=").count(), 2);
 		assert!(url.contains("genre=action"));
 		assert!(url.contains("genre_exclude=mature"));
@@ -449,42 +449,51 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn list_url_defaults_to_every_type() {
-		let url = list_url("popular", 36, 0, None, &[]);
+	fn list_url_defaults_to_every_type_and_rejects_empty_selection() {
+		let url = list_url("popular", 36, 0, None, &[]).unwrap();
 		assert_eq!(url.matches("type=").count(), TYPES.len());
 		let filters = [FilterValue::MultiSelect {
 			id: "types".into(),
 			included: vec![],
 			excluded: vec!["novel".into()],
 		}];
-		let url = list_url("popular", 36, 0, None, &filters);
+		let url = list_url("popular", 36, 0, None, &filters).unwrap();
 		assert_eq!(url.matches("type=").count(), TYPES.len() - 1);
 		assert!(!url.contains("type=novel"));
+		let filters = [FilterValue::MultiSelect {
+			id: "types".into(),
+			included: vec![],
+			excluded: TYPES.iter().map(|kind| (*kind).into()).collect(),
+		}];
+		assert!(list_url("popular", 36, 0, None, &filters).is_none());
 	}
 
 	#[aidoku_test]
 	fn key_and_url_follow_the_item_medium() {
-		let item = |medium: &str| crate::models::ListItem {
+		let item = |medium: Option<&str>, kind: Option<&str>| crate::models::ListItem {
 			slug: "slug".into(),
 			title: "Title".into(),
 			cover_url: None,
 			status: None,
 			is_nsfw: true,
-			medium: Some(medium.into()),
+			medium: medium.map(Into::into),
+			kind: kind.map(Into::into),
 		};
-		let novel = manga_from_list(item("novel"));
+		let novel = manga_from_list(item(Some("novel"), None));
 		assert_eq!(novel.key, "slug");
 		assert_eq!(
 			novel.url.as_deref(),
 			Some("https://chikari.moe/novels/slug")
 		);
 		assert_eq!(novel.content_rating, ContentRating::NSFW);
-		let comic = manga_from_list(item("comic"));
+		let comic = manga_from_list(item(Some("comic"), None));
 		assert_eq!(comic.key, "series:slug");
 		assert_eq!(
 			comic.url.as_deref(),
 			Some("https://chikari.moe/series/slug")
 		);
+		let fallback = manga_from_list(item(None, Some("novel")));
+		assert_eq!(fallback.key, "slug");
 	}
 
 	#[aidoku_test]

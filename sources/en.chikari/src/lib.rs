@@ -22,12 +22,12 @@ pub const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac O
 
 const SORTS: &[&str] = &[
 	"popular",
-	"top_rated",
-	"bingeable",
 	"trending",
+	"top_rated",
 	"updated",
 	"added",
 	"most_bookmarked",
+	"bingeable",
 	"random",
 ];
 
@@ -57,8 +57,13 @@ impl Source for Chikari {
 				_ => None,
 			})
 			.unwrap_or("popular");
-		let data: ListResponse =
-			request(&list_url(sort, limit, offset, query.as_deref(), &filters))?;
+		let Some(url) = list_url(sort, limit, offset, query.as_deref(), &filters) else {
+			return Ok(MangaPageResult {
+				entries: Vec::new(),
+				has_next_page: false,
+			});
+		};
+		let data: ListResponse = request(&url)?;
 		Ok(manga_page_result(data, offset, limit))
 	}
 
@@ -172,7 +177,13 @@ impl ListingProvider for Chikari {
 			.ok_or_else(|| error!("Unknown listing: {}", listing.id))?;
 		let offset = (page.max(1) as u32 - 1) * LIST_PAGE_SIZE;
 		let filters = apply_settings(Vec::new());
-		let data: ListResponse = request(&list_url(sort, LIST_PAGE_SIZE, offset, None, &filters))?;
+		let Some(url) = list_url(sort, LIST_PAGE_SIZE, offset, None, &filters) else {
+			return Ok(MangaPageResult {
+				entries: Vec::new(),
+				has_next_page: false,
+			});
+		};
+		let data: ListResponse = request(&url)?;
 		Ok(manga_page_result(data, offset, LIST_PAGE_SIZE))
 	}
 }

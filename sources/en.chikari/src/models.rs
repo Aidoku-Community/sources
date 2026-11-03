@@ -25,6 +25,8 @@ pub struct ListItem {
 	pub is_nsfw: bool,
 	#[serde(default)]
 	pub medium: Option<String>,
+	#[serde(default, rename = "type")]
+	pub kind: Option<String>,
 }
 
 #[derive(Deserialize)]
