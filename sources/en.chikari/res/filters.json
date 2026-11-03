@@ -69,6 +69,26 @@
 	},
 	{
 		"type": "multi-select",
+		"id": "status",
+		"title": "Status",
+		"canExclude": true,
+		"options": [
+			"Releasing",
+			"Completed",
+			"Hiatus",
+			"Cancelled",
+			"Upcoming"
+		],
+		"ids": [
+			"releasing",
+			"completed",
+			"hiatus",
+			"cancelled",
+			"upcoming"
+		]
+	},
+	{
+		"type": "multi-select",
 		"id": "genres",
 		"title": "Genres",
 		"isGenre": true,
