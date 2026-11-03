@@ -4,7 +4,7 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 pub struct ListResponse {
 	#[serde(default)]
-	pub items: Vec<NovelListItem>,
+	pub items: Vec<ListItem>,
 	#[serde(default)]
 	pub total: u32,
 	#[serde(default)]
@@ -14,7 +14,7 @@ pub struct ListResponse {
 }
 
 #[derive(Deserialize)]
-pub struct NovelListItem {
+pub struct ListItem {
 	pub slug: String,
 	pub title: String,
 	#[serde(default)]
@@ -23,10 +23,12 @@ pub struct NovelListItem {
 	pub status: Option<String>,
 	#[serde(default)]
 	pub is_nsfw: bool,
+	#[serde(default)]
+	pub medium: Option<String>,
 }
 
 #[derive(Deserialize)]
-pub struct NovelDetail {
+pub struct Detail {
 	pub slug: String,
 	pub title: String,
 	#[serde(default)]
