@@ -16,7 +16,7 @@ mod watermark;
 
 use helpers::{fetch_chapter_list, request, resolve_slug};
 use markdown::html_to_markdown;
-use models::{ChapterDetailData, ListData, TitleDetailData, TrendingData};
+use models::{ChapterDetailData, ListData, TitleDetailData, TitleListItem, TrendingData};
 
 pub const BASE_URL: &str = "https://novelbuddy.me";
 pub const API_URL: &str = "https://api.novelbuddy.me";
@@ -30,7 +30,36 @@ const SORT_IDS: &[&str] = &[
 	"rating",
 	"views",
 	"bookmarks",
+	"best_match",
+	"views_today",
+	"views_7days",
+	"views_30days",
+	"chapters",
+	"alphabetical",
 ];
+
+fn mtl_mode(filters: &[FilterValue]) -> &'static str {
+	for filter in filters {
+		if let FilterValue::Select { id, value } = filter
+			&& id == "mtl"
+		{
+			return match value.as_str() {
+				"only" => "only",
+				"hidden" => "hidden",
+				_ => "all",
+			};
+		}
+	}
+	settings::mtl_mode()
+}
+
+fn mtl_visible(item: &TitleListItem, mode: &'static str) -> bool {
+	match mode {
+		"only" => item.is_mtl,
+		"hidden" => !item.is_mtl,
+		_ => true,
+	}
+}
 
 struct NovelBuddy;
 
@@ -48,6 +77,7 @@ impl Source for NovelBuddy {
 		let mut qs = QueryParameters::new();
 		let mut has_sort = false;
 		let mut excluded_genres = settings::hidden_genres();
+		let mtl = mtl_mode(&filters);
 
 		for filter in filters {
 			match filter {
@@ -101,11 +131,19 @@ impl Source for NovelBuddy {
 		if let Some(q) = query.as_deref() {
 			qs.push("q", Some(q));
 		}
+		if mtl == "only" {
+			qs.push("is_mtl", Some("true"));
+		}
 
 		let url = format!("{API_URL}/titles/search?{qs}");
 		let data: ListData = request(&url)?;
 		Ok(MangaPageResult {
-			entries: data.items.into_iter().map(Manga::from).collect(),
+			entries: data
+				.items
+				.into_iter()
+				.filter(|item| mtl_visible(item, mtl))
+				.map(Manga::from)
+				.collect(),
 			has_next_page: data.pagination.has_next,
 		})
 	}
@@ -153,6 +191,7 @@ impl Source for NovelBuddy {
 
 impl ListingProvider for NovelBuddy {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		let mtl = mtl_mode(&[]);
 		match listing.id.as_str() {
 			"trending-week" | "trending-today" => {
 				let window = if listing.id == "trending-week" {
@@ -163,15 +202,26 @@ impl ListingProvider for NovelBuddy {
 				let url = format!("{API_URL}/trending/titles?window={window}");
 				let data: TrendingData = request(&url)?;
 				Ok(MangaPageResult {
-					entries: data.items.into_iter().map(Manga::from).collect(),
+					entries: data
+						.items
+						.into_iter()
+						.filter(|item| mtl_visible(item, mtl))
+						.map(Manga::from)
+						.collect(),
 					has_next_page: false,
 				})
 			}
 			"latest" => {
-				let url = format!("{API_URL}/titles/search?sort=latest&page={page}");
+				let mtl_param = if mtl == "only" { "&is_mtl=true" } else { "" };
+				let url = format!("{API_URL}/titles/search?sort=latest&page={page}{mtl_param}");
 				let data: ListData = request(&url)?;
 				Ok(MangaPageResult {
-					entries: data.items.into_iter().map(Manga::from).collect(),
+					entries: data
+						.items
+						.into_iter()
+						.filter(|item| mtl_visible(item, mtl))
+						.map(Manga::from)
+						.collect(),
 					has_next_page: data.pagination.has_next,
 				})
 			}
@@ -245,6 +295,31 @@ mod tests {
 	use aidoku_test::aidoku_test;
 
 	#[aidoku_test]
+	fn mtl_mode_resolves_filter_then_setting() {
+		assert_eq!(mtl_mode(&[]), "all");
+		let filters = [FilterValue::Select {
+			id: "mtl".into(),
+			value: "hidden".into(),
+		}];
+		assert_eq!(mtl_mode(&filters), "hidden");
+		let filters = [FilterValue::Select {
+			id: "status".into(),
+			value: "completed".into(),
+		}];
+		assert_eq!(mtl_mode(&filters), "all");
+		let mtl_item = TitleListItem {
+			id: "x".into(),
+			name: "X".into(),
+			slug: None,
+			cover: None,
+			is_mtl: true,
+		};
+		assert!(mtl_visible(&mtl_item, "all"));
+		assert!(mtl_visible(&mtl_item, "only"));
+		assert!(!mtl_visible(&mtl_item, "hidden"));
+	}
+
+	#[aidoku_test]
 	fn search_returns_results() {
 		let source = NovelBuddy;
 		let result = source
@@ -279,8 +354,6 @@ mod tests {
 			"expected >100 chapters, got {}",
 			chapters.len()
 		);
-		// The ISO-8601 format string must keep matching the API's timestamps;
-		// a silent mismatch would leave every chapter without an upload date.
 		assert!(
 			chapters.iter().any(|c| c.date_uploaded.is_some()),
 			"expected at least one parsed upload date"
@@ -294,8 +367,7 @@ mod tests {
 			key: "VYPGVZ8z".into(),
 			..Default::default()
 		};
-		// Resolve a chapter key from the live list rather than hardcoding
-		// one: the site occasionally removes or re-publishes chapters.
+		// Resolved from the live list: chapters get removed or re-published.
 		let chapters = fetch_chapter_list(&manga.key).expect("chapter list failed");
 		let key = chapters
 			.last()

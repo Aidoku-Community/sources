@@ -1,5 +1,3 @@
-//! Convert chapter HTML to Aidoku Markdown.
-
 use aidoku::{
 	alloc::{String, Vec, string::ToString},
 	helpers::string::PlainText,
@@ -23,18 +21,13 @@ fn longest_backtick_run(text: &str) -> usize {
 	longest
 }
 
-/// Append an element's full descendant text without Markdown escaping:
-/// backslashes inside code spans and fenced blocks are literal output.
 fn append_raw_text(element: &Element, output: &mut String) {
 	if let Some(text) = element.text() {
 		output.push_str(&text);
 	}
 }
 
-/// Append an element's direct text and child elements in document order.
-///
-/// Text nodes are only reachable via `child_nodes`, tag names only via
-/// `children`, so element-kind nodes pair with the next `children` entry.
+// Text nodes only via `child_nodes`, tag names only via `children`.
 fn convert_children_to_markdown(element: &Element, output: &mut String) {
 	let mut elements = element.children();
 	for node in element.child_nodes() {
@@ -54,8 +47,6 @@ fn convert_children_to_markdown(element: &Element, output: &mut String) {
 	}
 }
 
-/// Terminate any open inline run before a block element, so a block
-/// following bare text starts a new paragraph. No-op when already separated.
 fn break_before_block(output: &mut String) {
 	if output.is_empty() {
 		return;
@@ -84,15 +75,13 @@ fn convert_emphasis(element: &Element, output: &mut String) {
 	if trimmed.is_empty() {
 		return;
 	}
-	// CommonMark has neither strikethrough nor underline: `~~` is inert text
-	// and `__` is strong emphasis. Emit the content unmarked.
+	// CommonMark has no strikethrough or underline: emit the content unmarked.
 	let marker = match element.tag_name().as_deref() {
 		Some("strong" | "b") => "**",
 		Some("em" | "i") => "*",
 		_ => "",
 	};
-	// Surrounding whitespace must stay outside the markers: `** bold **` is not
-	// recognized as emphasis.
+	// Keep surrounding whitespace outside the markers: `** bold **` is not emphasis.
 	output.push_str(marker);
 	output.push_str(trimmed);
 	output.push_str(marker);
@@ -105,8 +94,7 @@ fn convert_inline_code(element: &Element, output: &mut String) {
 	for _ in 0..ticks {
 		output.push('`');
 	}
-	// Space-pad content touching a delimiter boundary: CommonMark
-	// strips one space from both sides, restoring the text verbatim.
+	// Space-pad content touching a delimiter boundary; CommonMark strips it back.
 	if raw.starts_with('`') || raw.ends_with('`') {
 		output.push(' ');
 		output.push_str(&raw);
@@ -187,17 +175,12 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 		"blockquote" => convert_blockquote_to_markdown(element, output),
 		"div" | "section" | "article" | "header" | "footer" | "main" | "aside" | "figure"
 		| "hgroup" | "details" | "dl" => convert_block_container(element, output),
-		// Inline containers carry no block semantics.
 		"span" | "li" => convert_children_to_markdown(element, output),
-		// Unknown tags: recurse so their prose is still emitted.
 		_ => convert_children_to_markdown(element, output),
 	}
 }
 
-/// Render list items as Markdown bullets or numbered entries.
-///
-/// Non-item children are filtered out before enumeration so stray markup
-/// cannot shift the sequence.
+// Filter to `li` before enumerating so stray markup cannot shift the sequence.
 fn convert_list_to_markdown(element: &Element, tag: &str, output: &mut String) {
 	break_before_block(output);
 	let items: Vec<_> = element
@@ -216,8 +199,6 @@ fn convert_list_to_markdown(element: &Element, tag: &str, output: &mut String) {
 	output.push('\n');
 }
 
-/// Render a blockquote by prefixing every emitted line with `> `, keeping
-/// multi-block quotes valid Markdown.
 fn convert_blockquote_to_markdown(element: &Element, output: &mut String) {
 	break_before_block(output);
 	let mut quoted = String::default();
@@ -232,16 +213,9 @@ fn convert_blockquote_to_markdown(element: &Element, output: &mut String) {
 	output.push_str("\n\n");
 }
 
-/// Convert chapter HTML to Aidoku Markdown.
-///
-/// The fragment is wrapped in a container before parsing: the fragment
-/// root itself cannot be traversed, while a selected wrapper supports
-/// the full traversal API. The API content carries no ad markup, only
-/// a promotional paragraph that [`watermark::strip`] removes unless the
-/// reader turned that off.
 pub fn html_to_markdown(html: &str) -> String {
-	// Concatenated rather than formatted: chapter content may contain
-	// braces, which format! would treat as placeholders.
+	// The fragment root cannot be traversed; a selected wrapper can.
+	// Concatenated, not formatted: content may contain format placeholders.
 	let wrapped = ["<div id=\"nb-root\">", html, "</div>"].concat();
 	let Ok(doc) = Html::parse_fragment(wrapped) else {
 		return String::default();
@@ -264,165 +238,84 @@ mod tests {
 	use aidoku_test::aidoku_test;
 
 	#[aidoku_test]
-	fn preserves_inline_markdown_without_tags() {
-		let html = "<p>A <strong>bold</strong>, <em>italic</em>, <u>underlined</u>, and <del>gone</del>.</p>";
-		let out = html_to_markdown(html);
-		assert_eq!(out, "A **bold**\\, *italic*\\, underlined\\, and gone\\.");
+	fn converts_inline_markup() {
+		let cases = [
+			(
+				"<p>A <strong>bold</strong>, <em>italic</em>, <u>underlined</u>, and <del>gone</del>.</p>",
+				"A **bold**\\, *italic*\\, underlined\\, and gone\\.",
+			),
+			(
+				"<p><u>underlined</u>, <del>gone</del>, <s>struck</s>, <sup>2</sup>, <ruby>kanji<rt>kana</rt></ruby></p>",
+				"underlined\\, gone\\, struck\\, 2\\, kanjikana",
+			),
+			(
+				"<p>Tom &amp; Jerry &mdash; use *literal*, _text_, and ~~this~~</p>",
+				"Tom \\& Jerry — use \\*literal\\*\\, \\_text\\_\\, and \\~\\~this\\~\\~",
+			),
+			(
+				"<p><strong> bold </strong> and <em> italic </em></p>",
+				"**bold** and *italic*",
+			),
+			(
+				"Line one <b>bold</b> line two",
+				"Line one **bold** line two",
+			),
+			("<p>Hello <span>world</span> end</p>", "Hello world end"),
+		];
+		for (html, expected) in cases {
+			assert_eq!(html_to_markdown(html), expected);
+		}
 	}
 
 	#[aidoku_test]
-	fn unmarked_tags_keep_their_content_only() {
-		let out = html_to_markdown(
-			"<p><u>underlined</u>, <del>gone</del>, <s>struck</s>, <sup>2</sup>, <ruby>kanji<rt>kana</rt></ruby></p>",
-		);
-		assert_eq!(out, "underlined\\, gone\\, struck\\, 2\\, kanjikana");
+	fn lays_out_blocks() {
+		let cases = [
+			(
+				"<menu><li>One</li><li>Two</li></menu><dl><dt>Term</dt><dd>Definition</dd></dl><figure><figcaption>Caption</figcaption></figure>",
+				"- One\n- Two\n\nTerm\n\nDefinition\n\nCaption",
+			),
+			(
+				"<h2>Chapter 1</h2><p>First<br>second</p><div style=\"margin:0;padding:0;border:0;font-size:0;line-height:0\"></div><p>Third</p>",
+				"## Chapter 1\n\nFirst  \nsecond\n\nThird",
+			),
+			(
+				"<div style=\"margin:0;padding:0;border:0;font-size:0;line-height:0\"></div><div> </div><p>Real content</p>",
+				"Real content",
+			),
+			("<div>text in div</div>", "text in div"),
+			(
+				"<div> Chapter 218: Ather’s Perspective\n<p> He woke up as he always did.</p></div>",
+				"Chapter 218\\: Ather’s Perspective  \n\n He woke up as he always did\\.",
+			),
+			("<div>first</div><div>second</div>", "first\n\nsecond"),
+			("<ul><li>a</li><li>b</li></ul>", "- a\n- b"),
+			("<ol><li>a</li><p>note</p><li>b</li></ol>", "1. a\n2. b"),
+			("<blockquote>cite</blockquote>", "> cite"),
+			(
+				"<blockquote><p>one</p><p>two</p></blockquote>",
+				"> one\n> \n> two",
+			),
+		];
+		for (html, expected) in cases {
+			assert_eq!(html_to_markdown(html), expected);
+		}
 	}
 
 	#[aidoku_test]
-	fn routes_prose_block_variants_to_existing_layout() {
-		let out = html_to_markdown(
-			"<menu><li>One</li><li>Two</li></menu><dl><dt>Term</dt><dd>Definition</dd></dl><figure><figcaption>Caption</figcaption></figure>",
-		);
-		assert_eq!(out, "- One\n- Two\n\nTerm\n\nDefinition\n\nCaption");
-	}
-
-	#[aidoku_test]
-	fn preserves_breaks_and_headings() {
-		let html = "<h2>Chapter 1</h2><p>First<br>second</p>\
-			<div style=\"margin:0;padding:0;border:0;font-size:0;line-height:0\"></div>\
-			<p>Third</p>";
-		let out = html_to_markdown(html);
-		assert_eq!(out, "## Chapter 1\n\nFirst  \nsecond\n\nThird");
-	}
-
-	#[aidoku_test]
-	fn escapes_literal_markdown_and_decodes_entities() {
-		let html = "<p>Tom &amp; Jerry &mdash; use *literal*, _text_, and ~~this~~</p>";
-		let out = html_to_markdown(html);
-		assert_eq!(
-			out,
-			"Tom \\& Jerry — use \\*literal\\*\\, \\_text\\_\\, and \\~\\~this\\~\\~"
-		);
-	}
-
-	#[aidoku_test]
-	fn ignores_empty_placement_divs() {
-		// Real API content (verified on a live chapter): ad spacers are
-		// empty, style-only divs without any class or id.
-		let html = "<div style=\"margin:0;padding:0;border:0;font-size:0;line-height:0\"></div>\
-			<div> </div><p>Real content</p>";
-		let out = html_to_markdown(html);
-		assert_eq!(out, "Real content");
-	}
-
-	#[aidoku_test]
-	fn renders_text_in_div() {
-		let html = "<div>text in div</div>";
-		let out = html_to_markdown(html);
-		assert_eq!(out, "text in div");
-	}
-
-	#[aidoku_test]
-	fn separates_bare_title_from_following_paragraph() {
-		// Real API shape (Chaotic Craftsman ch. 218): the chapter title is
-		// a bare text node inside the container, directly followed by the
-		// first paragraph. Without a break the two render glued together.
-		// (`\:`/`\.` escaping and the trailing spaces come from the
-		// source-whitespace handling, unchanged by the break. The leading
-		// space before "He" is the `<p>` content's own, kept as-is.)
-		let html =
-			"<div> Chapter 218: Ather’s Perspective\n<p> He woke up as he always did.</p></div>";
-		let out = html_to_markdown(html);
-		assert_eq!(
-			out,
-			"Chapter 218\\: Ather’s Perspective  \n\n He woke up as he always did\\."
-		);
-	}
-
-	#[aidoku_test]
-	fn separates_consecutive_divs() {
-		let html = "<div>first</div><div>second</div>";
-		let out = html_to_markdown(html);
-		assert_eq!(out, "first\n\nsecond");
-	}
-
-	#[aidoku_test]
-	fn keeps_root_level_text_and_inline_elements() {
-		let html = "Line one <b>bold</b> line two";
-		let out = html_to_markdown(html);
-		assert_eq!(out, "Line one **bold** line two");
-	}
-
-	#[aidoku_test]
-	fn keeps_inline_span_in_paragraph() {
-		let html = "<p>Hello <span>world</span> end</p>";
-		let out = html_to_markdown(html);
-		assert_eq!(out, "Hello world end");
-	}
-
-	#[aidoku_test]
-	fn renders_unordered_list() {
-		let html = "<ul><li>a</li><li>b</li></ul>";
-		let out = html_to_markdown(html);
-		assert_eq!(out, "- a\n- b");
-	}
-
-	#[aidoku_test]
-	fn renders_blockquote() {
-		let html = "<blockquote>cite</blockquote>";
-		let out = html_to_markdown(html);
-		assert_eq!(out, "> cite");
-	}
-
-	#[aidoku_test]
-	fn numbers_ordered_list_items_by_li_position() {
-		let html = "<ol><li>a</li><p>note</p><li>b</li></ol>";
-		let out = html_to_markdown(html);
-		assert_eq!(out, "1. a\n2. b");
-	}
-
-	#[aidoku_test]
-	fn prefixes_every_blockquote_line() {
-		let html = "<blockquote><p>one</p><p>two</p></blockquote>";
-		let out = html_to_markdown(html);
-		assert_eq!(out, "> one\n> \n> two");
-	}
-
-	#[aidoku_test]
-	fn trims_inline_whitespace() {
-		let html = "<p><strong> bold </strong> and <em> italic </em></p>";
-		let out = html_to_markdown(html);
-		assert_eq!(out, "**bold** and *italic*");
-	}
-
-	#[aidoku_test]
-	fn keeps_code_content_unescaped() {
-		let html = "<p>use <code>a_b-c *x*</code></p><pre>let s = \"a_b\";</pre>";
-		let out = html_to_markdown(html);
+	fn keeps_code_literal_and_widens_delimiters() {
+		let out = html_to_markdown("<p>use <code>a_b-c *x*</code></p><pre>let s = \"a_b\";</pre>");
 		assert!(out.contains("`a_b-c *x*`"), "code span: {out}");
 		assert!(out.contains("let s = \"a_b\";"), "fenced block: {out}");
-	}
 
-	#[aidoku_test]
-	fn widens_code_delimiters_past_embedded_backticks() {
-		let html = "<p><code>a`b</code> and <code>`padded`</code></p>";
-		let out = html_to_markdown(html);
+		let out = html_to_markdown("<p><code>a`b</code> and <code>`padded`</code></p>");
 		assert!(out.contains("``a`b``"), "inline code: {out}");
 		assert!(out.contains("`` `padded` ``"), "padded span: {out}");
-	}
 
-	#[aidoku_test]
-	fn pads_code_spans_touching_delimiter_boundaries() {
-		let html = "<p><code>`left</code> and <code>right`</code></p>";
-		let out = html_to_markdown(html);
+		let out = html_to_markdown("<p><code>`left</code> and <code>right`</code></p>");
 		assert!(out.contains("`` `left ``"), "leading backtick: {out}");
 		assert!(out.contains("`` right` ``"), "trailing backtick: {out}");
-	}
 
-	#[aidoku_test]
-	fn widens_fences_past_embedded_backtick_runs() {
-		let html = "<pre>```rust\nfn main() {}\n```</pre>";
-		let out = html_to_markdown(html);
+		let out = html_to_markdown("<pre>```rust\nfn main() {}\n```</pre>");
 		assert!(
 			out.contains("````\n```rust\nfn main() {}\n```\n````"),
 			"fenced block: {out}"
@@ -430,11 +323,8 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn renders_code_pre_links_images_and_rules() {
-		let html = "<p>Use <code>aidoku</code></p><hr>\
-			<pre>let x = 1;</pre>\
-			<p><a href=\"https://example.com\">site</a></p>\
-			<img src=\"https://example.com/i.png\" alt=\"pic\">";
+	fn renders_links_images_and_rules() {
+		let html = "<p>Use <code>aidoku</code></p><hr><pre>let x = 1;</pre><p><a href=\"https://example.com\">site</a></p><img src=\"https://example.com/i.png\" alt=\"pic\">";
 		let out = html_to_markdown(html);
 		assert!(out.contains("`aidoku`"), "inline code: {out}");
 		assert!(out.contains("---"), "horizontal rule: {out}");
