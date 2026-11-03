@@ -78,10 +78,26 @@ impl Source for Mangadotnet {
 				}
 
 				FilterValue::Select { id, value } => {
-					if id == "genre" && value.starts_with("Tag:") {
-						query_parameters.push("tag", Some(&value[5..]));
+					if page == 1 && id == "genre" {
+						if value.starts_with("Tag:") {
+							query_parameters.push("tag", Some(&value[5..]));
+						} else {
+							query_parameters.push(&id, Some(&value));
+						}
 					} else {
-						query_parameters.push(&id, Some(&value));
+						let mut new_id = id.as_str();
+						let mut new_value = value.as_str();
+
+						if id == "genre" {
+							new_id = "genres";
+
+							if value.starts_with("Tag:") {
+								new_id = "tags";
+								new_value = &new_value[5..]
+							}
+						}
+
+						query_parameters.push(new_id, Some(new_value));
 					}
 				}
 
