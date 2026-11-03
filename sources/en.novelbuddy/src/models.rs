@@ -34,6 +34,8 @@ pub struct TitleListItem {
 	pub slug: Option<String>,
 	#[serde(default)]
 	pub cover: Option<String>,
+	#[serde(default)]
+	pub is_mtl: bool,
 }
 
 #[derive(Deserialize)]
