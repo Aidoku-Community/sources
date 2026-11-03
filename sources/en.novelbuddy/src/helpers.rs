@@ -137,12 +137,7 @@ pub fn absolute_url(path_or_url: &str) -> String {
 }
 
 pub fn parse_iso_date(value: &str) -> Option<i64> {
-	// The API returns e.g. "2024-01-02T03:04:05.000Z". The repo-proven way
-	// to handle the trailing "Z" is a quoted literal token (asurascans,
-	// ezmanga, kagane). As a last resort, strip the fractional seconds and
-	// any trailing zone designator, then parse naively as UTC. The naive
-	// pattern keeps "T" unquoted on purpose: date parsers that do not
-	// implement Unicode quoted literals treat it as a plain character.
+	// Fallback: strip fractional seconds and zone, then parse naively as UTC.
 	parse_date(value, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
 		.or_else(|| parse_date(value, "yyyy-MM-dd'T'HH:mm:ss'Z'"))
 		.or_else(|| {
@@ -152,9 +147,7 @@ pub fn parse_iso_date(value: &str) -> Option<i64> {
 }
 
 pub fn parse_chapter_number(name: &str) -> Option<f32> {
-	// Chapter-name formats vary across titles ("Chapter 5", "Chapter: 5",
-	// "Chapter ’5", "Chapter 12.5"), but the number is always the first numeric
-	// run. Keep a single '.' for decimal (bonus) chapters.
+	// Number is the first numeric run; keep a single '.' for decimal chapters.
 	let mut num = String::default();
 	let mut seen_dot = false;
 	for ch in name.chars() {
@@ -170,11 +163,8 @@ pub fn parse_chapter_number(name: &str) -> Option<f32> {
 	num.parse().ok()
 }
 
-/// Observed length of a canonical title id (`VYPGVZ8z`).
-///
-/// The length is what separates the id from the slug in
-/// `/titles/<id>-<slug>`; relaxing it makes `/titles/shadow-slave` parse as
-/// the id `shadow`.
+// Length separates the id from the slug in `/titles/<id>-<slug>`; relaxing it
+// parses `/titles/shadow-slave` as the id `shadow`.
 const CANONICAL_ID_LEN: usize = 8;
 
 pub fn parse_id_from_canonical(new_url: &str) -> Option<String> {
@@ -187,9 +177,6 @@ pub fn parse_id_from_canonical(new_url: &str) -> Option<String> {
 	}
 }
 
-/// Convert a description to plain text. Descriptions should not contain
-/// Markdown markers, since they are displayed as metadata rather than as a
-/// `PageContent` body.
 pub fn html_to_text(html: &str) -> String {
 	let Ok(doc) = Html::parse_fragment(html) else {
 		return String::default();
@@ -206,10 +193,8 @@ pub fn html_to_text(html: &str) -> String {
 	if !paragraphs.is_empty() {
 		return paragraphs.join("\n\n");
 	}
-	// A summary that arrives without `<p>` would otherwise be dropped outright.
-	// `select_first`, not `select`: a nested wrapper matches at both levels and
-	// `ElementList::text` would concatenate the text twice. `*` takes whatever
-	// the outermost wrapper is instead of a hardcoded tag list.
+	// `select_first`, not `select`: a nested wrapper would concatenate its text
+	// twice. `*` takes the outermost wrapper, whatever the tag is.
 	doc.select_first("*")
 		.and_then(|el| el.text())
 		.map(|text| text.trim().to_string())
@@ -224,23 +209,17 @@ mod tests {
 	use aidoku_test::aidoku_test;
 
 	#[aidoku_test]
-	fn extracts_paragraphs() {
+	fn extracts_plain_text_paragraphs() {
 		let html = "\n  <div><p> Hello world.</p><p>Second paragraph.</p>\n<div style=\"text-align:center\"><div></div></div></div>";
-		let out = html_to_text(html);
-		assert_eq!(out, "Hello world.\n\nSecond paragraph.");
-	}
-
-	#[aidoku_test]
-	fn decodes_entities() {
-		let html = "<p>Tom &amp; Jerry &mdash; together</p>";
-		let out = html_to_text(html);
-		assert_eq!(out, "Tom & Jerry — together");
-	}
-
-	#[aidoku_test]
-	fn descriptions_remain_plain_text() {
-		let html = "<p>A <strong>bold</strong> description</p>";
-		assert_eq!(html_to_text(html), "A bold description");
+		assert_eq!(html_to_text(html), "Hello world.\n\nSecond paragraph.");
+		assert_eq!(
+			html_to_text("<p>Tom &amp; Jerry &mdash; together</p>"),
+			"Tom & Jerry — together"
+		);
+		assert_eq!(
+			html_to_text("<p>A <strong>bold</strong> description</p>"),
+			"A bold description"
+		);
 	}
 
 	#[aidoku_test]
@@ -253,22 +232,16 @@ mod tests {
 			html_to_text("<div><span>Nested without p.</span></div>"),
 			"Nested without p."
 		);
-		// The selector is generic, so a wrapper outside any hardcoded list is
-		// still found.
 		assert_eq!(
 			html_to_text("<section>A summary wrapped in a section.</section>"),
 			"A summary wrapped in a section."
 		);
-		// `Html::parse_fragment` on bare text yields no element to select, and
-		// `Document` exposes no text accessor, so that case stays unreachable.
 		assert_eq!(html_to_text(""), "");
-	}
-
-	#[aidoku_test]
-	fn prefers_paragraphs_over_the_fallback() {
 		// The fallback must not swallow the ad spacer div the site injects.
-		let html = "<p>Kept.</p><div style=\"text-align:center\"><div></div></div>";
-		assert_eq!(html_to_text(html), "Kept.");
+		assert_eq!(
+			html_to_text("<p>Kept.</p><div style=\"text-align:center\"><div></div></div>"),
+			"Kept."
+		);
 	}
 
 	#[aidoku_test]
@@ -290,11 +263,8 @@ mod tests {
 			Some(2995.0)
 		);
 		assert_eq!(parse_chapter_number("Chapter 12.5: Bonus"), Some(12.5));
-		// Verified real on the live API (rare but present) — do not drop decimal
-		// handling: the slug for this is `chapter-374-5` (ambiguous), the name is not.
 		assert_eq!(parse_chapter_number("Chapter 374.5"), Some(374.5));
 		assert_eq!(parse_chapter_number("Prologue"), None);
-		// Live API also returns these formats (verified on the Shadow Slave list):
 		assert_eq!(
 			parse_chapter_number("Chapter: 2234 Darkness Falls"),
 			Some(2234.0)
@@ -309,7 +279,6 @@ mod tests {
 	#[aidoku_test]
 	fn parses_timestamps_without_zone_via_fallback() {
 		assert!(parse_iso_date("2024-01-02T03:04:05.000Z").is_some());
-		// Zone-less input exercises the naive fallback directly.
 		assert!(parse_iso_date("2024-01-02T03:04:05").is_some());
 	}
 }
