@@ -10,7 +10,13 @@
 			"Newest",
 			"Rating",
 			"Views",
-			"Bookmarks"
+			"Bookmarks",
+			"Best Match",
+			"Most Viewed: Today",
+			"Most Viewed: 7 Days",
+			"Most Viewed: 30 Days",
+			"Most Chapters",
+			"A-Z"
 		],
 		"ids": [
 			"popular",
@@ -18,7 +24,13 @@
 			"newest",
 			"rating",
 			"views",
-			"bookmarks"
+			"bookmarks",
+			"best_match",
+			"views_today",
+			"views_7days",
+			"views_30days",
+			"chapters",
+			"alphabetical"
 		],
 		"default": {
 			"index": 0,
@@ -29,8 +41,31 @@
 		"type": "select",
 		"id": "status",
 		"title": "Status",
-		"options": ["All", "Ongoing", "Completed"],
-		"ids": ["all", "ongoing", "completed"]
+		"options": [
+			"All",
+			"Ongoing",
+			"Completed"
+		],
+		"ids": [
+			"all",
+			"ongoing",
+			"completed"
+		]
+	},
+	{
+		"type": "select",
+		"id": "mtl",
+		"title": "MTL",
+		"options": [
+			"All",
+			"MTL Only",
+			"No MTL"
+		],
+		"ids": [
+			"all",
+			"only",
+			"hidden"
+		]
 	},
 	{
 		"type": "multi-select",
