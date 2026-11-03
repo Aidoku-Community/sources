@@ -212,7 +212,8 @@ impl ListingProvider for NovelBuddy {
 				})
 			}
 			"latest" => {
-				let url = format!("{API_URL}/titles/search?sort=latest&page={page}");
+				let mtl_param = if mtl == "only" { "&is_mtl=true" } else { "" };
+				let url = format!("{API_URL}/titles/search?sort=latest&page={page}{mtl_param}");
 				let data: ListData = request(&url)?;
 				Ok(MangaPageResult {
 					entries: data
