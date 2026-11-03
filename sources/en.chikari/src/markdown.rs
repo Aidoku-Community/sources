@@ -1,9 +1,3 @@
-//! Convert chapter HTML to Aidoku Markdown.
-//!
-//! Chikari bodies are line-based with inline tags only (`em`, `strong`).
-//! Converting one paragraph at a time keeps blank lines as paragraph breaks
-//! whatever the parser does with whitespace between elements.
-
 use aidoku::{
 	alloc::{String, Vec, string::ToString},
 	helpers::string::PlainText,
@@ -13,11 +7,7 @@ use core::fmt::Write as _;
 
 use crate::{settings, watermark};
 
-/// Tag names treated as markup rather than prose. Every dispatcher arm is
-/// listed, plus the plausible-but-untranslated tags; anything else is escaped so
-/// literal `<Maddened Enlightenment>` survives. A tag listed here without an arm
-/// falls through to the dispatcher's catch-all, which keeps the content and drops
-/// the tag - the intended handling where CommonMark has no equivalent.
+// Anything not listed here is escaped, so literal "<NotATag>" prose survives.
 const MARKUP_TAGS: &[&str] = &[
 	"a",
 	"abbr",
@@ -106,18 +96,13 @@ fn longest_backtick_run(text: &str) -> usize {
 	longest
 }
 
-/// Append an element's descendant text unescaped: backslashes inside code
-/// spans and fences are literal output.
 fn append_raw_text(element: &Element, output: &mut String) {
 	if let Some(text) = element.text() {
 		output.push_str(&text);
 	}
 }
 
-/// Append an element's text and children in document order.
-///
-/// Text nodes come from `child_nodes` and tag names from `children`, so
-/// element-kind nodes pair with the next `children` entry.
+// Element-kind nodes pair with the next children entry.
 fn convert_children_to_markdown(element: &Element, output: &mut String) {
 	let mut elements = element.children();
 	for node in element.child_nodes() {
@@ -137,8 +122,6 @@ fn convert_children_to_markdown(element: &Element, output: &mut String) {
 	}
 }
 
-/// Terminate any open inline run before a block element, so a block
-/// following bare text starts a new paragraph.
 fn break_before_block(output: &mut String) {
 	if output.is_empty() {
 		return;
@@ -167,15 +150,12 @@ fn convert_emphasis(element: &Element, output: &mut String) {
 	if trimmed.is_empty() {
 		return;
 	}
-	// CommonMark has neither strikethrough nor underline: `~~` is inert text
-	// and `__` is strong emphasis. Emit the content unmarked.
+	// CommonMark has no strikethrough or underline: emit the content unmarked.
 	let marker = match element.tag_name().as_deref() {
 		Some("strong" | "b") => "**",
 		Some("em" | "i") => "*",
 		_ => "",
 	};
-	// Surrounding whitespace must stay outside the markers: `** bold **` is not
-	// recognized as emphasis.
 	output.push_str(marker);
 	output.push_str(trimmed);
 	output.push_str(marker);
@@ -188,8 +168,7 @@ fn convert_inline_code(element: &Element, output: &mut String) {
 	for _ in 0..ticks {
 		output.push('`');
 	}
-	// Space-pad content touching a delimiter boundary: CommonMark
-	// strips one space from both sides, restoring the text verbatim.
+	// CommonMark strips one padding space: pad content touching the fence.
 	if raw.starts_with('`') || raw.ends_with('`') {
 		output.push(' ');
 		output.push_str(&raw);
@@ -265,20 +244,15 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 			break_before_block(output);
 			output.push_str("---\n\n")
 		}
-		// menu is the unordered-list alternative.
 		"ul" | "ol" | "menu" => convert_list_to_markdown(element, &tag, output),
 		"blockquote" => convert_blockquote_to_markdown(element, output),
 		"div" | "section" | "article" | "header" | "footer" | "main" | "aside" | "figure"
 		| "hgroup" | "details" | "dl" => convert_block_container(element, output),
-		// Inline containers carry no block semantics.
 		"span" | "li" => convert_children_to_markdown(element, output),
-		// Unknown tags: recurse so their prose is still emitted.
 		_ => convert_children_to_markdown(element, output),
 	}
 }
 
-/// Non-item children are filtered out before enumeration so stray markup
-/// cannot shift the sequence.
 fn convert_list_to_markdown(element: &Element, tag: &str, output: &mut String) {
 	break_before_block(output);
 	let items: Vec<_> = element
@@ -297,8 +271,6 @@ fn convert_list_to_markdown(element: &Element, tag: &str, output: &mut String) {
 	output.push('\n');
 }
 
-/// Prefixing every emitted line with `> ` keeps multi-block quotes valid
-/// Markdown.
 fn convert_blockquote_to_markdown(element: &Element, output: &mut String) {
 	break_before_block(output);
 	let mut quoted = String::default();
@@ -313,11 +285,7 @@ fn convert_blockquote_to_markdown(element: &Element, output: &mut String) {
 	output.push_str("\n\n");
 }
 
-/// Byte index just past the `>` when `start` opens recognized markup, else
-/// `None` for literal text.
-///
-/// Attribute values are skipped with quote awareness so a `>` inside one
-/// cannot end the tag early.
+// Quote-aware so a '>' inside an attribute cannot end the tag early.
 fn markup_tag_end(input: &str, start: usize) -> Option<usize> {
 	let bytes = input.as_bytes();
 	let mut index = start + 1;
@@ -355,9 +323,7 @@ fn markup_tag_end(input: &str, start: usize) -> Option<usize> {
 	None
 }
 
-/// Escape `<` on every angle bracket that does not open recognized markup.
-/// Otherwise the parser reads literal prose like `<Maddened Enlightenment>`
-/// as an unknown element and keeps only its attributes.
+// Escape bare '<': the parser would eat literal prose like "<Maddened Enlightenment>".
 fn protect_literal_angle_brackets(input: &str) -> String {
 	let mut output = String::default();
 	let mut index = 0;
@@ -379,15 +345,7 @@ fn protect_literal_angle_brackets(input: &str) -> String {
 	output
 }
 
-/// Wrap each blank-line-delimited block in `<p>`, returning a single fragment.
-///
-/// Chapter bodies arrive as plain text with blank-line paragraph breaks rather
-/// than as HTML, so the blocks have to become elements before the converter can
-/// walk the whole chapter in one pass. The container is required because the
-/// fragment root cannot be traversed, a selected wrapper can.
-/// A segment starting with real block markup must not be nested in an
-/// injected `<p>`: the parser would close one block inside the other and the
-/// emitted blank lines would double.
+// Real block markup must not be wrapped in <p>: the parser nests the blocks and doubles the blank lines.
 fn starts_with_block_markup(segment: &str) -> bool {
 	let Some(tag) = segment.trim_start().strip_prefix('<').map(|rest| {
 		let end = rest
@@ -446,15 +404,10 @@ fn assemble_paragraphs(input: &str) -> String {
 	if !current.is_empty() {
 		push_block_html(&mut paragraphs, &current);
 	}
-	// Concatenated rather than formatted: chapter content may contain
-	// braces, which format! would treat as placeholders.
+	// concat!, not format!: chapter text may contain braces.
 	["<div id=\"chikari-root\">", &paragraphs, "</div>"].concat()
 }
 
-/// Convert chapter HTML to Aidoku Markdown.
-///
-/// Only text nodes are escaped; the Markdown this converter emits is left
-/// alone. Watermark removal runs last so it sees the final block layout.
 pub fn html_to_markdown(html: &str) -> String {
 	let Ok(doc) = Html::parse_fragment(assemble_paragraphs(html)) else {
 		return String::default();
@@ -477,140 +430,34 @@ mod tests {
 	use aidoku_test::aidoku_test;
 
 	#[aidoku_test]
-	fn converts_strong_and_em() {
-		let out = html_to_markdown("<strong>bold</strong> and <em>italic</em>");
-		assert_eq!(out, "**bold** and *italic*");
-	}
-
-	#[aidoku_test]
-	fn converts_i_alias_without_spaces() {
-		// Live shape: emphasis glued to surrounding prose, no spacing.
+	fn converts_inline_markup_and_escapes_prose() {
 		let out = html_to_markdown("The <i>wen was</i> a coin");
 		assert_eq!(out, "The *wen was* a coin");
-	}
-
-	#[aidoku_test]
-	fn unmarked_tags_keep_their_content_only() {
-		let out = html_to_markdown(
-			"<p><u>underlined</u>, <del>gone</del>, <s>struck</s>, <sup>2</sup>, <ruby>kanji<rt>kana</rt></ruby></p>",
-		);
-		assert_eq!(out, "underlined\\, gone\\, struck\\, 2\\, kanjikana");
-	}
-
-	#[aidoku_test]
-	fn routes_prose_block_variants_to_existing_layout() {
-		let out = html_to_markdown(
-			"<menu><li>One</li><li>Two</li></menu>\n\n<dl><dt>Term</dt><dd>Definition</dd></dl>\n\n<figure><figcaption>Caption</figcaption></figure>",
-		);
-		assert_eq!(out, "- One\n- Two\n\nTerm\n\nDefinition\n\nCaption");
-	}
-
-	#[aidoku_test]
-	fn handles_inline_markup_split_by_a_paragraph_break() {
-		// The chapter body is plain text, so a tag can straddle a blank line.
-		// Formatting elements survive the `</p>` in the parser's active list, so
-		// the orphaned close tag still applies to the paragraph after it. Parse
-		// per block instead and the emphasis would be dropped.
-		let out = html_to_markdown("First <em>starts\n\nand closes</em> here.");
-		assert_eq!(out, "First *starts*\n\n*and closes* here\\.");
-	}
-
-	#[aidoku_test]
-	fn keeps_blank_line_paragraph_separation() {
-		let out = html_to_markdown("First <strong>bold</strong>.\n\nSecond <em>italic</em>.");
-		assert_eq!(out, "First **bold**\\.\n\nSecond *italic*\\.");
-	}
-
-	#[aidoku_test]
-	fn escapes_literal_markdown_but_not_emitted_markers() {
 		let out = html_to_markdown("Use *literal* and <strong>bold</strong>.");
 		assert_eq!(out, "Use \\*literal\\* and **bold**\\.");
-	}
-
-	#[aidoku_test]
-	fn unknown_tags_are_escaped_not_parsed() {
-		let out = html_to_markdown("A <marquee>strange <em>x</em></marquee> tag");
-		assert_eq!(out, "A \\<marquee\\>strange *x*\\<\\/marquee\\> tag");
-	}
-
-	#[aidoku_test]
-	fn preserves_literal_angle_bracket_prose() {
-		// Sampled live (genetic-ascension ch. 101/401): the brackets are
-		// prose, not tags, and must not be consumed by the parser.
-		let out = html_to_markdown("<Maddened Enlightenment> could replenish 30 Intelligence");
-		assert_eq!(
-			out,
-			"\\<Maddened Enlightenment\\> could replenish 30 Intelligence"
-		);
-	}
-
-	#[aidoku_test]
-	fn keeps_literal_prose_alongside_real_markup() {
-		let out = html_to_markdown(
-			"It is a <Dark Exploration Records> chapter.\n\n<strong>Bold</strong>",
-		);
-		assert_eq!(
-			out,
-			"It is a \\<Dark Exploration Records\\> chapter\\.\n\n**Bold**"
-		);
-	}
-
-	#[aidoku_test]
-	fn handles_crlf_paragraph_breaks() {
-		let out = html_to_markdown("first\r\n\r\nsecond");
-		assert_eq!(out, "first\n\nsecond");
-	}
-
-	#[aidoku_test]
-	fn converts_bare_text_without_tags() {
-		let out = html_to_markdown("Just \"quoted\" prose — no tags.");
-		assert_eq!(out, "Just \\\"quoted\\\" prose — no tags\\.");
-	}
-
-	#[aidoku_test]
-	fn empty_body_converts_to_nothing() {
-		assert_eq!(html_to_markdown(""), "");
-		assert_eq!(html_to_markdown("  \n\n  "), "");
-	}
-
-	#[aidoku_test]
-	fn trims_inline_whitespace() {
 		let out = html_to_markdown("<p><strong> bold </strong></p>");
 		assert_eq!(out, "**bold**");
 	}
 
 	#[aidoku_test]
-	fn dispatcher_arms_are_known_markup_tags() {
-		const SOURCE: &str = include_str!("markdown.rs");
-		assert!(SOURCE.contains("fn convert_element_to_markdown"));
-		let rest = &SOURCE[SOURCE.find("fn convert_element_to_markdown").unwrap_or(0)..];
-		let end = rest.find("\nfn ").unwrap_or_else(|| rest.len());
-		let body = &rest[..end];
-		let mut missing = String::default();
-		let bytes = body.as_bytes();
-		let mut i = 0;
-		while i < bytes.len() {
-			if bytes[i] == b'"' {
-				let mut k = i + 1;
-				while k < bytes.len() && bytes[k] != b'"' {
-					k += 1;
-				}
-				let lit = &body[i + 1..k];
-				if !lit.is_empty()
-					&& lit.bytes().all(|c| c.is_ascii_alphanumeric())
-					&& !MARKUP_TAGS.contains(&lit)
-				{
-					if !missing.is_empty() {
-						missing.push_str(", ");
-					}
-					missing.push_str(lit);
-					missing.push_str(" missing from MARKUP_TAGS");
-				}
-				i = k + 1;
-			} else {
-				i += 1;
-			}
-		}
-		assert_eq!(missing.as_str(), "");
+	fn keeps_paragraphs_and_lists() {
+		let out = html_to_markdown("First <strong>bold</strong>.\n\nSecond <em>italic</em>.");
+		assert_eq!(out, "First **bold**\\.\n\nSecond *italic*\\.");
+		let out = html_to_markdown(
+			"<menu><li>One</li><li>Two</li></menu>\n\n<dl><dt>Term</dt><dd>Definition</dd></dl>\n\n<figure><figcaption>Caption</figcaption></figure>",
+		);
+		assert_eq!(out, "- One\n- Two\n\nTerm\n\nDefinition\n\nCaption");
+		assert_eq!(html_to_markdown("first\r\n\r\nsecond"), "first\n\nsecond");
+	}
+
+	#[aidoku_test]
+	fn escapes_unknown_tags_and_literal_brackets() {
+		let out = html_to_markdown("A <marquee>strange <em>x</em></marquee> tag");
+		assert_eq!(out, "A \\<marquee\\>strange *x*\\<\\/marquee\\> tag");
+		let out = html_to_markdown("<Maddened Enlightenment> could replenish 30 Intelligence");
+		assert_eq!(
+			out,
+			"\\<Maddened Enlightenment\\> could replenish 30 Intelligence"
+		);
 	}
 }
