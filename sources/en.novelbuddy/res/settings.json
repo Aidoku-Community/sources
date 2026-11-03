@@ -45,6 +45,7 @@
 					"Supernatural",
 					"System",
 					"Tragedy",
+					"Urban",
 					"Urban Life",
 					"Wuxia",
 					"Xianxia",
@@ -90,6 +91,7 @@
 					"supernatural",
 					"system",
 					"tragedy",
+					"urban",
 					"urban-life",
 					"wuxia",
 					"xianxia",
@@ -121,6 +123,25 @@
 		"type": "group",
 		"title": "Experimental",
 		"items": [
+			{
+				"type": "select",
+				"key": "mtl",
+				"title": "MTL",
+				"values": [
+					"all",
+					"only",
+					"hidden"
+				],
+				"titles": [
+					"All",
+					"MTL Only",
+					"No MTL"
+				],
+				"default": "all",
+				"refreshes": [
+					"content"
+				]
+			},
 			{
 				"type": "switch",
 				"key": "hideWatermark",
