@@ -44,7 +44,7 @@
 				"refreshes": ["content"]
 			}
 		],
-		"footer": "Used when no filter is applied. Types and content ratings are combined; empty means all."
+		"footer": "Each selection applies when its matching filter is absent. Empty means all."
 	},
 	{
 		"type": "group",

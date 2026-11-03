@@ -338,7 +338,7 @@ mod tests {
 			.expect("search failed");
 		assert!(
 			result.entries.iter().any(|m| m.key == "city-of-witches"),
-			"expected an erotica-tier title in default results"
+			"expected the erotica-tier title in default results (update the slug if the catalog dropped it)"
 		);
 	}
 
