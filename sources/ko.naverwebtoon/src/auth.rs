@@ -61,21 +61,21 @@ pub fn handle_login(cookies: HashMap<String, String>) -> Result<bool> {
 #[allow(dead_code)]
 pub fn is_logged_in() -> bool {
 	// 1. Check manual cookie first
-	if let Some(manual) = defaults_get::<String>(MANUAL_COOKIE_KEY) {
-		if !manual.trim().is_empty() && (manual.contains("NID_AUT") || manual.contains("NID_SES")) {
-			return true;
-		}
+	if let Some(manual) = defaults_get::<String>(MANUAL_COOKIE_KEY)
+		&& !manual.trim().is_empty()
+		&& (manual.contains("NID_AUT") || manual.contains("NID_SES"))
+	{
+		return true;
 	}
 
 	// 2. Check cached cookie string
-	if let Some(cookie_str) = defaults_get::<String>(COOKIE_KEY) {
-		if !cookie_str.trim().is_empty()
-			&& (cookie_str.contains("NID_AUT")
-				|| cookie_str.contains("NID_SES")
-				|| cookie_str.contains("NEO_SES"))
-		{
-			return true;
-		}
+	if let Some(cookie_str) = defaults_get::<String>(COOKIE_KEY)
+		&& !cookie_str.trim().is_empty()
+		&& (cookie_str.contains("NID_AUT")
+			|| cookie_str.contains("NID_SES")
+			|| cookie_str.contains("NEO_SES"))
+	{
+		return true;
 	}
 
 	// 3. Check web login defaults map

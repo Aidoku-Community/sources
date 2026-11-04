@@ -225,10 +225,10 @@ pub fn parse_search_manga_list(
 			FilterValue::Sort { id, index, .. } if id == "sort" => {
 				sort_index = *index;
 			}
-			FilterValue::Text { id, value } if id == "author" && !value.is_empty() => {
-				if search_query.is_none() {
-					search_query = Some(value.clone());
-				}
+			FilterValue::Text { id, value }
+				if id == "author" && !value.is_empty() && search_query.is_none() =>
+			{
+				search_query = Some(value.clone());
 			}
 			_ => {}
 		}
