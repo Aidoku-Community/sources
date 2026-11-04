@@ -1,8 +1,7 @@
 use aidoku::{
-	Chapter, ContentRating, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue,
-	HomeLayout, Link, Listing, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result,
-	Viewer,
-	alloc::{String, Vec, format, vec},
+	Chapter, ContentRating, DeepLinkResult, FilterValue, Manga, MangaPageResult, MangaStatus, Page,
+	PageContent, Result, Viewer,
+	alloc::{String, Vec, format, string::ToString, vec},
 	bail,
 	helpers::uri::encode_uri_component,
 	imports::{net::Request, std::send_partial_result},
@@ -20,8 +19,6 @@ struct ApiArticleInfo {
 	#[serde(rename = "thumbnailUrl")]
 	thumbnail_url: Option<String>,
 	synopsis: Option<String>,
-	#[serde(rename = "displayAuthor")]
-	display_author: Option<String>,
 	#[serde(rename = "communityArtists")]
 	community_artists: Option<Vec<ApiCommunityArtist>>,
 	finished: Option<bool>,
@@ -41,65 +38,124 @@ struct ApiTagInfo {
 	tag_name: Option<String>,
 }
 
-/// Helper to parse manga card elements from list / weekday / finish pages
-fn parse_manga_cards(html: &aidoku::imports::html::Document) -> Vec<Manga> {
+#[derive(Deserialize)]
+struct ApiSearchResponse {
+	#[serde(rename = "searchList")]
+	search_list: Option<Vec<ApiSearchItem>>,
+	#[serde(rename = "pageInfo")]
+	page_info: Option<ApiSearchPageInfo>,
+}
+
+#[derive(Deserialize)]
+struct ApiSearchPageInfo {
+	#[serde(rename = "nextPage")]
+	next_page: Option<i32>,
+}
+
+#[derive(Deserialize)]
+struct ApiSearchItem {
+	#[serde(rename = "titleId")]
+	title_id: i64,
+	#[serde(rename = "titleName")]
+	title_name: Option<String>,
+	#[serde(rename = "thumbnailUrl")]
+	thumbnail_url: Option<String>,
+	#[serde(rename = "displayAuthor")]
+	display_author: Option<String>,
+	#[serde(rename = "webtoonLevelCode")]
+	webtoon_level_code: Option<String>,
+	synopsis: Option<String>,
+}
+
+/// Helper to parse manga card elements from specific list selectors
+fn parse_manga_items(html: &aidoku::imports::html::Document, selector: &str) -> Vec<Manga> {
 	let mut mangas: Vec<Manga> = Vec::new();
-	let selector = "a[href*=\"/webtoon/list?titleId=\"], a[href*=\"/bestChallenge/list?titleId=\"]";
-	if let Some(items) = html.select(selector) {
-		for node in items {
-			let href = node.attr("href").unwrap_or_default();
-			let Some(id) = get_title_id(&href) else {
-				continue;
-			};
+	let Some(items) = html.select(selector) else {
+		return mangas;
+	};
 
-			let cover = node.select_first("img").and_then(|e| e.attr("src"));
+	for node in items {
+		// Skip advertisement banners
+		if node.has_class("banner") {
+			continue;
+		}
 
-			// If entry already exists, upgrade low-res cover (IMAG19)
-			if let Some(existing) = mangas.iter_mut().find(|m| m.key == id) {
-				if let Some(ref c) = cover
-					&& !c.contains("IMAG19")
-				{
-					existing.cover = cover;
-				}
-				continue;
+		let href = if let Some(link) = node.select_first("a[href*=\"titleId=\"]") {
+			link.attr("href").unwrap_or_default()
+		} else if let Some(h) = node.attr("href").filter(|h| h.contains("titleId=")) {
+			h
+		} else {
+			continue;
+		};
+
+		let Some(id) = get_title_id(&href) else {
+			continue;
+		};
+
+		let cover = node.select_first("img").and_then(|e| e.attr("src"));
+
+		// If entry already exists, upgrade low-res cover (IMAG19) and preserve ranking order
+		if let Some(existing) = mangas.iter_mut().find(|m| m.key == id) {
+			if let Some(ref c) = cover
+				&& !c.contains("IMAG19")
+			{
+				existing.cover = cover;
 			}
+			continue;
+		}
 
-			let mut title = node
-				.select_first("strong")
+		let mut title = node
+			.select_first(".title_text")
+			.and_then(|e| e.text())
+			.unwrap_or_default();
+		if title.trim().is_empty() {
+			title = node
+				.select_first("strong, .title")
 				.and_then(|e| e.text())
 				.unwrap_or_default();
-			if title.trim().is_empty() {
-				title = node
-					.select_first(".title")
-					.and_then(|e| e.text())
-					.unwrap_or_default();
-			}
-			let title = String::from(title.trim());
-
-			let full_url = if href.starts_with("http") {
-				href
-			} else {
-				format!("{BASE_URL}{href}")
-			};
-
-			mangas.push(Manga {
-				key: id,
-				cover,
-				title,
-				url: Some(full_url),
-				viewer: Viewer::Webtoon,
-				..Default::default()
-			});
 		}
+		let title = String::from(title.trim());
+		if title.is_empty() {
+			continue;
+		}
+
+		let authors = node
+			.select_first(".author")
+			.and_then(|e| e.text())
+			.map(|a| split_authors(&a));
+		let artists = authors
+			.as_ref()
+			.map(|list| list.iter().map(|s| String::from(s.as_str())).collect());
+
+		let full_url = if href.starts_with("http") {
+			href
+		} else {
+			format!("{BASE_URL}{href}")
+		};
+
+		mangas.push(Manga {
+			key: id,
+			cover,
+			title,
+			authors,
+			artists,
+			url: Some(full_url),
+			viewer: Viewer::Webtoon,
+			..Default::default()
+		});
 	}
 	mangas
 }
 
-/// Helper to parse weekday list (mon, tue, wed, thu, fri, sat, sun)
-fn parse_weekday_list(week: &str) -> Result<MangaPageResult> {
-	let url = format!("{BASE_URL}/webtoon/weekday?week={week}");
+/// Helper to parse weekday list with sorting
+fn parse_weekday_list(week: &str, sort: &str) -> Result<MangaPageResult> {
+	let url = if week.is_empty() {
+		format!("{BASE_URL}/webtoon/weekday?sort={sort}")
+	} else {
+		format!("{BASE_URL}/webtoon/weekday?week={week}&sort={sort}")
+	};
 	let html = request(&url)?.html()?;
-	let entries = parse_manga_cards(&html);
+	let entries = parse_manga_items(&html, "ul.list_toon > li.item");
 
 	Ok(MangaPageResult {
 		entries,
@@ -109,9 +165,9 @@ fn parse_weekday_list(week: &str) -> Result<MangaPageResult> {
 
 /// Helper to parse finished webtoons with pagination
 fn parse_finish_list(page: i32, sort: &str) -> Result<MangaPageResult> {
-	let url = format!("{BASE_URL}/webtoon/finish?page={page}&sort={sort}");
+	let url = format!("{BASE_URL}/webtoon/finish?sort={sort}&genre=&page={page}");
 	let html = request(&url)?.html()?;
-	let entries = parse_manga_cards(&html);
+	let entries = parse_manga_items(&html, "ul.list_toon > li.item");
 
 	let next_btn = html.select_first("a.btn_next");
 	let has_next_page = if let Some(btn) = next_btn {
@@ -128,14 +184,10 @@ fn parse_finish_list(page: i32, sort: &str) -> Result<MangaPageResult> {
 }
 
 /// Helper to parse Best Challenge series with pagination
-fn parse_best_challenge_list(page: i32) -> Result<MangaPageResult> {
-	if !show_best_challenge() {
-		return Ok(MangaPageResult::default());
-	}
-
-	let url = format!("{BASE_URL}/bestChallenge/genre?genre=ALL&sort=VIEW&page={page}");
+fn parse_best_challenge_list(page: i32, sort: &str) -> Result<MangaPageResult> {
+	let url = format!("{BASE_URL}/bestChallenge/genre?sort={sort}&genre=&page={page}");
 	let html = request(&url)?.html()?;
-	let entries = parse_manga_cards(&html);
+	let entries = parse_manga_items(&html, "ul.list_toon_wide > li.item");
 
 	let next_btn = html.select_first("a.btn_next");
 	let has_next_page = if let Some(btn) = next_btn {
@@ -151,38 +203,114 @@ fn parse_best_challenge_list(page: i32) -> Result<MangaPageResult> {
 	})
 }
 
-/// Search manga by query or fallback to default
+/// Search manga by query or browse with filters
 pub fn parse_search_manga_list(
 	query: Option<String>,
 	page: i32,
 	filters: Vec<FilterValue>,
 ) -> Result<MangaPageResult> {
-	let mut search_type = if show_best_challenge() {
-		"ALL"
-	} else {
-		"WEBTOON"
-	};
+	let mut search_type = "ALL";
+	let mut weekday = "";
+	let mut sort_index: i32 = 0;
+	let mut search_query = query;
 
 	for filter in &filters {
-		if let FilterValue::Select { id, value } = filter
-			&& id == "searchType"
-			&& !value.is_empty()
-		{
-			search_type = value.as_str();
+		match filter {
+			FilterValue::Select { id, value } if id == "searchType" && !value.is_empty() => {
+				search_type = value.as_str();
+			}
+			FilterValue::Select { id, value } if id == "weekday" => {
+				weekday = value.as_str();
+			}
+			FilterValue::Sort { id, index, .. } if id == "sort" => {
+				sort_index = *index;
+			}
+			FilterValue::Text { id, value } if id == "author" && !value.is_empty() => {
+				if search_query.is_none() {
+					search_query = Some(value.clone());
+				}
+			}
+			_ => {}
 		}
 	}
 
-	if let Some(ref q) = query {
+	let webtoon_sort = match sort_index {
+		0 => "ALL_READER",
+		1 => "FEMALE_READER",
+		2 => "MALE_READER",
+		3 => "HIT",
+		4 => "UPDATE",
+		_ => "ALL_READER",
+	};
+
+	let best_challenge_sort = match sort_index {
+		4 => "UPDATE",
+		5 => "STAR",
+		_ => "HIT",
+	};
+
+	if let Some(ref q) = search_query {
 		let trimmed = q.trim();
 		if !trimmed.is_empty() {
 			let encoded = encode_uri_component(trimmed);
+
+			// Try official JSON search API first for fast pagination
+			let api_url = if search_type == "BEST_CHALLENGE" {
+				format!(
+					"https://comic.naver.com/api/search/bestChallenge?keyword={encoded}&page={page}"
+				)
+			} else {
+				format!("https://comic.naver.com/api/search/webtoon?keyword={encoded}&page={page}")
+			};
+
+			if let Ok(resp) = request(&api_url).and_then(|r| r.json_owned::<ApiSearchResponse>()) {
+				let has_next_page = resp.page_info.and_then(|p| p.next_page).unwrap_or(0) != 0;
+				let entries = resp
+					.search_list
+					.unwrap_or_default()
+					.into_iter()
+					.map(|item| {
+						let is_best = item.webtoon_level_code.as_deref() == Some("BEST_CHALLENGE")
+							|| search_type == "BEST_CHALLENGE";
+						let key = if is_best {
+							format!("{}-best", item.title_id)
+						} else {
+							item.title_id.to_string()
+						};
+						let url = Some(get_manga_url(&key));
+						let authors = item.display_author.map(|a| split_authors(&a));
+						let artists = authors
+							.as_ref()
+							.map(|list| list.iter().map(|s| String::from(s.as_str())).collect());
+
+						Manga {
+							key,
+							title: item.title_name.unwrap_or_default(),
+							cover: item.thumbnail_url,
+							url,
+							description: item.synopsis,
+							authors,
+							artists,
+							viewer: Viewer::Webtoon,
+							..Default::default()
+						}
+					})
+					.collect();
+
+				return Ok(MangaPageResult {
+					entries,
+					has_next_page,
+				});
+			}
+
+			// HTML search fallback
 			let url = if search_type == "ALL" {
 				format!("{BASE_URL}/search/result?keyword={encoded}")
 			} else {
 				format!("{BASE_URL}/search/result?keyword={encoded}&searchType={search_type}")
 			};
 			let html = request(&url)?.html()?;
-			let entries = parse_manga_cards(&html);
+			let entries = parse_manga_items(&html, "ul.toon_lst > li");
 
 			return Ok(MangaPageResult {
 				entries,
@@ -191,21 +319,19 @@ pub fn parse_search_manga_list(
 		}
 	}
 
+	// Filter-based browse (no search query)
 	if search_type == "BEST_CHALLENGE" {
-		parse_best_challenge_list(page)
+		parse_best_challenge_list(page, best_challenge_sort)
+	} else if weekday == "finish" {
+		parse_finish_list(page, webtoon_sort)
 	} else {
-		parse_weekday_list("mon")
-	}
-}
-
-/// Handles all listings registered in source.json and DynamicListings
-pub fn parse_manga_listing(listing: Listing, page: i32) -> Result<MangaPageResult> {
-	match listing.id.as_str() {
-		"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun" => parse_weekday_list(&listing.id),
-		"completed" => parse_finish_list(page, "UPDATE"),
-		"popular" => parse_finish_list(page, "ALL_READER"),
-		"best" => parse_best_challenge_list(page),
-		_ => parse_weekday_list("mon"),
+		if page > 1 {
+			return Ok(MangaPageResult {
+				entries: Vec::new(),
+				has_next_page: false,
+			});
+		}
+		parse_weekday_list(weekday, webtoon_sort)
 	}
 }
 
@@ -238,17 +364,7 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 			if let Some(desc) = info.synopsis {
 				manga.description = Some(desc);
 			}
-			if let Some(author) = info.display_author {
-				let authors: Vec<String> = author
-					.split(['/', ','])
-					.map(|s| String::from(s.trim()))
-					.filter(|s| !s.is_empty())
-					.collect();
-				if !authors.is_empty() {
-					manga.artists = Some(authors.clone());
-					manga.authors = Some(authors);
-				}
-			} else if let Some(artists) = info.community_artists {
+			if let Some(artists) = info.community_artists {
 				let authors: Vec<String> = artists
 					.into_iter()
 					.filter_map(|a| a.name)
@@ -256,7 +372,8 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 					.filter(|s| !s.is_empty())
 					.collect();
 				if !authors.is_empty() {
-					manga.artists = Some(authors.clone());
+					let artists = authors.iter().map(|s| String::from(s.as_str())).collect();
+					manga.artists = Some(artists);
 					manga.authors = Some(authors);
 				}
 			}
@@ -325,13 +442,10 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 		.select_first(".author, .info_area .author, .writer, .info .author_area")
 		.and_then(|e| e.text());
 	if let Some(a) = author {
-		let authors: Vec<String> = a
-			.split(['/', ','])
-			.map(|s| String::from(s.trim()))
-			.filter(|s| !s.is_empty())
-			.collect();
+		let authors = split_authors(&a);
 		if !authors.is_empty() {
-			manga.artists = Some(authors.clone());
+			let artists = authors.iter().map(|s| String::from(s.as_str())).collect();
+			manga.artists = Some(artists);
 			manga.authors = Some(authors);
 		}
 	}
@@ -413,11 +527,7 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 			|| html.select_first("input[name='dynamicKey']").is_some();
 
 		if is_login_page {
-			if !crate::auth::is_logged_in() {
-				bail!("로그인이 필요한 작품입니다. 소스 설정에서 네이버 로그인을 완료해주세요.");
-			} else {
-				bail!("네이버 로그인 세션이 만료되었습니다. 소스 설정에서 다시 로그인해주세요.");
-			}
+			bail!("로그인이 필요한 작품입니다. 소스 설정에서 네이버 로그인을 완료해주세요.");
 		}
 
 		let ep_items = match html.select("ul.section_episode_list li.item") {
@@ -456,7 +566,10 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 					.and_then(|e| e.text())
 					.map(|t| t.contains("유료"))
 					.unwrap_or(false)
-				|| (href == "#" && node.select_first("em.cookie_txt").is_some());
+				|| node
+					.select_first("em.cookie_txt, .cookie_txt, .ico_cookie")
+					.is_some() || href == "#"
+				|| href.is_empty();
 
 			let mut raw_title = node
 				.select_first(".name")
@@ -528,7 +641,7 @@ pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
 		}
 
 		page += 1;
-		if page > 1000 {
+		if page > 500 {
 			break;
 		}
 	}
@@ -570,10 +683,16 @@ pub fn parse_page_list(manga_id: &str, chapter_id: &str) -> Result<Vec<Page>> {
 		bail!("로그인이 필요한 작품입니다. 소스 설정에서 네이버 로그인을 완료해주세요.");
 	}
 
-	let mut pages: Vec<Page> = Vec::new();
+	let clean_id = manga_id.strip_suffix("-best").unwrap_or(manga_id);
+	let mut candidate_urls: Vec<String> = Vec::new();
 	let mut img_nodes = html.select("img.toon_image");
 	if img_nodes.as_ref().is_none_or(|l| l.is_empty()) {
-		img_nodes = html.select("div.wt_viewer img, #toon_layer img, div.toon_view_area img");
+		img_nodes = html.select("img.swiper-lazy");
+	}
+	if img_nodes.as_ref().is_none_or(|l| l.is_empty()) {
+		img_nodes = html.select(
+			"div.cut_flick_wrap img, div#mflick img, div.wt_viewer img, #toon_layer img, div.toon_view_area img, div.viewer_img img, .swiper-slide img",
+		);
 	}
 
 	if let Some(items) = img_nodes {
@@ -586,16 +705,40 @@ pub fn parse_page_list(manga_id: &str, chapter_id: &str) -> Result<Vec<Page>> {
 				|| img_url.contains("bg_transparency.png")
 				|| img_url.contains("agerate")
 				|| img_url.contains("age_")
+				|| img_url.contains("kw-wcommunity-phinf")
+				|| img_url.contains("naverwebtoon-phinf")
+				|| img_url.contains("thumbnail")
+				|| img_url.contains("static/")
+				|| img_url.contains("upload_")
+				|| img_url.contains("p100")
 			{
 				continue;
 			}
 
-			pages.push(Page {
-				content: PageContent::url(img_url),
-				..Default::default()
-			});
+			// Legitimate comic cut images must come from comic image CDN
+			if !img_url.contains("image-comic.pstatic.net") {
+				continue;
+			}
+
+			if candidate_urls.iter().any(|u| u == &img_url) {
+				continue;
+			}
+
+			candidate_urls.push(img_url);
 		}
 	}
+
+	let episode_path = format!("/{clean_id}/{chapter_id}/");
+	let has_path_matches = candidate_urls.iter().any(|u| u.contains(&episode_path));
+
+	let pages: Vec<Page> = candidate_urls
+		.into_iter()
+		.filter(|u| !has_path_matches || u.contains(&episode_path))
+		.map(|u| Page {
+			content: PageContent::url(u),
+			..Default::default()
+		})
+		.collect();
 
 	if pages.is_empty() {
 		let raw_html = html
@@ -605,6 +748,7 @@ pub fn parse_page_list(manga_id: &str, chapter_id: &str) -> Result<Vec<Page>> {
 		if raw_html.contains("유료로 전환된 회차")
 			|| raw_html.contains("구매")
 			|| raw_html.contains("대여")
+			|| raw_html.contains("cookie_txt")
 		{
 			bail!("구매 또는 대여가 필요한 유료 회차입니다.");
 		}
@@ -614,7 +758,7 @@ pub fn parse_page_list(manga_id: &str, chapter_id: &str) -> Result<Vec<Page>> {
 	Ok(pages)
 }
 
-/// Handles image request modification (injected Referer + User-Agent + Cookie for trusted hosts)
+/// Handles image request modification (injected Referer + User-Agent)
 pub fn get_image_request(url: String) -> Result<Request> {
 	request(&url)
 }
@@ -632,70 +776,4 @@ pub fn parse_deep_link(url: &str) -> Result<Option<DeepLinkResult>> {
 	} else {
 		Ok(Some(DeepLinkResult::Manga { key: manga_key }))
 	}
-}
-
-/// Parses the home page layout (Today's Webtoons, Popular Completed, and Recent Completed)
-pub fn parse_home() -> Result<HomeLayout> {
-	let mut components = Vec::new();
-
-	// 1. 오늘의 웹툰 (Today's Webtoons from /webtoon/weekday)
-	let today_url = format!("{BASE_URL}/webtoon/weekday");
-	if let Ok(req) = request(&today_url)
-		&& let Ok(html) = req.html()
-	{
-		let today_entries: Vec<Link> = parse_manga_cards(&html)
-			.into_iter()
-			.map(Into::into)
-			.collect();
-		if !today_entries.is_empty() {
-			components.push(HomeComponent {
-				title: Some(String::from("오늘의 웹툰")),
-				subtitle: None,
-				value: HomeComponentValue::Scroller {
-					entries: today_entries,
-					listing: None,
-				},
-			});
-		}
-	}
-
-	// 2. 인기 완결작 (Popular Completed Webtoons)
-	if let Ok(pop_result) = parse_finish_list(1, "ALL_READER") {
-		let popular_entries: Vec<Link> = pop_result.entries.into_iter().map(Into::into).collect();
-		if !popular_entries.is_empty() {
-			components.push(HomeComponent {
-				title: Some(String::from("인기 완결작")),
-				subtitle: None,
-				value: HomeComponentValue::Scroller {
-					entries: popular_entries,
-					listing: Some(Listing {
-						id: String::from("popular"),
-						name: String::from("인기순"),
-						..Default::default()
-					}),
-				},
-			});
-		}
-	}
-
-	// 3. 최신 완결작 (Recently Updated Completed Webtoons)
-	if let Ok(upd_result) = parse_finish_list(1, "UPDATE") {
-		let update_entries: Vec<Link> = upd_result.entries.into_iter().map(Into::into).collect();
-		if !update_entries.is_empty() {
-			components.push(HomeComponent {
-				title: Some(String::from("최신 완결작")),
-				subtitle: None,
-				value: HomeComponentValue::Scroller {
-					entries: update_entries,
-					listing: Some(Listing {
-						id: String::from("update"),
-						name: String::from("업데이트순"),
-						..Default::default()
-					}),
-				},
-			});
-		}
-	}
-
-	Ok(HomeLayout { components })
 }

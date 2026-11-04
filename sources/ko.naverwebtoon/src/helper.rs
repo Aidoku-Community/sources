@@ -1,39 +1,34 @@
 use aidoku::{
-	alloc::{String, format},
-	imports::{defaults::defaults_get, error::Result, net::Request, std::parse_date},
+	alloc::{String, Vec, format},
+	imports::{error::Result, net::Request, std::parse_date},
 };
+
+use crate::auth;
 
 pub const BASE_URL: &str = "https://m.comic.naver.com";
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
-const TRUSTED_COOKIE_HOSTS: &[&str] = &["comic.naver.com", "m.comic.naver.com"];
-
-fn is_trusted_cookie_host(url: &str) -> bool {
-	let after_scheme = if let Some(stripped) = url.strip_prefix("https://") {
-		stripped
-	} else if let Some(stripped) = url.strip_prefix("http://") {
-		stripped
-	} else {
-		return false;
-	};
-	let host = after_scheme
-		.split(['/', '?', '#', ':'])
-		.next()
-		.unwrap_or("");
-	TRUSTED_COOKIE_HOSTS.contains(&host)
-}
-
-/// Request wrapper with User-Agent, Referer, and automatic Cookie injection for trusted hosts
+/// Request wrapper with User-Agent, Referer, Accept headers and optionally Cookie (when logged in).
 pub fn request(url: &str) -> Result<Request> {
 	let mut req = Request::get(url)?
 		.header("Referer", "https://comic.naver.com/")
 		.header("User-Agent", USER_AGENT);
-	if is_trusted_cookie_host(url)
-		&& let Some(cookie_str) = crate::auth::get_cookie_header()
-	{
-		req = req.header("Cookie", &cookie_str);
+
+	if url.contains("/api/") {
+		req = req.header("Accept", "application/json");
+	} else {
+		req = req.header(
+			"Accept",
+			"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+		);
 	}
+
+	// Inject Naver session cookies when the user is logged in
+	if let Some(cookie) = auth::get_cookie_header() {
+		req = req.header("Cookie", &cookie);
+	}
+
 	Ok(req)
 }
 
@@ -91,19 +86,18 @@ pub fn get_chapter_url(chapter_id: &str, manga_id: &str) -> String {
 fn extract_number_before(title: &str, marker: char) -> Option<f32> {
 	let idx = title.find(marker)?;
 	let before = &title[..idx];
-	let mut num_str = String::new();
-	for c in before.chars().rev() {
-		if c.is_ascii_digit() || c == '.' {
-			num_str.push(c);
-		} else if !num_str.is_empty() {
-			break;
-		}
-	}
-	if num_str.is_empty() {
-		return None;
-	}
-	let reversed: String = num_str.chars().rev().collect();
-	reversed.parse::<f32>().ok()
+	let end = before
+		.char_indices()
+		.rev()
+		.find(|(_, c)| c.is_ascii_digit())
+		.map(|(i, c)| i + c.len_utf8())?;
+	let start = before[..end]
+		.char_indices()
+		.rev()
+		.find(|(_, c)| !c.is_ascii_digit() && *c != '.')
+		.map(|(i, c)| i + c.len_utf8())
+		.unwrap_or(0);
+	before[start..end].parse::<f32>().ok()
 }
 
 /// Extracts numeric chapter value from title
@@ -111,7 +105,7 @@ pub fn extract_chapter_number(title: &str, fallback_no: f32) -> f32 {
 	extract_number_before(title, '화').unwrap_or(fallback_no)
 }
 
-/// Extracts season/volume value from title (e.g. "3부 235화" -> 3.0)
+/// Extracts season/volume value from title (e.g. extracts number before season/part marker -> 3.0)
 pub fn extract_volume_number(title: &str) -> Option<f32> {
 	extract_number_before(title, '부')
 }
@@ -126,7 +120,10 @@ pub fn parse_korean_date(date_str: &str) -> Option<i64> {
 	}
 }
 
-/// Check setting for best challenge
-pub fn show_best_challenge() -> bool {
-	defaults_get::<bool>("showBestChallenge").unwrap_or(true)
+/// Splits author/artist string by delimiters ('/' or ',') and trims whitespace
+pub fn split_authors(raw: &str) -> Vec<String> {
+	raw.split(['/', ','])
+		.map(|s| String::from(s.trim()))
+		.filter(|s| !s.is_empty())
+		.collect()
 }

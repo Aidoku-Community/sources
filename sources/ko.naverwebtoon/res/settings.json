@@ -1,32 +1,27 @@
 [
-	{
-		"type": "group",
-		"title": "설정",
-		"items": [
-			{
-				"type": "switch",
-				"key": "showBestChallenge",
-				"title": "베스트도전 표시",
-				"subtitle": "베스트도전 연재작을 탐색에 포함합니다",
-				"default": true,
-				"refreshes": ["listings"]
-			}
-		]
-	},
-	{
-		"type": "group",
-		"title": "네이버 계정",
-		"items": [
-			{
-				"type": "login",
-				"key": "login",
-				"notification": "login",
-				"method": "web",
-				"title": "네이버 로그인",
-				"logoutTitle": "로그아웃",
-				"url": "https://nid.naver.com/nidlogin.login?url=https%3A%2F%2Fm.comic.naver.com",
-				"refreshes": ["content"]
-			}
-		]
-	}
+  {
+    "type": "group",
+    "title": "네이버 계정",
+    "footer": "웹뷰 로그인 또는 직접 추출한 쿠키를 붙여넣어 로그인할 수 있습니다.",
+    "items": [
+      {
+        "type": "login",
+        "key": "login",
+        "notification": "login",
+        "method": "web",
+        "title": "네이버 로그인 (웹뷰)",
+        "logoutTitle": "로그아웃",
+        "url": "https://nid.naver.com/nidlogin.login",
+        "clearCookiesOnLogOut": true,
+        "refreshes": ["content"]
+      },
+      {
+        "type": "text",
+        "key": "manual_cookie",
+        "title": "수동 쿠키 입력",
+        "placeholder": "NID_AUT=...; NID_SES=...",
+        "refreshes": ["content"]
+      }
+    ]
+  }
 ]
