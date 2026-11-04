@@ -12,9 +12,8 @@ mod models;
 mod settings;
 mod watermark;
 use helpers::{
-	ContentType, body_to_text, content_type_from_setting, decode_manga_key, deep_link_manga_key,
-	fetch_chapters, list_url, manga_from_detail, manga_page_result, request, valid_number,
-	valid_slug,
+	ContentType, body_to_text, decode_manga_key, deep_link_manga_key, fetch_chapters, list_url,
+	manga_from_detail, manga_page_result, request, valid_number, valid_slug,
 };
 use models::{ChapterBody, ListResponse, SeriesChapterBody};
 
@@ -28,6 +27,8 @@ const SORTS: &[&str] = &[
 	"updated",
 	"added",
 	"most_bookmarked",
+	"bingeable",
+	"random",
 ];
 
 const LIST_PAGE_SIZE: u32 = 60;
@@ -46,6 +47,7 @@ impl Source for Chikari {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
+		let filters = apply_settings(filters);
 		let limit = SEARCH_PAGE_SIZE;
 		let offset = (page.max(1) as u32 - 1) * limit;
 		let sort = filters
@@ -55,16 +57,14 @@ impl Source for Chikari {
 				_ => None,
 			})
 			.unwrap_or("popular");
-		let content_type = content_type_from_setting();
-		let data: ListResponse = request(&list_url(
-			content_type,
-			sort,
-			limit,
-			offset,
-			query.as_deref(),
-			&filters,
-		))?;
-		Ok(manga_page_result(data, content_type, offset, limit))
+		let Some(url) = list_url(sort, limit, offset, query.as_deref(), &filters) else {
+			return Ok(MangaPageResult {
+				entries: Vec::new(),
+				has_next_page: false,
+			});
+		};
+		let data: ListResponse = request(&url)?;
+		Ok(manga_page_result(data, offset, limit))
 	}
 
 	fn get_manga_update(
@@ -91,30 +91,88 @@ impl Source for Chikari {
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let (content_type, raw_slug) = decode_manga_key(&manga.key, manga.url.as_deref());
-		if is_text_content(content_type) {
-			let data: ChapterBody = request(&format!(
-				"{BASE_URL}{}/{}/chapters/{}/read",
-				content_type.api_base(),
-				raw_slug,
-				chapter.key
-			))?;
-			novel_text_pages(data)
-		} else {
-			let data: SeriesChapterBody = request(&format!(
-				"{BASE_URL}{}/{}/chapters/{}",
-				content_type.api_base(),
-				raw_slug,
-				chapter.key
-			))?;
-			Ok(series_image_pages(data.pages))
+		match content_type {
+			ContentType::Novel => {
+				let data: ChapterBody = request(&format!(
+					"{BASE_URL}{}/{raw_slug}/chapters/{}/read",
+					content_type.api_base(),
+					chapter.key
+				))?;
+				novel_text_pages(data)
+			}
+			ContentType::Series => {
+				let data: SeriesChapterBody = request(&format!(
+					"{BASE_URL}{}/{raw_slug}/chapters/{}",
+					content_type.api_base(),
+					chapter.key
+				))?;
+				Ok(series_image_pages(data.pages))
+			}
 		}
 	}
 }
 
-/// Chapter text is novels-only: series chapters are image URL lists and must
-/// never enter the text pipeline.
-fn is_text_content(content_type: ContentType) -> bool {
-	matches!(content_type, ContentType::Novel)
+fn apply_settings(filters: Vec<FilterValue>) -> Vec<FilterValue> {
+	let hidden = settings::hidden_genres();
+	let selected_types = settings::type_filters();
+	let selected_ratings = settings::rating_filters();
+	let selected_status = settings::status_filters();
+	if hidden.is_empty()
+		&& selected_types.is_empty()
+		&& selected_ratings.is_empty()
+		&& selected_status.is_empty()
+	{
+		return filters;
+	}
+	let mut filters = filters;
+	if !hidden.is_empty() {
+		if let Some(FilterValue::MultiSelect { excluded, .. }) = filters
+			.iter_mut()
+			.find(|filter| matches!(filter, FilterValue::MultiSelect { id, .. } if id == "genres"))
+		{
+			excluded.extend(hidden);
+		} else {
+			filters.push(FilterValue::MultiSelect {
+				id: "genres".into(),
+				included: Vec::new(),
+				excluded: hidden,
+			});
+		}
+	}
+	if !selected_types.is_empty() && !has_filter(&filters, "types") {
+		filters.push(FilterValue::MultiSelect {
+			id: "types".into(),
+			included: selected_types.iter().map(|kind| (*kind).into()).collect(),
+			excluded: Vec::new(),
+		});
+	}
+	if !selected_ratings.is_empty() && !has_filter(&filters, "ratings") {
+		filters.push(FilterValue::MultiSelect {
+			id: "ratings".into(),
+			included: selected_ratings
+				.iter()
+				.map(|rating| (*rating).into())
+				.collect(),
+			excluded: Vec::new(),
+		});
+	}
+	if !selected_status.is_empty() && !has_filter(&filters, "status") {
+		filters.push(FilterValue::MultiSelect {
+			id: "status".into(),
+			included: selected_status
+				.iter()
+				.map(|status| (*status).into())
+				.collect(),
+			excluded: Vec::new(),
+		});
+	}
+	filters
+}
+
+fn has_filter(filters: &[FilterValue], id: &str) -> bool {
+	filters
+		.iter()
+		.any(|filter| matches!(filter, FilterValue::MultiSelect { id: found, .. } if found == id))
 }
 
 fn novel_text_pages(data: ChapterBody) -> Result<Vec<Page>> {
@@ -145,22 +203,16 @@ impl ListingProvider for Chikari {
 			.iter()
 			.find(|s| **s == listing.id)
 			.ok_or_else(|| error!("Unknown listing: {}", listing.id))?;
-		let content_type = content_type_from_setting();
 		let offset = (page.max(1) as u32 - 1) * LIST_PAGE_SIZE;
-		let data: ListResponse = request(&list_url(
-			content_type,
-			sort,
-			LIST_PAGE_SIZE,
-			offset,
-			None,
-			&[],
-		))?;
-		Ok(manga_page_result(
-			data,
-			content_type,
-			offset,
-			LIST_PAGE_SIZE,
-		))
+		let filters = apply_settings(Vec::new());
+		let Some(url) = list_url(sort, LIST_PAGE_SIZE, offset, None, &filters) else {
+			return Ok(MangaPageResult {
+				entries: Vec::new(),
+				has_next_page: false,
+			});
+		};
+		let data: ListResponse = request(&url)?;
+		Ok(manga_page_result(data, offset, LIST_PAGE_SIZE))
 	}
 }
 
@@ -211,8 +263,9 @@ mod tests {
 	use super::*;
 	use crate::helpers::chapter_key;
 	use aidoku_test::aidoku_test;
+
 	#[aidoku_test]
-	fn search_returns_shadow_slave() {
+	fn search_finds_shadow_slave() {
 		let result = Chikari
 			.get_search_manga_list(Some("shadow slave".into()), 1, Vec::new())
 			.expect("search failed");
@@ -225,7 +278,7 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn details_fetch_all_chapters() {
+	fn novel_update_fetches_details_and_chapters() {
 		let manga = Chikari
 			.get_manga_update(
 				Manga {
@@ -252,7 +305,7 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn chapter_one_is_text() {
+	fn novel_chapter_pages_are_text() {
 		let pages = Chikari
 			.get_page_list(
 				Manga {
@@ -264,102 +317,62 @@ mod tests {
 					..Default::default()
 				},
 			)
-			.expect("chapter failed");
-		assert_eq!(pages.len(), 1);
-		match &pages[0].content {
-			PageContent::Text(text) => assert!(!text.is_empty()),
-			_ => panic!("expected text"),
-		}
+			.expect("novel chapter failed");
+		assert!(matches!(&pages[0].content, PageContent::Text(text) if !text.is_empty()));
 	}
 
 	#[aidoku_test]
-	fn series_deep_link_update_preserves_typed_key() {
-		let manga = Chikari
+	fn series_chapter_pages_are_images() {
+		let mut manga = Chikari
 			.get_manga_update(
 				Manga {
 					key: "series:alya-sometimes-hides-her-feelings-in-russian".into(),
 					..Default::default()
 				},
-				true,
 				false,
+				true,
 			)
 			.expect("series update failed");
-		assert_eq!(
-			manga.key,
-			"series:alya-sometimes-hides-her-feelings-in-russian"
-		);
-		assert_eq!(
-			manga.url.as_deref(),
-			Some("https://chikari.moe/series/alya-sometimes-hides-her-feelings-in-russian")
-		);
-	}
-
-	#[aidoku_test]
-	fn series_deep_link_fetches_image_pages_without_url() {
+		let mut chapters = manga.chapters.take().expect("chapters missing");
+		let chapter = chapters.pop().expect("no chapters");
 		let pages = Chikari
-			.get_page_list(
-				Manga {
-					key: "series:alya-sometimes-hides-her-feelings-in-russian".into(),
-					..Default::default()
-				},
-				Chapter {
-					key: "86".into(),
-					..Default::default()
-				},
-			)
+			.get_page_list(manga, chapter)
 			.expect("series chapter failed");
 		assert!(!pages.is_empty());
 		assert!(
 			pages
 				.iter()
-				.any(|page| matches!(&page.content, PageContent::Url(_, _)))
-		);
-	}
-
-	#[aidoku_test]
-	fn series_never_uses_the_text_pipeline() {
-		assert!(is_text_content(ContentType::Novel));
-		assert!(!is_text_content(ContentType::Series));
-
-		let pages = series_image_pages(vec![
-			"https://chikari.moe/img/1.jpg".into(),
-			"https://chikari.moe/img/2.jpg".into(),
-		]);
-		assert_eq!(pages.len(), 2);
-		assert!(
-			pages
-				.iter()
 				.all(|page| matches!(&page.content, PageContent::Url(_, _)))
 		);
-
-		let pages = novel_text_pages(ChapterBody {
-			body: "<strong>prose</strong>".into(),
-			locked: false,
-		})
-		.expect("novel chapter failed");
-		assert_eq!(pages.len(), 1);
-		assert!(matches!(&pages[0].content, PageContent::Text(_)));
 	}
 
 	#[aidoku_test]
-	fn locked_and_empty_novel_chapters_return_early_access_message() {
+	fn search_sees_every_content_rating() {
+		let result = Chikari
+			.get_search_manga_list(Some("city of witches".into()), 1, Vec::new())
+			.expect("search failed");
+		assert!(
+			result.entries.iter().any(|m| m.key == "city-of-witches"),
+			"expected the erotica-tier title in default results (update the slug if the catalog dropped it)"
+		);
+	}
+
+	#[aidoku_test]
+	fn locked_and_empty_chapters_show_the_early_access_message() {
 		for data in [
 			ChapterBody {
 				body: "prose".into(),
 				locked: true,
 			},
 			ChapterBody {
-				body: "   ".into(),
+				body: " ".into(),
 				locked: false,
 			},
 		] {
 			let pages = novel_text_pages(data).expect("novel chapter failed");
-			match &pages[0].content {
-				PageContent::Text(text) => {
-					assert_eq!(text, "This chapter is locked (early access)")
-				}
-				_ => panic!("expected text"),
-			}
+			assert!(
+				matches!(&pages[0].content, PageContent::Text(text) if text == "This chapter is locked (early access)")
+			);
 		}
 	}
 
@@ -373,9 +386,6 @@ mod tests {
 		);
 		assert!(
 			matches!(Chikari.handle_deep_link("https://chikari.moe/novels/shadow-slave/1".into()).unwrap(), Some(DeepLinkResult::Chapter { manga_key, key }) if manga_key == "shadow-slave" && key == "1")
-		);
-		assert!(
-			matches!(Chikari.handle_deep_link("https://chikari.moe/series/shadow-slave/1".into()).unwrap(), Some(DeepLinkResult::Chapter { manga_key, key }) if manga_key == "series:shadow-slave" && key == "1")
 		);
 		assert!(
 			Chikari

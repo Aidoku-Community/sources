@@ -4,21 +4,174 @@
 		"title": "Content",
 		"items": [
 			{
-				"type": "select",
-				"key": "content_type",
-				"title": "Content Type",
-				"values": [
-					"novels",
-					"series"
-				],
+				"type": "multi-select",
+				"key": "types",
+				"title": "Types",
 				"titles": [
-					"Novels",
-					"Series"
+					"Manga",
+					"Manhwa",
+					"Manhua",
+					"OEL",
+					"Novel"
 				],
-				"refreshes": ["content"],
-				"default": "novels"
+				"values": [
+					"manga",
+					"manhwa",
+					"manhua",
+					"oel",
+					"novel"
+				],
+				"default": [],
+				"refreshes": ["content"]
+			},
+			{
+				"type": "multi-select",
+				"key": "ratings",
+				"title": "Content Rating",
+				"titles": [
+					"Safe",
+					"Suggestive",
+					"Erotica",
+					"Pornographic"
+				],
+				"values": [
+					"safe",
+					"suggestive",
+					"erotica",
+					"pornographic"
+				],
+				"default": [],
+				"refreshes": ["content"]
+			},
+			{
+				"type": "multi-select",
+				"key": "status",
+				"title": "Status",
+				"titles": [
+					"Releasing",
+					"Completed",
+					"Hiatus",
+					"Cancelled",
+					"Upcoming"
+				],
+				"values": [
+					"releasing",
+					"completed",
+					"hiatus",
+					"cancelled",
+					"upcoming"
+				],
+				"default": [],
+				"refreshes": ["content"]
 			}
-		]
+		],
+		"footer": "Each selection applies when its matching filter is absent. Empty means all."
+	},
+	{
+		"type": "group",
+		"title": "Content Filters",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "hiddenGenres",
+				"title": "Hidden Genres",
+				"titles": [
+					"Action",
+					"Adult",
+					"Adventure",
+					"Award Winning",
+					"Boys Love",
+					"Comedy",
+					"Doujinshi",
+					"Drama",
+					"Ecchi",
+					"Erotica",
+					"Fantasy",
+					"Gender Bender",
+					"Girls Love",
+					"Gourmet",
+					"Harem",
+					"Historical",
+					"Horror",
+					"Josei",
+					"Lolicon",
+					"Mahou Shoujo",
+					"Martial Arts",
+					"Mature",
+					"Mecha",
+					"Music",
+					"Mystery",
+					"Psychological",
+					"Romance",
+					"School Life",
+					"Sci-Fi",
+					"Seinen",
+					"Shotacon",
+					"Shoujo",
+					"Shoujo Ai",
+					"Shounen",
+					"Shounen Ai",
+					"Slice of Life",
+					"Smut",
+					"Sports",
+					"Supernatural",
+					"Suspense",
+					"Thriller",
+					"Tragedy",
+					"Yaoi",
+					"Yuri"
+				],
+				"values": [
+					"action",
+					"adult",
+					"adventure",
+					"award_winning",
+					"boys_love",
+					"comedy",
+					"doujinshi",
+					"drama",
+					"ecchi",
+					"erotica",
+					"fantasy",
+					"gender_bender",
+					"girls_love",
+					"gourmet",
+					"harem",
+					"historical",
+					"horror",
+					"josei",
+					"lolicon",
+					"mahou_shoujo",
+					"martial_arts",
+					"mature",
+					"mecha",
+					"music",
+					"mystery",
+					"psychological",
+					"romance",
+					"school_life",
+					"sci-fi",
+					"seinen",
+					"shotacon",
+					"shoujo",
+					"shoujo_ai",
+					"shounen",
+					"shounen_ai",
+					"slice_of_life",
+					"smut",
+					"sports",
+					"supernatural",
+					"suspense",
+					"thriller",
+					"tragedy",
+					"yaoi",
+					"yuri"
+				],
+				"default": [],
+				"refreshes": ["content"]
+			}
+		],
+		"footer": "Titles with any selected genre are excluded from search results."
 	},
 	{
 		"type": "group",
@@ -28,7 +181,6 @@
 				"type": "switch",
 				"key": "hideWatermark",
 				"title": "Hide Watermark",
-				"subtitle": "No injected credit was found in sampled chapters. Enabling may remove legitimate non-Latin prose (CJK, Cyrillic, Korean).",
 				"default": false
 			}
 		]
