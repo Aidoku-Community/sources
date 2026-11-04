@@ -1,26 +1,31 @@
 #![no_std]
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, ImageRequestProvider, Listing, ListingProvider,
-	Manga, MangaPageResult, Page, Result, Source,
-	alloc::{String, Vec},
-	imports::net::Request,
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicListings, DynamicSettings, GroupSetting,
+	HashMap, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
+	NotificationHandler, Page, Result, Setting, Source, WebLoginHandler,
+	alloc::{String, Vec, vec},
+	imports::{html::Document, net::Request},
 	prelude::*,
 };
 use html::{ChapterPage as _, MangaPage as _};
-use net::{Url, base_url};
+use net::{Url, aid_from_href, base_url, sid_from_href};
 
+mod auth;
 mod home;
 mod html;
 mod net;
+mod series;
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36";
 
 pub fn create_request(path: &str) -> Result<Request> {
 	let base_url = base_url()?;
-	Ok(Request::get(format!("{base_url}{path}"))?
-		.header("User-Agent", USER_AGENT)
-		.header("Origin", &base_url))
+	Ok(net::request_with_cookie(
+		&format!("{base_url}{path}"),
+		auth::cookie_header().as_deref(),
+	)?
+	.header("Origin", &base_url))
 }
 
 struct Wnacg;
@@ -47,21 +52,45 @@ impl Source for Wnacg {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let html = Url::manga(manga.key.clone()).request()?.html()?;
+		// Swallow failures: one unreachable gallery must not abort a whole
+		// library refresh; the library keeps the details it already has.
+		let Ok(html) = (|| {
+			Ok::<Document, aidoku::AidokuError>(Url::manga(manga.key.clone()).request()?.html()?)
+		})() else {
+			return Ok(manga);
+		};
 
 		if needs_details {
-			html.manga_details(&mut manga)?;
+			let _ = html.manga_details(&mut manga);
 		}
 
-		if needs_chapters {
-			manga.chapters = Some(html.chapters(&manga.key)?);
+		if needs_chapters && html::is_series(&html) {
+			// A series page shows no gallery; its chapter list comes from the
+			// JSON endpoint the site's own reader uses. On failure the
+			// library keeps the chapters it already has.
+			if let Ok(chapters) = (|| {
+				let json = Url::series_chapters(manga.key.clone())
+					.request()?
+					.string()?;
+				series::parse_chapters(&json, &manga.key)
+			})() {
+				manga.chapters = Some(chapters);
+			}
+		} else if needs_chapters {
+			// An ordinary gallery is one whole book with no chapter
+			// structure of its own, so it always reports a single chapter.
+			if let Ok(chapters) = html.chapters(&manga.key) {
+				manga.chapters = Some(chapters);
+			}
 		}
 
 		Ok(manga)
 	}
 
-	fn get_page_list(&self, manga: Manga, _chapter: Chapter) -> Result<Vec<Page>> {
-		let text = Url::chapter(manga.key).request()?.string()?;
+	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
+		// Each series chapter is an ordinary gallery, so chapter.key is its
+		// aid; a plain gallery's single chapter key equals manga.key.
+		let text = Url::chapter(chapter.key).request()?.string()?;
 		let urls = text
 			.split("\\\"")
 			.filter(|s| s.starts_with("//"))
@@ -94,18 +123,34 @@ impl ImageRequestProvider for Wnacg {
 
 impl DeepLinkHandler for Wnacg {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let mut splits = url.split('/').skip(3);
-		let deep_link_result = match splits.next() {
-			Some("photos-index-aid") => match splits.next() {
-				Some(id) => {
-					let id = id.trim_end_matches(".html");
-					Some(DeepLinkResult::Manga { key: id.into() })
-				}
-				_ => None,
-			},
-			_ => None,
+		let Some(aid) = aid_from_href(&url) else {
+			return Ok(None);
 		};
-		Ok(deep_link_result)
+
+		if url.contains("/photos-index-aid-") {
+			return Ok(Some(DeepLinkResult::Manga { key: aid }));
+		}
+
+		// Series chapter: `/photos-slide-aid-<chapter>-sid-<series>.html`.
+		if let Some(sid) = sid_from_href(&url) {
+			return Ok(Some(DeepLinkResult::Chapter {
+				manga_key: sid,
+				key: aid,
+			}));
+		}
+
+		// Every other reader entry maps to the gallery's single chapter.
+		if url.contains("/photos-slide-aid-")
+			|| url.contains("/photos-gallery-aid-")
+			|| url.contains("/photos-slist-aid-")
+		{
+			return Ok(Some(DeepLinkResult::Chapter {
+				manga_key: aid.clone(),
+				key: aid,
+			}));
+		}
+
+		Ok(None)
 	}
 }
 
@@ -117,9 +162,10 @@ impl ListingProvider for Wnacg {
 			"monthup" => format!("/albums-favorite_ranking-page-{}-type-month", page),
 			"update" => format!("/albums-index-page-{}.html", page),
 			"doujinshi" => format!("/albums-index-page-{}-cate-5.html", page),
-			"one-shot" => format!("/albums-index-page-{}-cate-6.html", page),
+			"single-volume" => format!("/albums-index-page-{}-cate-6.html", page),
 			"magazine" => format!("/albums-index-page-{}-cate-7.html", page),
 			"korean" => format!("/albums-index-page-{}-cate-19.html", page),
+			"korean-series" => format!("/albums-index-page-{}-cate-38.html", page),
 			_ => bail!("Invalid listing"),
 		};
 
@@ -128,10 +174,81 @@ impl ListingProvider for Wnacg {
 	}
 }
 
+impl DynamicListings for Wnacg {
+	/// The korean category returns 404 when logged out, so the two korean
+	/// listings are only shown after login (the app refetches listings per
+	/// the refreshes declared in settings.json).
+	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
+		if !auth::is_logged_in() {
+			return Ok(Vec::new());
+		}
+		Ok(vec![
+			Listing {
+				id: String::from("korean"),
+				name: String::from("韩漫"),
+				..Default::default()
+			},
+			Listing {
+				id: String::from("korean-series"),
+				name: String::from("韩漫合集"),
+				..Default::default()
+			},
+		])
+	}
+}
+
+impl WebLoginHandler for Wnacg {
+	fn handle_web_login(&self, key: String, cookies: HashMap<String, String>) -> Result<bool> {
+		if key != "login" {
+			bail!("Invalid login key: {key}");
+		}
+		Ok(auth::capture_web_login(&cookies))
+	}
+}
+
+impl NotificationHandler for Wnacg {
+	fn handle_notification(&self, notification: String) {
+		// Fires for both login and logout; `auth` tells them apart.
+		if notification == "login" {
+			auth::handle_login_notification();
+		}
+	}
+}
+
+impl DynamicSettings for Wnacg {
+	/// Only reads defaults, never sends requests. Never return an empty list:
+	/// that would disable every button on the settings page.
+	fn get_dynamic_settings(&self) -> Result<Vec<Setting>> {
+		let footer = if auth::is_logged_in() {
+			match auth::account() {
+				Some(name) => format!("已登录：{name}"),
+				None => String::from("已登录"),
+			}
+		} else {
+			String::from("尚未登录，登录后可以看韩漫。")
+		};
+
+		Ok(vec![
+			GroupSetting {
+				key: "accountInfo".into(),
+				title: "账号信息".into(),
+				items: Vec::new(),
+				footer: Some(footer.into()),
+				..Default::default()
+			}
+			.into(),
+		])
+	}
+}
+
 register_source!(
 	Wnacg,
 	Home,
 	ListingProvider,
+	DynamicListings,
 	ImageRequestProvider,
-	DeepLinkHandler
+	DeepLinkHandler,
+	WebLoginHandler,
+	NotificationHandler,
+	DynamicSettings
 );
