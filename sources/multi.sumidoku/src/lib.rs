@@ -100,8 +100,8 @@ impl Source for Sumidoku {
 		let mut qs = QueryParameters::new();
 		qs.push("page", Some(&page.to_string()));
 
-		if let Some(q) = query {
-			qs.push("search", Some(&q));
+		if query.is_some() {
+			qs.push("search", query.as_deref());
 		}
 
 		let mut sort = "added";
@@ -211,17 +211,31 @@ impl BaseUrlProvider for Sumidoku {
 impl DynamicFilters for Sumidoku {
 	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
 		let mut filters: Vec<Filter> = Vec::new();
-		let [categories_res, sources_res, counts_res] = Request::send_all(vec![
+		let mut responses = Request::send_all([
 			self.build_get("/api/v1/categories")?,
 			self.build_get("/api/v1/sources")?,
 			self.build_get("/api/v1/library/source-counts")?,
-		])
-		.try_into()
-		.expect("requests length should be 3");
+		]);
+		// the stored token may have expired; retry once after re-login
+		if responses
+			.iter()
+			.any(|r| matches!(r, Ok(resp) if resp.status_code() == 401))
+			&& let Some((user, pass)) = settings::get_credentials()
+			&& self.login(&user, &pass)?
+		{
+			responses = Request::send_all([
+				self.build_get("/api/v1/categories")?,
+				self.build_get("/api/v1/sources")?,
+				self.build_get("/api/v1/library/source-counts")?,
+			]);
+		}
+		let [categories_res, sources_res, counts_res] =
+			responses.try_into().expect("requests length should be 3");
 
 		// 1. Sort
 		let sort_filter = SortFilter {
 			id: "sort".into(),
+			can_ascend: false,
 			options: vec![
 				"Added".into(),
 				"Title".into(),

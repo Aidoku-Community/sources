@@ -44,8 +44,9 @@ pub struct SourceCount {
 	pub source_id: i64,
 }
 
+// Note: manga fields are snake_case (SourceManga schema), unlike the
+// camelCase used by server-native endpoints.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SumiManga {
 	pub id: i64,
 	pub title: String,
@@ -133,7 +134,6 @@ impl SumiChapter {
 pub struct SumiPage {
 	pub content: SumiPageContent,
 	pub thumbnail: Option<String>,
-	#[serde(default)]
 	pub has_description: bool,
 	pub description: Option<String>,
 	pub index: i64,
