@@ -1,0 +1,15 @@
+{
+	"info": {
+		"id": "multi.sumidoku",
+		"name": "Sumidoku",
+		"version": 1,
+		"url": "https://github.com/Sumidoku",
+		"contentRating": 0,
+		"languages": ["multi"],
+		"minAppVersion": "0.7.1"
+	},
+	"config": {
+		"supportsAuthorSearch": true,
+		"supportsTagSearch": true
+	}
+}
