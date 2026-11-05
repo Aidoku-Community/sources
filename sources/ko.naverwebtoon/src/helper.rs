@@ -13,10 +13,10 @@ pub fn request(url: &str) -> Result<Request> {
 		.header("Referer", "https://comic.naver.com/")
 		.header("User-Agent", USER_AGENT);
 
-	if url.contains(".naver.com") || url.starts_with("https://naver.com") {
-		if let Some(cookie) = crate::auth::get_cookie_header() {
-			req = req.header("Cookie", &cookie);
-		}
+	if (url.contains(".naver.com") || url.starts_with("https://naver.com"))
+		&& let Some(cookie) = crate::auth::get_cookie_header()
+	{
+		req = req.header("Cookie", &cookie);
 	}
 
 	if url.contains("/api/") {
