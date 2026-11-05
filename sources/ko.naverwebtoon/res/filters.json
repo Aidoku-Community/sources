@@ -28,31 +28,13 @@
 			"일요일",
 			"완결"
 		],
-		"ids": [
-			"",
-			"mon",
-			"tue",
-			"wed",
-			"thu",
-			"fri",
-			"sat",
-			"sun",
-			"finish"
-		]
+		"ids": ["", "mon", "tue", "wed", "thu", "fri", "sat", "sun", "finish"]
 	},
 	{
 		"type": "select",
 		"id": "searchType",
 		"title": "구분",
-		"options": [
-			"전체",
-			"웹툰",
-			"베스트도전"
-		],
-		"ids": [
-			"ALL",
-			"WEBTOON",
-			"BEST_CHALLENGE"
-		]
+		"options": ["전체", "웹툰", "베스트도전"],
+		"ids": ["ALL", "WEBTOON", "BEST_CHALLENGE"]
 	}
 ]

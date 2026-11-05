@@ -3,13 +3,8 @@
 		"id": "ko.naverwebtoon",
 		"name": "Naver Webtoon",
 		"version": 2,
-		"languages": [
-			"ko"
-		],
-		"urls": [
-			"https://comic.naver.com",
-			"https://m.comic.naver.com"
-		],
+		"languages": ["ko"],
+		"urls": ["https://comic.naver.com", "https://m.comic.naver.com"],
 		"contentRating": 1,
 		"minAppVersion": "0.7.2"
 	},

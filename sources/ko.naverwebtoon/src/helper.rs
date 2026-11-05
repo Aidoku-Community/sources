@@ -3,17 +3,21 @@ use aidoku::{
 	imports::{error::Result, net::Request, std::parse_date},
 };
 
-use crate::auth;
-
 pub const BASE_URL: &str = "https://m.comic.naver.com";
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
-/// Request wrapper with User-Agent, Referer, Accept headers and optionally Cookie (when logged in).
+/// Request wrapper with User-Agent, Referer, Accept headers.
 pub fn request(url: &str) -> Result<Request> {
 	let mut req = Request::get(url)?
 		.header("Referer", "https://comic.naver.com/")
 		.header("User-Agent", USER_AGENT);
+
+	if url.contains(".naver.com") || url.starts_with("https://naver.com") {
+		if let Some(cookie) = crate::auth::get_cookie_header() {
+			req = req.header("Cookie", &cookie);
+		}
+	}
 
 	if url.contains("/api/") {
 		req = req.header("Accept", "application/json");
@@ -22,11 +26,6 @@ pub fn request(url: &str) -> Result<Request> {
 			"Accept",
 			"text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 		);
-	}
-
-	// Inject Naver session cookies when the user is logged in
-	if let Some(cookie) = auth::get_cookie_header() {
-		req = req.header("Cookie", &cookie);
 	}
 
 	Ok(req)
