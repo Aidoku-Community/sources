@@ -2,7 +2,7 @@
 	"info": {
 		"id": "zh.bilinovel",
 		"name": "哔哩轻小说",
-		"version": 1,
+		"version": 2,
 		"url": "https://www.bilinovel.com",
 		"contentRating": 1,
 		"languages": ["zh"],
