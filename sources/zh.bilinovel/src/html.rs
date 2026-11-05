@@ -228,6 +228,8 @@ impl ChapterPage for Document {
 				.select_first(".chapter-index")
 				.and_then(|el| el.text())
 				.or_else(|| link.text());
+			// The site marks locked chapters with a heart in the title
+			let locked = title.as_deref().is_some_and(|title| title.contains('❤'));
 
 			let (key, url) = if href.starts_with("/novel/") {
 				let key = extract_id(&href);
@@ -261,6 +263,7 @@ impl ChapterPage for Document {
 				volume_number: (volume_index > 0).then_some(volume_index as f32),
 				url,
 				thumbnail: volume_cover.clone(),
+				locked,
 				..Default::default()
 			});
 		}

@@ -1,5 +1,4 @@
 use crate::BASE_URL;
-use crate::USER_AGENT;
 use aidoku::{
 	FilterValue, Result,
 	alloc::{String, Vec, string::ToString as _},
@@ -78,7 +77,6 @@ impl Url {
 	pub fn request(&self) -> Result<Request> {
 		let url = self.to_string();
 		let mut request = Request::get(url)?
-			.header("User-Agent", USER_AGENT)
 			.header("Origin", BASE_URL)
 			.header("Accept-Language", "zh-CN,zh;q=0.9")
 			.header("Cookie", "night=1");
@@ -337,7 +335,6 @@ fn run_guard(path: &str, cookie: &mut String) {
 		Ok(r) => r,
 		Err(_) => return,
 	}
-	.header("User-Agent", USER_AGENT)
 	.header("Origin", BASE_URL)
 	.header("Accept-Language", "zh-CN,zh;q=0.9")
 	.header("Cookie", cookie.as_str());

@@ -20,8 +20,6 @@ use html::{ChapterPage as _, MangaPage as _};
 use net::Url;
 
 pub const BASE_URL: &str = "https://www.bilinovel.com";
-pub const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
-	 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 /// Chapters are split into paginated fragments; cap the page count so a
 /// malformed chapter cannot fetch forever.
 const MAX_CHAPTER_PAGES: i32 = 50;
