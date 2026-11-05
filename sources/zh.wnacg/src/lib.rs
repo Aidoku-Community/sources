@@ -41,7 +41,7 @@ impl Source for Wnacg {
 		page: i32,
 		filters: Vec<aidoku::FilterValue>,
 	) -> Result<MangaPageResult> {
-		let url = Url::from_query_or_filters(query.as_deref(), page, &filters)?;
+		let url = Url::from_query_or_filters(query.as_deref(), page, filters)?;
 		let html = url.request()?.html()?;
 		html.manga_page_result()
 	}
@@ -61,7 +61,7 @@ impl Source for Wnacg {
 		};
 
 		if needs_details {
-			let _ = html.manga_details(&mut manga);
+			html.manga_details(&mut manga)?;
 		}
 
 		if needs_chapters && html::is_series(&html) {

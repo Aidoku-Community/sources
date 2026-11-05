@@ -1,7 +1,7 @@
 use crate::USER_AGENT;
 use aidoku::{
 	FilterValue, Result,
-	alloc::{String, format},
+	alloc::{String, Vec, format},
 	error,
 	helpers::uri::encode_uri,
 	imports::{defaults::defaults_get, net::Request},
@@ -86,35 +86,31 @@ impl Url {
 	pub fn from_query_or_filters(
 		query: Option<&str>,
 		page: i32,
-		filters: &[FilterValue],
+		filters: Vec<FilterValue>,
 	) -> Result<Self> {
 		let mut category = String::new();
 		let mut tag = String::new();
-		let mut author: Option<String> = None;
 
 		for filter in filters {
 			match filter {
-				FilterValue::Text { id, value } => {
-					// Author/artist tap on a gallery page (supportsAuthorSearch).
-					// The author comes from the title's bracket prefix, which the
-					// site search matches; the artist is the circle inside the
-					// same prefix (`[社团 (画师)]`).
-					if id == "author" || id == "artist" {
-						author = Some(value.clone());
-					} else {
-						return Ok(Self::Search {
-							query: encode_uri(value.clone()),
-							page,
-						});
-					}
+				FilterValue::Text { value, .. } => {
+					// There is no user-configurable text filter, so a text value
+					// can only come from a tap-to-search on a gallery page
+					// (supportsAuthorSearch): the author from the title's
+					// bracket prefix, or the artist circle inside the same
+					// prefix (`[社团 (画师)]`). The site search matches both.
+					return Ok(Self::Search {
+						query: encode_uri(value),
+						page,
+					});
 				}
 				FilterValue::Select { id, value } => match id.as_str() {
-					"同人志" => category = value.clone(),
-					"单行本" => category = value.clone(),
-					"杂志&短篇" => category = value.clone(),
-					"韩漫" => category = value.clone(),
+					"同人志" => category = value,
+					"单行本" => category = value,
+					"杂志&短篇" => category = value,
+					"韩漫" => category = value,
 					// Tag tap on a gallery page (supportsTagSearch).
-					"genre" => tag = encode_uri(value.clone()),
+					"genre" => tag = encode_uri(value),
 					_ => {}
 				},
 				_ => {}
@@ -122,16 +118,10 @@ impl Url {
 		}
 
 		// Keyword search, tag browsing and category browsing are three disjoint
-		// endpoints; the most specific input wins. An empty query must not
-		// shadow an author search, so both sides filter out empty values.
-		if let Some(q) = query
-			.filter(|q| !q.trim().is_empty())
-			.map(String::from)
-			.or(author)
-			.filter(|q| !q.trim().is_empty())
-		{
+		// endpoints; the most specific input wins.
+		if let Some(query) = query {
 			return Ok(Self::Search {
-				query: encode_uri(&q),
+				query: encode_uri(query),
 				page,
 			});
 		}

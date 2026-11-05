@@ -24,15 +24,15 @@ fn series_chapter_url(chapter: &str, sid: &str) -> Result<String> {
 /// refresh never stores a series with missing chapters.
 pub fn parse_chapters(json: &str, sid: &str) -> Result<Vec<Chapter>> {
 	if json_number(json, "code") != Some(0) {
-		bail!("[wnacg] chapter list refused for {sid}");
+		bail!("chapter list refused for {sid}");
 	}
 	let Some(total) = json_number(json, "total") else {
-		bail!("[wnacg] chapter list without total for {sid}");
+		bail!("chapter list without total for {sid}");
 	};
 	let mut chapters: Vec<Chapter> = Vec::new();
 	for object in json_objects_in(json, "list") {
 		let (Some(id), Some(idx)) = (json_number(object, "id"), json_number(object, "idx")) else {
-			bail!("[wnacg] chapter without id for {sid}");
+			bail!("chapter without id for {sid}");
 		};
 		let key = id.to_string();
 		chapters.push(Chapter {
@@ -44,10 +44,7 @@ pub fn parse_chapters(json: &str, sid: &str) -> Result<Vec<Chapter>> {
 		});
 	}
 	if chapters.is_empty() || chapters.len() as i64 != total {
-		bail!(
-			"[wnacg] chapter list for {sid} has {} of {total}",
-			chapters.len()
-		);
+		bail!("chapter list for {sid} has {} of {total}", chapters.len());
 	}
 	// Newest first, matching the app's display order.
 	chapters.sort_by(|a, b| {
