@@ -4,11 +4,7 @@
 		"id": "filtro",
 		"title": "Ordenar por",
 		"canAscend": true,
-		"options": ["Visitas", "Recientes", "Alfabético"],
-		"default": {
-			"index": 0,
-			"ascending": false
-		}
+		"options": ["Visitas", "Recientes", "Alfabético"]
 	},
 	{
 		"type": "select",

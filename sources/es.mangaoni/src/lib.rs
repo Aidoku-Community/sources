@@ -5,12 +5,13 @@ use aidoku::{
 	MangaWithChapter, Page, PageContent, Result, Source,
 	alloc::{String, Vec, vec},
 	helpers::uri::encode_uri_component,
-	imports::{defaults::defaults_get, net::Request, std::send_partial_result},
+	imports::{net::Request, std::send_partial_result},
 	prelude::*,
 };
 
 mod helpers;
 mod parser;
+mod settings;
 use helpers::{
 	BASE_URL, DirectoryParams, chapter_key, chapter_url, directory_url, manga_key,
 	manga_key_from_reader, path_segments,
@@ -20,11 +21,7 @@ use parser::{
 	parse_manga_cards, parse_manga_details, parse_page_urls,
 };
 
-const HIDE_NSFW_SETTING: &str = "hideNsfw";
-
-fn hide_nsfw() -> bool {
-	defaults_get::<bool>(HIDE_NSFW_SETTING).unwrap_or(false)
-}
+use settings::hide_nsfw;
 
 struct MangaOni;
 
@@ -155,19 +152,10 @@ fn latest_listing() -> Listing {
 
 impl Home for MangaOni {
 	fn get_home(&self) -> Result<HomeLayout> {
-		// Send the empty sections first so the app can show them right away.
+		// Send the empty sections first so the app can show them right away. The
+		// order matches the website's home page.
 		send_partial_result(&HomePartialResult::Layout(HomeLayout {
 			components: vec![
-				HomeComponent {
-					title: Some("Top manga".into()),
-					subtitle: None,
-					value: HomeComponentValue::empty_manga_list(),
-				},
-				HomeComponent {
-					title: Some("Últimas actualizaciones".into()),
-					subtitle: None,
-					value: HomeComponentValue::empty_manga_chapter_list(),
-				},
 				HomeComponent {
 					title: Some("Nuevos".into()),
 					subtitle: None,
@@ -178,11 +166,68 @@ impl Home for MangaOni {
 					subtitle: None,
 					value: HomeComponentValue::empty_scroller(),
 				},
+				HomeComponent {
+					title: Some("Últimas actualizaciones".into()),
+					subtitle: None,
+					value: HomeComponentValue::empty_manga_chapter_list(),
+				},
+				HomeComponent {
+					title: Some("Top manga".into()),
+					subtitle: None,
+					value: HomeComponentValue::empty_manga_list(),
+				},
 			],
 		}));
 
-		// The first three sections come from the site's home page.
+		// Every section except Populares comes from the site's home page.
 		let html = Request::get(BASE_URL)?.html()?;
+
+		// "Nuevos" is the `#article-div` section whose heading says so.
+		let new: Vec<Link> = html
+			.select("#article-div")
+			.and_then(|mut sections| {
+				sections.find(|section| {
+					section
+						.select_first("h3")
+						.and_then(|h3| h3.text())
+						.is_some_and(|title| title.contains("Nuevos"))
+				})
+			})
+			.and_then(|section| section.select("div._135yj"))
+			.map(|cards| {
+				cards
+					.filter_map(|card| parse_manga_card(&card))
+					.map(Link::from)
+					.collect()
+			})
+			.unwrap_or_default();
+		send_partial_result(&HomePartialResult::Component(HomeComponent {
+			title: Some("Nuevos".into()),
+			subtitle: None,
+			value: HomeComponentValue::Scroller {
+				entries: new,
+				listing: None,
+			},
+		}));
+
+		let latest = parse_latest_updates(&html)
+			.into_iter()
+			.filter_map(|(manga, chapter)| {
+				Some(MangaWithChapter {
+					manga,
+					chapter: chapter?,
+				})
+			})
+			.collect();
+		send_partial_result(&HomePartialResult::Component(HomeComponent {
+			title: Some("Últimas actualizaciones".into()),
+			subtitle: None,
+			value: HomeComponentValue::MangaChapterList {
+				page_size: Some(4),
+				entries: latest,
+				listing: Some(latest_listing()),
+			},
+		}));
 
 		let top: Vec<Link> = html
 			.select("#widget.top li")
@@ -216,53 +261,6 @@ impl Home for MangaOni {
 				ranking: true,
 				page_size: Some(5),
 				entries: top,
-				listing: None,
-			},
-		}));
-
-		let latest = parse_latest_updates(&html)
-			.into_iter()
-			.filter_map(|(manga, chapter)| {
-				Some(MangaWithChapter {
-					manga,
-					chapter: chapter?,
-				})
-			})
-			.collect();
-		send_partial_result(&HomePartialResult::Component(HomeComponent {
-			title: Some("Últimas actualizaciones".into()),
-			subtitle: None,
-			value: HomeComponentValue::MangaChapterList {
-				page_size: Some(4),
-				entries: latest,
-				listing: Some(latest_listing()),
-			},
-		}));
-
-		// "Nuevos" is the `#article-div` section whose heading says so.
-		let new: Vec<Link> = html
-			.select("#article-div")
-			.and_then(|mut sections| {
-				sections.find(|section| {
-					section
-						.select_first("h3")
-						.and_then(|h3| h3.text())
-						.is_some_and(|title| title.contains("Nuevos"))
-				})
-			})
-			.and_then(|section| section.select("div._135yj"))
-			.map(|cards| {
-				cards
-					.filter_map(|card| parse_manga_card(&card))
-					.map(Link::from)
-					.collect()
-			})
-			.unwrap_or_default();
-		send_partial_result(&HomePartialResult::Component(HomeComponent {
-			title: Some("Nuevos".into()),
-			subtitle: None,
-			value: HomeComponentValue::Scroller {
-				entries: new,
 				listing: None,
 			},
 		}));

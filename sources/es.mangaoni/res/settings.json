@@ -8,7 +8,7 @@
 				"type": "switch",
 				"key": "hideNsfw",
 				"title": "Ocultar contenido +18",
-				"default": false,
+				"default": true,
 				"refreshes": ["content", "listings"]
 			}
 		]
