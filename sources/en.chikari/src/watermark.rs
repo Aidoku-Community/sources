@@ -12,10 +12,15 @@ const EXTEND_PAIRS: &[(char, char)] = &[
 	('\u{2018}', '\u{2019}'),
 	('\u{201C}', '\u{201D}'),
 	('\u{2039}', '\u{203A}'),
-	('\u{2045}', '\u{2046}'),
 ];
 
-const CREATE_PAIRS: &[(char, char)] = &[('(', ')'), ('[', ']'), ('{', '}'), ('\u{AB}', '\u{BB}')];
+const CREATE_PAIRS: &[(char, char)] = &[
+	('(', ')'),
+	('[', ']'),
+	('{', '}'),
+	('\u{AB}', '\u{BB}'),
+	('\u{2045}', '\u{2046}'),
+];
 
 fn is_prose_char(ch: char) -> bool {
 	let code = u32::from(ch);
