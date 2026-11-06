@@ -1,0 +1,29 @@
+[
+	{
+		"type": "group",
+		"title": "Content",
+		"items": [
+			{
+				"type": "select",
+				"key": "status",
+				"title": "Status",
+				"values": ["all", "ongoing", "completed", "hiatus"],
+				"titles": ["All", "Ongoing", "Completed", "Hiatus"],
+				"default": "all",
+				"refreshes": ["content"]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Experimental",
+		"items": [
+			{
+				"type": "switch",
+				"key": "hideWatermark",
+				"title": "Hide Watermark",
+				"default": false
+			}
+		]
+	}
+]

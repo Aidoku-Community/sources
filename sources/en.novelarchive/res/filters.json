@@ -1,0 +1,41 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"title": "Sort",
+		"canAscend": false,
+		"options": [
+			"Recently Added",
+			"Popular",
+			"Most Chapters",
+			"Highest Rated"
+		],
+		"ids": [
+			"recent",
+			"popular",
+			"chapters",
+			"rating"
+		],
+		"default": {
+			"index": 0,
+			"ascending": false
+		}
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"All",
+			"Ongoing",
+			"Completed",
+			"Hiatus"
+		],
+		"ids": [
+			"all",
+			"ongoing",
+			"completed",
+			"hiatus"
+		]
+	}
+]

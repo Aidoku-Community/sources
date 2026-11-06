@@ -1,0 +1,30 @@
+{
+	"info": {
+		"id": "en.novelarchive",
+		"name": "Novel Archive",
+		"version": 1,
+		"url": "https://novelarchive.st",
+		"contentRating": 1,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	},
+	"config": {
+		"breakingChangeVersion": 2
+	},
+	"listings": [
+		{
+			"id": "trending",
+			"name": "Trending"
+		},
+		{
+			"id": "recent",
+			"name": "Recently Added"
+		},
+		{
+			"id": "recently-updated",
+			"name": "Recently Updated"
+		}
+	]
+}
