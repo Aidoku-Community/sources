@@ -192,7 +192,114 @@ pub fn base_url_join(uri: &str) -> String {
 	}
 }
 
-fn is_official_like(chapter: &MangaChapter) -> bool {
+fn normalize_name(name: &str) -> String {
+	name.to_lowercase()
+}
+
+fn get_chapter_priority(
+	chapter: &MangaChapter,
+	official_groups_names: &[&str],
+	deduped_group_list: &[String],
+	group_frequency_map: &HashMap<String, u32>,
+) -> (u32, usize, u32, i64) {
+	let mut combined_group: Vec<String> = Vec::new();
+
+	if let Some(groups) = chapter.groups.as_ref() {
+		groups.iter().for_each(|g| {
+			combined_group.push(normalize_name(&g.name));
+			combined_group.push(g.id.to_string())
+		})
+	}
+
+	if let Some(scanlator) = chapter.scanlator_name.as_ref() {
+		combined_group.push(normalize_name(scanlator));
+	}
+
+	let frequency = combined_group
+		.iter()
+		.map(|name| group_frequency_map.get(name).copied().unwrap_or(0))
+		.max()
+		.unwrap_or(0);
+
+	let created_at = chapter.created_at().unwrap_or(0);
+
+	// Rule 1: Official group name, then frequency, then upload datetime.
+	if combined_group
+		.iter()
+		.any(|g| official_groups_names.iter().any(|official| g.eq(official)))
+	{
+		return (0, 0, frequency, created_at);
+	}
+
+	// Rule 2: Group name/id in deduped_group_list.
+	let best_position = combined_group
+		.iter()
+		.filter_map(|group| {
+			deduped_group_list
+				.iter()
+				.position(|name| normalize_name(name) == *group)
+		})
+		.min();
+
+	if let Some(position) = best_position {
+		return (1, position, frequency, created_at);
+	}
+
+	// Rule 3: Most frequent group name / scanlator name.
+	(2, 0, frequency, created_at)
+}
+
+fn deduplicate_chapters(
+	chapters: Vec<MangaChapter>,
+	official_groups_names: &[&str],
+	deduped_group_list: &[String],
+	group_frequency_map: &HashMap<String, u32>,
+) -> Vec<MangaChapter> {
+	// Calculate priorities and retain original indices for stable tie-breaking.
+	let mut ranked: Vec<_> = chapters
+		.into_iter()
+		.enumerate()
+		.map(|(index, chapter)| {
+			let priority = get_chapter_priority(
+				&chapter,
+				official_groups_names,
+				deduped_group_list,
+				group_frequency_map,
+			);
+
+			(index, priority, chapter)
+		})
+		.collect();
+
+	// Higher priority first.
+	ranked.sort_by(|a, b| {
+		a.1.0
+			.cmp(&b.1.0) // Ruleset
+			.then_with(|| a.1.1.cmp(&b.1.1)) // Position
+			.then_with(|| b.1.2.cmp(&a.1.2)) // Frequency
+			.then_with(|| b.1.3.cmp(&a.1.3)) // Datetime
+			.then_with(|| a.0.cmp(&b.0))
+	});
+
+	let mut seen = Vec::new();
+	let mut result = Vec::new();
+
+	for (_, _, chapter) in ranked {
+		if let Some(number) = chapter.chapter_number {
+			if seen.contains(&number) {
+				continue;
+			} else {
+				seen.push(number);
+			}
+		}
+
+		result.push(chapter);
+	}
+
+	result
+}
+
+pub fn build_dedupe_chapters(input: Vec<MangaChapter>) -> Vec<MangaChapter> {
 	let official_groups_names = [
 		"official",
 		"official?",
@@ -220,77 +327,68 @@ fn is_official_like(chapter: &MangaChapter) -> bool {
 		"tappytoon",
 		"line webtoon",
 		"toomics",
+		"webtoon",
 	];
 
-	let group_ids = chapter.groups.as_ref().is_some_and(|groups| {
-		groups
-			.iter()
-			.any(|g| official_groups_names.contains(&g.name.to_lowercase().as_str()))
-	});
+	let mut group_frequency_map: HashMap<String, u32> = HashMap::new();
+	let mut chapter_map: HashMap<u32, Vec<String>> = HashMap::new();
 
-	let scanlator_name = chapter
-		.scanlator_name
-		.as_ref()
-		.is_some_and(|name| official_groups_names.contains(&name.to_lowercase().as_str()));
-
-	group_ids || scanlator_name
-}
-
-fn find_personal_group_preference_index(chapter: &MangaChapter) -> Option<usize> {
-	let deduped_group_list = get_deduped_group_list();
-	let mut index: Vec<Option<usize>> = Vec::new();
-
-	if let Some(groups) = chapter.groups.as_ref() {
-		groups.iter().for_each(|g| {
-			index.push(deduped_group_list.iter().position(|p| {
-				p.eq(&g.id.to_string()) || p.to_lowercase().eq(&g.name.to_lowercase())
-			}));
-		});
-	}
-
-	index.into_iter().flatten().min()
-}
-
-fn is_better(new: &MangaChapter, current: &MangaChapter) -> bool {
-	let official_new = is_official_like(new);
-	let official_cur = is_official_like(current);
-
-	if official_new && !official_cur {
-		return true;
-	}
-	if !official_new && official_cur {
-		return false;
-	}
-
-	let order_new = find_personal_group_preference_index(new);
-	let order_cur = find_personal_group_preference_index(current);
-
-	if order_new.is_some() && order_cur.is_none() {
-		return true;
-	}
-
-	if order_new.is_some() && order_cur.is_some() && order_new.lt(&order_cur) {
-		return true;
-	}
-
-	let new_created_at = new.created_at();
-	let cur_created_at = current.created_at();
-	new_created_at > cur_created_at
-}
-
-pub fn dedup_insert(map: &mut HashMap<String, MangaChapter>, chapter: MangaChapter) {
-	let key: String = chapter
-		.chapter_number
-		.map(|n| n.to_string())
-		.unwrap_or("0".into());
-	match map.get(&key) {
-		None => {
-			map.insert(key, chapter);
+	fn increment_group_frequency(map: &mut HashMap<String, u32>, group: &str) {
+		if let Some(frequency) = map.get_mut(group) {
+			*frequency += 1;
+		} else {
+			map.insert(group.into(), 1);
 		}
-		Some(current) => {
-			if is_better(&chapter, current) {
-				map.insert(key, chapter);
+	}
+
+	for chapter in input.iter() {
+		let chapter_number = chapter.chapter_number.map(|n| n as u32).unwrap_or(0);
+
+		if let Some(group_map) = chapter_map.get_mut(&chapter_number) {
+			if let Some(groups) = chapter.groups.as_ref() {
+				groups.iter().for_each(|g| {
+					let group_name = normalize_name(&g.name);
+
+					if !group_map.contains(&group_name) {
+						increment_group_frequency(&mut group_frequency_map, &group_name);
+						group_map.push(group_name);
+					}
+				})
 			}
+
+			if let Some(scanlator) = chapter.scanlator_name.as_ref() {
+				let normalized_scanlator = normalize_name(scanlator);
+
+				if !group_map.contains(&normalized_scanlator) {
+					increment_group_frequency(&mut group_frequency_map, &normalized_scanlator);
+					group_map.push(normalized_scanlator);
+				}
+			}
+		} else {
+			let mut value: Vec<String> = Vec::new();
+
+			if let Some(groups) = chapter.groups.as_ref() {
+				groups.iter().for_each(|g| {
+					let group_name = normalize_name(&g.name);
+					increment_group_frequency(&mut group_frequency_map, &group_name);
+					value.push(group_name);
+				})
+			}
+
+			if let Some(scanlator) = chapter.scanlator_name.as_ref() {
+				let normalized_scanlator = normalize_name(scanlator);
+				increment_group_frequency(&mut group_frequency_map, &normalized_scanlator);
+				value.push(normalized_scanlator);
+			}
+
+			chapter_map.insert(chapter_number, value);
 		}
 	}
+
+	deduplicate_chapters(
+		input,
+		&official_groups_names,
+		&get_deduped_group_list(),
+		&group_frequency_map,
+	)
 }
