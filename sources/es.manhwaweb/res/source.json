@@ -1,0 +1,26 @@
+{
+    "info": {
+        "id": "es.manhwaweb",
+        "name": "ManhwaWeb",
+        "version": 1,
+        "url": "https://manhwaweb.com",
+        "contentRating": 2,
+        "languages": [
+            "es"
+        ]
+    },
+    "listings": [
+        {
+            "id": "Latest",
+            "name": "Ultimas Actualizaciones"
+        },
+        {
+            "id": "New",
+            "name": "Recien Agregados"
+        },
+        {
+            "id": "Erotic",
+            "name": "+18 (Erotic)"
+        }
+    ]
+}
