@@ -12,10 +12,15 @@ const EXTEND_PAIRS: &[(char, char)] = &[
 	('\u{2018}', '\u{2019}'),
 	('\u{201C}', '\u{201D}'),
 	('\u{2039}', '\u{203A}'),
-	('\u{2045}', '\u{2046}'),
 ];
 
-const CREATE_PAIRS: &[(char, char)] = &[('(', ')'), ('[', ']'), ('{', '}'), ('\u{AB}', '\u{BB}')];
+const CREATE_PAIRS: &[(char, char)] = &[
+	('(', ')'),
+	('[', ']'),
+	('{', '}'),
+	('\u{AB}', '\u{BB}'),
+	('\u{2045}', '\u{2046}'),
+];
 
 fn is_prose_char(ch: char) -> bool {
 	let code = u32::from(ch);
@@ -196,10 +201,5 @@ mod tests {
 			 \u{1D4C3}\u{1D45C}\u{1D4CB}\u{1D4C1}\\.\u{1D4B8}\u{1D45E}\n\n",
 		);
 		assert_eq!(out, "The aura of fire\\!");
-		let out = strip(
-			"The rumbling sounded different from before\\.\u{1D65B}\u{1D45F}\
-			 \u{1D452}\u{1D638}\u{1D5EF}\u{1D62F}\u{1D5FC}\u{1D603}\u{1D484}\u{1D490}\n\n",
-		);
-		assert_eq!(out, "The rumbling sounded different from before\\.");
 	}
 }

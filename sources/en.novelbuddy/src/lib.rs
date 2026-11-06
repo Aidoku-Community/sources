@@ -15,7 +15,7 @@ mod settings;
 mod watermark;
 
 use helpers::{fetch_chapter_list, request, resolve_slug};
-use markdown::html_to_markdown;
+use markdown::to_markdown;
 use models::{ChapterDetailData, ListData, TitleDetailData, TrendingData};
 
 pub const BASE_URL: &str = "https://novelbuddy.me";
@@ -98,6 +98,13 @@ impl Source for NovelBuddy {
 		}
 		qs.push("page", Some(&page.to_string()));
 
+		let mtl = settings::mtl_mode();
+		if mtl == "only" {
+			qs.push("is_mtl", Some("true"));
+		} else if mtl == "hidden" {
+			qs.push("is_mtl", Some("false"));
+		}
+
 		if let Some(q) = query.as_deref() {
 			qs.push("q", Some(q));
 		}
@@ -137,7 +144,7 @@ impl Source for NovelBuddy {
 			.chapter
 			.content
 			.as_deref()
-			.map(html_to_markdown)
+			.map(to_markdown)
 			.unwrap_or_default();
 		let text = if body.is_empty() {
 			"(empty chapter)".to_string()

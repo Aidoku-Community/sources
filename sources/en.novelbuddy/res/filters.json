@@ -53,21 +53,6 @@
 		]
 	},
 	{
-		"type": "select",
-		"id": "mtl",
-		"title": "MTL",
-		"options": [
-			"All",
-			"MTL Only",
-			"No MTL"
-		],
-		"ids": [
-			"all",
-			"only",
-			"hidden"
-		]
-	},
-	{
 		"type": "multi-select",
 		"id": "genres",
 		"title": "Genres",

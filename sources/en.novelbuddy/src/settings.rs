@@ -15,12 +15,8 @@ pub fn hide_watermark() -> bool {
 	defaults_get::<bool>(HIDE_WATERMARK_KEY).unwrap_or(false)
 }
 
-pub fn mtl_mode() -> &'static str {
-	match defaults_get::<String>(MTL_KEY).as_deref() {
-		Some("only") => "only",
-		Some("hidden") => "hidden",
-		_ => "all",
-	}
+pub fn mtl_mode() -> String {
+	defaults_get::<String>(MTL_KEY).unwrap_or_else(|| "all".into())
 }
 
 pub fn reset_hidden_genres() {

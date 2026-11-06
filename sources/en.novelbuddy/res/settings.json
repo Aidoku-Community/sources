@@ -126,7 +126,7 @@
 			{
 				"type": "select",
 				"key": "mtl",
-				"title": "MTL",
+				"title": "Translation",
 				"values": [
 					"all",
 					"only",
@@ -135,7 +135,7 @@
 				"titles": [
 					"All",
 					"MTL Only",
-					"No MTL"
+					"Hide MTL"
 				],
 				"default": "all",
 				"refreshes": [
