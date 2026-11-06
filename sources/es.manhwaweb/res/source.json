@@ -1,26 +1,20 @@
 {
-    "info": {
-        "id": "es.manhwaweb",
-        "name": "ManhwaWeb",
-        "version": 1,
-        "url": "https://manhwaweb.com",
-        "contentRating": 2,
-        "languages": [
-            "es"
-        ]
-    },
-    "listings": [
-        {
-            "id": "Latest",
-            "name": "Ultimas Actualizaciones"
-        },
-        {
-            "id": "New",
-            "name": "Recien Agregados"
-        },
-        {
-            "id": "Erotic",
-            "name": "+18 (Erotic)"
-        }
-    ]
+	"info": {
+		"id": "es.manhwaweb",
+		"name": "ManhwaWeb",
+		"version": 1,
+		"url": "https://manhwaweb.com",
+		"contentRating": 1,
+		"languages": ["es"]
+	},
+	"listings": [
+		{
+			"id": "Popular",
+			"name": "Populares"
+		},
+		{
+			"id": "Latest",
+			"name": "Últimas actualizaciones"
+		}
+	]
 }

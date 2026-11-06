@@ -1,189 +1,362 @@
 use aidoku::{
-	Chapter, Manga, MangaStatus, Viewer,
-	alloc::{String, Vec},
+	Chapter, Manga, MangaWithChapter,
+	alloc::{String, Vec, collections::BTreeMap, string::ToString, vec},
 	prelude::*,
 };
 use serde::Deserialize;
 
-#[derive(Debug, Clone, Deserialize)]
+use crate::helpers::{
+	creator_names, format_number, last_segment, manga_url, parse_content_rating, parse_status,
+	parse_viewer,
+};
+
+// `/manhwa/nuevos`
+
+#[derive(Deserialize)]
 pub struct NuevosResponse {
-	// 'utimos_mangas_creados' (latest_mangas) and 'top' are never used by logic,
-	// so we can omit them. If the JSON structure requires them to be present but ignored,
-	// we can keep them or use `serde::IgnoredAny` if we want to be strict,
-	// but typically just omitting them from the struct works if `deny_unknown_fields` isn't on.
-
-	// However, the `ManhwaWeb` logic accesses `data.manhwas.spanish_manhwas`.
-	pub manhwas: ManhwasCollection,
+	pub top: TopDto,
+	#[serde(rename = "utimos_mangas_creados", default)]
+	pub new_series: Vec<LibraryItemDto>,
+	#[serde(rename = "utimos_mangas_creados_18", default)]
+	pub new_series_18: Vec<LibraryItemDto>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct ManhwasCollection {
-	#[serde(rename = "manhwas_esp")]
-	pub spanish_manhwas: Vec<UpdateManga>,
+#[derive(Deserialize)]
+pub struct TopDto {
+	#[serde(rename = "manhwas_esp", default)]
+	pub weekly: Vec<PopularItemDto>,
+	#[serde(rename = "manhwas_raw", default)]
+	pub total: Vec<PopularItemDto>,
 }
 
-// TopCollection and TopManga were seemingly unused. Removed.
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct UpdateManga {
-	pub name_manhwa: String,
-	pub img: Option<String>,
-	pub id_manhwa: String,
-	pub chapter: f32,
-	// 'create' was unused.
-	pub gru_name: Option<String>,
+impl TopDto {
+	/// Both rankings merged, without duplicates, most viewed first.
+	pub fn into_mangas(self) -> Vec<Manga> {
+		let mut items: Vec<PopularItemDto> = Vec::new();
+		for item in self.weekly.into_iter().chain(self.total) {
+			if !items.iter().any(|seen| seen.slug() == item.slug()) {
+				items.push(item);
+			}
+		}
+		items.sort_by_key(|item| core::cmp::Reverse(item.views));
+		items.into_iter().map(PopularItemDto::into_manga).collect()
+	}
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Deserialize)]
+pub struct PopularItemDto {
+	/// A path like `/manhwa/{slug}` or `/manga/{slug}`.
+	link: String,
+	#[serde(rename = "numero", default)]
+	views: i64,
+	name: String,
+	#[serde(rename = "imagen")]
+	cover: Option<String>,
+}
+
+impl PopularItemDto {
+	fn slug(&self) -> &str {
+		last_segment(&self.link)
+	}
+
+	fn into_manga(self) -> Manga {
+		let key = self.slug().to_string();
+		Manga {
+			url: Some(manga_url(&key)),
+			key,
+			title: self.name.trim().into(),
+			cover: self.cover,
+			..Default::default()
+		}
+	}
+}
+
+// `/latest/new-manhwa`
+
+#[derive(Deserialize)]
+pub struct LatestResponse {
+	pub manhwas: LatestDto,
+}
+
+#[derive(Deserialize)]
+pub struct LatestDto {
+	#[serde(rename = "manhwas_esp", default)]
+	esp: Vec<LatestItemDto>,
+	#[serde(rename = "manhwas_raw", default)]
+	raw: Vec<LatestItemDto>,
+	#[serde(rename = "_manhwas", default)]
+	esp_18: Vec<LatestItemDto>,
+}
+
+impl LatestDto {
+	/// All three lists merged, without duplicates, most recently updated first.
+	pub fn into_items(self) -> Vec<LatestItemDto> {
+		let mut items: Vec<LatestItemDto> = Vec::new();
+		for item in self.esp.into_iter().chain(self.raw).chain(self.esp_18) {
+			if !items.iter().any(|seen| seen.slug == item.slug) {
+				items.push(item);
+			}
+		}
+		items.sort_by_key(|item| core::cmp::Reverse(item.updated_at));
+		items
+	}
+}
+
+#[derive(Deserialize)]
+pub struct LatestItemDto {
+	#[serde(rename = "id_rel")]
+	slug: String,
+	#[serde(rename = "name_manhwa")]
+	name: String,
+	#[serde(rename = "img")]
+	cover: Option<String>,
+	/// Newest chapter number.
+	chapter: Option<f32>,
+	#[serde(rename = "gru_name")]
+	group: Option<String>,
+	#[serde(rename = "_tipo")]
+	kind: Option<String>,
+	/// Milliseconds.
+	#[serde(rename = "create", default)]
+	updated_at: i64,
+}
+
+impl LatestItemDto {
+	pub fn into_manga(self) -> Manga {
+		Manga {
+			url: Some(manga_url(&self.slug)),
+			key: self.slug,
+			title: self.name.trim().into(),
+			cover: self.cover,
+			viewer: parse_viewer(self.kind.as_deref()),
+			..Default::default()
+		}
+	}
+
+	/// The series with its newest chapter, for the home page. The API doesn't give
+	/// the chapter link, so the key assumes the first version (`_01`), like the site.
+	pub fn into_manga_with_chapter(self) -> MangaWithChapter {
+		let chapter = Chapter {
+			key: format!(
+				"{}-{}_01",
+				self.slug,
+				format_number(self.chapter.unwrap_or(0.0))
+			),
+			chapter_number: self.chapter,
+			date_uploaded: Some(self.updated_at / 1000),
+			scanlators: self
+				.group
+				.as_deref()
+				.map(str::trim)
+				.filter(|group| !group.is_empty())
+				.map(|group| vec![group.into()]),
+			..Default::default()
+		};
+		MangaWithChapter {
+			manga: self.into_manga(),
+			chapter,
+		}
+	}
+}
+
+// `/manhwa/library`
+
+#[derive(Deserialize)]
 pub struct LibraryResponse {
-	pub data: Vec<LibraryManga>,
+	pub data: Vec<LibraryItemDto>,
 	pub next: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct LibraryManga {
-	#[serde(rename = "_id")]
-	pub id: String,
-	pub the_real_name: String,
+#[derive(Deserialize)]
+pub struct LibraryItemDto {
+	real_id: String,
+	the_real_name: String,
 	#[serde(rename = "_imagen")]
-	pub image: Option<String>,
+	cover: Option<String>,
 	#[serde(rename = "_status")]
-	pub status: Option<String>,
-	#[serde(rename = "_erotico")]
-	pub erotic: Option<String>,
-	#[serde(rename = "_categoris")]
-	pub categories: Option<Vec<i32>>,
-}
-
-impl LibraryManga {
-	pub fn to_manga(self, base_url: &str) -> Manga {
-		let url = Some(format!("{}/manhwa/{}", base_url, self.id));
-		Manga {
-			key: self.id.into(),
-			title: self.the_real_name,
-			cover: self.image.map(|s| s.into()),
-			url,
-			status: self
-				.status
-				.as_ref()
-				.map(|s| match s.as_str() {
-					"publicandose" => MangaStatus::Ongoing,
-					"finalizado" => MangaStatus::Completed,
-					"pausado" => MangaStatus::Hiatus,
-					_ => MangaStatus::Unknown,
-				})
-				.unwrap_or(MangaStatus::Unknown),
-			..Default::default()
-		}
-	}
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct SeeResponse {
-	#[serde(rename = "_id")]
-	pub id: String,
-	pub the_real_name: String,
-	#[serde(rename = "_sinopsis")]
-	pub synopsis: Option<String>,
-	#[serde(rename = "_imagen")]
-	pub image: Option<String>,
-	#[serde(rename = "_status")]
-	pub status: Option<String>,
+	status: Option<String>,
 	#[serde(rename = "_tipo")]
-	pub serie_type: Option<String>,
-	// Removed unused 'demography' and 'erotic'
-	#[serde(rename = "_categoris")]
-	pub categories: Option<Vec<serde_json::Value>>,
-	pub chapters: Vec<RawSeeChapter>,
+	kind: Option<String>,
+	#[serde(rename = "_erotico")]
+	erotic: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct RawSeeChapter {
-	pub chapter: f32,
-	pub create: i64,
-	pub link: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ChapterSeeResponse {
-	pub chapter: ChapterImgData,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ChapterImgData {
-	pub img: Vec<String>,
-}
-
-impl SeeResponse {
-	pub fn parse_manga(&self, base_url: &str) -> Manga {
+impl LibraryItemDto {
+	pub fn into_manga(self) -> Manga {
 		Manga {
-			key: self.id.clone().into(),
-			title: self.the_real_name.clone(),
-			description: self.synopsis.as_ref().map(|s| s.trim().into()),
-			cover: self.image.as_ref().map(|s| s.into()),
-			url: Some(format!("{base_url}/manhwa/{}", self.id)),
-			status: self
-				.status
-				.as_ref()
-				.map(|s| match s.as_str() {
-					"publicandose" => MangaStatus::Ongoing,
-					"finalizado" => MangaStatus::Completed,
-					"pausado" => MangaStatus::Hiatus,
-					_ => MangaStatus::Unknown,
-				})
-				.unwrap_or(MangaStatus::Unknown),
-			viewer: self
-				.serie_type
-				.as_ref()
-				.map(|s| match s.as_str() {
-					"manhwa" | "manhua" => Viewer::Webtoon,
-					_ => Viewer::RightToLeft,
-				})
-				.unwrap_or(Viewer::Unknown),
-			tags: self
-				.categories
-				.as_ref()
-				.map(|cats: &Vec<serde_json::Value>| {
-					cats.iter()
-						.filter_map(|cat: &serde_json::Value| {
-							cat.as_object()
-								.and_then(|obj: &serde_json::Map<String, serde_json::Value>| {
-									obj.values().next()
-								})
-								.and_then(|v: &serde_json::Value| v.as_str())
-								.map(|s: &str| s.into())
-						})
-						.collect()
-				}),
+			url: Some(manga_url(&self.real_id)),
+			key: self.real_id,
+			title: self.the_real_name.trim().into(),
+			cover: self.cover,
+			status: parse_status(self.status.as_deref()),
+			viewer: parse_viewer(self.kind.as_deref()),
+			content_rating: parse_content_rating(self.erotic.as_deref(), false),
 			..Default::default()
 		}
 	}
+}
 
-	pub fn parse_chapters(&self, _base_url: &str) -> Vec<Chapter> {
+// `/manhwa/see/{slug}`
+
+#[derive(Deserialize)]
+pub struct DetailsDto {
+	/// Old id. Chapter links still use it, but the API only accepts `real_id`.
+	#[serde(rename = "_id")]
+	id: String,
+	real_id: String,
+	name_esp: Option<String>,
+	the_real_name: Option<String>,
+	#[serde(rename = "_sinopsis")]
+	description: Option<String>,
+	#[serde(rename = "_status")]
+	status: Option<String>,
+	#[serde(rename = "_imagen")]
+	cover: Option<String>,
+	#[serde(rename = "_tipo")]
+	kind: Option<String>,
+	#[serde(rename = "_erotico")]
+	erotic: Option<String>,
+	/// Each genre is a single-entry map like `{"3": "Accion"}`.
+	#[serde(rename = "_categoris", default)]
+	genres: Vec<BTreeMap<String, String>>,
+	#[serde(default)]
+	others_name: Vec<String>,
+	#[serde(rename = "autor", default)]
+	authors: Vec<CreatorDto>,
+	#[serde(rename = "artista", default)]
+	artists: Vec<CreatorDto>,
+	#[serde(default)]
+	chapters: Vec<ChapterDto>,
+}
+
+#[derive(Deserialize)]
+pub struct CreatorDto {
+	pub name: String,
+}
+
+#[derive(Deserialize)]
+struct ChapterDto {
+	chapter: f32,
+	#[serde(default)]
+	versions: Vec<ChapterVersionDto>,
+}
+
+#[derive(Deserialize)]
+struct ChapterVersionDto {
+	/// Like `https://manhwaweb.com/leer/{_id}-{number}_{version}`.
+	link: String,
+	#[serde(default)]
+	joint: Vec<CreatorDto>,
+	/// Milliseconds. Missing for chapters that aren't released yet.
+	create: Option<i64>,
+}
+
+impl DetailsDto {
+	pub fn update_manga(&self, manga: &mut Manga) {
+		let title = self
+			.name_esp
+			.as_deref()
+			.or(self.the_real_name.as_deref())
+			.map(str::trim)
+			.filter(|title| !title.is_empty());
+		if let Some(title) = title {
+			manga.title = title.into();
+		}
+
+		let mut description = self
+			.description
+			.as_deref()
+			.map(str::trim)
+			.unwrap_or_default()
+			.to_string();
+		let alt_names = self
+			.others_name
+			.iter()
+			.map(|name| name.trim())
+			.filter(|name| !name.is_empty())
+			.collect::<Vec<_>>();
+		if !alt_names.is_empty() {
+			if !description.is_empty() {
+				description.push_str("\n\n");
+			}
+			description.push_str("Nombres alternativos: ");
+			description.push_str(&alt_names.join(", "));
+		}
+
+		let tags: Vec<String> = self
+			.genres
+			.iter()
+			.filter_map(|genre| genre.values().next())
+			.map(|name| name.trim().into())
+			.collect();
+		let is_ecchi = tags.iter().any(|tag| tag == "Ecchi");
+
+		manga.key = self.real_id.clone();
+		manga.url = Some(manga_url(&self.real_id));
+		manga.cover = self.cover.clone().or(manga.cover.take());
+		manga.description = Some(description).filter(|d| !d.is_empty());
+		manga.authors = creator_names(&self.authors);
+		manga.artists = creator_names(&self.artists);
+		manga.status = parse_status(self.status.as_deref());
+		manga.viewer = parse_viewer(self.kind.as_deref());
+		manga.content_rating = parse_content_rating(self.erotic.as_deref(), is_ecchi);
+		manga.tags = Some(tags).filter(|tags| !tags.is_empty());
+	}
+
+	/// Every version of every released chapter, newest first.
+	pub fn chapters(&self) -> Vec<Chapter> {
 		let mut chapters: Vec<Chapter> = self
 			.chapters
 			.iter()
-			.map(|c| {
-				let url = Some(c.link.clone());
-				Chapter {
-					// The URL is like /leer/slug-number
-					// But the API for images uses the whole slug-number as ID (KEY)
-					key: c.link.rsplit('/').next().unwrap_or(&self.id).into(),
-					chapter_number: Some(c.chapter),
-					date_uploaded: Some(c.create / 1000), // convert ms to s
-					url,
-					..Default::default()
-				}
+			.flat_map(|chapter| {
+				chapter
+					.versions
+					.iter()
+					.filter_map(move |version| self.parse_version(chapter.chapter, version))
 			})
 			.collect();
-
-		// Sort by chapter number descending
 		chapters.sort_by(|a, b| {
 			b.chapter_number
 				.partial_cmp(&a.chapter_number)
 				.unwrap_or(core::cmp::Ordering::Equal)
 		});
-
 		chapters
 	}
+
+	fn parse_version(&self, number: f32, version: &ChapterVersionDto) -> Option<Chapter> {
+		let date = version.create?;
+		// Links use the old id, which the API doesn't accept for some series.
+		let url = version.link.replace(&self.id, &self.real_id);
+		let mut scanlators: Vec<String> = version
+			.joint
+			.iter()
+			.map(|group| group.name.trim())
+			.filter(|name| !name.is_empty())
+			.map(String::from)
+			.collect();
+		if version.joint.is_empty() {
+			scanlators.push("ManhwaWeb Bot".into());
+		}
+		Some(Chapter {
+			key: last_segment(&url).into(),
+			chapter_number: Some(number),
+			date_uploaded: Some(date / 1000),
+			scanlators: Some(scanlators).filter(|s| !s.is_empty()),
+			url: Some(url),
+			..Default::default()
+		})
+	}
+}
+
+// `/chapters/see/{key}`
+
+#[derive(Deserialize)]
+pub struct PagesResponse {
+	pub chapter: PagesDto,
+}
+
+#[derive(Deserialize)]
+pub struct PagesDto {
+	#[serde(default)]
+	pub img: Vec<String>,
 }
