@@ -224,11 +224,10 @@ fn get_chapter_priority(
 	let created_at = chapter.created_at().unwrap_or(0);
 
 	// Rule 1: Official group name, then frequency, then upload datetime.
-	if combined_group.iter().any(|g| {
-		official_groups_names
-			.iter()
-			.any(|official| g.contains(official))
-	}) {
+	if combined_group
+		.iter()
+		.any(|g| official_groups_names.iter().any(|official| g.eq(official)))
+	{
 		return (0, 0, frequency, created_at);
 	}
 
