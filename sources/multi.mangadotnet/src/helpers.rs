@@ -5,7 +5,10 @@ use crate::{
 };
 use aidoku::{
 	HashMap, Result,
-	alloc::{string::String, vec::Vec},
+	alloc::{
+		string::{String, ToString},
+		vec::Vec,
+	},
 	imports::net::{Request, Response},
 	prelude::*,
 };
@@ -198,13 +201,14 @@ fn get_chapter_priority(
 	official_groups_names: &[&str],
 	deduped_group_list: &[String],
 	group_frequency_map: &HashMap<String, u32>,
-) -> (u32, usize, u32) {
+) -> (u32, usize, u32, i64) {
 	let mut combined_group: Vec<String> = Vec::new();
 
 	if let Some(groups) = chapter.groups.as_ref() {
-		groups
-			.iter()
-			.for_each(|g| combined_group.push(normalize_name(&g.name)))
+		groups.iter().for_each(|g| {
+			combined_group.push(normalize_name(&g.name));
+			combined_group.push(g.id.to_string())
+		})
 	}
 
 	if let Some(scanlator) = chapter.scanlator_name.as_ref() {
@@ -217,16 +221,18 @@ fn get_chapter_priority(
 		.max()
 		.unwrap_or(0);
 
-	// Rule 1: Official group name, frequency as tie-breaker.
+	let created_at = chapter.created_at().unwrap_or(0);
+
+	// Rule 1: Official group name, then frequency, then upload datetime.
 	if combined_group.iter().any(|g| {
 		official_groups_names
 			.iter()
 			.any(|official| g.contains(official))
 	}) {
-		return (0, 0, frequency);
+		return (0, 0, frequency, created_at);
 	}
 
-	// Rule 2: Group name in deduped_group_list.
+	// Rule 2: Group name/id in deduped_group_list.
 	let best_position = combined_group
 		.iter()
 		.filter_map(|group| {
@@ -237,11 +243,11 @@ fn get_chapter_priority(
 		.min();
 
 	if let Some(position) = best_position {
-		return (1, position, frequency);
+		return (1, position, frequency, created_at);
 	}
 
 	// Rule 3: Most frequent group name / scanlator name.
-	(2, 0, frequency)
+	(2, 0, frequency, created_at)
 }
 
 fn deduplicate_chapters(
@@ -269,9 +275,10 @@ fn deduplicate_chapters(
 	// Higher priority first.
 	ranked.sort_by(|a, b| {
 		a.1.0
-			.cmp(&b.1.0)
-			.then_with(|| a.1.1.cmp(&b.1.1))
-			.then_with(|| b.1.2.cmp(&a.1.2))
+			.cmp(&b.1.0) // Ruleset
+			.then_with(|| a.1.1.cmp(&b.1.1)) // Position
+			.then_with(|| b.1.2.cmp(&a.1.2)) // Frequency
+			.then_with(|| b.1.3.cmp(&a.1.3)) // Datetime
 			.then_with(|| a.0.cmp(&b.0))
 	});
 
@@ -350,11 +357,13 @@ pub fn build_dedupe_chapters(input: Vec<MangaChapter>) -> Vec<MangaChapter> {
 				})
 			}
 
-			if let Some(scanlator) = chapter.scanlator_name.as_ref()
-				&& !group_map.contains(scanlator)
-			{
-				increment_group_frequency(&mut group_frequency_map, scanlator);
-				group_map.push(scanlator.into());
+			if let Some(scanlator) = chapter.scanlator_name.as_ref() {
+				let normalized_scanlator = normalize_name(scanlator);
+
+				if !group_map.contains(&normalized_scanlator) {
+					increment_group_frequency(&mut group_frequency_map, &normalized_scanlator);
+					group_map.push(normalized_scanlator);
+				}
 			}
 		} else {
 			let mut value: Vec<String> = Vec::new();
@@ -368,8 +377,9 @@ pub fn build_dedupe_chapters(input: Vec<MangaChapter>) -> Vec<MangaChapter> {
 			}
 
 			if let Some(scanlator) = chapter.scanlator_name.as_ref() {
-				increment_group_frequency(&mut group_frequency_map, scanlator);
-				value.push(scanlator.into());
+				let normalized_scanlator = normalize_name(scanlator);
+				increment_group_frequency(&mut group_frequency_map, &normalized_scanlator);
+				value.push(normalized_scanlator);
 			}
 
 			chapter_map.insert(chapter_number, value);
