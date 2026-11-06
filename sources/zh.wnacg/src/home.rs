@@ -15,51 +15,57 @@ fn send_component(component: HomeComponent) {
 
 impl Home for Wnacg {
 	fn get_home(&self) -> Result<HomeLayout> {
+		// The korean category returns 404 without a login cookie, which would leave
+		// an empty titled row, so it is only added to the skeleton when logged in.
+		// The layout reloads with the login refreshes, so the row comes back then.
+		let logged_in = crate::auth::is_logged_in();
+		let mut components = vec![
+			HomeComponent {
+				title: Some("日排行".into()),
+				subtitle: None,
+				value: aidoku::HomeComponentValue::empty_big_scroller(),
+			},
+			HomeComponent {
+				title: Some("周排行".into()),
+				subtitle: None,
+				value: aidoku::HomeComponentValue::empty_manga_list(),
+			},
+			HomeComponent {
+				title: Some("月排行".into()),
+				subtitle: None,
+				value: aidoku::HomeComponentValue::empty_manga_list(),
+			},
+			HomeComponent {
+				title: Some("最近更新".into()),
+				subtitle: None,
+				value: aidoku::HomeComponentValue::empty_scroller(),
+			},
+			HomeComponent {
+				title: Some("同人志".into()),
+				subtitle: None,
+				value: aidoku::HomeComponentValue::empty_scroller(),
+			},
+			HomeComponent {
+				title: Some("单行本".into()),
+				subtitle: None,
+				value: aidoku::HomeComponentValue::empty_scroller(),
+			},
+			HomeComponent {
+				title: Some("杂志&短篇".into()),
+				subtitle: None,
+				value: aidoku::HomeComponentValue::empty_scroller(),
+			},
+		];
+		if logged_in {
+			components.push(HomeComponent {
+				title: Some("韩漫".into()),
+				subtitle: None,
+				value: aidoku::HomeComponentValue::empty_scroller(),
+			});
+		}
+
 		// send basic home layout
-		send_partial_result(&HomePartialResult::Layout(HomeLayout {
-			components: vec![
-				HomeComponent {
-					title: Some("日排行".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_big_scroller(),
-				},
-				HomeComponent {
-					title: Some("周排行".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_manga_list(),
-				},
-				HomeComponent {
-					title: Some("月排行".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_manga_list(),
-				},
-				HomeComponent {
-					title: Some("最近更新".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_scroller(),
-				},
-				HomeComponent {
-					title: Some("同人志".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_scroller(),
-				},
-				HomeComponent {
-					title: Some("单行本".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_scroller(),
-				},
-				HomeComponent {
-					title: Some("杂志&短篇".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_scroller(),
-				},
-				HomeComponent {
-					title: Some("韩漫".into()),
-					subtitle: None,
-					value: aidoku::HomeComponentValue::empty_scroller(),
-				},
-			],
-		}));
+		send_partial_result(&HomePartialResult::Layout(HomeLayout { components }));
 
 		let responses: [core::result::Result<Response, RequestError>; 8] = Request::send_all([
 			// daily ranking
@@ -218,7 +224,8 @@ impl Home for Wnacg {
 			});
 		}
 
-		if let Ok(korean) = korean
+		if logged_in
+			&& let Ok(korean) = korean
 			&& !korean.is_empty()
 		{
 			send_component(HomeComponent {

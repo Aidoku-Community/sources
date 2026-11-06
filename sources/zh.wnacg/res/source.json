@@ -2,12 +2,14 @@
 	"info": {
 		"id": "zh.wnacg",
 		"name": "紳士漫畫",
-		"version": 4,
+		"version": 5,
 		"urls": [
 			"https://www.wn001.cfd",
 			"https://www.wn002.cfd",
 			"https://www.wnacg.com",
-			"https://www.wnacg05.cc",
+			"https://www.wnacg.site",
+			"https://www.wnacg.buzz",
+			"https://www.wnacg.ru",
 			"https://www.wn07.ru"
 		],
 		"contentRating": 2,
@@ -42,10 +44,6 @@
 		{
 			"id": "magazine",
 			"name": "杂志&短篇"
-		},
-		{
-			"id": "korean",
-			"name": "韩漫"
 		}
 	],
 	"config": {

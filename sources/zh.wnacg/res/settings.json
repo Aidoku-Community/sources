@@ -1,0 +1,20 @@
+[
+	{
+		"type": "group",
+		"title": "账号",
+		"footer": "登录后可以看韩漫。按「登录」后要先完成拼图验证，登录成功后登录页会自动关闭，下方「账号信息」出现名称就是成功了。\n登录状态会保存在此设备，不保存密码。按「登出」即完全清除。\n韩漫又打不开时，请登出再登录一次。",
+		"items": [
+			{
+				"type": "login",
+				"key": "login",
+				"title": "登录",
+				"method": "web",
+				"url": "https://www.wnacg.com/users-login.html",
+				"logoutTitle": "登出",
+				"clearCookiesOnLogOut": true,
+				"notification": "login",
+				"refreshes": ["settings", "listings", "content"]
+			}
+		]
+	}
+]

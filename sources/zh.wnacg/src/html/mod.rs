@@ -78,10 +78,25 @@ impl MangaPage for Document {
 			.text()
 			.unwrap_or_default();
 
-		let categories = self
-			.try_select_first("#bodywrap>div>.uwconn>label:nth-child(1)")?
-			.text()
-			.unwrap_or_default()
+		// Labels are dispatched by prefix instead of position because series
+		// pages have an extra `狀態：` label.
+		let mut category_text = String::new();
+		let mut page_info = String::new();
+		let mut state = String::new();
+		if let Some(labels) = self.select("#bodywrap>div>.uwconn label") {
+			for label in labels {
+				let Some(text) = label.text() else { continue };
+				if text.starts_with("分類：") {
+					category_text = text;
+				} else if text.starts_with("頁數：") {
+					page_info = text;
+				} else if let Some(rest) = text.strip_prefix("狀態：") {
+					state = rest.trim().to_string();
+				}
+			}
+		}
+
+		let categories = category_text
 			.replace("分類：", "")
 			.split("／")
 			.flat_map(|a| a.split("&"))
@@ -99,8 +114,14 @@ impl MangaPage for Document {
 			Viewer::RightToLeft
 		};
 
-		let mut all_tags = categories;
-		all_tags.extend(tags);
+		// A series lists its category as `韓漫／合集／合集`, so dedupe.
+		let mut all_tags: Vec<String> = Vec::new();
+		for tag in categories.iter().chain(tags.iter()) {
+			let tag = tag.trim();
+			if !tag.is_empty() && !all_tags.iter().any(|t| t == tag) {
+				all_tags.push(tag.to_string());
+			}
+		}
 		manga.tags = Some(all_tags);
 
 		let description = self
@@ -135,31 +156,36 @@ impl MangaPage for Document {
 			})
 			.unwrap_or_default();
 
-		// Get page count information
-		let page_info = self
-			.try_select_first("#bodywrap>div>.uwconn>label:nth-child(2)")?
-			.text()
-			.unwrap_or_default();
-
+		// Page info comes from the `頁數：` label collected above
 		let full_description = if !description.is_empty() {
 			format!("{}  \n簡介：{}", page_info, description)
 		} else {
 			page_info
 		};
 
-		manga.status = if title.contains("[完結]") {
-			MangaStatus::Completed
-		} else {
-			MangaStatus::Unknown
+		// A single upload is complete by definition; only an ongoing series
+		// keeps gaining chapters.
+		(manga.status, manga.update_strategy) = match state.as_str() {
+			"連載中" | "连载中" => (MangaStatus::Ongoing, aidoku::UpdateStrategy::Always),
+			"完結" | "完结" => (MangaStatus::Completed, aidoku::UpdateStrategy::Never),
+			_ if title.contains("[完結]") || title.contains("[完结]") => {
+				(MangaStatus::Completed, aidoku::UpdateStrategy::Never)
+			}
+			_ => (MangaStatus::Unknown, aidoku::UpdateStrategy::Never),
 		};
 		manga.title = title;
 		manga.description = Some(full_description);
-		// Status is already set above based on title
-		manga.update_strategy = aidoku::UpdateStrategy::Never;
 		manga.url = Some(Url::manga(manga.key.clone()).to_string()?);
 
 		Ok(())
 	}
+}
+
+/// A series detail page lists its chapters under `#sr_pub` instead of
+/// showing a gallery; its own `photos-gallery` page only returns favorite
+/// cards.
+pub fn is_series(html: &Document) -> bool {
+	html.select_first("#sr_pub").is_some()
 }
 
 pub trait ChapterPage {
