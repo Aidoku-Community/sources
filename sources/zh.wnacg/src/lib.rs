@@ -5,7 +5,7 @@ use aidoku::{
 	HashMap, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
 	NotificationHandler, Page, Result, Setting, Source, WebLoginHandler,
 	alloc::{String, Vec, vec},
-	imports::{html::Document, net::Request},
+	imports::net::Request,
 	prelude::*,
 };
 use html::{ChapterPage as _, MangaPage as _};
@@ -52,13 +52,7 @@ impl Source for Wnacg {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		// Swallow failures: one unreachable gallery must not abort a whole
-		// library refresh; the library keeps the details it already has.
-		let Ok(html) = (|| {
-			Ok::<Document, aidoku::AidokuError>(Url::manga(manga.key.clone()).request()?.html()?)
-		})() else {
-			return Ok(manga);
-		};
+		let html = Url::manga(manga.key.clone()).request()?.html()?;
 
 		if needs_details {
 			html.manga_details(&mut manga)?;
@@ -66,22 +60,15 @@ impl Source for Wnacg {
 
 		if needs_chapters && html::is_series(&html) {
 			// A series page shows no gallery; its chapter list comes from the
-			// JSON endpoint the site's own reader uses. On failure the
-			// library keeps the chapters it already has.
-			if let Ok(chapters) = (|| {
-				let json = Url::series_chapters(manga.key.clone())
-					.request()?
-					.string()?;
-				series::parse_chapters(&json, &manga.key)
-			})() {
-				manga.chapters = Some(chapters);
-			}
+			// JSON endpoint the site's own reader uses.
+			let json = Url::series_chapters(manga.key.clone())
+				.request()?
+				.string()?;
+			manga.chapters = Some(series::parse_chapters(&json, &manga.key)?);
 		} else if needs_chapters {
 			// An ordinary gallery is one whole book with no chapter
 			// structure of its own, so it always reports a single chapter.
-			if let Ok(chapters) = html.chapters(&manga.key) {
-				manga.chapters = Some(chapters);
-			}
+			manga.chapters = Some(html.chapters(&manga.key)?);
 		}
 
 		Ok(manga)

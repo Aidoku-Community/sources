@@ -49,8 +49,6 @@
 	"config": {
 		"allowsBaseUrlSelect": true,
 		"hidesFiltersWhileSearching": true,
-		"supportsArtistSearch": true,
-		"supportsAuthorSearch": true,
 		"supportsTagSearch": true
 	}
 }

@@ -31,9 +31,6 @@ const ACCOUNT_KEY: &str = "auth_account";
 /// Time of the latest successful capture. The `login` notification arrives
 /// for both login and logout; a fresh timestamp tells them apart.
 const LOGGED_IN_AT_KEY: &str = "auth_logged_in_at";
-/// Cookie header of the last failed verification. The login page reports
-/// every cookie change, so an identical header is not verified twice.
-const LAST_FAILED_KEY: &str = "auth_last_failed";
 
 /// A `login` notification received within this many seconds of a capture is
 /// treated as a login, not a logout (same window as zh.bookwalker and
@@ -65,9 +62,6 @@ pub fn capture_web_login(cookies: &HashMap<String, String>) -> bool {
 	let Some(header) = login_cookie_header(cookies) else {
 		return false;
 	};
-	if defaults_get::<String>(LAST_FAILED_KEY).as_deref() == Some(header.as_str()) {
-		return false;
-	}
 	match verify(&header) {
 		Some(name) => {
 			defaults_set(COOKIE_KEY, DefaultValue::String(header));
@@ -76,13 +70,9 @@ pub fn capture_web_login(cookies: &HashMap<String, String>) -> bool {
 				LOGGED_IN_AT_KEY,
 				DefaultValue::String(current_date().to_string()),
 			);
-			defaults_set(LAST_FAILED_KEY, DefaultValue::Null);
 			true
 		}
-		None => {
-			defaults_set(LAST_FAILED_KEY, DefaultValue::String(header));
-			false
-		}
+		None => false,
 	}
 }
 
@@ -102,11 +92,8 @@ fn clear_all() {
 	defaults_set(COOKIE_KEY, DefaultValue::Null);
 	defaults_set(ACCOUNT_KEY, DefaultValue::Null);
 	defaults_set(LOGGED_IN_AT_KEY, DefaultValue::Null);
-	defaults_set(LAST_FAILED_KEY, DefaultValue::Null);
 }
 
-/// Sorting gives the same cookies the same header every time, which the
-/// `LAST_FAILED_KEY` comparison relies on.
 fn login_cookie_header(cookies: &HashMap<String, String>) -> Option<String> {
 	let mut pairs: Vec<String> = cookies
 		.iter()
