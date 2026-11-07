@@ -2,7 +2,7 @@
 	"info": {
 		"id": "zh.wnacg",
 		"name": "紳士漫畫",
-		"version": 5,
+		"version": 6,
 		"urls": [
 			"https://www.wn001.cfd",
 			"https://www.wn002.cfd",
@@ -49,6 +49,8 @@
 	"config": {
 		"allowsBaseUrlSelect": true,
 		"hidesFiltersWhileSearching": true,
-		"supportsTagSearch": true
+		"supportsTagSearch": true,
+		"supportsAuthorSearch": true,
+		"supportsArtistSearch": true
 	}
 }

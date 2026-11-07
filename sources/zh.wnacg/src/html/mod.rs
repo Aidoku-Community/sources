@@ -15,6 +15,89 @@ pub trait MangaPage {
 	fn manga_details(&self, manga: &mut Manga) -> Result<()>;
 }
 
+/// Bracketed prefixes that describe the release rather than the circle or
+/// the artist. Single-album korean uploads open with `[韩漫][活火山 & Ben.p]`.
+const RELEASE_MARKERS: [&str; 16] = [
+	"韩漫",
+	"韓漫",
+	"無修正",
+	"無修正版",
+	"無修",
+	"中国翻訳",
+	"中國翻訳",
+	"中文翻訳",
+	"漢化",
+	"汉化",
+	"DL版",
+	"フルカラー版",
+	"フルカラー",
+	"Digital",
+	"Decensored",
+	"Uncensored",
+];
+
+/// Pull the circle and the artist out of a title's bracketed prefix.
+///
+/// `[カマボコ工房 (釜ボコ)] …` yields authors `["カマボコ工房"]` (the circle)
+/// and artists `["釜ボコ"]`. A leading event group such as `(C108)` is
+/// stepped over and release markers such as `[無修正]` are skipped, but the
+/// scan stops at the first ordinary character so a mid-title `[中国翻訳]` is
+/// never mistaken for a circle.
+pub fn parse_authors(title: &str) -> (Vec<String>, Vec<String>) {
+	let mut rest = title.trim_start();
+	loop {
+		if let Some(inner) = rest.strip_prefix('(') {
+			match inner.find(')') {
+				Some(end) => {
+					rest = inner[end + 1..].trim_start();
+					continue;
+				}
+				None => break,
+			}
+		}
+		if let Some(inner) = rest.strip_prefix('[') {
+			match inner.find(']') {
+				Some(end) => {
+					let group = inner[..end].trim();
+					if RELEASE_MARKERS.contains(&group) {
+						rest = inner[end + 1..].trim_start();
+						continue;
+					}
+					return split_circle_and_artist(group);
+				}
+				None => break,
+			}
+		}
+		break;
+	}
+	(Vec::new(), Vec::new())
+}
+
+/// `カマボコ工房 (釜ボコ)` → (artist, circle). A bare name fills both
+/// fields, which is what the app expects for a solo author.
+fn split_circle_and_artist(group: &str) -> (Vec<String>, Vec<String>) {
+	if let Some(open) = group.rfind('(')
+		&& let Some(offset) = group[open..].find(')')
+	{
+		let circle = group[..open].trim();
+		let artist = group[open + 1..open + offset].trim();
+		if !circle.is_empty() && !artist.is_empty() {
+			return (
+				aidoku::alloc::vec![String::from(artist)],
+				aidoku::alloc::vec![String::from(circle)],
+			);
+		}
+	}
+	let name = group.trim();
+	if name.is_empty() {
+		return (Vec::new(), Vec::new());
+	}
+	(
+		aidoku::alloc::vec![String::from(name)],
+		aidoku::alloc::vec![String::from(name)],
+	)
+}
+
 impl MangaPage for Document {
 	fn manga_page_result(&self) -> Result<MangaPageResult> {
 		let entries: Vec<Manga> = self
@@ -77,6 +160,10 @@ impl MangaPage for Document {
 			.try_select_first("#bodywrap>h2")?
 			.text()
 			.unwrap_or_default();
+
+		let (artists, authors) = parse_authors(&title);
+		manga.artists = (!artists.is_empty()).then_some(artists);
+		manga.authors = (!authors.is_empty()).then_some(authors);
 
 		// Labels are dispatched by prefix instead of position because series
 		// pages have an extra `狀態：` label.
