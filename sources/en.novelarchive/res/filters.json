@@ -1,0 +1,51 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"canAscend": false,
+		"options": [
+			"Recently Updated",
+			"Popular",
+			"Top Rated",
+			"Most Chapters"
+		]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"All",
+			"Ongoing",
+			"Completed",
+			"Hiatus"
+		],
+		"ids": [
+			"all",
+			"ongoing",
+			"completed",
+			"hiatus"
+		]
+	},
+	{
+		"type": "select",
+		"id": "genre_match",
+		"title": "Genre Match",
+		"options": [
+			"All",
+			"Any"
+		],
+		"ids": [
+			"all",
+			"any"
+		],
+		"hideFromHeader": true
+	},
+	{
+		"type": "check",
+		"id": "hide_adult",
+		"title": "Hide Adult Novels",
+		"canExclude": true,
+		"hideFromHeader": true
+	}
+]
