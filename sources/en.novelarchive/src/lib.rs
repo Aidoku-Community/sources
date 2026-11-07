@@ -169,7 +169,7 @@ impl Home for NovelArchive {
 				),
 				("Top Rated", HomeComponentValue::empty_scroller()),
 				("Editor's Choice", HomeComponentValue::empty_big_scroller()),
-				("New in the Archive", HomeComponentValue::empty_scroller()),
+				("Recently Added", HomeComponentValue::empty_scroller()),
 			]
 			.into_iter()
 			.map(|(title, value)| HomeComponent {
@@ -238,7 +238,7 @@ impl Home for NovelArchive {
 			feed().map(|novels| scroller(novels, "rating", "Top Rated")),
 			// The feed carries each pick's description and genres.
 			feed().map(|novels| big(novels, None)),
-			feed().map(|novels| scroller(novels, "recent", "New in the Archive")),
+			feed().map(|novels| scroller(novels, "recent", "Recently Added")),
 		];
 		layout.components = layout
 			.components
