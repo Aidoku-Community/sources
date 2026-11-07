@@ -1,11 +1,23 @@
 use aidoku::{
-	alloc::{String, Vec, format},
+	alloc::{String, format},
 	imports::{error::Result, net::Request, std::parse_date},
 };
 
 pub const BASE_URL: &str = "https://m.comic.naver.com";
+pub const API_URL: &str = "https://comic.naver.com/api";
 
 pub const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+
+fn is_naver_host(url: &str) -> bool {
+	let host = url
+		.strip_prefix("https://")
+		.or_else(|| url.strip_prefix("http://"))
+		.unwrap_or(url)
+		.split(['/', '?', '#', ':'])
+		.next()
+		.unwrap_or("");
+	host == "naver.com" || host.ends_with(".naver.com")
+}
 
 /// Request wrapper with User-Agent, Referer, Accept headers.
 pub fn request(url: &str) -> Result<Request> {
@@ -13,7 +25,7 @@ pub fn request(url: &str) -> Result<Request> {
 		.header("Referer", "https://comic.naver.com/")
 		.header("User-Agent", USER_AGENT);
 
-	if (url.contains(".naver.com") || url.starts_with("https://naver.com"))
+	if is_naver_host(url)
 		&& let Some(cookie) = crate::auth::get_cookie_header()
 	{
 		req = req.header("Cookie", &cookie);
@@ -117,12 +129,4 @@ pub fn parse_korean_date(date_str: &str) -> Option<i64> {
 	} else {
 		parse_date(trimmed, "yyyy.MM.dd")
 	}
-}
-
-/// Splits author/artist string by delimiters ('/' or ',') and trims whitespace
-pub fn split_authors(raw: &str) -> Vec<String> {
-	raw.split(['/', ','])
-		.map(|s| String::from(s.trim()))
-		.filter(|s| !s.is_empty())
-		.collect()
 }

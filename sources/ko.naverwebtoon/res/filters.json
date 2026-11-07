@@ -34,7 +34,7 @@
 		"type": "select",
 		"id": "searchType",
 		"title": "구분",
-		"options": ["전체", "웹툰", "베스트도전"],
-		"ids": ["ALL", "WEBTOON", "BEST_CHALLENGE"]
+		"options": ["웹툰", "베스트도전"],
+		"ids": ["WEBTOON", "BEST_CHALLENGE"]
 	}
 ]

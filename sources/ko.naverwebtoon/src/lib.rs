@@ -4,7 +4,7 @@ use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, ImageRequestProvider, Manga,
 	MangaPageResult, NotificationHandler, Page, PageContext, Source, WebLoginHandler,
 	alloc::{String, Vec},
-	imports::defaults::defaults_get,
+	imports::defaults::defaults_get_map,
 	imports::error::Result,
 	imports::net::{Request, TimeUnit, set_rate_limit},
 	register_source,
@@ -71,7 +71,7 @@ impl NotificationHandler for NaverWebtoon {
 		if notification != "login" {
 			return;
 		}
-		let is_logged_in = defaults_get::<String>("login").is_some();
+		let is_logged_in = defaults_get_map("login").is_some_and(|m| !m.is_empty());
 		if !is_logged_in {
 			auth::logout();
 		}

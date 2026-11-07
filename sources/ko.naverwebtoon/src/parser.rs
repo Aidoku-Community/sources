@@ -72,7 +72,6 @@ struct ApiSearchItem {
 	thumbnail_url: Option<String>,
 	#[serde(rename = "webtoonLevelCode")]
 	webtoon_level_code: Option<String>,
-	synopsis: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -165,7 +164,6 @@ fn parse_manga_items(html: &aidoku::imports::html::Document, selector: &str) -> 
 			cover,
 			title,
 			url: Some(full_url),
-			viewer: Viewer::Webtoon,
 			..Default::default()
 		});
 	}
@@ -234,7 +232,7 @@ pub fn parse_search_manga_list(
 	page: i32,
 	filters: Vec<FilterValue>,
 ) -> Result<MangaPageResult> {
-	let mut search_type = "ALL";
+	let mut search_type = "WEBTOON";
 	let mut weekday = "";
 	let mut sort_index: i32 = 0;
 	let mut search_query = query.as_deref();
@@ -279,13 +277,10 @@ pub fn parse_search_manga_list(
 		if !trimmed.is_empty() {
 			let encoded = encode_uri_component(trimmed);
 
-			// Try official JSON search API first for fast pagination
 			let api_url = if search_type == "BEST_CHALLENGE" {
-				format!(
-					"https://comic.naver.com/api/search/bestChallenge?keyword={encoded}&page={page}"
-				)
+				format!("{API_URL}/search/bestChallenge?keyword={encoded}&page={page}")
 			} else {
-				format!("https://comic.naver.com/api/search/webtoon?keyword={encoded}&page={page}")
+				format!("{API_URL}/search/webtoon?keyword={encoded}&page={page}")
 			};
 
 			let resp: ApiSearchResponse = request(&api_url)?.json_owned()?;
@@ -294,7 +289,8 @@ pub fn parse_search_manga_list(
 				.search_list
 				.unwrap_or_default()
 				.into_iter()
-				.map(|item| {
+				.filter_map(|item| {
+					let title = item.title_name.filter(|t| !t.trim().is_empty())?;
 					let is_best = item.webtoon_level_code.as_deref() == Some("BEST_CHALLENGE")
 						|| search_type == "BEST_CHALLENGE";
 					let key = if is_best {
@@ -304,15 +300,13 @@ pub fn parse_search_manga_list(
 					};
 					let url = Some(get_manga_url(&key));
 
-					Manga {
+					Some(Manga {
 						key,
-						title: item.title_name.unwrap_or_default(),
+						title,
 						cover: item.thumbnail_url,
 						url,
-						description: item.synopsis,
-						viewer: Viewer::Webtoon,
 						..Default::default()
-					}
+					})
 				})
 				.collect();
 
@@ -329,12 +323,6 @@ pub fn parse_search_manga_list(
 	} else if weekday == "finish" {
 		parse_finish_list(page, webtoon_sort)
 	} else {
-		if page > 1 {
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
-		}
 		parse_weekday_list(weekday, webtoon_sort)
 	}
 }
@@ -342,119 +330,88 @@ pub fn parse_search_manga_list(
 /// Parses webtoon details (title, cover, author, description, status, genre, 19+ check)
 pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 	let clean_id = manga.key.strip_suffix("-best").unwrap_or(&manga.key);
-	let api_url = format!("https://comic.naver.com/api/article/list/info?titleId={clean_id}");
+	let api_url = format!("{API_URL}/article/list/info?titleId={clean_id}");
+	let info: ApiArticleInfo = request(&api_url)?.json_owned()?;
 
-	if let Ok(info) = request(&api_url).and_then(|r| r.json_owned::<ApiArticleInfo>()) {
-		if let Some(name) = info.title_name {
-			manga.title = name;
-		}
-		if let Some(cover) = info.poster_thumbnail_url.or(info.thumbnail_url) {
-			manga.cover = Some(cover);
-		}
-		if let Some(desc) = info.synopsis {
-			manga.description = Some(desc);
-		}
-		if let Some(artists) = info.community_artists {
-			let mut authors = Vec::new();
-			let mut painters = Vec::new();
-
-			for artist in artists {
-				let Some(name) = artist
-					.name
-					.map(|s| String::from(s.trim()))
-					.filter(|s| !s.is_empty())
-				else {
-					continue;
-				};
-				let types = artist.artist_type_list.unwrap_or_default();
-				let is_writer = types.iter().any(|t| t == "ARTIST_WRITER");
-				let is_painter = types.iter().any(|t| t == "ARTIST_PAINTER");
-
-				if is_writer || !is_painter {
-					authors.push(name);
-				} else if is_painter {
-					painters.push(name);
-				}
-			}
-
-			if !authors.is_empty() {
-				manga.authors = Some(authors);
-			}
-			if !painters.is_empty() {
-				manga.artists = Some(painters);
-			}
-		}
-		if let Some(tags) = info.curation_tag_list {
-			let tag_names: Vec<String> = tags
-				.into_iter()
-				.filter_map(|t| t.tag_name)
-				.filter(|s| !s.trim().is_empty())
-				.collect();
-			if !tag_names.is_empty() {
-				manga.tags = Some(tag_names);
-			}
-		}
-		manga.status = if info.finished.unwrap_or(false) {
-			MangaStatus::Completed
-		} else if info.rest.unwrap_or(false) {
-			MangaStatus::Hiatus
-		} else {
-			MangaStatus::Ongoing
-		};
-
-		let age_type = info
-			.age
-			.as_ref()
-			.and_then(|a| a.age_type.as_deref())
-			.unwrap_or("");
-		let is_adult = age_type == "RATE_18"
-			|| age_type == "RATE_19"
-			|| info.adult.unwrap_or(false)
-			|| manga
-				.tags
-				.as_ref()
-				.is_some_and(|tags| tags.iter().any(|t| t.contains("19") || t.contains("성인")));
-
-		manga.content_rating = if is_adult {
-			ContentRating::NSFW
-		} else if age_type == "RATE_15" {
-			ContentRating::Suggestive
-		} else {
-			ContentRating::Safe
-		};
-
-		if is_adult {
-			if let Some(ref mut tags) = manga.tags {
-				if !tags.iter().any(|t| t == "성인") {
-					tags.push(String::from("성인"));
-				}
-			} else {
-				manga.tags = Some(vec![String::from("성인")]);
-			}
-		}
-
-		manga.url = Some(get_manga_url(&manga.key));
-		manga.viewer = Viewer::Webtoon;
-		return Ok(manga);
+	if let Some(name) = info.title_name {
+		manga.title = name;
 	}
+	if let Some(cover) = info.poster_thumbnail_url.or(info.thumbnail_url) {
+		manga.cover = Some(cover);
+	}
+	if let Some(desc) = info.synopsis {
+		manga.description = Some(desc);
+	}
+	if let Some(artists) = info.community_artists {
+		let mut authors = Vec::new();
+		let mut painters = Vec::new();
 
-	// HTML fallback
-	let url = get_manga_url(&manga.key);
-	let html = request(&url)?.html()?;
+		for artist in artists {
+			let Some(name) = artist
+				.name
+				.map(|s| String::from(s.trim()))
+				.filter(|s| !s.is_empty())
+			else {
+				continue;
+			};
+			let types = artist.artist_type_list.unwrap_or_default();
+			let is_writer = types.iter().any(|t| t == "ARTIST_WRITER");
+			let is_painter = types.iter().any(|t| t == "ARTIST_PAINTER");
 
-	let is_login_page = html
-		.select_first("title")
-		.and_then(|t| t.text())
-		.is_some_and(|s| s.contains("로그인"))
-		|| html.select_first("form#frmNIDLogin").is_some();
-
-	if is_login_page {
-		manga.content_rating = ContentRating::NSFW;
-		manga.viewer = Viewer::Webtoon;
-		manga.url = Some(url);
-		if manga.description.is_none() {
-			manga.description = Some(String::from("로그인이 필요한 성인(19+) 작품입니다."));
+			if is_writer || !is_painter {
+				authors.push(name);
+			} else if is_painter {
+				painters.push(name);
+			}
 		}
+
+		if !authors.is_empty() {
+			manga.authors = Some(authors);
+		}
+		if !painters.is_empty() {
+			manga.artists = Some(painters);
+		}
+	}
+	if let Some(tags) = info.curation_tag_list {
+		let tag_names: Vec<String> = tags
+			.into_iter()
+			.filter_map(|t| t.tag_name)
+			.filter(|s| !s.trim().is_empty())
+			.collect();
+		if !tag_names.is_empty() {
+			manga.tags = Some(tag_names);
+		}
+	}
+	manga.status = if info.finished.unwrap_or(false) {
+		MangaStatus::Completed
+	} else if info.rest.unwrap_or(false) {
+		MangaStatus::Hiatus
+	} else {
+		MangaStatus::Ongoing
+	};
+
+	let age_type = info
+		.age
+		.as_ref()
+		.and_then(|a| a.age_type.as_deref())
+		.unwrap_or("");
+	let is_adult = age_type == "RATE_18"
+		|| age_type == "RATE_19"
+		|| info.adult.unwrap_or(false)
+		|| manga
+			.tags
+			.as_ref()
+			.is_some_and(|tags| tags.iter().any(|t| t.contains("19") || t.contains("성인")));
+
+	manga.content_rating = if is_adult {
+		ContentRating::NSFW
+	} else if age_type == "RATE_15" {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
+	};
+
+	if is_adult {
 		if let Some(ref mut tags) = manga.tags {
 			if !tags.iter().any(|t| t == "성인") {
 				tags.push(String::from("성인"));
@@ -462,97 +419,10 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 		} else {
 			manga.tags = Some(vec![String::from("성인")]);
 		}
-		return Ok(manga);
 	}
 
-	let title = html
-		.select_first("meta[property=\"og:title\"]")
-		.and_then(|e| e.attr("content"))
-		.or_else(|| {
-			html.select_first(".info_area .title, .title_area strong")
-				.and_then(|e| e.text())
-		});
-	if let Some(t) = title {
-		manga.title = t;
-	}
-
-	let cover = html
-		.select_first("meta[property=\"og:image\"]")
-		.and_then(|e| e.attr("content"));
-	if cover.is_some() {
-		manga.cover = cover;
-	}
-
-	let description = html
-		.select_first("meta[property=\"og:description\"]")
-		.and_then(|e| e.attr("content"))
-		.or_else(|| html.select_first(".summary, .desc").and_then(|e| e.text()));
-	if description.is_some() {
-		manga.description = description;
-	}
-
-	let author = html
-		.select_first(".author, .info_area .author, .writer, .info .author_area")
-		.and_then(|e| e.text());
-	if let Some(a) = author {
-		let authors = split_authors(&a);
-		if !authors.is_empty() {
-			let artists = authors.iter().map(|s| String::from(s.as_str())).collect();
-			manga.artists = Some(artists);
-			manga.authors = Some(authors);
-		}
-	}
-
-	let mut tags: Vec<String> = Vec::new();
-	if let Some(genre_items) = html.select(".genre dd span, .genre dd li, .tag_item") {
-		for node in genre_items {
-			if let Some(g_text) = node.text() {
-				let trimmed = g_text.trim();
-				if !trimmed.is_empty() && !tags.iter().any(|t| t == trimmed) {
-					tags.push(String::from(trimmed));
-				}
-			}
-		}
-	}
-
-	let is_adult = tags.iter().any(|t| t.contains("19") || t.contains("성인"));
-	manga.content_rating = if is_adult {
-		ContentRating::NSFW
-	} else {
-		ContentRating::Safe
-	};
-	if !tags.is_empty() {
-		manga.tags = Some(tags);
-	}
-
-	let status_text = html
-		.select_first(".week_day .list_detail, .detail .week_day")
-		.and_then(|e| e.text())
-		.unwrap_or_default();
-	let is_hiatus = html
-		.select_first("span.bullet.break, span.bullet_break")
-		.is_some()
-		|| html
-			.select_first(".area_info, .section_toon_info")
-			.and_then(|e| e.text())
-			.is_some_and(|t| t.contains("휴재"))
-		|| status_text.contains("휴재");
-	let is_completed = status_text.contains("완결")
-		|| html
-			.select_first(".week_day")
-			.and_then(|e| e.text())
-			.is_some_and(|t| t.contains("완결"));
-	manga.status = if is_completed {
-		MangaStatus::Completed
-	} else if is_hiatus {
-		MangaStatus::Hiatus
-	} else {
-		MangaStatus::Ongoing
-	};
-
-	manga.url = Some(url);
+	manga.url = Some(get_manga_url(&manga.key));
 	manga.viewer = Viewer::Webtoon;
-
 	Ok(manga)
 }
 
@@ -563,9 +433,7 @@ fn parse_chapter_list_api(manga_id: &str) -> Result<Vec<Chapter>> {
 	let mut page = 1;
 
 	loop {
-		let api_url = format!(
-			"https://comic.naver.com/api/article/list?titleId={clean_id}&page={page}&sort=DESC"
-		);
+		let api_url = format!("{API_URL}/article/list?titleId={clean_id}&page={page}&sort=DESC");
 		let resp = request(&api_url)?.send()?;
 
 		if resp.status_code() == 401 {
@@ -611,7 +479,6 @@ fn parse_chapter_list_api(manga_id: &str) -> Result<Vec<Chapter>> {
 				chapter_number: (chapter_num >= 0.0).then_some(chapter_num),
 				date_uploaded,
 				url: Some(chapter_url),
-				language: Some(String::from("ko")),
 				thumbnail: item.thumbnail_url,
 				locked,
 				..Default::default()
@@ -627,163 +494,9 @@ fn parse_chapter_list_api(manga_id: &str) -> Result<Vec<Chapter>> {
 	Ok(chapters)
 }
 
-/// Fallback helper to parse chapter list via mobile HTML
-fn parse_chapter_list_html(manga_id: &str) -> Result<Vec<Chapter>> {
-	let mut chapters: Vec<Chapter> = Vec::new();
-	let mut page = 1;
-
-	loop {
-		let url = if let Some(clean_id) = manga_id.strip_suffix("-best") {
-			format!("{BASE_URL}/bestChallenge/list?titleId={clean_id}&sortOrder=DESC&page={page}")
-		} else {
-			format!("{BASE_URL}/webtoon/list?titleId={manga_id}&sortOrder=DESC&page={page}")
-		};
-
-		let req = request(&url)?;
-		let html = req.html()?;
-
-		// Check for 19+ adult login redirect
-		let is_login_page = html
-			.select_first("title")
-			.and_then(|t| t.text())
-			.is_some_and(|s| s.contains("로그인"))
-			|| html.select_first("form#frmNIDLogin").is_some()
-			|| html.select_first("input[name='dynamicKey']").is_some();
-
-		if is_login_page {
-			bail!(
-				"로그인이 필요한 성인(19+) 작품입니다. 소스 설정에서 네이버 로그인을 진행해주세요."
-			);
-		}
-
-		let ep_items = match html.select("ul.section_episode_list li.item") {
-			Some(items) if !items.is_empty() => items,
-			_ => match html.select("li.item[data-no]") {
-				Some(items) if !items.is_empty() => items,
-				_ => match html.select("a[href*=\"detail?\"]") {
-					Some(items) => items,
-					None => break,
-				},
-			},
-		};
-
-		let mut found_new = false;
-		for node in ep_items {
-			let href = node
-				.attr("href")
-				.or_else(|| node.select_first("a").and_then(|a| a.attr("href")))
-				.unwrap_or_default();
-
-			let chapter_id = node
-				.attr("data-no")
-				.filter(|no| !no.is_empty())
-				.or_else(|| get_chapter_id(&href));
-			let Some(chapter_id) = chapter_id else {
-				continue;
-			};
-			if chapters.iter().any(|c| c.key == chapter_id) {
-				continue;
-			}
-			found_new = true;
-
-			let is_locked = node.has_class("lock")
-				|| node
-					.select_first(".ico_comic .blind")
-					.and_then(|e| e.text())
-					.map(|t| t.contains("유료"))
-					.unwrap_or(false)
-				|| node
-					.select_first("em.cookie_txt, .cookie_txt, .ico_cookie")
-					.is_some() || href == "#"
-				|| href.is_empty();
-
-			let mut raw_title = node
-				.select_first(".name")
-				.and_then(|e| e.text())
-				.unwrap_or_default();
-			if raw_title.trim().is_empty() {
-				raw_title = node
-					.select_first("strong.title, .title")
-					.and_then(|e| e.text())
-					.unwrap_or_default();
-			}
-			let raw_title = if raw_title.trim().is_empty() {
-				format!("{chapter_id}화")
-			} else {
-				String::from(raw_title.trim())
-			};
-
-			let fallback_no = chapter_id.parse::<f32>().unwrap_or(-1.0);
-			let chapter_num = extract_chapter_number(&raw_title, fallback_no);
-			let volume_number = extract_volume_number(&raw_title);
-			let title = raw_title;
-			let date_text = node
-				.select_first(".date")
-				.and_then(|e| e.text())
-				.unwrap_or_default();
-			let date_uploaded = parse_korean_date(&date_text);
-
-			let thumbnail = node
-				.select_first("div.thumbnail img, .item_thumb img")
-				.and_then(|img| img.attr("src"));
-
-			let full_chapter_url = if href.contains("detail?") {
-				if href.starts_with("http") {
-					href
-				} else {
-					format!("{BASE_URL}{href}")
-				}
-			} else {
-				get_chapter_url(&chapter_id, manga_id)
-			};
-
-			chapters.push(Chapter {
-				key: chapter_id,
-				title: Some(title),
-				volume_number,
-				chapter_number: (chapter_num >= 0.0).then_some(chapter_num),
-				date_uploaded,
-				url: Some(full_chapter_url),
-				language: Some(String::from("ko")),
-				thumbnail,
-				locked: is_locked,
-				..Default::default()
-			});
-		}
-
-		if !found_new {
-			break;
-		}
-
-		// Check pagination button
-		let next_btn = html.select_first("a.btn_next");
-		if let Some(btn) = next_btn {
-			let next_href = btn.attr("href").unwrap_or_default();
-			if btn.has_class("disabled") || next_href.is_empty() || next_href == "#" {
-				break;
-			}
-		} else {
-			break;
-		}
-
-		page += 1;
-		if page > 500 {
-			break;
-		}
-	}
-
-	Ok(chapters)
-}
-
 /// Parses all chapters for a given manga
 pub fn parse_chapter_list(manga_id: &str) -> Result<Vec<Chapter>> {
-	match parse_chapter_list_api(manga_id) {
-		Ok(chapters) if !chapters.is_empty() => Ok(chapters),
-		Err(aidoku::imports::error::AidokuError::Message(msg)) if msg.contains("성인(19+)") => {
-			Err(aidoku::imports::error::AidokuError::Message(msg))
-		}
-		_ => parse_chapter_list_html(manga_id),
-	}
+	parse_chapter_list_api(manga_id)
 }
 
 /// Unified manga update function (details + chapters)
