@@ -1,0 +1,49 @@
+[
+	{
+		"type": "text"
+	},
+	{
+		"type": "select",
+		"title": "分類",
+		"options": [
+			"不限",
+			"玄幻小说",
+			"仙侠小说",
+			"都市小说",
+			"历史小说",
+			"军事小说",
+			"科幻小说",
+			"言情小说",
+			"轻小说",
+			"奇幻小说",
+			"诸天无限",
+			"游戏小说",
+			"悬疑小说",
+			"体育小说",
+			"武侠小说",
+			"官场小说",
+			"乡村小说",
+			"现实小说"
+		],
+		"ids": [
+			"",
+			"xuanhuan",
+			"xianxia",
+			"dushi",
+			"lishi",
+			"junshi",
+			"kehuan",
+			"yanqing",
+			"qing",
+			"qihuan",
+			"zhutianwuxian",
+			"youxi",
+			"xuanyi",
+			"tiyu",
+			"wuxia",
+			"guanchang",
+			"xiangcun",
+			"xianshi"
+		]
+	}
+]
