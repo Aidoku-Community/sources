@@ -1,6 +1,6 @@
 use aidoku::{
 	alloc::{String, Vec},
-	imports::defaults::{DefaultValue, defaults_get, defaults_set},
+	imports::defaults::defaults_get,
 };
 
 const HIDDEN_GENRES_KEY: &str = "hiddenGenres";
@@ -17,8 +17,4 @@ pub fn hide_watermark() -> bool {
 
 pub fn mtl_mode() -> String {
 	defaults_get::<String>(MTL_KEY).unwrap_or_else(|| "all".into())
-}
-
-pub fn reset_hidden_genres() {
-	defaults_set(HIDDEN_GENRES_KEY, DefaultValue::Null);
 }

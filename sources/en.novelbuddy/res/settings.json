@@ -103,18 +103,6 @@
 				"refreshes": [
 					"content"
 				]
-			},
-			{
-				"type": "button",
-				"key": "resetGenreFilter",
-				"title": "Reset Hidden Genres",
-				"confirmTitle": "Reset Hidden Genres",
-				"confirmText": "Are you sure you want to remove all hidden genres?",
-				"destructive": true,
-				"notification": "resetGenreFilter",
-				"refreshes": [
-					"content"
-				]
 			}
 		],
 		"footer": "Novels tagged with the selected genres are excluded from search results."
