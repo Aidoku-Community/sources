@@ -1,0 +1,19 @@
+[
+	{
+		"type": "group",
+		"title": "Content",
+		"footer": "Leaves the site's adult genres out of search, listings and the sorted Discover rows, as the site's library does by default. The search sheet's Hide Adult Novels check overrides it for one search.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "hideAdult",
+				"title": "Hide Adult Novels",
+				"default": true,
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			}
+		]
+	}
+]
