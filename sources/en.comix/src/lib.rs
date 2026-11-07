@@ -7,8 +7,8 @@ use aidoku::{
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{
-		net::{Request, RequestError, Response},
-		std::{current_date, send_partial_result},
+		net::{Request, RequestError, Response, TimeUnit, set_rate_limit},
+		std::send_partial_result,
 	},
 	prelude::*,
 };
@@ -36,6 +36,7 @@ struct Comix {
 
 impl Source for Comix {
 	fn new() -> Self {
+		set_rate_limit(2, 1, TimeUnit::Seconds);
 		Self {
 			web_view: RefCell::new(ComixWebView::new()),
 		}
@@ -224,8 +225,7 @@ impl Source for Comix {
 				params.push("order[number]", Some("desc"));
 
 				let url = format!("{API_URL}/manga/{}/chapters?{params}", manga.key);
-				let response = web_view.build_request(&url)?.send()?;
-				let res = web_view.decode_json_owned::<ChapterDetailsResponse>(&response)?;
+				let res = web_view.fetch_json::<ChapterDetailsResponse>(&url)?;
 
 				let items = res.result.items;
 
@@ -267,8 +267,7 @@ impl Source for Comix {
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
 		let mut web_view = self.web_view.borrow_mut();
 		let url = format!("{API_URL}/chapters/{}", chapter.key);
-		let response = web_view.build_request(&url)?.send()?;
-		let json: ChapterResponse = web_view.decode_json_owned(&response)?;
+		let json: ChapterResponse = web_view.fetch_json(&url)?;
 
 		let Some(result) = json.result else {
 			bail!("Missing chapter")
@@ -552,13 +551,17 @@ impl WebLoginHandler for Comix {
 			// This is verifying button not to be confused with actual login button.
 			// We need to intercept waf_pass cookie so that we can pass the checks.
 			// This will not log you in even if you do the login page afterward.
-			return Ok(cookies.get(VERIFY_COOKIE_KEY).is_some_and(|pass| {
-				let Some((timestamp, _)) = pass.split_once('.') else {
-					return false;
-				};
-				let current_timestamp = current_date();
-				current_timestamp - timestamp.parse::<i64>().unwrap_or(0) < 30 * 60
-			}));
+			if cookies
+				.get(VERIFY_COOKIE_KEY)
+				.is_none_or(|pass| pass.is_empty())
+			{
+				return Ok(false);
+			}
+			return Ok(self
+				.web_view
+				.borrow_mut()
+				.fetch_json::<serde_json::Value>(&format!("{API_URL}/manga/pvry/chapters?limit=1"))
+				.is_ok());
 		}
 
 		Ok(false)
