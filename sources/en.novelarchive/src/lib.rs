@@ -11,6 +11,7 @@ use aidoku::{
 mod helpers;
 mod markdown;
 mod models;
+mod mtl;
 mod settings;
 mod watermark;
 
@@ -68,8 +69,12 @@ impl Source for NovelArchive {
 
 		let url = format!("{BASE_URL}/api/novels?{qs}");
 		let data: ListData = request(&url)?;
+		let mut entries: Vec<Manga> = data.novels.into_iter().map(Manga::from).collect();
+		if settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl) {
+			mtl::retain_manga(&mut entries);
+		}
 		Ok(MangaPageResult {
-			entries: data.novels.into_iter().map(Manga::from).collect(),
+			entries,
 			has_next_page: data.pagination.has_next,
 		})
 	}
@@ -85,10 +90,12 @@ impl Source for NovelArchive {
 			let data: NovelDetailData = request(&url)?;
 			let mut novel = data.novel;
 			let chapters = if needs_chapters {
-				Some(build_chapters(
-					&novel.id,
-					core::mem::take(&mut novel.chapter_names),
-				))
+				let mut chapters =
+					build_chapters(&novel.id, core::mem::take(&mut novel.chapter_names));
+				if settings::hide_mtl() {
+					mtl::retain_chapters(&mut chapters);
+				}
+				Some(chapters)
 			} else {
 				None
 			};
@@ -100,7 +107,11 @@ impl Source for NovelArchive {
 		} else if needs_chapters {
 			let url = format!("{BASE_URL}/api/novels/{}", manga.key);
 			let data: NovelDetailData = request(&url)?;
-			manga.chapters = Some(build_chapters(&data.novel.id, data.novel.chapter_names));
+			let mut chapters = build_chapters(&data.novel.id, data.novel.chapter_names);
+			if settings::hide_mtl() {
+				mtl::retain_chapters(&mut chapters);
+			}
+			manga.chapters = Some(chapters);
 		}
 		Ok(manga)
 	}
@@ -136,8 +147,12 @@ impl ListingProvider for NovelArchive {
 		};
 		let url = format!("{BASE_URL}/api/novels/{path}");
 		let data: ListingData = request(&url)?;
+		let mut entries: Vec<Manga> = data.novels.into_iter().map(Manga::from).collect();
+		if settings::hide_mtl() {
+			mtl::retain_manga(&mut entries);
+		}
 		Ok(MangaPageResult {
-			entries: data.novels.into_iter().map(Manga::from).collect(),
+			entries,
 			has_next_page: false,
 		})
 	}
