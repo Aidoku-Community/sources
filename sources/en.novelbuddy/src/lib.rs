@@ -11,6 +11,7 @@ use aidoku::{
 mod helpers;
 mod markdown;
 mod models;
+mod mtl;
 mod settings;
 mod watermark;
 
@@ -98,21 +99,18 @@ impl Source for NovelBuddy {
 		}
 		qs.push("page", Some(&page.to_string()));
 
-		let mtl = settings::mtl_mode();
-		if mtl == "only" {
-			qs.push("is_mtl", Some("true"));
-		} else if mtl == "hidden" {
-			qs.push("is_mtl", Some("false"));
-		}
-
 		if let Some(q) = query.as_deref() {
 			qs.push("q", Some(q));
 		}
 
 		let url = format!("{API_URL}/titles/search?{qs}");
 		let data: ListData = request(&url)?;
+		let mut entries: Vec<Manga> = data.items.into_iter().map(Manga::from).collect();
+		if settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl) {
+			mtl::retain_manga(&mut entries);
+		}
 		Ok(MangaPageResult {
-			entries: data.items.into_iter().map(Manga::from).collect(),
+			entries,
 			has_next_page: data.pagination.has_next,
 		})
 	}
@@ -132,7 +130,11 @@ impl Source for NovelBuddy {
 			}
 		}
 		if needs_chapters {
-			manga.chapters = Some(fetch_chapter_list(&manga.key)?);
+			let mut chapters = fetch_chapter_list(&manga.key)?;
+			if settings::hide_mtl() {
+				mtl::retain_chapters(&mut chapters);
+			}
+			manga.chapters = Some(chapters);
 		}
 		Ok(manga)
 	}
@@ -169,16 +171,24 @@ impl ListingProvider for NovelBuddy {
 				};
 				let url = format!("{API_URL}/trending/titles?window={window}");
 				let data: TrendingData = request(&url)?;
+				let mut entries: Vec<Manga> = data.items.into_iter().map(Manga::from).collect();
+				if settings::hide_mtl() {
+					mtl::retain_manga(&mut entries);
+				}
 				Ok(MangaPageResult {
-					entries: data.items.into_iter().map(Manga::from).collect(),
+					entries,
 					has_next_page: false,
 				})
 			}
 			"latest" => {
 				let url = format!("{API_URL}/titles/search?sort=latest&page={page}");
 				let data: ListData = request(&url)?;
+				let mut entries: Vec<Manga> = data.items.into_iter().map(Manga::from).collect();
+				if settings::hide_mtl() {
+					mtl::retain_manga(&mut entries);
+				}
 				Ok(MangaPageResult {
-					entries: data.items.into_iter().map(Manga::from).collect(),
+					entries,
 					has_next_page: data.pagination.has_next,
 				})
 			}

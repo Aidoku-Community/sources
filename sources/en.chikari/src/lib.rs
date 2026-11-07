@@ -9,6 +9,7 @@ use aidoku::{
 mod helpers;
 mod markdown;
 mod models;
+mod mtl;
 mod settings;
 mod watermark;
 use helpers::{
@@ -64,7 +65,11 @@ impl Source for Chikari {
 			});
 		};
 		let data: ListResponse = request(&url)?;
-		Ok(manga_page_result(data, offset, limit))
+		let mut result = manga_page_result(data, offset, limit);
+		if settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl) {
+			mtl::retain_manga(&mut result.entries);
+		}
+		Ok(result)
 	}
 
 	fn get_manga_update(
@@ -84,7 +89,11 @@ impl Source for Chikari {
 			}
 		}
 		if needs_chapters {
-			manga.chapters = Some(fetch_chapters(&raw_slug, content_type)?);
+			let mut chapters = fetch_chapters(&raw_slug, content_type)?;
+			if settings::hide_mtl() {
+				mtl::retain_chapters(&mut chapters);
+			}
+			manga.chapters = Some(chapters);
 		}
 		Ok(manga)
 	}
@@ -212,7 +221,11 @@ impl ListingProvider for Chikari {
 			});
 		};
 		let data: ListResponse = request(&url)?;
-		Ok(manga_page_result(data, offset, LIST_PAGE_SIZE))
+		let mut result = manga_page_result(data, offset, LIST_PAGE_SIZE);
+		if settings::hide_mtl() {
+			mtl::retain_manga(&mut result.entries);
+		}
+		Ok(result)
 	}
 }
 
