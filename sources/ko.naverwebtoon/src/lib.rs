@@ -1,12 +1,12 @@
 #![no_std]
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, DynamicListings, FilterValue, HashMap, Home,
-	HomeLayout, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult,
-	NotificationHandler, Page, PageContext, Source, WebLoginHandler,
-	alloc::{String, Vec, vec},
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, HashMap, ImageRequestProvider, Manga,
+	MangaPageResult, NotificationHandler, Page, PageContext, Source, WebLoginHandler,
+	alloc::{String, Vec},
+	imports::defaults::defaults_get_map,
 	imports::error::Result,
-	imports::net::Request,
+	imports::net::{Request, TimeUnit, set_rate_limit},
 	register_source,
 };
 
@@ -18,6 +18,7 @@ pub struct NaverWebtoon;
 
 impl Source for NaverWebtoon {
 	fn new() -> Self {
+		set_rate_limit(5, 1, TimeUnit::Seconds);
 		Self
 	}
 
@@ -44,31 +45,6 @@ impl Source for NaverWebtoon {
 	}
 }
 
-impl Home for NaverWebtoon {
-	fn get_home(&self) -> Result<HomeLayout> {
-		parser::parse_home()
-	}
-}
-
-impl ListingProvider for NaverWebtoon {
-	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		parser::parse_manga_listing(listing, page)
-	}
-}
-
-impl DynamicListings for NaverWebtoon {
-	fn get_dynamic_listings(&self) -> Result<Vec<Listing>> {
-		if !helper::show_best_challenge() {
-			return Ok(Vec::new());
-		}
-		Ok(vec![Listing {
-			id: String::from("best"),
-			name: String::from("베스트도전"),
-			..Default::default()
-		}])
-	}
-}
-
 impl ImageRequestProvider for NaverWebtoon {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
 		parser::get_image_request(url)
@@ -81,15 +57,22 @@ impl DeepLinkHandler for NaverWebtoon {
 	}
 }
 
+/// Called by Aidoku whenever cookies are updated in the webview.
+/// Returning Ok(true) signals successful login and dismisses the webview modal.
 impl WebLoginHandler for NaverWebtoon {
 	fn handle_web_login(&self, _key: String, cookies: HashMap<String, String>) -> Result<bool> {
 		auth::handle_login(cookies)
 	}
 }
 
+/// Called by Aidoku when the user taps "로그아웃" in source settings.
 impl NotificationHandler for NaverWebtoon {
 	fn handle_notification(&self, notification: String) {
-		if notification == "login" && !auth::is_logged_in() {
+		if notification != "login" {
+			return;
+		}
+		let is_logged_in = defaults_get_map("login").is_some_and(|m| !m.is_empty());
+		if !is_logged_in {
 			auth::logout();
 		}
 	}
@@ -97,9 +80,6 @@ impl NotificationHandler for NaverWebtoon {
 
 register_source!(
 	NaverWebtoon,
-	Home,
-	ListingProvider,
-	DynamicListings,
 	ImageRequestProvider,
 	DeepLinkHandler,
 	WebLoginHandler,
