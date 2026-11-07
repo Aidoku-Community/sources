@@ -1,0 +1,28 @@
+{
+	"info": {
+		"id": "zh.suduguu",
+		"name": "速读谷",
+		"version": 1,
+		"url": "https://www.suduguu.com",
+		"contentRating": 1,
+		"languages": ["zh"],
+		"minAppVersion": "0.8.3"
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true
+	},
+	"listings": [
+		{
+			"id": "paihang",
+			"name": "排行榜"
+		},
+		{
+			"id": "wanjie",
+			"name": "完结小说"
+		},
+		{
+			"id": "zuixin",
+			"name": "最新更新"
+		}
+	]
+}
