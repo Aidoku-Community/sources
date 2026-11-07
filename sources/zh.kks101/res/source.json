@@ -1,0 +1,32 @@
+{
+	"info": {
+		"id": "zh.kks101",
+		"name": "101看書",
+		"version": 1,
+		"url": "https://101kks.com",
+		"contentRating": 1,
+		"languages": ["zh"],
+		"minAppVersion": "0.8.3"
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true
+	},
+	"listings": [
+		{
+			"id": "new",
+			"name": "新書榜"
+		},
+		{
+			"id": "popular",
+			"name": "人氣榜"
+		},
+		{
+			"id": "recommended",
+			"name": "推薦榜"
+		},
+		{
+			"id": "completed",
+			"name": "全本小說"
+		}
+	]
+}
