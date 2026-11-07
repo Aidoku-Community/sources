@@ -14,7 +14,7 @@ mod models;
 mod settings;
 mod watermark;
 
-use helpers::{build_chapters, query_param, request};
+use helpers::{build_chapters, chapter_text, query_param, request};
 use models::{ChapterDetailData, ListData, ListingData, NovelDetailData};
 
 pub const BASE_URL: &str = "https://novelarchive.st";
@@ -111,7 +111,9 @@ impl Source for NovelArchive {
 			manga.key, chapter.key
 		);
 		let data: ChapterDetailData = request(&url)?;
-		let text = markdown::to_markdown(data.chapter.content.as_deref().unwrap_or_default());
+		let text = markdown::to_markdown(&chapter_text(
+			data.chapter.content.as_deref().unwrap_or_default(),
+		));
 		let text = if text.is_empty() {
 			"(empty chapter)".to_string()
 		} else {
@@ -227,9 +229,17 @@ mod tests {
 		assert!(manga.authors.is_some());
 		assert!(matches!(manga.status, aidoku::MangaStatus::Ongoing));
 		let chapters = manga.chapters.expect("no chapters returned");
-		assert_eq!(chapters.len(), 3234);
+		assert!(
+			chapters.len() > 3000,
+			"expected the full TOC, got {}",
+			chapters.len()
+		);
+		let last_key = chapters.len().to_string();
 		assert_eq!(chapters.first().map(|c| c.key.as_str()), Some("1"));
-		assert_eq!(chapters.last().map(|c| c.key.as_str()), Some("3234"));
+		assert_eq!(
+			chapters.last().map(|c| c.key.as_str()),
+			Some(last_key.as_str())
+		);
 	}
 
 	#[aidoku_test]

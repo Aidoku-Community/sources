@@ -126,6 +126,27 @@ pub fn build_chapters(novel_id: &str, names: Vec<String>) -> Vec<Chapter> {
 		.collect()
 }
 
+pub fn chapter_text(content: &str) -> String {
+	let has_markup = content.contains("</")
+		|| ["<br", "<img", "<hr"]
+			.iter()
+			.any(|tag| content.contains(tag));
+	if has_markup {
+		return content.into();
+	}
+	let mut output = String::default();
+	for line in content.lines() {
+		if line.trim().is_empty() {
+			continue;
+		}
+		if !output.is_empty() {
+			output.push_str("\n\n");
+		}
+		output.push_str(line);
+	}
+	output
+}
+
 pub fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
 	query.split('&').find_map(|pair| {
 		let (name, value) = pair.split_once('=')?;
@@ -167,5 +188,21 @@ mod tests {
 	fn extracts_query_parameters() {
 		assert_eq!(query_param("novel=abc&chapter=12", "chapter"), Some("12"));
 		assert_eq!(query_param("novel=abc", "chapter"), None);
+	}
+
+	#[aidoku_test]
+	fn splits_plain_text_chapters_into_paragraphs() {
+		let content =
+			"Slave of Witch City (1) \nAmidst the cold autumn rainfall.\n\nSecond paragraph. ";
+		assert_eq!(
+			chapter_text(content),
+			"Slave of Witch City (1) \n\nAmidst the cold autumn rainfall.\n\nSecond paragraph. "
+		);
+	}
+
+	#[aidoku_test]
+	fn leaves_markup_chapters_untouched() {
+		let content = "<p>One</p><p>Two</p>";
+		assert_eq!(chapter_text(content), content);
 	}
 }
