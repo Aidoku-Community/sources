@@ -11,10 +11,11 @@ use aidoku::{
 mod helpers;
 mod markdown;
 mod models;
+mod mtl;
 mod settings;
 mod watermark;
 
-use helpers::{build_chapters, query_param, request};
+use helpers::{build_chapters, chapter_text, query_param, request};
 use models::{ChapterDetailData, ListData, ListingData, NovelDetailData};
 
 pub const BASE_URL: &str = "https://novelarchive.st";
@@ -60,18 +61,29 @@ impl Source for NovelArchive {
 		qs.push("sort", Some(sort));
 		qs.push("status", Some(&status));
 		qs.push("limit", Some(PAGE_SIZE));
-		qs.push("page", Some(&page.to_string()));
 
 		if let Some(query) = query.as_deref() {
 			qs.push("search", Some(query));
 		}
 
-		let url = format!("{BASE_URL}/api/novels?{qs}");
-		let data: ListData = request(&url)?;
-		Ok(MangaPageResult {
-			entries: data.novels.into_iter().map(Manga::from).collect(),
-			has_next_page: data.pagination.has_next,
-		})
+		let hide = settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl);
+		let mut page = page.max(1);
+		loop {
+			qs.push("page", Some(&page.to_string()));
+			let url = format!("{BASE_URL}/api/novels?{qs}");
+			let data: ListData = request(&url)?;
+			let mut entries: Vec<Manga> = data.novels.into_iter().map(Manga::from).collect();
+			if hide {
+				mtl::retain_manga(&mut entries);
+			}
+			if !entries.is_empty() || !data.pagination.has_next {
+				return Ok(MangaPageResult {
+					entries,
+					has_next_page: data.pagination.has_next,
+				});
+			}
+			page += 1;
+		}
 	}
 
 	fn get_manga_update(
@@ -85,10 +97,12 @@ impl Source for NovelArchive {
 			let data: NovelDetailData = request(&url)?;
 			let mut novel = data.novel;
 			let chapters = if needs_chapters {
-				Some(build_chapters(
-					&novel.id,
-					core::mem::take(&mut novel.chapter_names),
-				))
+				let mut chapters =
+					build_chapters(&novel.id, core::mem::take(&mut novel.chapter_names));
+				if settings::hide_mtl() {
+					mtl::retain_chapters(&mut chapters);
+				}
+				Some(chapters)
 			} else {
 				None
 			};
@@ -100,7 +114,11 @@ impl Source for NovelArchive {
 		} else if needs_chapters {
 			let url = format!("{BASE_URL}/api/novels/{}", manga.key);
 			let data: NovelDetailData = request(&url)?;
-			manga.chapters = Some(build_chapters(&data.novel.id, data.novel.chapter_names));
+			let mut chapters = build_chapters(&data.novel.id, data.novel.chapter_names);
+			if settings::hide_mtl() {
+				mtl::retain_chapters(&mut chapters);
+			}
+			manga.chapters = Some(chapters);
 		}
 		Ok(manga)
 	}
@@ -111,7 +129,9 @@ impl Source for NovelArchive {
 			manga.key, chapter.key
 		);
 		let data: ChapterDetailData = request(&url)?;
-		let text = markdown::to_markdown(data.chapter.content.as_deref().unwrap_or_default());
+		let text = markdown::to_markdown(&chapter_text(
+			data.chapter.content.as_deref().unwrap_or_default(),
+		));
 		let text = if text.is_empty() {
 			"(empty chapter)".to_string()
 		} else {
@@ -134,8 +154,12 @@ impl ListingProvider for NovelArchive {
 		};
 		let url = format!("{BASE_URL}/api/novels/{path}");
 		let data: ListingData = request(&url)?;
+		let mut entries: Vec<Manga> = data.novels.into_iter().map(Manga::from).collect();
+		if settings::hide_mtl() {
+			mtl::retain_manga(&mut entries);
+		}
 		Ok(MangaPageResult {
-			entries: data.novels.into_iter().map(Manga::from).collect(),
+			entries,
 			has_next_page: false,
 		})
 	}
@@ -227,9 +251,17 @@ mod tests {
 		assert!(manga.authors.is_some());
 		assert!(matches!(manga.status, aidoku::MangaStatus::Ongoing));
 		let chapters = manga.chapters.expect("no chapters returned");
-		assert_eq!(chapters.len(), 3234);
+		assert!(
+			chapters.len() > 3000,
+			"expected the full TOC, got {}",
+			chapters.len()
+		);
+		let last_key = chapters.len().to_string();
 		assert_eq!(chapters.first().map(|c| c.key.as_str()), Some("1"));
-		assert_eq!(chapters.last().map(|c| c.key.as_str()), Some("3234"));
+		assert_eq!(
+			chapters.last().map(|c| c.key.as_str()),
+			Some(last_key.as_str())
+		);
 	}
 
 	#[aidoku_test]

@@ -1,17 +1,14 @@
 {
 	"info": {
 		"id": "en.novelarchive",
-		"name": "Novel Archive",
-		"version": 1,
+		"name": "NovelArchive",
+		"version": 2,
 		"url": "https://novelarchive.st",
 		"contentRating": 1,
 		"languages": [
 			"en"
 		],
 		"minAppVersion": "0.8.3"
-	},
-	"config": {
-		"breakingChangeVersion": 2
 	},
 	"listings": [
 		{

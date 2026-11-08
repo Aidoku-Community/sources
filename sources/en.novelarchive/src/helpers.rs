@@ -126,6 +126,42 @@ pub fn build_chapters(novel_id: &str, names: Vec<String>) -> Vec<Chapter> {
 		.collect()
 }
 
+fn has_paragraph_break(content: &str) -> bool {
+	let mut seen_content = false;
+	let mut seen_blank = false;
+	for line in content.lines() {
+		if line.trim().is_empty() {
+			seen_blank |= seen_content;
+		} else if seen_blank {
+			return true;
+		} else {
+			seen_content = true;
+		}
+	}
+	false
+}
+
+pub fn chapter_text(content: &str) -> String {
+	let has_markup = content.contains("</")
+		|| ["<br", "<img", "<hr"]
+			.iter()
+			.any(|tag| content.contains(tag));
+	if has_markup || has_paragraph_break(content) {
+		return content.into();
+	}
+	let mut output = String::default();
+	for line in content.lines() {
+		if line.trim().is_empty() {
+			continue;
+		}
+		if !output.is_empty() {
+			output.push_str("\n\n");
+		}
+		output.push_str(line);
+	}
+	output
+}
+
 pub fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
 	query.split('&').find_map(|pair| {
 		let (name, value) = pair.split_once('=')?;
@@ -167,5 +203,33 @@ mod tests {
 	fn extracts_query_parameters() {
 		assert_eq!(query_param("novel=abc&chapter=12", "chapter"), Some("12"));
 		assert_eq!(query_param("novel=abc", "chapter"), None);
+	}
+
+	#[aidoku_test]
+	fn splits_line_per_paragraph_chapters() {
+		let content =
+			"Slave of Witch City (1) \nAmidst the cold autumn rainfall.\nNo matter how much time.";
+		assert_eq!(
+			chapter_text(content),
+			"Slave of Witch City (1) \n\nAmidst the cold autumn rainfall.\n\nNo matter how much time."
+		);
+	}
+
+	#[aidoku_test]
+	fn keeps_chapters_that_already_have_paragraph_breaks() {
+		let content = "First line\nsecond line\n\nNext paragraph";
+		assert_eq!(chapter_text(content), content);
+
+		let crlf = "First\r\nsecond\r\n\r\nNext";
+		assert_eq!(chapter_text(crlf), crlf);
+
+		let padded = "First\n \nNext";
+		assert_eq!(chapter_text(padded), padded);
+	}
+
+	#[aidoku_test]
+	fn leaves_markup_chapters_untouched() {
+		let content = "<p>One</p><p>Two</p>";
+		assert_eq!(chapter_text(content), content);
 	}
 }
