@@ -97,16 +97,16 @@ impl Source for NovelBuddy {
 		if !excluded_genres.is_empty() {
 			qs.push("exclude", Some(&excluded_genres.join(",")));
 		}
-		qs.push("page", Some(&page.to_string()));
-
 		if let Some(q) = query.as_deref() {
 			qs.push("q", Some(q));
 		}
 
+		let hide = settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl);
+		qs.set("page", Some(&page.max(1).to_string()));
 		let url = format!("{API_URL}/titles/search?{qs}");
 		let data: ListData = request(&url)?;
 		let mut entries: Vec<Manga> = data.items.into_iter().map(Manga::from).collect();
-		if settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl) {
+		if hide {
 			mtl::retain_manga(&mut entries);
 		}
 		Ok(MangaPageResult {
@@ -181,7 +181,7 @@ impl ListingProvider for NovelBuddy {
 				})
 			}
 			"latest" => {
-				let url = format!("{API_URL}/titles/search?sort=latest&page={page}");
+				let url = format!("{API_URL}/titles/search?sort=latest&page={}", page.max(1));
 				let data: ListData = request(&url)?;
 				let mut entries: Vec<Manga> = data.items.into_iter().map(Manga::from).collect();
 				if settings::hide_mtl() {
