@@ -247,6 +247,9 @@ fn deep_link_rejections() {
 		"https://okutoon.company/blue-lock",
 		"https://okutoon.com/giris",
 		"https://okutoon.com/arama?q=blue",
+		"https://okutoon.com/sayfa/hakkimizda",
+		"https://okutoon.com/yorumlar/176143",
+		"https://okutoon.com/@kratos",
 	] {
 		assert!(
 			matches!(source.handle_deep_link(url.to_string()), Ok(None)),

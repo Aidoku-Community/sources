@@ -32,6 +32,9 @@ const NON_SERIES_PATHS: &[&str] = &[
 	"register",
 	"profil",
 	"forum",
+	"sayfa",
+	"yorumlar",
+	"images",
 	"kutuphane",
 	"hakkimizda",
 	"iletisim",
@@ -494,7 +497,8 @@ impl DeepLinkHandler for OkuToon {
 		let Some(series) = segments.next().filter(|s| !s.is_empty()) else {
 			return Ok(None);
 		};
-		if NON_SERIES_PATHS.contains(&series) {
+		// `/@<user>` paths are user profiles
+		if series.starts_with('@') || NON_SERIES_PATHS.contains(&series) {
 			return Ok(None);
 		}
 		// chapter slugs are always `bolum-*`; other sub-pages (the series
