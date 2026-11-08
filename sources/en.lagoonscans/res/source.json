@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.lagoonscans",
+		"name": "Lagoon Scans",
+		"version": 1,
+		"url": "https://lagoonscans.com",
+		"contentRating": 0,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.7.1"
+	}
+}
