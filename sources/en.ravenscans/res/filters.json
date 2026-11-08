@@ -1,0 +1,145 @@
+[
+	{
+		"type": "sort",
+		"id": "order",
+		"canAscend": false,
+		"options": [
+			"Default",
+			"A-Z",
+			"Z-A",
+			"Update",
+			"Added",
+			"Popular"
+		]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"All",
+			"Ongoing",
+			"Completed",
+			"Hiatus"
+		],
+		"ids": [
+			"",
+			"ongoing",
+			"completed",
+			"hiatus"
+		]
+	},
+	{
+		"type": "select",
+		"id": "type",
+		"title": "Type",
+		"options": [
+			"All",
+			"Manga",
+			"Manhwa",
+			"Manhua",
+			"Comic",
+			"Novel"
+		],
+		"ids": [
+			"",
+			"manga",
+			"manhwa",
+			"manhua",
+			"comic",
+			"novel"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "genre[]",
+		"title": "Genre",
+		"isGenre": true,
+		"canExclude": false,
+		"options": [
+			"Action",
+			"Adult",
+			"Adventure",
+			"Comedy",
+			"Drama",
+			"Ecchi",
+			"Fantasy",
+			"Gender Bender",
+			"Harem",
+			"Hentai",
+			"Historical",
+			"Horror",
+			"Josei",
+			"Martial Arts",
+			"Mature",
+			"Mecha",
+			"Mystery",
+			"Psychological",
+			"Romance",
+			"School Life",
+			"Sci-fi",
+			"Seinen",
+			"Shoujo",
+			"Shoujo Ai",
+			"Shounen",
+			"Shounen Ai",
+			"Slice of Life",
+			"Smut",
+			"Sports",
+			"Supernatural",
+			"Tragedy",
+			"Uncensored",
+			"Yaoi",
+			"Yuri"
+		],
+		"ids": [
+			"4",
+			"43",
+			"27",
+			"5",
+			"12",
+			"13",
+			"6",
+			"51",
+			"14",
+			"11381",
+			"7",
+			"33",
+			"44",
+			"8",
+			"45",
+			"59",
+			"46",
+			"47",
+			"9",
+			"28",
+			"40",
+			"49",
+			"50",
+			"52",
+			"10",
+			"53",
+			"54",
+			"48",
+			"55",
+			"24",
+			"56",
+			"10116",
+			"57",
+			"58"
+		]
+	},
+	{
+		"type": "text",
+		"id": "author",
+		"title": "Author",
+		"hideFromHeader": true
+	},
+	{
+		"type": "text",
+		"id": "yearx",
+		"title": "Year",
+		"placeholder": "2024",
+		"hideFromHeader": true
+	}
+]
