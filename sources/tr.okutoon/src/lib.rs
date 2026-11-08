@@ -13,9 +13,6 @@ use serde_json::Value;
 
 const BASE_URL: &str = "https://okutoon.com";
 
-/// The catalog is server-rendered at this page size.
-const PAGE_SIZE: usize = 24;
-
 /// Reader pages sit behind a Cloudflare managed challenge. When the app
 /// receives a challenged response it solves the challenge in a hidden
 /// webview that is created with the user agent of the original request, so
@@ -24,25 +21,21 @@ const PAGE_SIZE: usize = 24;
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
 const PAGE_ERROR: &str = "Bölüm sayfaları alınamadı.";
-const DETAILS_ERROR: &str = "Seri sayfası alınamadı.";
+const NETWORK_ERROR: &str = "Sayfa okutoon.com'dan alınamadı.";
 
 struct OkuToon;
 
 /// Fetch a page of the server-rendered catalog.
-/// `kind` is a `/tur` path (with optional genre segment) and `params` are
-/// already-encoded `name=value` query pairs appended with `&`.
-fn fetch_listing(path: &str, params: Vec<(&str, Option<String>)>) -> Result<MangaPageResult> {
+/// `path` is a `/tur` path (with optional genre segment) and `params` are
+/// already-encoded query pairs, joined as `name=value` with `&`.
+fn fetch_listing(path: &str, params: Vec<(&str, String)>) -> Result<MangaPageResult> {
 	let mut url = format!("{BASE_URL}{path}");
-	let mut query = String::new();
-	for (name, value) in &params {
-		query.push_str(if query.is_empty() { "?" } else { "&" });
-		query.push_str(name);
-		if let Some(value) = value {
-			query.push('=');
-			query.push_str(value);
-		}
+	for (i, (name, value)) in params.iter().enumerate() {
+		url.push(if i == 0 { '?' } else { '&' });
+		url.push_str(name);
+		url.push('=');
+		url.push_str(value);
 	}
-	url.push_str(&query);
 	let document = request_document(&url)?;
 	Ok(parse_cards(&document))
 }
@@ -51,11 +44,11 @@ fn request_document(url: &str) -> Result<Document> {
 	Request::get(url)?
 		.header("User-Agent", USER_AGENT)
 		.html()
-		.map_err(|_| AidokuError::Message(DETAILS_ERROR.to_string()))
+		.map_err(|_| AidokuError::Message(NETWORK_ERROR.to_string()))
 }
 
-/// Extract catalog cards from a `/tur` page. The page renders at most 24
-/// series per page, so a full page implies another page follows.
+/// Extract catalog cards from a `/tur` page. Multi-page listings render a
+/// "Sonraki" (`rel="next"`) button; its presence marks another page.
 fn parse_cards(document: &Document) -> MangaPageResult {
 	let mut entries = Vec::new();
 	if let Some(cards) = document.select("a.series-card") {
@@ -86,7 +79,7 @@ fn parse_cards(document: &Document) -> MangaPageResult {
 			});
 		}
 	}
-	let has_next_page = entries.len() >= PAGE_SIZE;
+	let has_next_page = document.select_first("a[rel=\"next\"]").is_some();
 	MangaPageResult {
 		entries,
 		has_next_page,
@@ -97,16 +90,9 @@ fn slug_from_url(url: &str) -> String {
 	url.rsplit('/').next().unwrap_or_default().to_string()
 }
 
-/// A full series page: details from the JSON-LD block plus the status and
-/// type from the header, and the chapter list below. Parsing details and
-/// chapters from one document lets `get_manga_update` avoid a second
-/// request when both are needed.
-struct SeriesPage {
-	manga: Manga,
-	chapters: Vec<Chapter>,
-}
-
-fn parse_series(key: &str, document: &Document) -> SeriesPage {
+/// Parse series details from the JSON-LD block plus the type and status
+/// from the page header.
+fn parse_details(key: &str, document: &Document) -> Manga {
 	let mut title = String::new();
 	let mut cover = None;
 	let mut description = None;
@@ -117,11 +103,10 @@ fn parse_series(key: &str, document: &Document) -> SeriesPage {
 		.select("script[type=\"application/ld+json\"]")
 		.and_then(|list| list.first())
 	{
-		let json = ld.html().unwrap_or_default();
-		// strip the wrapper declaration if present; the block is otherwise
-		// pure JSON
-		let json = json.trim_start_matches("<script").trim_start();
-		if let Ok(value) = serde_json::from_str::<Value>(json)
+		// script contents are raw data; fall back to inner html where data
+		// isn't available (the test runner doesn't implement it)
+		let json = ld.data().or_else(|| ld.html()).unwrap_or_default();
+		if let Ok(value) = serde_json::from_str::<Value>(json.trim())
 			&& let Some(series) = value
 				.get("@graph")
 				.and_then(Value::as_array)
@@ -130,9 +115,9 @@ fn parse_series(key: &str, document: &Document) -> SeriesPage {
 						node.get("@type").and_then(Value::as_str) == Some("ComicSeries")
 					})
 				}) {
-			title = string_field(series, "name");
-			cover = string_field(series, "image").into();
-			description = string_field(series, "description").into();
+			title = string_field(series, "name").unwrap_or_default();
+			cover = string_field(series, "image");
+			description = string_field(series, "description");
 			if let Some(author) = series.get("author")
 				&& let Some(name) = author.get("name").and_then(Value::as_str)
 			{
@@ -185,46 +170,39 @@ fn parse_series(key: &str, document: &Document) -> SeriesPage {
 		}
 	}
 
-	let mut content_rating = ContentRating::Safe;
-	if let Some(tags) = tags.as_ref() {
-		let lowercase = tags
-			.iter()
-			.map(|tag| tag.to_ascii_lowercase())
-			.collect::<Vec<_>>();
-		if lowercase
-			.iter()
-			.any(|tag| tag.contains("ecchi") || tag.contains("eroti"))
-		{
-			content_rating = ContentRating::Suggestive;
-		}
-	}
+	let suggestive = tags.iter().flatten().any(|tag| {
+		let tag = tag.to_lowercase();
+		tag.contains("ecchi") || tag.contains("eroti")
+	});
+	let content_rating = if suggestive {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
+	};
 
-	let chapters = parse_chapters(key, document);
-
-	SeriesPage {
-		manga: Manga {
-			key: key.to_string(),
-			title,
-			cover,
-			authors,
-			description,
-			url: Some(format!("{BASE_URL}/{key}")),
-			tags,
-			status,
-			content_rating,
-			viewer,
-			..Default::default()
-		},
-		chapters,
+	Manga {
+		key: key.to_string(),
+		title,
+		cover,
+		authors,
+		description,
+		url: Some(format!("{BASE_URL}/{key}")),
+		tags,
+		status,
+		content_rating,
+		viewer,
+		..Default::default()
 	}
 }
 
-fn string_field(value: &Value, field: &str) -> String {
+/// A non-empty string field of a JSON object.
+fn string_field(value: &Value, field: &str) -> Option<String> {
 	value
 		.get(field)
 		.and_then(Value::as_str)
-		.unwrap_or_default()
-		.to_string()
+		.map(str::trim)
+		.filter(|s| !s.is_empty())
+		.map(ToString::to_string)
 }
 
 /// Chapters are server-rendered as `div.chapter-item` elements with the
@@ -250,10 +228,20 @@ fn parse_chapters(key: &str, document: &Document) -> Vec<Chapter> {
 		let number = item
 			.attr("data-chapter-number")
 			.and_then(|n| n.parse::<f32>().ok());
+		// chapter titles always mirror the chapter number ("Bölüm 366");
+		// only keep a title when the site has a real one
 		let title = item
 			.select_first(".chapter-title")
 			.and_then(|e| e.text())
-			.filter(|t| !t.is_empty());
+			.filter(|t| {
+				!t.is_empty()
+					&& Some(t.as_str())
+						!= item
+							.attr("data-chapter-number-label")
+							.as_deref()
+							.map(|label| format!("Bölüm {label}"))
+							.as_deref()
+			});
 		let date_uploaded = item
 			.select_first(".chapter-date")
 			.and_then(|e| e.text())
@@ -275,7 +263,8 @@ fn parse_chapters(key: &str, document: &Document) -> Vec<Chapter> {
 fn parse_date(text: &str) -> Option<i64> {
 	let mut parts = text.split_whitespace();
 	let day = parts.next()?.parse::<i64>().ok()?;
-	let month = month_index(parts.next()?.to_ascii_lowercase().as_str())?;
+	// full unicode lowercasing so capitalised "Şubat" matches
+	let month = month_index(parts.next()?.to_lowercase().as_str())?;
 	let year = parts.next()?.parse::<i64>().ok()?;
 	Some(epoch_from_ymd(year, month, day) + 43_200)
 }
@@ -368,14 +357,14 @@ impl Source for OkuToon {
 		let encoded_query = encode_query(&query);
 		let mut params = Vec::new();
 		if !encoded_query.is_empty() {
-			params.push(("q", Some(encoded_query)));
+			params.push(("q", encoded_query));
 		}
-		params.push(("sira", Some(sort.to_string())));
+		params.push(("sira", sort.to_string()));
 		if sort == "popular" && !period.is_empty() {
-			params.push(("donem", Some(period.to_string())));
+			params.push(("donem", period.to_string()));
 		}
 		if page > 1 {
-			params.push(("sayfa", Some(page.to_string())));
+			params.push(("sayfa", page.to_string()));
 		}
 		fetch_listing(&path, params)
 	}
@@ -386,21 +375,24 @@ impl Source for OkuToon {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
+		if !needs_details && !needs_chapters {
+			return Ok(manga);
+		}
 		let key = manga.key.clone();
 		let document = request_document(&format!("{BASE_URL}/{key}"))?;
-		let series = parse_series(&key, &document);
 		let mut manga = manga;
 		if needs_details {
-			manga.copy_from(series.manga);
+			manga.copy_from(parse_details(&key, &document));
 		}
 		if needs_chapters {
-			manga.chapters = Some(series.chapters);
+			manga.chapters = Some(parse_chapters(&key, &document));
 		}
 		Ok(manga)
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let document = request_document(&format!("{}/{}/{}", BASE_URL, manga.key, chapter.key))?;
+		let document = request_document(&format!("{}/{}/{}", BASE_URL, manga.key, chapter.key))
+			.map_err(|_| AidokuError::Message(PAGE_ERROR.to_string()))?;
 		parse_pages(&document)
 	}
 }
@@ -414,12 +406,12 @@ impl ListingProvider for OkuToon {
 			_ => "newest",
 		};
 		let mut params = Vec::new();
-		params.push(("sira", Some(sort.to_string())));
+		params.push(("sira", sort.to_string()));
 		if sort == "popular" {
-			params.push(("donem", Some("weekly".to_string())));
+			params.push(("donem", "weekly".to_string()));
 		}
 		if page > 1 {
-			params.push(("sayfa", Some(page.to_string())));
+			params.push(("sayfa", page.to_string()));
 		}
 		fetch_listing("/tur", params)
 	}
@@ -427,9 +419,19 @@ impl ListingProvider for OkuToon {
 
 impl DeepLinkHandler for OkuToon {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let path = url
-			.strip_prefix(BASE_URL)
-			.unwrap_or(url.as_str())
+		// accept http/https and an optional www. host; drop query/fragment
+		let rest = url
+			.strip_prefix("https://")
+			.or_else(|| url.strip_prefix("http://"))
+			.unwrap_or(url.as_str());
+		let rest = rest.strip_prefix("www.").unwrap_or(rest);
+		let Some(path) = rest.strip_prefix("okutoon.com") else {
+			return Ok(None);
+		};
+		let path = path
+			.split(['?', '#'])
+			.next()
+			.unwrap_or_default()
 			.trim_start_matches('/');
 		let mut segments = path.split('/');
 		let Some(series) = segments.next().filter(|s| !s.is_empty()) else {

@@ -29,30 +29,30 @@ fn catalog_cards() {
 #[aidoku_test]
 fn series_details_and_chapters() {
 	let document = Html::parse(include_str!("../fixtures/series.html")).expect("series document");
-	let series = parse_series("blue-lock", &document);
-	assert_eq!(series.manga.title, "Blue Lock");
+	let manga = parse_details("blue-lock", &document);
+	let chapters = parse_chapters("blue-lock", &document);
+	assert_eq!(manga.title, "Blue Lock");
 	assert_eq!(
-		series.manga.authors.as_deref().unwrap_or(&vec![]),
+		manga.authors.as_deref().unwrap_or(&vec![]),
 		&["Muneyuki Kaneshiro".to_string()]
 	);
 	assert!(
-		series
-			.manga
+		manga
 			.description
 			.as_deref()
 			.unwrap_or_default()
 			.contains("Blue Lock")
 	);
-	assert_eq!(series.manga.status, MangaStatus::Ongoing);
-	assert_eq!(series.manga.viewer, Viewer::Webtoon);
-	assert!(series.manga.tags.as_deref().unwrap_or(&vec![]).len() >= 3);
+	assert_eq!(manga.status, MangaStatus::Ongoing);
+	assert_eq!(manga.viewer, Viewer::Webtoon);
+	assert!(manga.tags.as_deref().unwrap_or(&vec![]).len() >= 3);
 	assert_eq!(
-		series.manga.cover.as_deref(),
+		manga.cover.as_deref(),
 		Some("https://om-cdn.okutoon.com/covers/cover_1784153823_245c17ff.webp")
 	);
 
-	assert_eq!(series.chapters.len(), 4);
-	let newest = &series.chapters[0];
+	assert_eq!(chapters.len(), 4);
+	let newest = &chapters[0];
 	assert_eq!(newest.key, "bolum-366");
 	assert_eq!(newest.chapter_number, Some(366.0));
 	assert_eq!(
@@ -126,6 +126,62 @@ fn deep_links() {
 	));
 	assert!(matches!(
 		source.handle_deep_link("https://okutoon.com/".to_string()),
+		Ok(None)
+	));
+}
+
+#[aidoku_test]
+fn capitalised_months() {
+	assert_eq!(
+		parse_date("12 Şubat 2026"),
+		Some(epoch_from_ymd(2026, 2, 12) + 43_200)
+	);
+	assert_eq!(
+		parse_date("1 Ağustos 2026"),
+		Some(epoch_from_ymd(2026, 8, 1) + 43_200)
+	);
+}
+
+#[aidoku_test]
+fn missing_json_ld_fields_fall_back() {
+	// no image/description in JSON-LD: cover comes from og:image and the
+	// description stays empty rather than Some("")
+	let html = r#"<html><head><script type="application/ld+json">{"@graph":[{"@type":"ComicSeries","name":"Blue Lock"}]}</script>
+		<meta property="og:image" content="https://om-cdn.okutoon.com/covers/fallback.webp"></head><body></body></html>"#;
+	let document = Html::parse(html).expect("document");
+	let manga = parse_details("blue-lock", &document);
+	assert_eq!(manga.title, "Blue Lock");
+	assert_eq!(
+		manga.cover.as_deref(),
+		Some("https://om-cdn.okutoon.com/covers/fallback.webp")
+	);
+	assert_eq!(manga.description, None);
+}
+
+#[aidoku_test]
+fn deep_link_variants() {
+	let source = OkuToon;
+	for url in [
+		"https://www.okutoon.com/blue-lock",
+		"http://okutoon.com/blue-lock",
+		"https://okutoon.com/blue-lock?ref=home",
+		"https://okutoon.com/blue-lock/",
+	] {
+		assert!(
+			matches!(
+				source.handle_deep_link(url.to_string()),
+				Ok(Some(DeepLinkResult::Manga { ref key })) if key == "blue-lock"
+			),
+			"{url}"
+		);
+	}
+	assert!(matches!(
+		source.handle_deep_link("https://okutoon.com/blue-lock/bolum-366#top".to_string()),
+		Ok(Some(DeepLinkResult::Chapter { manga_key, key }))
+			if manga_key == "blue-lock" && key == "bolum-366"
+	));
+	assert!(matches!(
+		source.handle_deep_link("https://example.com/blue-lock".to_string()),
 		Ok(None)
 	));
 }
