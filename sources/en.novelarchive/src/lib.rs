@@ -61,22 +61,29 @@ impl Source for NovelArchive {
 		qs.push("sort", Some(sort));
 		qs.push("status", Some(&status));
 		qs.push("limit", Some(PAGE_SIZE));
-		qs.push("page", Some(&page.to_string()));
 
 		if let Some(query) = query.as_deref() {
 			qs.push("search", Some(query));
 		}
 
-		let url = format!("{BASE_URL}/api/novels?{qs}");
-		let data: ListData = request(&url)?;
-		let mut entries: Vec<Manga> = data.novels.into_iter().map(Manga::from).collect();
-		if settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl) {
-			mtl::retain_manga(&mut entries);
+		let hide = settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl);
+		let mut page = page.max(1);
+		loop {
+			qs.push("page", Some(&page.to_string()));
+			let url = format!("{BASE_URL}/api/novels?{qs}");
+			let data: ListData = request(&url)?;
+			let mut entries: Vec<Manga> = data.novels.into_iter().map(Manga::from).collect();
+			if hide {
+				mtl::retain_manga(&mut entries);
+			}
+			if !entries.is_empty() || !data.pagination.has_next {
+				return Ok(MangaPageResult {
+					entries,
+					has_next_page: data.pagination.has_next,
+				});
+			}
+			page += 1;
 		}
-		Ok(MangaPageResult {
-			entries,
-			has_next_page: data.pagination.has_next,
-		})
 	}
 
 	fn get_manga_update(

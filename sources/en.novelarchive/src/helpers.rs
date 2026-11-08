@@ -131,7 +131,7 @@ pub fn chapter_text(content: &str) -> String {
 		|| ["<br", "<img", "<hr"]
 			.iter()
 			.any(|tag| content.contains(tag));
-	if has_markup {
+	if has_markup || content.contains("\n\n") {
 		return content.into();
 	}
 	let mut output = String::default();
@@ -191,13 +191,19 @@ mod tests {
 	}
 
 	#[aidoku_test]
-	fn splits_plain_text_chapters_into_paragraphs() {
+	fn splits_line_per_paragraph_chapters() {
 		let content =
-			"Slave of Witch City (1) \nAmidst the cold autumn rainfall.\n\nSecond paragraph. ";
+			"Slave of Witch City (1) \nAmidst the cold autumn rainfall.\nNo matter how much time.";
 		assert_eq!(
 			chapter_text(content),
-			"Slave of Witch City (1) \n\nAmidst the cold autumn rainfall.\n\nSecond paragraph. "
+			"Slave of Witch City (1) \n\nAmidst the cold autumn rainfall.\n\nNo matter how much time."
 		);
+	}
+
+	#[aidoku_test]
+	fn keeps_chapters_that_already_have_paragraph_breaks() {
+		let content = "First line\nsecond line\n\nNext paragraph";
+		assert_eq!(chapter_text(content), content);
 	}
 
 	#[aidoku_test]
