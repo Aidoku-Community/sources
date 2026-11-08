@@ -1,5 +1,5 @@
 use crate::json::chapter_decoder::ChapterImageDecoder;
-use crate::{API_URL, BASE_URL, IMG_URL};
+use crate::{API_URL, IMG_URL, base_url};
 use aidoku::{
 	Page, Result,
 	alloc::{String, Vec},
@@ -18,9 +18,10 @@ impl PageList {
 			API_URL, ids[1], chapter_id
 		);
 
+		let base_url = base_url()?;
 		let json: serde_json::Value = Request::get(url.clone())?
-			.header("Origin", BASE_URL)
-			.header("Referer", BASE_URL)
+			.header("Origin", &base_url)
+			.header("Referer", &base_url)
 			.send()?
 			.get_json()?;
 		let data = json

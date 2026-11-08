@@ -1,4 +1,4 @@
-use crate::{API_URL, BASE_URL};
+use crate::{API_URL, base_url};
 use aidoku::{
 	Chapter, Result,
 	alloc::{Vec, string::ToString as _, vec},
@@ -42,9 +42,10 @@ impl ChapterList {
 	pub fn get_chapters(manga_id: &str) -> Result<Vec<Chapter>> {
 		let ids = manga_id.split("/").collect::<Vec<&str>>();
 		let url = format!("{}/api/manga/get?mid={}&mode=all", API_URL, ids[1]);
+		let base_url = base_url()?;
 		let json: serde_json::Value = Request::get(url.clone())?
-			.header("Origin", BASE_URL)
-			.header("Referer", BASE_URL)
+			.header("Origin", &base_url)
+			.header("Referer", &base_url)
 			.send()?
 			.get_json()?;
 		let data = json
@@ -93,7 +94,7 @@ impl ChapterList {
 				.and_then(|v| v.as_str())
 				.unwrap_or(&id)
 				.to_string();
-			let url = format!("{}/manga/{}/{}", BASE_URL, ids[0], slug);
+			let url = format!("{}/manga/{}/{}", base_url, ids[0], slug);
 			let chapter = (index + 1) as f32;
 			let chapter_or_volume = extract_chapter_number(&title).unwrap_or(chapter);
 

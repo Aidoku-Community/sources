@@ -1,4 +1,4 @@
-use crate::{BASE_URL, handle_cover_url};
+use crate::{base_url, handle_cover_url};
 use aidoku::{
 	Manga, MangaPageResult, MangaStatus, Result, Viewer,
 	alloc::{String, Vec, string::ToString as _, vec},
@@ -18,8 +18,9 @@ pub trait MangaPage {
 impl MangaPage for Document {
 	fn update_details(&self, manga: &mut Manga) -> Result<()> {
 		let ids = manga.key.split("/").collect::<Vec<&str>>();
-		let url = format!("{}/manga/{}", BASE_URL, ids[0]);
-		let html = Request::get(&url)?.header("Origin", BASE_URL).html()?;
+		let base_url = base_url()?;
+		let url = format!("{}/manga/{}", base_url, ids[0]);
+		let html = Request::get(&url)?.header("Origin", &base_url).html()?;
 
 		let mid = html
 			.select_first("#mangachapters")

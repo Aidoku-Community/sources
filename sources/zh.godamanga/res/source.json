@@ -2,13 +2,13 @@
 	"info": {
 		"id": "zh.godamanga",
 		"name": "G站漫畫",
-		"version": 3,
+		"version": 4,
 		"urls": [
 			"https://godamh.com",
 			"https://baozimh.org",
-			"https://m.baozimh.one",
 			"https://bzmh.org",
 			"https://g-mh.org",
+			"https://m.baozimh.one",
 			"https://m.g-mh.org"
 		],
 		"contentRating": 1,
@@ -30,6 +30,7 @@
 		}
 	],
 	"config": {
+		"allowsBaseUrlSelect": true,
 		"hidesFiltersWhileSearching": true,
 		"supportsAuthorSearch": false,
 		"supportsTagSearch": true
