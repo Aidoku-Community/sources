@@ -4,20 +4,23 @@ use aidoku::{
 	alloc::{String, format, string::ToString as _},
 	bail, error,
 	helpers::uri::QueryParameters,
-	imports::net::Request,
+	imports::{defaults::defaults_get, net::Request},
 };
 use core::fmt::{Display, Formatter, Result as FmtResult};
 use strum::{Display, EnumIs, FromRepr};
 
+const BASE_URL: &str = "https://www.manga2026.com";
+
+pub fn base_url() -> String {
+	defaults_get::<String>("url").unwrap_or_else(|| BASE_URL.into())
+}
+
 #[derive(Display, EnumIs)]
-#[strum(prefix = "https://www.manga2026.com")]
 pub enum Url<'a> {
 	#[strum(to_string = "/filter")]
 	GenresPage,
 	#[strum(to_string = "/comics?{0}")]
 	Filters(FiltersQuery),
-	#[strum(to_string = "/search")]
-	SearchPage,
 	#[strum(to_string = "{api}?{query}")]
 	Search { api: String, query: SearchQuery },
 	#[strum(to_string = "/comic/{key}")]
@@ -30,7 +33,7 @@ pub enum Url<'a> {
 
 impl Url<'_> {
 	pub fn request(&self) -> Result<Request> {
-		let mut request = Request::get(self.to_string())?.header(
+		let mut request = Request::get(format!("{}{}", base_url(), self))?.header(
 			"User-Agent",
 			"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
 			 AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15",
@@ -136,7 +139,7 @@ impl<'a> Url<'a> {
 
 impl From<Url<'_>> for String {
 	fn from(url: Url<'_>) -> Self {
-		url.to_string()
+		format!("{}{}", base_url(), url)
 	}
 }
 
