@@ -126,12 +126,27 @@ pub fn build_chapters(novel_id: &str, names: Vec<String>) -> Vec<Chapter> {
 		.collect()
 }
 
+fn has_paragraph_break(content: &str) -> bool {
+	let mut seen_content = false;
+	let mut seen_blank = false;
+	for line in content.lines() {
+		if line.trim().is_empty() {
+			seen_blank |= seen_content;
+		} else if seen_blank {
+			return true;
+		} else {
+			seen_content = true;
+		}
+	}
+	false
+}
+
 pub fn chapter_text(content: &str) -> String {
 	let has_markup = content.contains("</")
 		|| ["<br", "<img", "<hr"]
 			.iter()
 			.any(|tag| content.contains(tag));
-	if has_markup || content.contains("\n\n") {
+	if has_markup || has_paragraph_break(content) {
 		return content.into();
 	}
 	let mut output = String::default();
@@ -204,6 +219,12 @@ mod tests {
 	fn keeps_chapters_that_already_have_paragraph_breaks() {
 		let content = "First line\nsecond line\n\nNext paragraph";
 		assert_eq!(chapter_text(content), content);
+
+		let crlf = "First\r\nsecond\r\n\r\nNext";
+		assert_eq!(chapter_text(crlf), crlf);
+
+		let padded = "First\n \nNext";
+		assert_eq!(chapter_text(padded), padded);
 	}
 
 	#[aidoku_test]
