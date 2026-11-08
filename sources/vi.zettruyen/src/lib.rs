@@ -9,7 +9,7 @@ use aidoku::{
 };
 use wpcomics::{Cache, Impl, Params, WpComics};
 
-const BASE_URL: &str = "https://www.zettruyen2.com";
+const BASE_URL: &str = "https://www.zettruyen5.com";
 
 mod models;
 use models::*;
