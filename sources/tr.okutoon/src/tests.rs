@@ -1,4 +1,5 @@
 use super::*;
+use aidoku::alloc::vec;
 use aidoku::imports::html::Html;
 use aidoku_test::aidoku_test;
 
@@ -183,5 +184,78 @@ fn deep_link_variants() {
 	assert!(matches!(
 		source.handle_deep_link("https://example.com/blue-lock".to_string()),
 		Ok(None)
+	));
+}
+
+#[aidoku_test]
+fn pagination_from_next_link() {
+	let card = r#"<a href="/blue-lock" class="series-card"><img src="https://om-cdn.okutoon.com/c.webp"><span class="series-card-title">Blue Lock</span></a>"#;
+	let with_next =
+		format!(r#"<main>{card}<a href="/tur?sayfa=2" rel="next">Sonraki »</a></main>"#);
+	let last = format!("<main>{card}</main>");
+	assert!(parse_cards(&Html::parse(with_next).expect("document")).has_next_page);
+	assert!(!parse_cards(&Html::parse(last).expect("document")).has_next_page);
+}
+
+#[aidoku_test]
+fn chapter_titles_dedup() {
+	let html = r#"<div class="chapter-item" data-chapter-number="366.000" data-chapter-number-label="366">
+		<a href="/blue-lock/bolum-366" class="chapter-item-link"></a>
+		<span class="chapter-title">Bölüm 366</span></div>
+	<div class="chapter-item" data-chapter-number="365.000" data-chapter-number-label="365">
+		<a href="/blue-lock/bolum-365" class="chapter-item-link"></a>
+		<span class="chapter-title">Final Maçı</span></div>"#;
+	let chapters = parse_chapters("blue-lock", &Html::parse(html).expect("document"));
+	assert_eq!(chapters[0].title, None);
+	assert_eq!(chapters[1].title.as_deref(), Some("Final Maçı"));
+}
+
+#[aidoku_test]
+fn turkish_folding_and_authors() {
+	assert_eq!(fold_turkish("TAMAMLANDI"), "tamamlandi");
+	assert_eq!(fold_turkish("Bırakıldı"), "birakildi");
+	assert_eq!(fold_turkish("İPTAL"), "iptal");
+	let html = r#"<html><head><script type="application/ld+json">{"@graph":[{"@type":"ComicSeries","name":"X","author":[{"name":"A"},{"name":"B"}]}]}</script></head>
+		<body><p class="series-detail-kicker"><span>Manga</span> · <span>TAMAMLANDI</span></p></body></html>"#;
+	let manga = parse_details("x", &Html::parse(html).expect("document"));
+	assert_eq!(manga.authors, Some(vec!["A".to_string(), "B".to_string()]));
+	assert_eq!(manga.status, MangaStatus::Completed);
+	assert_eq!(manga.viewer, Viewer::RightToLeft);
+}
+
+#[aidoku_test]
+fn image_urls() {
+	assert_eq!(
+		absolute_url("//om-cdn.okutoon.com/a.webp").as_deref(),
+		Some("https://om-cdn.okutoon.com/a.webp")
+	);
+	assert_eq!(
+		absolute_url("/img/a.webp").as_deref(),
+		Some("https://okutoon.com/img/a.webp")
+	);
+	assert_eq!(absolute_url("data:image/gif;base64,AAA"), None);
+	let html = r#"<img class="reader-page" src="data:image/gif;base64,AAA" data-src="https://om-cdn.okutoon.com/p1.webp">"#;
+	let pages = parse_pages(&Html::parse(html).expect("document")).expect("pages");
+	assert_eq!(pages.len(), 1);
+}
+
+#[aidoku_test]
+fn deep_link_rejections() {
+	let source = OkuToon;
+	for url in [
+		"https://okutoon.com.example.org/blue-lock",
+		"https://okutoon.company/blue-lock",
+		"https://okutoon.com/giris",
+		"https://okutoon.com/arama?q=blue",
+	] {
+		assert!(
+			matches!(source.handle_deep_link(url.to_string()), Ok(None)),
+			"{url}"
+		);
+	}
+	assert!(matches!(
+		source.handle_deep_link("https://okutoon.com/blue-lock/prolog".to_string()),
+		Ok(Some(DeepLinkResult::Chapter { manga_key, key }))
+			if manga_key == "blue-lock" && key == "prolog"
 	));
 }

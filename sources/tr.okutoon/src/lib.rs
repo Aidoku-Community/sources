@@ -1,6 +1,5 @@
 #![no_std]
 
-use aidoku::alloc::vec;
 use aidoku::{
 	AidokuError, Chapter, ContentRating, DeepLinkHandler, DeepLinkResult, FilterValue, Listing,
 	ListingProvider, Manga, MangaPageResult, MangaStatus, Page, PageContent, Result, Source,
@@ -22,6 +21,20 @@ const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)
 
 const PAGE_ERROR: &str = "Bölüm sayfaları alınamadı.";
 const NETWORK_ERROR: &str = "Sayfa okutoon.com'dan alınamadı.";
+
+/// Top-level site paths that aren't series slugs.
+const NON_SERIES_PATHS: &[&str] = &[
+	"tur",
+	"arama",
+	"giris",
+	"kayit",
+	"profil",
+	"kutuphane",
+	"hakkimizda",
+	"iletisim",
+	"gizlilik",
+	"api",
+];
 
 struct OkuToon;
 
@@ -67,10 +80,7 @@ fn parse_cards(document: &Document) -> MangaPageResult {
 			else {
 				continue;
 			};
-			let cover = card
-				.select_first("img")
-				.and_then(|img| img.attr("src"))
-				.filter(|src| src.starts_with("https://"));
+			let cover = card.select_first("img").and_then(|img| image_url(&img));
 			entries.push(Manga {
 				key,
 				title,
@@ -118,10 +128,17 @@ fn parse_details(key: &str, document: &Document) -> Manga {
 			title = string_field(series, "name").unwrap_or_default();
 			cover = string_field(series, "image");
 			description = string_field(series, "description");
-			if let Some(author) = series.get("author")
-				&& let Some(name) = author.get("name").and_then(Value::as_str)
-			{
-				authors = Some(vec![name.to_string()]);
+			// `author` is either a single Person or an array of them
+			let names = match series.get("author") {
+				Some(Value::Array(list)) => list
+					.iter()
+					.filter_map(|a| string_field(a, "name"))
+					.collect(),
+				Some(author) => string_field(author, "name").into_iter().collect(),
+				None => Vec::new(),
+			};
+			if !names.is_empty() {
+				authors = Some(names);
 			}
 			if let Some(genres) = series.get("genre").and_then(Value::as_array) {
 				tags = Some(
@@ -157,14 +174,12 @@ fn parse_details(key: &str, document: &Document) -> Manga {
 	if let Some(kicker) = document.select_first(".series-detail-kicker") {
 		let text = kicker.text().unwrap_or_default();
 		for part in text.split('·').map(str::trim) {
-			match part.to_ascii_lowercase().as_str() {
+			match fold_turkish(part).as_str() {
 				"manga" => viewer = Viewer::RightToLeft,
-				"devam ediyor" => {
-					status = MangaStatus::Ongoing;
-				}
-				"tamamlandı" => status = MangaStatus::Completed,
+				"devam ediyor" => status = MangaStatus::Ongoing,
+				"tamamlandi" => status = MangaStatus::Completed,
 				"ara verildi" => status = MangaStatus::Hiatus,
-				"bırakıldı" | "terk edildi" => status = MangaStatus::Cancelled,
+				"birakildi" | "terk edildi" => status = MangaStatus::Cancelled,
 				_ => {}
 			}
 		}
@@ -230,18 +245,11 @@ fn parse_chapters(key: &str, document: &Document) -> Vec<Chapter> {
 			.and_then(|n| n.parse::<f32>().ok());
 		// chapter titles always mirror the chapter number ("Bölüm 366");
 		// only keep a title when the site has a real one
+		let label = item.attr("data-chapter-number-label");
 		let title = item
 			.select_first(".chapter-title")
 			.and_then(|e| e.text())
-			.filter(|t| {
-				!t.is_empty()
-					&& Some(t.as_str())
-						!= item
-							.attr("data-chapter-number-label")
-							.as_deref()
-							.map(|label| format!("Bölüm {label}"))
-							.as_deref()
-			});
+			.filter(|t| !t.is_empty() && t.strip_prefix("Bölüm ") != label.as_deref());
 		let date_uploaded = item
 			.select_first(".chapter-date")
 			.and_then(|e| e.text())
@@ -263,8 +271,7 @@ fn parse_chapters(key: &str, document: &Document) -> Vec<Chapter> {
 fn parse_date(text: &str) -> Option<i64> {
 	let mut parts = text.split_whitespace();
 	let day = parts.next()?.parse::<i64>().ok()?;
-	// full unicode lowercasing so capitalised "Şubat" matches
-	let month = month_index(parts.next()?.to_lowercase().as_str())?;
+	let month = month_index(fold_turkish(parts.next()?).as_str())?;
 	let year = parts.next()?.parse::<i64>().ok()?;
 	Some(epoch_from_ymd(year, month, day) + 43_200)
 }
@@ -272,19 +279,61 @@ fn parse_date(text: &str) -> Option<i64> {
 fn month_index(name: &str) -> Option<i64> {
 	Some(match name {
 		"ocak" => 1,
-		"subat" | "şubat" => 2,
+		"subat" => 2,
 		"mart" => 3,
 		"nisan" => 4,
-		"mayis" | "mayıs" => 5,
+		"mayis" => 5,
 		"haziran" => 6,
 		"temmuz" => 7,
-		"agustos" | "ağustos" => 8,
-		"eylul" | "eylül" => 9,
+		"agustos" => 8,
+		"eylul" => 9,
 		"ekim" => 10,
-		"kasim" | "kasım" => 11,
-		"aralik" | "aralık" => 12,
+		"kasim" => 11,
+		"aralik" => 12,
 		_ => return None,
 	})
+}
+
+/// Lowercase and strip Turkish diacritics so "TAMAMLANDI", "Tamamlandı" and
+/// "tamamlandi" all compare equal. Plain `to_lowercase` maps "I" to "i" and
+/// "İ" to "i\u{307}", so both dotted and dotless forms are folded to "i".
+fn fold_turkish(text: &str) -> String {
+	text.chars()
+		.flat_map(char::to_lowercase)
+		.filter_map(|c| match c {
+			'\u{307}' => None,
+			'ı' => Some('i'),
+			'ş' => Some('s'),
+			'ğ' => Some('g'),
+			'ü' => Some('u'),
+			'ö' => Some('o'),
+			'ç' => Some('c'),
+			c => Some(c),
+		})
+		.collect()
+}
+
+/// Resolve an image attribute to an absolute https URL.
+fn absolute_url(src: &str) -> Option<String> {
+	let src = src.trim();
+	if src.starts_with("https://") {
+		Some(src.to_string())
+	} else if let Some(rest) = src.strip_prefix("//") {
+		Some(format!("https://{rest}"))
+	} else if src.starts_with('/') {
+		Some(format!("{BASE_URL}{src}"))
+	} else {
+		None
+	}
+}
+
+/// The real image URL of an `img`, preferring lazy-load attributes over a
+/// possible placeholder `src`.
+fn image_url(img: &aidoku::imports::html::Element) -> Option<String> {
+	["data-src", "data-lazy-src", "src"]
+		.iter()
+		.filter_map(|attr| img.attr(attr))
+		.find_map(|src| absolute_url(&src))
 }
 
 /// Days from 1970-01-01 for a proleptic Gregorian date.
@@ -309,7 +358,7 @@ fn parse_pages(document: &Document) -> Result<Vec<Page>> {
 		.select("img.reader-page")
 		.ok_or_else(|| AidokuError::Message(PAGE_ERROR.to_string()))?;
 	for image in images {
-		let Some(url) = image.attr("src").filter(|src| src.starts_with("https://")) else {
+		let Some(url) = image_url(&image) else {
 			continue;
 		};
 		pages.push(Page {
@@ -391,8 +440,9 @@ impl Source for OkuToon {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let document = request_document(&format!("{}/{}/{}", BASE_URL, manga.key, chapter.key))
-			.map_err(|_| AidokuError::Message(PAGE_ERROR.to_string()))?;
+		// network failures keep NETWORK_ERROR; PAGE_ERROR is for pages that
+		// load but contain no images
+		let document = request_document(&format!("{}/{}/{}", BASE_URL, manga.key, chapter.key))?;
 		parse_pages(&document)
 	}
 }
@@ -425,23 +475,27 @@ impl DeepLinkHandler for OkuToon {
 			.or_else(|| url.strip_prefix("http://"))
 			.unwrap_or(url.as_str());
 		let rest = rest.strip_prefix("www.").unwrap_or(rest);
-		let Some(path) = rest.strip_prefix("okutoon.com") else {
+		// the host must end exactly here, not continue as `okutoon.com.evil`
+		let Some(path) = rest
+			.strip_prefix("okutoon.com")
+			.filter(|p| p.is_empty() || p.starts_with(['/', '?', '#']))
+		else {
 			return Ok(None);
 		};
 		let path = path
 			.split(['?', '#'])
 			.next()
 			.unwrap_or_default()
-			.trim_start_matches('/');
+			.trim_matches('/');
 		let mut segments = path.split('/');
 		let Some(series) = segments.next().filter(|s| !s.is_empty()) else {
 			return Ok(None);
 		};
-		if series == "tur" {
+		if NON_SERIES_PATHS.contains(&series) {
 			return Ok(None);
 		}
-		Ok(Some(match segments.next() {
-			Some(chapter) if chapter.starts_with("bolum") => DeepLinkResult::Chapter {
+		Ok(Some(match segments.next().filter(|s| !s.is_empty()) {
+			Some(chapter) => DeepLinkResult::Chapter {
 				manga_key: series.to_string(),
 				key: chapter.to_string(),
 			},
