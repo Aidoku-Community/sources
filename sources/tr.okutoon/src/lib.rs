@@ -28,7 +28,10 @@ const NON_SERIES_PATHS: &[&str] = &[
 	"arama",
 	"giris",
 	"kayit",
+	"login",
+	"register",
 	"profil",
+	"forum",
 	"kutuphane",
 	"hakkimizda",
 	"iletisim",
@@ -494,15 +497,19 @@ impl DeepLinkHandler for OkuToon {
 		if NON_SERIES_PATHS.contains(&series) {
 			return Ok(None);
 		}
-		Ok(Some(match segments.next().filter(|s| !s.is_empty()) {
-			Some(chapter) => DeepLinkResult::Chapter {
-				manga_key: series.to_string(),
-				key: chapter.to_string(),
+		// chapter slugs are always `bolum-*`; other sub-pages (the series
+		// library, follower lists, ...) open the series instead
+		Ok(Some(
+			match segments.next().filter(|s| s.starts_with("bolum")) {
+				Some(chapter) => DeepLinkResult::Chapter {
+					manga_key: series.to_string(),
+					key: chapter.to_string(),
+				},
+				_ => DeepLinkResult::Manga {
+					key: series.to_string(),
+				},
 			},
-			_ => DeepLinkResult::Manga {
-				key: series.to_string(),
-			},
-		}))
+		))
 	}
 }
 

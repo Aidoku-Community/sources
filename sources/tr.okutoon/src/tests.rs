@@ -253,9 +253,17 @@ fn deep_link_rejections() {
 			"{url}"
 		);
 	}
+	// non-bolum sub-pages open the series, not a bogus chapter
 	assert!(matches!(
-		source.handle_deep_link("https://okutoon.com/blue-lock/prolog".to_string()),
-		Ok(Some(DeepLinkResult::Chapter { manga_key, key }))
-			if manga_key == "blue-lock" && key == "prolog"
+		source.handle_deep_link("https://okutoon.com/blue-lock/kutuphane/takip-edenler".to_string()),
+		Ok(Some(DeepLinkResult::Manga { key })) if key == "blue-lock"
+	));
+	assert!(matches!(
+		source.handle_deep_link("https://okutoon.com/register".to_string()),
+		Ok(None)
+	));
+	assert!(matches!(
+		source.handle_deep_link("https://okutoon.com/forum/genel-sohbet".to_string()),
+		Ok(None)
 	));
 }
