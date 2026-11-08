@@ -9,6 +9,7 @@ use aidoku::{
 mod helpers;
 mod markdown;
 mod models;
+mod mtl;
 mod settings;
 mod watermark;
 use helpers::{
@@ -49,7 +50,6 @@ impl Source for Chikari {
 	) -> Result<MangaPageResult> {
 		let filters = apply_settings(filters);
 		let limit = SEARCH_PAGE_SIZE;
-		let offset = (page.max(1) as u32 - 1) * limit;
 		let sort = filters
 			.iter()
 			.find_map(|filter| match filter {
@@ -57,6 +57,8 @@ impl Source for Chikari {
 				_ => None,
 			})
 			.unwrap_or("popular");
+		let hide = settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl);
+		let offset = (page.max(1) as u32 - 1) * limit;
 		let Some(url) = list_url(sort, limit, offset, query.as_deref(), &filters) else {
 			return Ok(MangaPageResult {
 				entries: Vec::new(),
@@ -64,7 +66,11 @@ impl Source for Chikari {
 			});
 		};
 		let data: ListResponse = request(&url)?;
-		Ok(manga_page_result(data, offset, limit))
+		let mut result = manga_page_result(data, offset, limit);
+		if hide {
+			mtl::retain_manga(&mut result.entries);
+		}
+		Ok(result)
 	}
 
 	fn get_manga_update(
@@ -84,7 +90,11 @@ impl Source for Chikari {
 			}
 		}
 		if needs_chapters {
-			manga.chapters = Some(fetch_chapters(&raw_slug, content_type)?);
+			let mut chapters = fetch_chapters(&raw_slug, content_type)?;
+			if settings::hide_mtl() {
+				mtl::retain_chapters(&mut chapters);
+			}
+			manga.chapters = Some(chapters);
 		}
 		Ok(manga)
 	}
@@ -203,8 +213,8 @@ impl ListingProvider for Chikari {
 			.iter()
 			.find(|s| **s == listing.id)
 			.ok_or_else(|| error!("Unknown listing: {}", listing.id))?;
-		let offset = (page.max(1) as u32 - 1) * LIST_PAGE_SIZE;
 		let filters = apply_settings(Vec::new());
+		let offset = (page.max(1) as u32 - 1) * LIST_PAGE_SIZE;
 		let Some(url) = list_url(sort, LIST_PAGE_SIZE, offset, None, &filters) else {
 			return Ok(MangaPageResult {
 				entries: Vec::new(),
@@ -212,7 +222,11 @@ impl ListingProvider for Chikari {
 			});
 		};
 		let data: ListResponse = request(&url)?;
-		Ok(manga_page_result(data, offset, LIST_PAGE_SIZE))
+		let mut result = manga_page_result(data, offset, LIST_PAGE_SIZE);
+		if settings::hide_mtl() {
+			mtl::retain_manga(&mut result.entries);
+		}
+		Ok(result)
 	}
 }
 

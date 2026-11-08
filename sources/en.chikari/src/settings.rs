@@ -2,6 +2,7 @@ use aidoku::alloc::{String, Vec};
 use aidoku::imports::defaults::defaults_get;
 
 const HIDE_WATERMARK_KEY: &str = "hideWatermark";
+const HIDE_MTL_KEY: &str = "hideMtl";
 const TYPES_KEY: &str = "types";
 const RATINGS_KEY: &str = "ratings";
 const STATUS_KEY: &str = "status";
@@ -13,6 +14,10 @@ const KNOWN_STATUS: &[&str] = &["releasing", "completed", "hiatus", "cancelled",
 
 pub fn hide_watermark() -> bool {
 	defaults_get::<bool>(HIDE_WATERMARK_KEY).unwrap_or(false)
+}
+
+pub fn hide_mtl() -> bool {
+	defaults_get::<bool>(HIDE_MTL_KEY).unwrap_or(false)
 }
 
 pub fn hidden_genres() -> Vec<String> {
