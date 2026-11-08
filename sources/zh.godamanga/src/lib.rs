@@ -8,15 +8,19 @@ use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, ImageRequestProvider, Listing, ListingProvider,
 	Manga, MangaPageResult, Page, Result, Source,
 	alloc::{String, Vec},
-	imports::net::Request,
+	imports::{defaults::defaults_get, net::Request},
 	prelude::*,
 };
 use html::MangaPage as _;
 use net::Url;
 
-pub const BASE_URL: &str = "https://godamh.com";
 pub const API_URL: &str = "https://api-get-v3.mgsearcher.com";
 pub const IMG_URL: &str = "https://c-nd2-1.6wm.top";
+
+pub fn base_url() -> Result<String> {
+	defaults_get::<String>("url")
+		.ok_or_else(|| error!("Default not exist or not string for key: `url`"))
+}
 
 fn handle_cover_url(url: String) -> String {
 	if url.contains("url=") {
@@ -78,14 +82,14 @@ impl ImageRequestProvider for Godamanga {
 		url: String,
 		_context: Option<aidoku::PageContext>,
 	) -> Result<Request> {
-		Ok(Request::get(url)?.header("Referer", BASE_URL))
+		Ok(Request::get(url)?.header("Referer", &base_url()?))
 	}
 }
 
 impl DeepLinkHandler for Godamanga {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let url = url.trim_start_matches(BASE_URL);
-		let mut splits = url.split('/').skip(1);
+		// Skip the scheme and host so deep links work for any mirror domain
+		let mut splits = url.split('/').skip(3);
 		let deep_link_result = match splits.next() {
 			Some("manga") => match (splits.next(), splits.next()) {
 				(Some(manga_id), None) => Some(DeepLinkResult::Manga {
@@ -105,14 +109,15 @@ impl DeepLinkHandler for Godamanga {
 
 impl ListingProvider for Godamanga {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		let base_url = base_url()?;
 		let url = match listing.id.as_str() {
-			"hots" => format!("{}/hots/page/{}", BASE_URL, page),
-			"dayup" => format!("{}/dayup/page/{}", BASE_URL, page),
-			"newss" => format!("{}/newss/page/{}", BASE_URL, page),
+			"hots" => format!("{}/hots/page/{}", base_url, page),
+			"dayup" => format!("{}/dayup/page/{}", base_url, page),
+			"newss" => format!("{}/newss/page/{}", base_url, page),
 			_ => bail!("Invalid listing"),
 		};
 
-		let html = Request::get(url)?.header("Origin", BASE_URL).html()?;
+		let html = Request::get(url)?.header("Origin", &base_url).html()?;
 
 		html.manga_page_result()
 	}

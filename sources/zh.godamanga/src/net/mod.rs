@@ -1,4 +1,4 @@
-use crate::BASE_URL;
+use crate::base_url;
 use aidoku::{
 	FilterValue, Result,
 	alloc::{String, Vec, string::ToString as _},
@@ -59,12 +59,13 @@ pub enum Url {
 
 impl Url {
 	pub fn request(&self) -> Result<Request> {
-		let url = self.to_string();
-		let mut request = Request::get(url)?.header("Origin", BASE_URL);
+		let base_url = base_url()?;
+		let url = self.to_string()?;
+		let mut request = Request::get(url)?.header("Origin", &base_url);
 
 		// Add special referer for search requests
 		if let Url::Search { .. } = self {
-			request = request.header("Referer", &format!("{}/s/", BASE_URL));
+			request = request.header("Referer", &format!("{}/s/", base_url));
 		}
 
 		Ok(request)
@@ -116,6 +117,11 @@ impl Url {
 	pub fn manga(id: String) -> Self {
 		Self::Manga { id }
 	}
+
+	/// Returns the absolute URL with the selected base URL prepended.
+	pub fn to_string(&self) -> Result<String> {
+		Ok(format!("{}{}", base_url()?, self))
+	}
 }
 
 impl Display for Url {
@@ -129,14 +135,14 @@ impl Display for Url {
 				} else {
 					format!("manga-tag/{}", genre)
 				};
-				write!(f, "{}/{}/page/{}", BASE_URL, genre_str, page)
+				write!(f, "/{}/page/{}", genre_str, page)
 			}
 			Url::Search { query, page } => {
-				write!(f, "{}/s/{}?page={}", BASE_URL, query, page)
+				write!(f, "/s/{}?page={}", query, page)
 			}
 			Url::Manga { id } => {
 				let ids = id.split("/").collect::<Vec<&str>>();
-				write!(f, "{}/manga/{}", BASE_URL, ids[0])
+				write!(f, "/manga/{}", ids[0])
 			}
 		}
 	}
