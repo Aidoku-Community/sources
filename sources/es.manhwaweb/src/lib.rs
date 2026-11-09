@@ -1,9 +1,9 @@
 #![no_std]
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeComponent, HomeComponentValue,
-	HomeLayout, HomePartialResult, ImageRequestProvider, Listing, ListingProvider, Manga,
-	MangaPageResult, Page, PageContent, PageContext, Result, Source,
-	alloc::{String, Vec, string::ToString, vec},
+	HomeLayout, ImageRequestProvider, Listing, ListingProvider, Manga, MangaPageResult, Page,
+	PageContent, PageContext, Result, Source,
+	alloc::{String, Vec, string::ToString},
 	helpers::uri::{QueryParameters, encode_uri_component},
 	imports::{net::Request, std::send_partial_result},
 	prelude::*,
@@ -11,11 +11,17 @@ use aidoku::{
 
 mod helpers;
 mod models;
-use helpers::{ACCEPT, get_json, last_segment, listing};
+use helpers::{IMAGE_ACCEPT, get_json, last_segment, listing};
 use models::{DetailsDto, LatestResponse, LibraryResponse, NuevosResponse, PagesResponse};
 
 pub const BASE_URL: &str = "https://manhwaweb.com";
 pub const API_URL: &str = "https://api.manhwaweb.com";
+
+/// Listing names, as the website calls these sections.
+const POPULAR_TITLE: &str = "Lo más Leido";
+const LATEST_TITLE: &str = "Nuevos Capitulos";
+/// Rows per page in the home sections. Small enough for small screens.
+const HOME_PAGE_SIZE: i32 = 3;
 
 /// `order_item` values, in the same order as the sort options in filters.json.
 const SORT_OPTIONS: [&str; 3] = ["alfabetico", "creacion", "num_chapter"];
@@ -142,54 +148,15 @@ impl ListingProvider for ManhwaWeb {
 
 impl Home for ManhwaWeb {
 	fn get_home(&self) -> Result<HomeLayout> {
-		// Send the empty sections first so the app can show them right away, then
-		// fill them in as each request finishes.
-		send_partial_result(&HomePartialResult::Layout(HomeLayout {
-			components: vec![
-				HomeComponent {
-					title: Some("Populares".into()),
-					subtitle: None,
-					value: HomeComponentValue::empty_manga_list(),
-				},
-				HomeComponent {
-					title: Some("Últimas actualizaciones".into()),
-					subtitle: None,
-					value: HomeComponentValue::empty_manga_chapter_list(),
-				},
-				HomeComponent {
-					title: Some("Nuevas obras".into()),
-					subtitle: None,
-					value: HomeComponentValue::empty_scroller(),
-				},
-				HomeComponent {
-					title: Some("Nuevas obras +18".into()),
-					subtitle: None,
-					value: HomeComponentValue::empty_scroller(),
-				},
-			],
-		}));
-
+		// Same sections, in the same order, as the website's home page.
 		let nuevos = get_json::<NuevosResponse>("/manhwa/nuevos")?;
-		send_partial_result(&HomePartialResult::Component(HomeComponent {
-			title: Some("Populares".into()),
-			subtitle: None,
-			value: HomeComponentValue::MangaList {
-				ranking: true,
-				page_size: Some(5),
-				entries: nuevos
-					.top
-					.into_mangas()
-					.into_iter()
-					.map(Into::into)
-					.collect(),
-				listing: Some(listing("Popular", "Populares")),
-			},
-		}));
+		let mut components = Vec::new();
+
 		for (title, items) in [
-			("Nuevas obras", nuevos.new_series),
-			("Nuevas obras +18", nuevos.new_series_18),
+			("Nuevas Obras", nuevos.new_series),
+			("Nuevas Obras +18", nuevos.new_series_18),
 		] {
-			send_partial_result(&HomePartialResult::Component(HomeComponent {
+			components.push(HomeComponent {
 				title: Some(title.into()),
 				subtitle: None,
 				value: HomeComponentValue::Scroller {
@@ -199,33 +166,48 @@ impl Home for ManhwaWeb {
 						.collect(),
 					listing: None,
 				},
-			}));
+			});
 		}
 
-		let latest = get_json::<LatestResponse>("/latest/new-manhwa")?;
-		send_partial_result(&HomePartialResult::Component(HomeComponent {
-			title: Some("Últimas actualizaciones".into()),
+		components.push(HomeComponent {
+			title: Some(LATEST_TITLE.into()),
 			subtitle: None,
 			value: HomeComponentValue::MangaChapterList {
-				page_size: None,
-				entries: latest
+				page_size: Some(HOME_PAGE_SIZE),
+				entries: nuevos
 					.manhwas
 					.into_items()
 					.into_iter()
 					.map(|item| item.into_manga_with_chapter())
 					.collect(),
-				listing: Some(listing("Latest", "Últimas actualizaciones")),
+				listing: Some(listing("Latest", LATEST_TITLE)),
 			},
-		}));
+		});
 
-		Ok(HomeLayout::default())
+		components.push(HomeComponent {
+			title: Some(POPULAR_TITLE.into()),
+			subtitle: None,
+			value: HomeComponentValue::MangaList {
+				ranking: true,
+				page_size: Some(HOME_PAGE_SIZE),
+				entries: nuevos
+					.top
+					.into_mangas()
+					.into_iter()
+					.map(Into::into)
+					.collect(),
+				listing: Some(listing("Popular", POPULAR_TITLE)),
+			},
+		});
+
+		Ok(HomeLayout { components })
 	}
 }
 
 impl ImageRequestProvider for ManhwaWeb {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
 		Ok(Request::get(url)?
-			.header("Accept", ACCEPT)
+			.header("Accept", IMAGE_ACCEPT)
 			.header("Referer", &format!("{BASE_URL}/")))
 	}
 }

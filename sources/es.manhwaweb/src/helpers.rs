@@ -11,11 +11,11 @@ use crate::{API_URL, BASE_URL};
 
 /// Same `Accept` header as the Tachiyomi extension. The image host rejects
 /// requests without browser-like headers.
-pub const ACCEPT: &str = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8";
+pub const IMAGE_ACCEPT: &str = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/png,image/svg+xml,*/*;q=0.8";
 
 pub fn get_json<T: DeserializeOwned>(path: &str) -> Result<T> {
 	Request::get(format!("{API_URL}{path}"))?
-		.header("Accept", ACCEPT)
+		.header("Accept", "application/json")
 		.header("Referer", &format!("{BASE_URL}/"))
 		.json_owned()
 }

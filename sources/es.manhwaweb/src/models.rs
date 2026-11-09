@@ -19,6 +19,7 @@ pub struct NuevosResponse {
 	pub new_series: Vec<LibraryItemDto>,
 	#[serde(rename = "utimos_mangas_creados_18", default)]
 	pub new_series_18: Vec<LibraryItemDto>,
+	pub manhwas: LatestDto,
 }
 
 #[derive(Deserialize)]
