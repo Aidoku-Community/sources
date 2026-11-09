@@ -116,7 +116,7 @@ pub fn extract_chapter_number(title: &str, fallback_no: f32) -> f32 {
 	extract_number_before(title, '화').unwrap_or(fallback_no)
 }
 
-/// Extracts season/volume value from title (e.g. extracts number before season/part marker -> 3.0)
+/// Extracts season/volume value from title
 pub fn extract_volume_number(title: &str) -> Option<f32> {
 	extract_number_before(title, '부')
 }
