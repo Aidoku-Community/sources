@@ -360,7 +360,8 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 
 			if is_writer || !is_painter {
 				authors.push(name);
-			} else if is_painter {
+			}
+			if is_painter {
 				painters.push(name);
 			}
 		}
