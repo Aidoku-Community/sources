@@ -25,8 +25,16 @@ struct ApiArticleInfo {
 	rest: Option<bool>,
 	#[serde(rename = "curationTagList")]
 	curation_tag_list: Option<Vec<ApiTagInfo>>,
+	genres: Option<Vec<ApiGenreInfo>>,
+	#[serde(rename = "challengeTagList")]
+	challenge_tag_list: Option<Vec<String>>,
 	age: Option<ApiAgeInfo>,
 	adult: Option<bool>,
+}
+
+#[derive(Deserialize)]
+struct ApiGenreInfo {
+	description: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -358,10 +366,12 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 			let is_writer = types.iter().any(|t| t == "ARTIST_WRITER");
 			let is_painter = types.iter().any(|t| t == "ARTIST_PAINTER");
 
-			if is_writer || !is_painter {
+			if is_writer && is_painter {
+				authors.push(name.clone());
+				painters.push(name);
+			} else if is_writer || !is_painter {
 				authors.push(name);
-			}
-			if is_painter {
+			} else if is_painter {
 				painters.push(name);
 			}
 		}
@@ -373,15 +383,42 @@ pub fn parse_manga_details(mut manga: Manga) -> Result<Manga> {
 			manga.artists = Some(painters);
 		}
 	}
+
+	let mut tag_names: Vec<String> = Vec::new();
+
 	if let Some(tags) = info.curation_tag_list {
-		let tag_names: Vec<String> = tags
-			.into_iter()
-			.filter_map(|t| t.tag_name)
-			.filter(|s| !s.trim().is_empty())
-			.collect();
-		if !tag_names.is_empty() {
-			manga.tags = Some(tag_names);
+		for tag in tags {
+			if let Some(name) = tag.tag_name {
+				let trimmed = name.trim();
+				if !trimmed.is_empty() && !tag_names.iter().any(|t| t == trimmed) {
+					tag_names.push(String::from(trimmed));
+				}
+			}
 		}
+	}
+
+	if let Some(genres) = info.genres {
+		for genre in genres {
+			if let Some(desc) = genre.description {
+				let trimmed = desc.trim();
+				if !trimmed.is_empty() && !tag_names.iter().any(|t| t == trimmed) {
+					tag_names.push(String::from(trimmed));
+				}
+			}
+		}
+	}
+
+	if let Some(tags) = info.challenge_tag_list {
+		for tag in tags {
+			let trimmed = tag.trim();
+			if !trimmed.is_empty() && !tag_names.iter().any(|t| t == trimmed) {
+				tag_names.push(String::from(trimmed));
+			}
+		}
+	}
+
+	if !tag_names.is_empty() {
+		manga.tags = Some(tag_names);
 	}
 	manga.status = if info.finished.unwrap_or(false) {
 		MangaStatus::Completed
