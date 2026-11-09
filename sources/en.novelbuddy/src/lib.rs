@@ -18,7 +18,11 @@ mod watermark;
 use helpers::{fetch_chapter_list, request, resolve_slug};
 use markdown::to_markdown;
 use models::{ChapterDetailData, ListData, TitleDetailData, TrendingData};
-use settings::status_filter as persistent_status;
+use settings::{
+	content_rating_filter as persistent_content_rating, status_filter as persistent_status,
+};
+
+const CONTENT_RATING_IDS: &[&str] = &["safe", "suggestive", "nsfw"];
 
 pub const BASE_URL: &str = "https://novelbuddy.me";
 pub const API_URL: &str = "https://api.novelbuddy.me";
@@ -35,6 +39,25 @@ const SORT_IDS: &[&str] = &[
 ];
 
 const STATUS_IDS: &[&str] = &["ongoing", "completed", "hiatus", "cancelled"];
+
+fn rating_matches(rating: &str, content_rating: aidoku::ContentRating) -> bool {
+	matches!(
+		(rating, content_rating),
+		("safe", aidoku::ContentRating::Safe)
+			| ("suggestive", aidoku::ContentRating::Suggestive)
+			| ("nsfw", aidoku::ContentRating::NSFW)
+	)
+}
+
+fn filter_by_rating(entries: Vec<Manga>, ratings: &[String]) -> Vec<Manga> {
+	if ratings.is_empty() {
+		return entries;
+	}
+	entries
+		.into_iter()
+		.filter(|m| ratings.iter().any(|r| rating_matches(r, m.content_rating)))
+		.collect()
+}
 
 struct NovelBuddy;
 
@@ -53,6 +76,7 @@ impl Source for NovelBuddy {
 		let mut has_sort = false;
 		let mut excluded_genres = settings::hidden_genres();
 		let mut status_filter: Vec<String> = Vec::new();
+		let mut content_rating_filter: Vec<String> = Vec::new();
 
 		for filter in filters {
 			match filter {
@@ -77,6 +101,22 @@ impl Source for NovelBuddy {
 							.collect();
 					}
 					status_filter = selected;
+				}
+				FilterValue::MultiSelect {
+					id,
+					included,
+					excluded,
+				} if id == "contentRating" => {
+					let mut selected: Vec<String> = included.clone();
+					if !excluded.is_empty() {
+						let all: Vec<&str> = CONTENT_RATING_IDS.to_vec();
+						selected = all
+							.iter()
+							.filter(|s| !excluded.contains(&(**s).to_lowercase()))
+							.map(|s| (*s).into())
+							.collect();
+					}
+					content_rating_filter = selected;
 				}
 				FilterValue::MultiSelect {
 					id,
@@ -120,6 +160,15 @@ impl Source for NovelBuddy {
 
 		let hide = settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl);
 
+		let mut all_ratings: Vec<String> = content_rating_filter;
+		for r in persistent_content_rating() {
+			if !all_ratings.contains(&r) {
+				all_ratings.push(r);
+			}
+		}
+		all_ratings.sort();
+		all_ratings.dedup();
+
 		let mut all_statuses: Vec<String> = status_filter;
 		for s in persistent_status() {
 			if !all_statuses.contains(&s) {
@@ -156,6 +205,7 @@ impl Source for NovelBuddy {
 			if hide {
 				mtl::retain_manga(&mut all_entries);
 			}
+			all_entries = filter_by_rating(all_entries, &all_ratings);
 			all_entries.sort_by_key(|m| m.key.clone());
 			all_entries.dedup_by_key(|m| m.key.clone());
 			return Ok(MangaPageResult {
@@ -171,6 +221,7 @@ impl Source for NovelBuddy {
 		if hide {
 			mtl::retain_manga(&mut entries);
 		}
+		entries = filter_by_rating(entries, &all_ratings);
 		Ok(MangaPageResult {
 			entries,
 			has_next_page: data.pagination.has_next,
@@ -237,6 +288,7 @@ impl ListingProvider for NovelBuddy {
 				if settings::hide_mtl() {
 					mtl::retain_manga(&mut entries);
 				}
+				entries = filter_by_rating(entries, &persistent_content_rating());
 				Ok(MangaPageResult {
 					entries,
 					has_next_page: false,
@@ -249,6 +301,7 @@ impl ListingProvider for NovelBuddy {
 				if settings::hide_mtl() {
 					mtl::retain_manga(&mut entries);
 				}
+				entries = filter_by_rating(entries, &persistent_content_rating());
 				Ok(MangaPageResult {
 					entries,
 					has_next_page: data.pagination.has_next,

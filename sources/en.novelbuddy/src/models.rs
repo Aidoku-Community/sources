@@ -38,6 +38,8 @@ pub struct TitleListItem {
 	pub status: Option<String>,
 	#[serde(default)]
 	pub is_mtl: bool,
+	#[serde(default)]
+	pub is_adult: bool,
 }
 
 #[derive(Deserialize)]

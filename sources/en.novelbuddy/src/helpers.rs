@@ -48,11 +48,17 @@ impl From<TitleListItem> for Manga {
 		} else {
 			Some(format!("{BASE_URL}/{slug}"))
 		};
+		let content_rating = if item.is_adult {
+			aidoku::ContentRating::NSFW
+		} else {
+			aidoku::ContentRating::Safe
+		};
 		Manga {
 			key: item.id,
 			title: item.name,
 			cover: item.cover,
 			url,
+			content_rating,
 			..Default::default()
 		}
 	}

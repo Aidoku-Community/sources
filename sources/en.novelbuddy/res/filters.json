@@ -57,6 +57,22 @@
 	},
 	{
 		"type": "multi-select",
+		"id": "contentRating",
+		"title": "Content Rating",
+		"canExclude": true,
+		"options": [
+			"Safe",
+			"Suggestive",
+			"NSFW"
+		],
+		"ids": [
+			"safe",
+			"suggestive",
+			"nsfw"
+		]
+	},
+	{
+		"type": "multi-select",
 		"id": "genres",
 		"title": "Genres",
 		"isGenre": true,

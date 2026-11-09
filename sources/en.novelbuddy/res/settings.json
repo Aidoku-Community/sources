@@ -131,6 +131,25 @@
 				"refreshes": [
 					"content"
 				]
+			},
+			{
+				"type": "multi-select",
+				"key": "contentRating",
+				"title": "Content Rating",
+				"titles": [
+					"Safe",
+					"Suggestive",
+					"NSFW"
+				],
+				"values": [
+					"safe",
+					"suggestive",
+					"nsfw"
+				],
+				"default": [],
+				"refreshes": [
+					"content"
+				]
 			}
 		],
 		"footer": "Each selection applies when its matching filter is absent. Empty means all."
