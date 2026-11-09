@@ -114,8 +114,6 @@ pub struct LatestItemDto {
 	chapter: Option<f32>,
 	#[serde(rename = "gru_name")]
 	group: Option<String>,
-	#[serde(rename = "_tipo")]
-	kind: Option<String>,
 	/// Milliseconds.
 	#[serde(rename = "create", default)]
 	updated_at: i64,
@@ -128,7 +126,6 @@ impl LatestItemDto {
 			key: self.slug,
 			title: self.name.trim().into(),
 			cover: self.cover,
-			viewer: parse_viewer(self.kind.as_deref()),
 			..Default::default()
 		}
 	}
@@ -175,8 +172,6 @@ pub struct LibraryItemDto {
 	cover: Option<String>,
 	#[serde(rename = "_status")]
 	status: Option<String>,
-	#[serde(rename = "_tipo")]
-	kind: Option<String>,
 	#[serde(rename = "_erotico")]
 	erotic: Option<String>,
 }
@@ -189,7 +184,6 @@ impl LibraryItemDto {
 			title: self.the_real_name.trim().into(),
 			cover: self.cover,
 			status: parse_status(self.status.as_deref()),
-			viewer: parse_viewer(self.kind.as_deref()),
 			content_rating: parse_content_rating(self.erotic.as_deref(), false),
 			..Default::default()
 		}

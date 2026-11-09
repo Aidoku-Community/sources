@@ -47,7 +47,7 @@ impl Source for ManhwaWeb {
 				FilterValue::Select { id, value } if !value.is_empty() => {
 					params.push(&id, Some(&value));
 				}
-				FilterValue::MultiSelect { id, included, .. } if !included.is_empty() => {
+				FilterValue::MultiSelect { id, included, .. } => {
 					params.push(&id, Some(&included.join("a")));
 				}
 				FilterValue::Sort {
@@ -120,12 +120,7 @@ impl Source for ManhwaWeb {
 }
 
 impl ListingProvider for ManhwaWeb {
-	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		// Neither endpoint has more than one page.
-		if page > 1 {
-			return Ok(MangaPageResult::default());
-		}
-
+	fn get_manga_list(&self, listing: Listing, _page: i32) -> Result<MangaPageResult> {
 		let entries = match listing.id.as_str() {
 			"Popular" => get_json::<NuevosResponse>("/manhwa/nuevos")?
 				.top
@@ -237,10 +232,7 @@ impl ImageRequestProvider for ManhwaWeb {
 
 impl DeepLinkHandler for ManhwaWeb {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let Some(path) = url
-			.strip_prefix(BASE_URL)
-			.or_else(|| url.strip_prefix("https://www.manhwaweb.com"))
-		else {
+		let Some(path) = url.strip_prefix(BASE_URL) else {
 			return Ok(None);
 		};
 		let path = path.split(['?', '#']).next().unwrap_or_default();
