@@ -35,6 +35,8 @@ pub struct TitleListItem {
 	#[serde(default)]
 	pub cover: Option<String>,
 	#[serde(default)]
+	pub status: Option<String>,
+	#[serde(default)]
 	pub is_mtl: bool,
 }
 

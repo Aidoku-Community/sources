@@ -109,6 +109,34 @@
 	},
 	{
 		"type": "group",
+		"title": "Content",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "status",
+				"title": "Status",
+				"titles": [
+					"Ongoing",
+					"Completed",
+					"Hiatus",
+					"Cancelled"
+				],
+				"values": [
+					"ongoing",
+					"completed",
+					"hiatus",
+					"cancelled"
+				],
+				"default": [],
+				"refreshes": [
+					"content"
+				]
+			}
+		],
+		"footer": "Each selection applies when its matching filter is absent. Empty means all."
+	},
+	{
+		"type": "group",
 		"title": "Experimental",
 		"items": [
 			{

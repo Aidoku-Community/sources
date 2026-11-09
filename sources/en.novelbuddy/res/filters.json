@@ -38,18 +38,21 @@
 		}
 	},
 	{
-		"type": "select",
+		"type": "multi-select",
 		"id": "status",
 		"title": "Status",
+		"canExclude": true,
 		"options": [
-			"All",
 			"Ongoing",
-			"Completed"
+			"Completed",
+			"Hiatus",
+			"Cancelled"
 		],
 		"ids": [
-			"all",
 			"ongoing",
-			"completed"
+			"completed",
+			"hiatus",
+			"cancelled"
 		]
 	},
 	{
