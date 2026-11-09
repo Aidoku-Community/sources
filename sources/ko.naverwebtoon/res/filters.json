@@ -1,17 +1,40 @@
 [
 	{
+		"type": "sort",
+		"id": "sort",
+		"title": "정렬",
+		"canAscend": false,
+		"options": [
+			"인기순",
+			"여성 인기순",
+			"남성 인기순",
+			"조회순",
+			"업데이트순",
+			"별점순"
+		]
+	},
+	{
+		"type": "select",
+		"id": "weekday",
+		"title": "요일",
+		"options": [
+			"오늘",
+			"월요일",
+			"화요일",
+			"수요일",
+			"목요일",
+			"금요일",
+			"토요일",
+			"일요일",
+			"완결"
+		],
+		"ids": ["", "mon", "tue", "wed", "thu", "fri", "sat", "sun", "finish"]
+	},
+	{
 		"type": "select",
 		"id": "searchType",
 		"title": "구분",
-		"options": [
-			"전체",
-			"웹툰만",
-			"베스트도전만"
-		],
-		"ids": [
-			"",
-			"WEBTOON",
-			"BEST_CHALLENGE"
-		]
+		"options": ["웹툰", "베스트도전"],
+		"ids": ["WEBTOON", "BEST_CHALLENGE"]
 	}
 ]
