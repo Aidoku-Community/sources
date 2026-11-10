@@ -1,5 +1,5 @@
 #![no_std]
-use aidoku::{Source, prelude::*};
+use aidoku::{Source, Viewer, prelude::*};
 use mangathemesia::{Impl, MangaThemesia, Params};
 
 const BASE_URL: &str = "https://ragescans.com";
@@ -14,6 +14,9 @@ impl Impl for RageScans {
 	fn params(&self) -> Params {
 		Params {
 			base_url: BASE_URL.into(),
+			viewer_override: Some(Viewer::Webtoon),
+			series_author_selector: ".tsinfo .imptdt:contains(Author) i".into(),
+			series_artist_selector: ".tsinfo .imptdt:contains(Artist) i".into(),
 			..Default::default()
 		}
 	}
