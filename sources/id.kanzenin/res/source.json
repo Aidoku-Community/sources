@@ -2,11 +2,11 @@
 	"info": {
 		"id": "id.kanzenin",
 		"name": "Kanzenin",
-		"version": 6,
+		"version": 7,
 		"url": "https://kanzenin.info",
 		"contentRating": 2,
 		"languages": ["id"],
-		"minAppVersion": "0.7.1"
+		"minAppVersion": "0.8.3"
 	},
 	"config": {
 		"breakingChangeVersion": 6

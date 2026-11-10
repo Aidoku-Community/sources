@@ -6,6 +6,7 @@ use aidoku::{
 	imports::net::Request,
 };
 
+pub mod child_theme;
 pub mod helpers;
 mod imp;
 
@@ -26,6 +27,8 @@ pub struct Params {
 	pub series_type_selector: Cow<'static, str>,
 	pub series_status_selector: Cow<'static, str>,
 	pub chapter_list_selector: Cow<'static, str>,
+	pub banner_width: Option<i32>,
+	pub banner_height: Option<i32>,
 }
 
 impl Default for Params {
@@ -86,6 +89,8 @@ impl Default for Params {
 				],
 			).into(),
 			chapter_list_selector: "div.bxcl li, div.cl li, #chapterlist li, ul li:has(div.chbox):has(div.eph-num)".into(),
+			banner_width: None,
+			banner_height: None,
 		}
 	}
 }

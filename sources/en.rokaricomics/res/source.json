@@ -2,12 +2,12 @@
 	"info": {
 		"id": "en.rokaricomics",
 		"name": "RokariComics",
-		"version": 1,
+		"version": 2,
 		"url": "https://rokaricomics.com",
 		"contentRating": 1,
 		"languages": [
 			"en"
 		],
-		"minAppVersion": "0.7.1"
+		"minAppVersion": "0.8.3"
 	}
 }

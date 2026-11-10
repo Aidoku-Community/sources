@@ -2,11 +2,11 @@
 	"info": {
 		"id": "en.mangatx",
 		"name": "MangaTx",
-		"version": 10,
+		"version": 11,
 		"url": "https://mangatx.cc",
 		"contentRating": 2,
 		"languages": ["en"],
-		"minAppVersion": "0.7.1"
+		"minAppVersion": "0.8.3"
 	},
 	"config": {
 		"breakingChangeVersion": 10

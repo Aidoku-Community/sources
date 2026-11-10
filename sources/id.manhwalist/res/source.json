@@ -2,11 +2,11 @@
 	"info": {
 		"id": "id.manhwalist",
 		"name": "Manhwalist",
-		"version": 6,
+		"version": 7,
 		"url": "https://manhwalist02.site",
 		"contentRating": 0,
 		"languages": ["id"],
-		"minAppVersion": "0.7.1"
+		"minAppVersion": "0.8.3"
 	},
 	"config": {
 		"breakingChangeVersion": 6
