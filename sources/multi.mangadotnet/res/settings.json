@@ -9,8 +9,7 @@
 				"title": "Hide NSFW Content",
 				"default": true,
 				"refreshes": [
-					"content",
-					"filters"
+					"content"
 				]
 			},
 			{
@@ -30,9 +29,32 @@
 				"refreshes": [
 					"content"
 				]
+			},
+			{
+				"type": "picker",
+				"key": "showTitlesIn",
+				"title": "Show titles in",
+				"values": [
+					"English",
+					"Romanized",
+					"Native"
+				],
+				"default": "English",
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "switch",
+				"key": "showTagsInGenreList",
+				"title": "Show Tags in Manga Page",
+				"default": true,
+				"refreshes": [
+					"content"
+				]
 			}
 		],
-		"footer": "Official chapters are preferred, followed by the most recent. Warning: It can be slow on large lists."
+		"footer": "Official chapters are preferred, then user group preference then group chapter count then most recent in that order. Warning: It can be slow on large lists."
 	},
 	{
 		"type": "group",

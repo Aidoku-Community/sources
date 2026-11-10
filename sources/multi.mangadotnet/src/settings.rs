@@ -11,6 +11,8 @@ const LANGUAGES_KEY: &str = "languages";
 const HIDE_NSFW_KEY: &str = "hideNSFW";
 const DEDUPED_CHAPTER_KEY: &str = "dedupedChapter";
 const SHOW_STANDALONE_VOLUME_KEY: &str = "showVolumes";
+const SHOW_TITLES_IN_KEY: &str = "showTitlesIn";
+const SHOW_TAGS_IN_MANGA_PAGE: &str = "showTagsInGenreList";
 
 pub const LOGIN_KEY: &str = "login";
 pub const CLOUDFLARE_KEY: &str = "cloudflare";
@@ -35,6 +37,14 @@ pub fn deduped_chapter() -> bool {
 
 pub fn show_standalone_volume() -> bool {
 	defaults_get::<bool>(SHOW_STANDALONE_VOLUME_KEY).unwrap_or(false)
+}
+
+pub fn show_titles_in() -> String {
+	defaults_get::<String>(SHOW_TITLES_IN_KEY).unwrap_or("English".into())
+}
+
+pub fn show_tags_in_manga_page() -> bool {
+	defaults_get::<bool>(SHOW_TAGS_IN_MANGA_PAGE).unwrap_or(true)
 }
 
 pub fn get_login_cookie() -> Option<String> {

@@ -44,6 +44,10 @@ impl Source for Mangadotnet {
 			query_parameters.push("search", query.as_deref());
 		}
 
+		if hide_nsfw() {
+			query_parameters.push("hide_adult", "1".into())
+		}
+
 		for filter in filters {
 			match filter {
 				FilterValue::Text { id, value } => {
@@ -323,8 +327,7 @@ impl ListingProvider for Mangadotnet {
 						.into_iter()
 						.map(Into::into)
 						.collect(),
-					has_next_page: bookmark_page_data.page * bookmark_page_data.per_page
-						< bookmark_page_data.total,
+					has_next_page: page * 50 < bookmark_page_data.total,
 				})
 			}
 
