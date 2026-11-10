@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.ravenscans",
+		"name": "Raven Scans",
+		"version": 1,
+		"url": "https://ravenscans.org",
+		"contentRating": 2,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.7.1"
+	}
+}
