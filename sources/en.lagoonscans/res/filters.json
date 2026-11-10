@@ -1,0 +1,153 @@
+[
+	{
+		"type": "sort",
+		"id": "order",
+		"canAscend": false,
+		"options": [
+			"Default",
+			"A-Z",
+			"Z-A",
+			"Update",
+			"Added",
+			"Popular"
+		]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"All",
+			"Ongoing",
+			"Completed",
+			"Hiatus"
+		],
+		"ids": [
+			"",
+			"ongoing",
+			"completed",
+			"hiatus"
+		]
+	},
+	{
+		"type": "select",
+		"id": "type",
+		"title": "Type",
+		"options": [
+			"All",
+			"Manga",
+			"Manhwa",
+			"Manhua",
+			"Comic",
+			"Novel"
+		],
+		"ids": [
+			"",
+			"manga",
+			"manhwa",
+			"manhua",
+			"comic",
+			"novel"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "genre[]",
+		"title": "Genre",
+		"isGenre": true,
+		"canExclude": false,
+		"options": [
+			"Academy",
+			"action",
+			"Adventure",
+			"Comedy",
+			"Dark Fantasy",
+			"Drama",
+			"Fantasy",
+			"game",
+			"Harem",
+			"Hidden Power",
+			"Historical",
+			"Horror",
+			"Magic",
+			"Martial Arts",
+			"Mature",
+			"murim",
+			"Mystery",
+			"Necromancer",
+			"OP Protagonist",
+			"Overpowered MC",
+			"OverpoweredMC",
+			"Psychological",
+			"Rebirth",
+			"Regression",
+			"Reincarnation",
+			"Revenge",
+			"Romance",
+			"School Life",
+			"Sci-fi",
+			"Seinen",
+			"Shonen",
+			"Shounen",
+			"Slice of Life",
+			"Supernatural",
+			"Survival",
+			"system",
+			"Thriller",
+			"Tragedy"
+		],
+		"ids": [
+			"199",
+			"3",
+			"13",
+			"17",
+			"251",
+			"5",
+			"6",
+			"272",
+			"7",
+			"276",
+			"8",
+			"35",
+			"224",
+			"9",
+			"36",
+			"195",
+			"44",
+			"149",
+			"233",
+			"262",
+			"240",
+			"59",
+			"78",
+			"222",
+			"232",
+			"45",
+			"10",
+			"19",
+			"37",
+			"11",
+			"250",
+			"14",
+			"60",
+			"15",
+			"49",
+			"71",
+			"230",
+			"43"
+		]
+	},
+	{
+		"type": "text",
+		"id": "author",
+		"title": "Author",
+		"hideFromHeader": true
+	},
+	{
+		"type": "text",
+		"id": "yearx",
+		"title": "Year",
+		"placeholder": "2024",
+		"hideFromHeader": true
+	}
+]
