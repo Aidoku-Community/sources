@@ -1,3 +1,4 @@
+use crate::settings::{show_tags_in_manga_page, show_titles_in};
 use crate::{BASE_URL, helpers::base_url_join};
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaStatus, Viewer,
@@ -25,8 +26,6 @@ pub struct UserProfileData {
 #[derive(Deserialize)]
 pub struct BookmarkPageData {
 	pub total: i32,
-	pub page: i32,
-	pub per_page: i32,
 	pub entries: Vec<BookmarkPageDataEntry>,
 }
 
@@ -34,14 +33,23 @@ pub struct BookmarkPageData {
 pub struct BookmarkPageDataEntry {
 	pub manga_id: i32,
 	pub title: String,
+	pub title_romanized: Option<String>,
+	pub title_native: Option<String>,
 	pub photo: Option<String>,
 }
 
 impl From<BookmarkPageDataEntry> for Manga {
 	fn from(value: BookmarkPageDataEntry) -> Self {
+		let title_language = show_titles_in();
+
 		Self {
 			key: value.manga_id.to_string(),
-			title: value.title,
+			title: match title_language.as_str() {
+				"English" => value.title,
+				"Romanized" => value.title_romanized.unwrap_or(value.title),
+				"Native" => value.title_native.unwrap_or(value.title),
+				_ => value.title,
+			},
 			cover: value.photo.map(|photo| base_url_join(&photo)),
 			..Default::default()
 		}
@@ -114,14 +122,23 @@ impl StringOrVec {
 pub struct ShortMangaItem {
 	pub id: i32,
 	pub title: String,
+	pub title_romanized: Option<String>,
+	pub title_native: Option<String>,
 	pub photo: Option<String>,
 }
 
 impl From<ShortMangaItem> for Manga {
 	fn from(value: ShortMangaItem) -> Self {
+		let title_language = show_titles_in();
+
 		Self {
 			key: value.id.to_string(),
-			title: value.title,
+			title: match title_language.as_str() {
+				"English" => value.title,
+				"Romanized" => value.title_romanized.unwrap_or(value.title),
+				"Native" => value.title_native.unwrap_or(value.title),
+				_ => value.title,
+			},
 			cover: value.photo.map(|photo| base_url_join(&photo)),
 			..Default::default()
 		}
@@ -133,6 +150,8 @@ pub struct MangaItem {
 	pub id: i32,
 	pub photo: Option<String>,
 	pub title: String,
+	pub title_romanized: Option<String>,
+	pub title_native: Option<String>,
 	pub artists: Option<StringOrVec>,
 	pub authors: Option<StringOrVec>,
 	pub status: String,
@@ -170,7 +189,9 @@ impl From<MangaItem> for Manga {
 			}
 		}
 
-		if let Some(tags) = value.tags {
+		if show_tags_in_manga_page()
+			&& let Some(tags) = value.tags
+		{
 			for t in tags {
 				for td in t.tags {
 					new_tags.push(format!("Tag: {}", td.name))
@@ -178,9 +199,16 @@ impl From<MangaItem> for Manga {
 			}
 		}
 
+		let title_language = show_titles_in();
+
 		Self {
 			key: value.id.to_string(),
-			title: value.title,
+			title: match title_language.as_str() {
+				"English" => value.title,
+				"Romanized" => value.title_romanized.unwrap_or(value.title),
+				"Native" => value.title_native.unwrap_or(value.title),
+				_ => value.title,
+			},
 			cover: value.photo.map(|photo| base_url_join(&photo)),
 			artists: value.artists.map(|a| a.into_vec()),
 			authors: value.authors.map(|a| a.into_vec()),
