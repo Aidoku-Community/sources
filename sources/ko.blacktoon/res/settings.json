@@ -1,0 +1,30 @@
+[
+	{
+		"type": "group",
+		"title": "도메인 설정",
+		"footer": "한국에서 접속할 경우 HTTP 451 연결 오류가 뜹니다. VPN을 켠 상태로 아래 버튼으로 최신 링크를 가져오세요.",
+		"items": [
+			{
+				"key": "baseUrl",
+				"type": "text",
+				"title": "URL",
+				"default": "https://blacktoon427.com",
+				"placeholder": "https://blacktoon427.com",
+				"keyboardType": 3,
+				"returnKeyType": 9,
+				"autocorrectionDisabled": true,
+				"autocapitalizationType": 0,
+				"refreshes": ["content"]
+			},
+			{
+				"type": "button",
+				"key": "fetchLatestUrl",
+				"title": "최신 링크 가져오기",
+				"notification": "fetchLatestUrl",
+				"confirmTitle": "링크 업데이트",
+				"confirmMessage": "blacktoon.me에서 자동으로 URL를 업데이트합니다",
+				"refreshes": ["content"]
+			}
+		]
+	}
+]
