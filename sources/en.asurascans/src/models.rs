@@ -103,3 +103,56 @@ pub struct BookmarkSeries {
 	slug: String,
 	title: String,
 }
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum SeriesResponse {
+	Wrapped { data: SeriesData },
+	Bare(SeriesData),
+}
+
+impl SeriesResponse {
+	pub fn into_series(self) -> Series {
+		match self {
+			Self::Wrapped { data } | Self::Bare(data) => data.series,
+		}
+	}
+}
+
+#[derive(Deserialize)]
+pub struct SeriesData {
+	pub series: Series,
+}
+
+#[derive(Deserialize)]
+pub struct Series {
+	pub title: String,
+	pub cover: Option<String>,
+	pub description: Option<String>,
+	pub status: Option<String>,
+	#[serde(rename = "type")]
+	pub kind: Option<String>,
+	pub author: Option<String>,
+	pub artist: Option<String>,
+	pub public_url: Option<String>,
+	#[serde(default)]
+	pub genres: Vec<Genre>,
+}
+
+#[derive(Deserialize)]
+pub struct Genre {
+	pub name: String,
+}
+
+#[derive(Deserialize)]
+pub struct ChaptersResponse {
+	pub data: Vec<ApiChapter>,
+}
+
+#[derive(Deserialize)]
+pub struct ApiChapter {
+	pub number: Option<f64>,
+	#[serde(default)]
+	pub is_premium: bool,
+	pub published_at: Option<String>,
+}
