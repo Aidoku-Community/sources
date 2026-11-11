@@ -128,8 +128,11 @@ pub trait Impl {
 		let url = format!("{}{}", params.base_url, manga.key);
 		let response = fetch(&url)?;
 		let html = response.get_html()?;
-		// An unknown series redirects to a not-found page without one
-		let Some(title) = html.select_first("div.grid > h1").and_then(|h1| h1.text()) else {
+		let Some(title) = html
+			.select_first("div.grid > h1")
+			.and_then(|h1| h1.text())
+			.filter(|title| !title.trim().is_empty())
+		else {
 			log_response(&response, &url);
 			bail!("Series not found");
 		};
@@ -141,12 +144,12 @@ pub trait Impl {
 				.and_then(|cover| background_image(&cover))
 				.or(manga.cover);
 			manga.description = html
-				.select_first("#expand_content")
+				.select_first("#expand_content, div.overflow-hidden > p[style*='white-space']")
 				.and_then(|description| description.text())
 				.map(|description| description.trim().escape_markdown())
 				.filter(|description| !description.is_empty());
-			manga.authors = labelled(&html, "Author").map(|author| names(&author));
-			manga.artists = labelled(&html, "Artist").map(|artist| names(&artist));
+			manga.authors = labelled(&html, "Author").and_then(|author| names(&author));
+			manga.artists = labelled(&html, "Artist").and_then(|artist| names(&artist));
 			manga.status = labelled(&html, "Status")
 				.map(|text| status(&text))
 				.unwrap_or_default();

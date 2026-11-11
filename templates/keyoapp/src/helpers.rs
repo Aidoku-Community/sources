@@ -79,8 +79,14 @@ pub fn labelled(html: &Document, label: &str) -> Option<String> {
 	})
 }
 
-pub fn names(text: &str) -> Vec<String> {
-	text.split(", ").map(|name| name.trim().into()).collect()
+pub fn names(text: &str) -> Option<Vec<String>> {
+	let mut names: Vec<String> = Vec::new();
+	for name in text.split([',', '&']).map(str::trim) {
+		if !name.is_empty() && !names.iter().any(|existing| existing == name) {
+			names.push(name.into());
+		}
+	}
+	(!names.is_empty()).then_some(names)
 }
 
 pub fn series_key(path: &str) -> Option<String> {
@@ -140,18 +146,16 @@ pub fn chapter_date(text: &str) -> Option<i64> {
 	Some(current_date() - amount * seconds)
 }
 
-pub fn content_rating<'a>(tags: impl Iterator<Item = &'a str> + Clone) -> ContentRating {
-	let has_any = |names: &[&str]| {
-		tags.clone()
-			.any(|tag| names.iter().any(|name| tag.eq_ignore_ascii_case(name)))
-	};
-	if has_any(&["Adult", "Smut", "Hentai"]) {
-		ContentRating::NSFW
-	} else if has_any(&["Ecchi", "Mature"]) {
-		ContentRating::Suggestive
-	} else {
-		ContentRating::Safe
+pub fn content_rating<'a>(tags: impl Iterator<Item = &'a str>) -> ContentRating {
+	let mut rating = ContentRating::Safe;
+	for tag in tags {
+		match tag.to_ascii_lowercase().as_str() {
+			"adult" | "smut" | "hentai" => return ContentRating::NSFW,
+			"ecchi" | "mature" => rating = ContentRating::Suggestive,
+			_ => {}
+		}
 	}
+	rating
 }
 
 pub fn viewer(kind: &str) -> Viewer {
@@ -282,13 +286,15 @@ pub fn manga_from_page(html: &Document) -> Option<Manga> {
 	html.select_first("[data-series-uid]")?;
 	let slug = html
 		.select_first("[data-series-slug]")?
-		.attr("data-series-slug")?;
+		.attr("data-series-slug")
+		.filter(|slug| !slug.trim().is_empty())?;
 	Some(Manga {
 		key: format!("/{slug}"),
 		title: html
 			.select_first("h1.l2-title")
 			.or_else(|| html.select_first("h1"))?
-			.text()?
+			.text()
+			.filter(|title| !title.trim().is_empty())?
 			.trim()
 			.into(),
 		cover: html

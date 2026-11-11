@@ -101,7 +101,6 @@ pub trait ImplV2 {
 		if needs_details {
 			let url = format!("{}{}", params.base_url, manga.key);
 			let html = fetch(&url)?.get_html()?;
-			// An unknown slug still answers with a page, one without a series
 			let Some(card) = manga_from_page(&html) else {
 				bail!("Series not found");
 			};
@@ -115,9 +114,10 @@ pub trait ImplV2 {
 			manga.authors = html
 				.select_first("p.l2-by")
 				.and_then(|by| by.text())
-				.map(|by| names(by.trim().trim_start_matches("By ")))
-				.or_else(|| labelled_block(&html, "Author").map(|author| names(&author)));
-			manga.artists = labelled_block(&html, "Artist").map(|artist| names(&artist));
+				.filter(|by| by.trim() != "By")
+				.and_then(|by| names(by.trim().trim_start_matches("By ")))
+				.or_else(|| labelled_block(&html, "Author").and_then(|author| names(&author)));
+			manga.artists = labelled_block(&html, "Artist").and_then(|artist| names(&artist));
 			// "Mangatoon · Action · Ongoing": the type, a genre, then the status
 			let meta = html
 				.select_first(".l2-meta span")
@@ -157,11 +157,12 @@ pub trait ImplV2 {
 			))?;
 			let html = Html::parse_fragment_with_url(rows.rows_html, params.base_url.as_ref())?;
 			manga.chapters = html.select("a.chapter-row[href]").map(|rows| {
-				rows
-					// Coin chapters need a login
-					.filter(|row| row.attr("data-ch-locked").as_deref() != Some("1"))
+				rows.filter(|row| row.attr("data-ch-locked").as_deref() != Some("1"))
 					.filter_map(|row| {
-						let key: String = row.attr("href")?.strip_prefix_or_self(&params.base_url).into();
+						let key: String = row
+							.attr("href")?
+							.strip_prefix_or_self(&params.base_url)
+							.into();
 						let (chapter_number, title) = chapter_parts(&row.attr("data-ch-label")?);
 						Some(Chapter {
 							url: Some(format!("{}{key}", params.base_url)),
