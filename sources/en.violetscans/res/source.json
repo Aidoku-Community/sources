@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.violetscans",
+		"name": "Violet Scans",
+		"version": 1,
+		"url": "https://violetmanga.com",
+		"contentRating": 0,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	}
+}

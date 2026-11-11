@@ -284,6 +284,17 @@ pub trait Impl {
 		let response = Request::get(&url)?.string()?;
 		let html = Html::parse_fragment_with_url(&response, &url)?;
 
+		if response.contains("\"is_novel\":true") {
+			let text = helpers::novel_text(&html);
+			if text.is_empty() {
+				bail!("No text found");
+			}
+			return Ok(vec![Page {
+				content: PageContent::text(text),
+				..Default::default()
+			}]);
+		}
+
 		let pages: Vec<Page> = html
 			.select("div#readerarea img")
 			.map(|els| {

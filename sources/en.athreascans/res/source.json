@@ -2,10 +2,10 @@
 	"info": {
 		"id": "en.athreascans",
 		"name": "Athrea Scans",
-		"version": 1,
+		"version": 2,
 		"url": "https://athreascans.com",
 		"contentRating": 2,
 		"languages": ["en"],
-		"minAppVersion": "0.7.1"
+		"minAppVersion": "0.8.3"
 	}
 }

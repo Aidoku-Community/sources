@@ -2,11 +2,11 @@
 	"info": {
 		"id": "id.komiksin",
 		"name": "Komiksin",
-		"version": 6,
+		"version": 7,
 		"url": "https://komiksin.net",
 		"contentRating": 1,
 		"languages": ["id"],
-		"minAppVersion": "0.7.1"
+		"minAppVersion": "0.8.3"
 	},
 	"config": {
 		"breakingChangeVersion": 6

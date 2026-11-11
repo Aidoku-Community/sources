@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.madarascans",
+		"name": "Madara Scans",
+		"version": 1,
+		"url": "https://madarascans.net",
+		"contentRating": 1,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	}
+}

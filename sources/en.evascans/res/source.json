@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.evascans",
+		"name": "Eva Scans",
+		"version": 1,
+		"url": "https://evascans.net",
+		"contentRating": 0,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	}
+}
