@@ -152,7 +152,7 @@
 				]
 			}
 		],
-		"footer": "Each selection applies when its matching filter is absent. Empty means all."
+		"footer": "Persistent selections apply to search; Content Rating also applies to listings. Empty means all."
 	},
 	{
 		"type": "group",

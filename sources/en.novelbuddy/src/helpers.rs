@@ -48,11 +48,13 @@ impl From<TitleListItem> for Manga {
 		} else {
 			Some(format!("{BASE_URL}/{slug}"))
 		};
-		let content_rating = if item.is_adult {
-			aidoku::ContentRating::NSFW
-		} else {
-			aidoku::ContentRating::Safe
-		};
+		let mut genre_names: Vec<String> = item.genres.into_iter().map(|g| g.name).collect();
+		if let Some(slugs) = item.genre_slugs {
+			for slug in slugs.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+				genre_names.push(slug.into());
+			}
+		}
+		let content_rating = content_rating(item.is_adult, &genre_names);
 		Manga {
 			key: item.id,
 			title: item.name,
@@ -227,6 +229,33 @@ mod tests {
 	use super::*;
 	use aidoku::alloc::string::ToString;
 	use aidoku_test::aidoku_test;
+
+	#[aidoku_test]
+	fn classifies_list_items_from_adult_flag_and_genre_slugs() {
+		let item = |is_adult: bool, genre_slugs: Option<&str>| TitleListItem {
+			id: "x".into(),
+			name: "Title".into(),
+			slug: None,
+			cover: None,
+			status: None,
+			is_mtl: false,
+			is_adult,
+			genres: Vec::new(),
+			genre_slugs: genre_slugs.map(Into::into),
+		};
+		assert_eq!(
+			Manga::from(item(true, None)).content_rating,
+			ContentRating::NSFW
+		);
+		assert_eq!(
+			Manga::from(item(false, Some("fantasy,action"))).content_rating,
+			ContentRating::Safe
+		);
+		assert_eq!(
+			Manga::from(item(false, Some("yaoi,smut,romance"))).content_rating,
+			ContentRating::Suggestive
+		);
+	}
 
 	#[aidoku_test]
 	fn extracts_plain_text_paragraphs() {

@@ -42,6 +42,8 @@ pub struct TitleListItem {
 	pub is_adult: bool,
 	#[serde(default)]
 	pub genres: Vec<NamedSlug>,
+	#[serde(default)]
+	pub genre_slugs: Option<String>,
 }
 
 #[derive(Deserialize)]
