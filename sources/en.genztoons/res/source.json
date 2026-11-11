@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.genztoons",
+		"name": "Genz Toon",
+		"version": 1,
+		"url": "https://genztoons.org",
+		"contentRating": 0,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	}
+}

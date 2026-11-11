@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.grimscans",
+		"name": "Grim Scans",
+		"version": 1,
+		"url": "https://grimscans.com",
+		"contentRating": 0,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	}
+}

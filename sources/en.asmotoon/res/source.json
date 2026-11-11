@@ -1,0 +1,16 @@
+{
+	"info": {
+		"id": "en.asmotoon",
+		"name": "Asmodeus Scans",
+		"version": 1,
+		"url": "https://asmotoon.com",
+		"contentRating": 0,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	},
+	"config": {
+		"supportsTagSearch": true
+	}
+}
