@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.erisscans",
+		"name": "Eris Scans",
+		"version": 1,
+		"url": "https://erisscans.com",
+		"contentRating": 2,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	}
+}
