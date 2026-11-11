@@ -72,11 +72,11 @@ mod tests {
 	#[aidoku_test]
 	fn settings_keep_known_values() {
 		assert_eq!(
-			known_values(&vec!["novel".into(), "manga".into()], KNOWN_TYPES),
+			known_values(&["novel".into(), "manga".into()], KNOWN_TYPES),
 			vec!["novel", "manga"]
 		);
 		assert_eq!(
-			known_values(&vec!["Erotica".into(), "bogus".into()], KNOWN_RATINGS),
+			known_values(&["Erotica".into(), "bogus".into()], KNOWN_RATINGS),
 			vec!["erotica"]
 		);
 		assert_eq!(known_values(&[], KNOWN_TYPES), Vec::<&str>::new());

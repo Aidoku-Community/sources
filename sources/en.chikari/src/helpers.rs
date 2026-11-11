@@ -147,6 +147,17 @@ pub fn list_url(
 	Some(format!("{BASE_URL}/api/series?{qs}"))
 }
 
+pub fn hidden_genres_to_exclude(hidden: Vec<String>, included: &[String]) -> Vec<String> {
+	hidden
+		.into_iter()
+		.filter(|hidden_genre| {
+			!included
+				.iter()
+				.any(|kept| kept.eq_ignore_ascii_case(hidden_genre))
+		})
+		.collect()
+}
+
 fn multi_select<'a>(filters: &'a [FilterValue], id: &str) -> (&'a [String], &'a [String]) {
 	filters
 		.iter()
@@ -418,6 +429,32 @@ pub fn parse_iso_date(value: &str) -> Option<i64> {
 	})
 }
 
+const ALLOWED_HOSTS: &[&str] = &["chikari.moe", "www.chikari.moe"];
+const ALLOWED_SCHEMES: &[&str] = &["http", "https"];
+
+pub fn chikari_path(url: &str) -> Option<&str> {
+	let without_fragment = url.split(['?', '#']).next()?;
+	let (scheme, authority_and_path) = without_fragment.split_once("://")?;
+	if !ALLOWED_SCHEMES.contains(&scheme.to_ascii_lowercase().as_str()) {
+		return None;
+	}
+	let (authority, path) = authority_and_path
+		.split_once('/')
+		.unwrap_or((authority_and_path, ""));
+	if authority.contains('\\') {
+		return None;
+	}
+	let host = authority
+		.rsplit('@')
+		.next()
+		.unwrap_or(authority)
+		.split(':')
+		.next()
+		.unwrap_or(authority);
+	let host = host.to_ascii_lowercase();
+	ALLOWED_HOSTS.contains(&host.as_str()).then_some(path)
+}
+
 pub fn valid_slug(value: &str) -> bool {
 	!value.is_empty()
 		&& value
@@ -465,6 +502,34 @@ mod tests {
 	use aidoku_test::aidoku_test;
 
 	#[aidoku_test]
+	fn chikari_path_accepts_only_catalog_hosts() {
+		assert_eq!(
+			chikari_path("https://chikari.moe/novels/a?x=1"),
+			Some("novels/a")
+		);
+		assert_eq!(
+			chikari_path("http://www.chikari.moe/series/b/#frag"),
+			Some("series/b/")
+		);
+		assert_eq!(
+			chikari_path("https://CHIKARI.MOE:443/novels/c"),
+			Some("novels/c")
+		);
+		assert_eq!(chikari_path("https://evil.com/chikari.moe/novels/a"), None);
+		assert_eq!(chikari_path("https://chikari.moe.evil.com/novels/a"), None);
+		assert_eq!(chikari_path("chikari.moe/novels/a"), None);
+		assert_eq!(chikari_path("ftp://chikari.moe/novels/a"), None);
+		assert_eq!(
+			chikari_path(r"https://evil.com\@chikari.moe/novels/a"),
+			None
+		);
+		assert_eq!(
+			chikari_path("HTTPS://chikari.moe/novels/d"),
+			Some("novels/d")
+		);
+	}
+
+	#[aidoku_test]
 	fn list_url_sends_types_and_repeated_genres() {
 		let filters = [
 			FilterValue::MultiSelect {
@@ -506,6 +571,18 @@ mod tests {
 			excluded: TYPES.iter().map(|kind| (*kind).into()).collect(),
 		}];
 		assert!(list_url("popular", 36, 0, None, &filters).is_none());
+	}
+
+	#[aidoku_test]
+	fn hidden_genres_skip_ones_the_user_included() {
+		assert_eq!(
+			hidden_genres_to_exclude(vec!["mature".into(), "smut".into()], &["Mature".into()]),
+			vec!["smut"]
+		);
+		assert_eq!(
+			hidden_genres_to_exclude(Vec::new(), &["action".into()]),
+			Vec::<String>::new()
+		);
 	}
 
 	#[aidoku_test]
