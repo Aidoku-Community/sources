@@ -1,0 +1,137 @@
+[
+	{
+		"type": "sort",
+		"id": "order",
+		"canAscend": false,
+		"options": [
+			"Default",
+			"A-Z",
+			"Z-A",
+			"Update",
+			"Added",
+			"Popular"
+		]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"All",
+			"Ongoing",
+			"Completed",
+			"Hiatus",
+			"Dropped"
+		],
+		"ids": [
+			"",
+			"ongoing",
+			"completed",
+			"hiatus",
+			"dropped"
+		]
+	},
+	{
+		"type": "select",
+		"id": "type",
+		"title": "Type",
+		"options": [
+			"All",
+			"Manga",
+			"Manhwa",
+			"Manhua",
+			"Comic",
+			"Novel"
+		],
+		"ids": [
+			"",
+			"manga",
+			"manhwa",
+			"manhua",
+			"comic",
+			"novel"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "genre[]",
+		"title": "Genre",
+		"isGenre": true,
+		"canExclude": false,
+		"options": [
+			"Action",
+			"Adaptation",
+			"Adventure",
+			"Bloody",
+			"Comedy",
+			"Drama",
+			"Ecchi",
+			"Fantasy",
+			"Historical",
+			"Isekai",
+			"Josei",
+			"Magic",
+			"Manga",
+			"Manhua",
+			"Manhwa",
+			"Martial Arts",
+			"Mature",
+			"Mystery",
+			"Office workers",
+			"Reincarnation",
+			"Reverse harem",
+			"Romance",
+			"Royal family",
+			"School Life",
+			"Shoujo",
+			"Shounen",
+			"Slice of Life",
+			"Supernatural",
+			"Time travel",
+			"Tragedy",
+			"Webtoons",
+			"zombie"
+		],
+		"ids": [
+			"action",
+			"adaptation",
+			"adventure",
+			"bloody",
+			"comedy",
+			"drama",
+			"ecchi",
+			"fantasy",
+			"historical",
+			"isekai",
+			"josei",
+			"magic",
+			"manga",
+			"manhua",
+			"manhwa",
+			"martial-arts",
+			"mature",
+			"mystery",
+			"office-workers",
+			"reincarnation",
+			"reverse-harem",
+			"romance",
+			"royal-family",
+			"school-life",
+			"shoujo",
+			"shounen",
+			"slice-of-life",
+			"supernatural",
+			"time-travel",
+			"tragedy",
+			"webtoons",
+			"zombie"
+		]
+	},
+	{
+		"type": "text",
+		"id": "yearx",
+		"title": "Year",
+		"placeholder": "2024",
+		"hideFromHeader": true
+	}
+]

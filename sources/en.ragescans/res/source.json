@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.ragescans",
+		"name": "Rage Scans",
+		"version": 1,
+		"url": "https://ragescans.com",
+		"contentRating": 0,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.7.1"
+	}
+}
