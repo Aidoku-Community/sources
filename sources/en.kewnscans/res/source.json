@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.kewnscans",
+		"name": "Kewn Scans",
+		"version": 1,
+		"url": "https://kewnscans.org",
+		"contentRating": 0,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	}
+}
