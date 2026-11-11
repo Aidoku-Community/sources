@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.timelesstoons",
+		"name": "Timeless Toons",
+		"version": 1,
+		"url": "https://timelesstoons.org",
+		"contentRating": 0,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	}
+}
