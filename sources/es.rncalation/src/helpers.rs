@@ -9,6 +9,8 @@ use aidoku::{
 	prelude::*,
 };
 
+use crate::settings::is_adult;
+
 pub const BASE_URL: &str = "https://rncalation.online";
 
 /// Splits an absolute or relative url into its path segments.
@@ -110,27 +112,49 @@ pub fn library_url(params: &LibraryParams, page: i32) -> String {
 /// and reloads with JavaScript. The cookie is saved by then, so retrying once
 /// gets the real page.
 pub fn fetch(url: &str) -> Result<(Response, Document)> {
-	let response = Request::get(url)?.send()?;
+	let response = request(url, None)?.send()?;
 	let html = response.get_html()?;
 	if html.select_first("#mv-verifying").is_none() {
 		return Ok((response, html));
 	}
 
-	let mut retry = Request::get(url)?;
 	// Also send the cookie ourselves, in case it wasn't stored.
-	if let Some(cookie) = response
+	let cookie = response
 		.get_header("Set-Cookie")
 		.and_then(|header| header.split(';').next().map(String::from))
-		.filter(|cookie| cookie.starts_with("mv_ck="))
-	{
-		retry.set_header("Cookie", &cookie);
-	}
-	let response = retry.send()?;
+		.filter(|cookie| cookie.starts_with("mv_ck="));
+	let response = request(url, cookie.as_deref())?.send()?;
 	let html = response.get_html()?;
 	if html.select_first("#mv-verifying").is_some() {
 		bail!("No se pudo pasar la verificación del sitio");
 	}
 	Ok((response, html))
+}
+
+/// A request with our cookies. The app adds the cookies it has stored to them.
+fn request(url: &str, cookie: Option<&str>) -> Result<Request> {
+	let mut cookies = Vec::new();
+	// The cookie the site sets when you confirm your age, only with the setting on.
+	if is_adult() {
+		cookies.push("age_verified=1");
+	}
+	cookies.extend(cookie);
+
+	let mut request = Request::get(url)?;
+	if !cookies.is_empty() {
+		request.set_header("Cookie", &cookies.join("; "));
+	}
+	Ok(request)
+}
+
+/// Series rated Adulto answer 403 until you confirm your age.
+pub fn check_age_gate(response: &Response) -> Result<()> {
+	if response.status_code() == 403 && !is_adult() {
+		bail!(
+			"Contenido +18: activa «Soy mayor de 18 años» en los ajustes de la fuente para ver los capítulos"
+		);
+	}
+	Ok(())
 }
 
 pub fn fetch_html(url: &str) -> Result<Document> {

@@ -1,0 +1,16 @@
+[
+	{
+		"type": "group",
+		"title": "Contenido",
+		"footer": "Muestra los capítulos de las series clasificadas como Adulto. Es lo mismo que confirmar tu edad en el sitio web.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "isAdult",
+				"title": "Soy mayor de 18 años",
+				"default": false,
+				"refreshes": ["content"]
+			}
+		]
+	}
+]

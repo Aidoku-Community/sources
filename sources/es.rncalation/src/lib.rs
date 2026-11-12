@@ -13,9 +13,10 @@ use aidoku::{
 
 mod helpers;
 mod parser;
+mod settings;
 use helpers::{
-	BASE_URL, LibraryParams, chapter_key, chapter_url, fetch, fetch_html, latest_listing,
-	library_url, manga_key, manga_url, popular_listing,
+	BASE_URL, LibraryParams, chapter_key, chapter_url, check_age_gate, fetch, fetch_html,
+	latest_listing, library_url, manga_key, manga_url, popular_listing,
 };
 use parser::{
 	parse_chapters, parse_hero, parse_home_section, parse_library, parse_manga_cards,
@@ -76,6 +77,7 @@ impl Source for Rncalation {
 			loop {
 				let url = format!("{BASE_URL}/comics/{}/chapters?page={page}", manga.key);
 				let (response, html) = fetch(&url)?;
+				check_age_gate(&response)?;
 				chapters.extend(parse_chapters(&html));
 				let pages = response
 					.get_header("x-pages")
@@ -93,7 +95,9 @@ impl Source for Rncalation {
 	}
 
 	fn get_page_list(&self, _manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let urls = parse_page_urls(&fetch_html(&chapter_url(&chapter.key))?);
+		let (response, html) = fetch(&chapter_url(&chapter.key))?;
+		check_age_gate(&response)?;
+		let urls = parse_page_urls(&html);
 		if urls.is_empty() {
 			bail!("No se encontraron las páginas del capítulo");
 		}
