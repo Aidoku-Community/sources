@@ -8,7 +8,7 @@ use aidoku::{
 	PageContext, Source, Viewer,
 	alloc::{String, Vec, format},
 	bail,
-	helpers::element::ElementHelpers,
+	helpers::{element::ElementHelpers, uri::encode_uri},
 	imports::{
 		error::Result,
 		net::{Request, TimeUnit, set_rate_limit},
@@ -201,7 +201,7 @@ impl Source for BlackToon {
 		let hosts = self.get_hosts(&base_url);
 		let entries: Vec<Manga> = filtered[start..end]
 			.iter()
-			.map(|item| item.to_manga(&hosts.image, &base_url))
+			.map(|item| item.to_manga(&hosts.image))
 			.collect();
 
 		Ok(MangaPageResult {
@@ -220,56 +220,135 @@ impl Source for BlackToon {
 
 		if needs_details {
 			let url = format!("{base_url}/webtoon/{}.html", manga.key);
-			if let Ok(html) = helpers::request(&url)?.html() {
-				if let Some(desc_elem) = html
-					.select("p.mt-2")
-					.and_then(|p| p.into_iter().next_back())
-					&& let Some(desc) = desc_elem.text_with_newlines()
-				{
-					let trimmed = desc.trim();
-					if !trimmed.is_empty() {
-						manga.description = Some(trimmed.into());
+			let html = helpers::request(&url)?.html()?;
+
+			if let Some(title_elem) = html
+				.select_first(".col-12.col-sm-5.col-md-5 h3, h3 b, h3")
+				.and_then(|h3| h3.text())
+			{
+				let trimmed = title_elem.trim();
+				if !trimmed.is_empty() {
+					manga.title = trimmed.into();
+				}
+			}
+
+			if let Some(p_nodes) = html.select(".col-12.col-sm-5.col-md-5 p") {
+				for p in p_nodes {
+					if let Some(text) = p.text()
+						&& let Some((_, author_part)) = text.split_once("작가 :")
+					{
+						let clean_author = author_part
+							.split(['\n', '\r', '\t'])
+							.next()
+							.unwrap_or(author_part)
+							.trim();
+						if !clean_author.is_empty() {
+							let authors: Vec<String> = clean_author
+								.split(',')
+								.map(|s| s.trim().into())
+								.filter(|s: &String| !s.is_empty())
+								.collect();
+							if !authors.is_empty() {
+								manga.authors = Some(authors);
+							}
+						}
+						break;
 					}
 				}
-				let mut is_completed = false;
-				let mut is_nsfw = false;
-				if let Some(badge_nodes) = html.select(".tag a, .genre a") {
-					let mut tags = Vec::new();
-					for node in badge_nodes {
-						if let Some(text) = node.text() {
-							let t = text.trim();
-							if !t.is_empty() && !tags.iter().any(|existing| existing == t) {
-								if t == "성인" || t.contains("19") {
-									is_nsfw = true;
-								}
-								if t == "완결" {
-									is_completed = true;
-								}
+			}
+
+			if let Some(desc_meta) = html
+				.select_first("meta[name=\"description\"]")
+				.and_then(|m| m.attr("content"))
+			{
+				let trimmed = desc_meta.trim();
+				if !trimmed.is_empty() && !trimmed.contains("가장 많은 무료웹툰을 보유하고 있으며")
+				{
+					manga.description = Some(trimmed.into());
+				}
+			}
+			if manga.description.is_none()
+				&& let Some(desc_elem) = html
+					.select_first(".col-12.col-sm-5.col-md-5 p[style*=\"color:#6c6f7a\"]")
+					.and_then(|p| p.text_with_newlines())
+			{
+				let trimmed = desc_elem.trim();
+				if !trimmed.is_empty() {
+					manga.description = Some(trimmed.into());
+				}
+			}
+
+			let mut is_completed = false;
+			let mut is_nsfw = false;
+			let mut has_weekday = false;
+
+			if let Some(badge_nodes) = html.select(".col-12.col-sm-5.col-md-5 .badge") {
+				let mut tags = Vec::new();
+				for node in badge_nodes {
+					if node.has_class("badge-secondary") {
+						has_weekday = true;
+					}
+					if let Some(text) = node.text() {
+						let t = text.trim();
+						if !t.is_empty() && !tags.iter().any(|existing| existing == t) {
+							if t == "성인" || t.contains("19") {
+								is_nsfw = true;
+							}
+							if t == "완결" {
+								is_completed = true;
+							}
+							if t != "ALL"
+								&& t != "N" && t != "성인"
+								&& !t.contains("19") && !t.contains("15")
+								&& !node.has_class("badge-secondary")
+							{
 								tags.push(t.into());
 							}
 						}
 					}
-					if !tags.is_empty() {
-						manga.tags = Some(tags);
-					}
 				}
-				if is_nsfw {
-					manga.content_rating = ContentRating::NSFW;
-				}
-				if is_completed {
-					manga.status = aidoku::MangaStatus::Completed;
-				}
-				let hosts = self.get_hosts(&base_url);
-				if let Some(o_src) = html
-					.select_first("img.thumb2[o_src]")
-					.and_then(|img| img.attr("o_src"))
-				{
-					manga.cover =
-						Some(format!("{}/{}", hosts.image, o_src.trim_start_matches('/')));
+				if !tags.is_empty() {
+					manga.tags = Some(tags);
 				}
 			}
+
+			if !has_weekday {
+				is_completed = true;
+			}
+
+			if let Some(ref completed) = *self.completed_series.borrow()
+				&& completed.iter().any(|item| item.id == manga.key)
+			{
+				is_completed = true;
+			}
+
+			manga.content_rating = if is_nsfw {
+				ContentRating::NSFW
+			} else {
+				ContentRating::Safe
+			};
+
+			manga.status = if is_completed {
+				aidoku::MangaStatus::Completed
+			} else {
+				aidoku::MangaStatus::Ongoing
+			};
+
+			let hosts = self.get_hosts(&base_url);
+			if let Some(o_src) = html
+				.select_first("img.thumb2[o_src]")
+				.and_then(|img| img.attr("o_src"))
+			{
+				manga.cover = Some(encode_uri(format!(
+					"{}/{}",
+					hosts.image,
+					o_src.trim_start_matches('/')
+				)));
+			}
+
 			manga.url = Some(url);
 			manga.viewer = Viewer::Webtoon;
+
 			if needs_chapters {
 				send_partial_result(&manga);
 			}
@@ -326,7 +405,7 @@ impl Source for BlackToon {
 					format!("{}/{}", hosts.image, clean.trim_start_matches('/'))
 				};
 				Some(Page {
-					content: PageContent::url(full_url),
+					content: PageContent::url(encode_uri(full_url)),
 					..Default::default()
 				})
 			})
