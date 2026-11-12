@@ -8,6 +8,7 @@ use aidoku::{
 	prelude::format,
 };
 use chrono::DateTime;
+use core::fmt::Write;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -29,7 +30,33 @@ pub struct DexResponse<T> {
 #[derive(Default, Deserialize, Debug, Clone)]
 pub struct DexStatusResponse {
 	// pub result: &'a str,
+	#[serde(deserialize_with = "map_or_empty_array")]
 	pub statuses: Map<String, Value>,
+}
+
+// the api sends an empty map as `[]` (an account that follows nothing)
+fn map_or_empty_array<'de, D>(deserializer: D) -> Result<Map<String, Value>, D::Error>
+where
+	D: serde::Deserializer<'de>,
+{
+	match Value::deserialize(deserializer)? {
+		Value::Object(map) => Ok(map),
+		Value::Array(array) if array.is_empty() => Ok(Map::new()),
+		_ => Err(serde::de::Error::custom("expected a map of statuses")),
+	}
+}
+
+impl DexStatusResponse {
+	// `&ids[]=` query params for the followed manga, or none if nothing is followed
+	pub fn ids_params(&self) -> Option<String> {
+		if self.statuses.is_empty() {
+			return None;
+		}
+		Some(self.statuses.keys().fold(String::new(), |mut output, id| {
+			let _ = write!(output, "&ids[]={id}");
+			output
+		}))
+	}
 }
 
 #[derive(Default, Deserialize, Debug, Clone)]
@@ -454,5 +481,35 @@ impl From<DexChapter<'_>> for Chapter {
 			locked: val.attributes.is_unavailable,
 			..Default::default()
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use aidoku_test::aidoku_test;
+
+	#[aidoku_test]
+	fn status_response_empty_array() {
+		let response: DexStatusResponse =
+			serde_json::from_str(r#"{"result":"ok","statuses":[]}"#).unwrap();
+		assert!(response.statuses.is_empty());
+		assert_eq!(response.ids_params(), None);
+	}
+
+	#[aidoku_test]
+	fn status_response_map() {
+		let response: DexStatusResponse =
+			serde_json::from_str(r#"{"result":"ok","statuses":{"a":"reading","b":"completed"}}"#)
+				.unwrap();
+		assert_eq!(response.ids_params().as_deref(), Some("&ids[]=a&ids[]=b"));
+	}
+
+	#[aidoku_test]
+	fn status_response_non_empty_array() {
+		assert!(
+			serde_json::from_str::<DexStatusResponse>(r#"{"result":"ok","statuses":["a"]}"#)
+				.is_err()
+		);
 	}
 }

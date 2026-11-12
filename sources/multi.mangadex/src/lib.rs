@@ -477,15 +477,14 @@ impl MangaDex {
 
 	// get the logged in user's library
 	fn get_library(&self, page: i32) -> Result<MangaPageResult> {
-		let status_ids = Self::get(format!("{API_URL}/manga/status"))?
+		// without ids, the manga query below would list every manga
+		let Some(status_ids) = Self::get(format!("{API_URL}/manga/status"))?
 			.authed_send()?
 			.get_json::<DexStatusResponse>()?
-			.statuses
-			.keys()
-			.fold(String::new(), |mut output, id| {
-				let _ = write!(output, "&ids[]={id}");
-				output
-			});
+			.ids_params()
+		else {
+			return Ok(MangaPageResult::default());
+		};
 
 		let offset = (page - 1) * PAGE_SIZE;
 
