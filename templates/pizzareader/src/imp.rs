@@ -15,8 +15,9 @@ pub trait Impl {
 
 	fn to_manga_status(&self, status: &str) -> aidoku::MangaStatus {
 		match status {
-			"En cours" | "On going" => aidoku::MangaStatus::Ongoing,
-			"Terminé" | "Completed" => aidoku::MangaStatus::Completed,
+			"En cours" | "On going" | "In corso" => aidoku::MangaStatus::Ongoing,
+			"Terminé" | "Completed" | "Concluso" => aidoku::MangaStatus::Completed,
+			"In pausa" => aidoku::MangaStatus::Hiatus,
 			_ => aidoku::MangaStatus::Unknown,
 		}
 	}
