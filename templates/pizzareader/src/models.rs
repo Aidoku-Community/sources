@@ -44,7 +44,7 @@ pub struct PizzaComicDto {
 	#[serde(default)]
 	pub status: Option<String>,
 	#[serde(default)]
-	pub rating: f32,
+	pub rating: Option<f32>,
 	#[serde(default)]
 	pub views: i32,
 	#[serde(default)]

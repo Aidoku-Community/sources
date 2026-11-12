@@ -116,9 +116,11 @@ pub trait Impl {
 						});
 					}
 					3 => {
-						response
-							.comics
-							.sort_by(|a, b| b.rating.total_cmp(&a.rating));
+						response.comics.sort_by(|a, b| {
+							b.rating
+								.unwrap_or(f32::NEG_INFINITY)
+								.total_cmp(&a.rating.unwrap_or(f32::NEG_INFINITY))
+						});
 					}
 					4 => {
 						response.comics.sort_by_key(|b| core::cmp::Reverse(b.views));
