@@ -2,10 +2,10 @@
 	"info": {
 		"id": "fr.sushiscan",
 		"name": "Sushiscan",
-		"version": 9,
+		"version": 10,
 		"url": "https://sushiscan.net",
 		"contentRating": 1,
-		"languages": ["en"],
+		"languages": ["fr"],
 		"minAppVersion": "0.8.3"
 	},
 	"config": {
