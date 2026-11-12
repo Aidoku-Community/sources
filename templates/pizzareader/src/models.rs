@@ -36,7 +36,7 @@ pub struct PizzaComicDto {
 	#[serde(default)]
 	pub chapters: Option<Vec<PizzaChapterDto>>,
 	#[serde(default)]
-	pub description: String,
+	pub description: Option<String>,
 	#[serde(default)]
 	pub genres: Vec<PizzaGenreDto>,
 	#[serde(default)]
@@ -99,7 +99,7 @@ impl From<PizzaComicDto> for Manga {
 		Manga {
 			key: slug,
 			title,
-			description: Some(description),
+			description,
 			url: Some(url),
 			cover: Some(thumbnail),
 			authors: Some(vec![author]),
