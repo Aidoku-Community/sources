@@ -15,6 +15,7 @@ use aidoku::{
 	},
 	prelude::*,
 };
+use base64::{Engine, engine::general_purpose::STANDARD};
 
 pub trait Impl {
 	fn new() -> Self;
@@ -283,8 +284,15 @@ pub trait Impl {
 		let url = format!("{}{}", params.base_url, chapter.key);
 		let response = Request::get(&url)?.string()?;
 		let html = Html::parse_fragment_with_url(&response, &url)?;
+		// A cache plugin can move the reader's script into a base64 `data:` url.
+		let reader = html
+			.select_first("script[src^='data:text/javascript;base64,dHNfcmVhZGVyLnJ1bih7']")
+			.and_then(|script| script.attr("src"))
+			.and_then(|src| STANDARD.decode(src.split_once(',')?.1).ok())
+			.and_then(|bytes| String::from_utf8(bytes).ok())
+			.unwrap_or(response);
 
-		if response.contains("\"is_novel\":true") {
+		if reader.contains("\"is_novel\":true") {
 			let text = helpers::novel_text(&html);
 			if text.is_empty() {
 				bail!("No text found");
@@ -312,8 +320,8 @@ pub trait Impl {
 			return Ok(pages);
 		}
 
-		if response.contains("\"images\":") {
-			Ok(helpers::extract_images(&response)
+		if reader.contains("\"images\":") {
+			Ok(helpers::extract_images(&reader)
 				.into_iter()
 				.map(|url| Page {
 					content: PageContent::url(url),
