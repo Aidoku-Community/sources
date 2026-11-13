@@ -1,0 +1,56 @@
+{
+	"info": {
+		"id": "multi.mangaball",
+		"name": "MangaBall",
+		"version": 1,
+		"url": "https://mangaball.com",
+		"contentRating": 1,
+		"languages": [
+			"en",
+			"ar",
+			"bg",
+			"bn",
+			"ca",
+			"cs",
+			"da",
+			"de",
+			"el",
+			"es",
+			"fa",
+			"fi",
+			"fr",
+			"he",
+			"hi",
+			"hu",
+			"id",
+			"it",
+			"ja",
+			"ko",
+			"ms",
+			"nl",
+			"no",
+			"pl",
+			"pt",
+			"pt-BR",
+			"ro",
+			"ru",
+			"sv",
+			"th",
+			"tr",
+			"uk",
+			"vi",
+			"zh"
+		],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{
+			"id": "lastupdate",
+			"name": "Latest Chapter Updates"
+		},
+		{
+			"id": "created_at",
+			"name": "Recently Added Titles"
+		}
+	]
+}

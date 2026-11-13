@@ -1,0 +1,337 @@
+[
+	{
+		"type": "group",
+		"title": "Content",
+		"footer": "Applies to the home page, listings and search. The Content Rating and Type filters override these for one search.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "showAdult",
+				"title": "Show 18+ Content",
+				"default": false,
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			},
+			{
+				"type": "switch",
+				"key": "adultOnly",
+				"title": "18+ Only",
+				"subtitle": "Show only adult titles.",
+				"default": false,
+				"requires": "showAdult",
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			},
+			{
+				"type": "select",
+				"key": "type",
+				"title": "Type",
+				"values": [
+					"any",
+					"manga",
+					"manhwa",
+					"manhua",
+					"comics"
+				],
+				"titles": [
+					"Any",
+					"Manga",
+					"Manhwa",
+					"Manhua",
+					"Comics"
+				],
+				"default": "any",
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Exclusions",
+		"footer": "Titles with any of these are hidden. Including one in a search shows it for that search.",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "excludedGenres",
+				"title": "Excluded Genres",
+				"values": [
+					"685146c5f3ed681c80f257e3",
+					"689371f0a943baf927094f03",
+					"685146c5f3ed681c80f257e6",
+					"685148ef15e8b86aae68e573",
+					"685146c5f3ed681c80f257e5",
+					"68ecab8507ec62d87e62780f",
+					"685148da15e8b86aae68e51f",
+					"685148cf15e8b86aae68e4dd",
+					"6892a73ba943baf927094e37",
+					"685146c5f3ed681c80f257ea",
+					"685148da15e8b86aae68e524",
+					"685148db15e8b86aae68e527",
+					"685148da15e8b86aae68e520",
+					"685146c5f3ed681c80f257e9",
+					"694cc2d9f8014f5e0a63ac73",
+					"6851490d15e8b86aae68e5d4",
+					"68ecab1e07ec62d87e627806",
+					"68ecab4807ec62d87e62780b",
+					"68ecab3b07ec62d87e627809",
+					"68932d11a943baf927094e7b",
+					"6851490c15e8b86aae68e5d2",
+					"6851494e15e8b86aae68e66e",
+					"685148d215e8b86aae68e4f4",
+					"685148e215e8b86aae68e544",
+					"685148d715e8b86aae68e507",
+					"694cc2d9f8014f5e0a63ac75",
+					"685148cf15e8b86aae68e4db",
+					"685148cf15e8b86aae68e4da",
+					"694cc2d9f8014f5e0a63ac74",
+					"689f0ab1f2e66744c6091524",
+					"685148d015e8b86aae68e4e3",
+					"689371f2a943baf927094f04",
+					"685148f515e8b86aae68e588",
+					"6851492915e8b86aae68e61c",
+					"685148d915e8b86aae68e51e",
+					"685148db15e8b86aae68e529",
+					"68932c3ea943baf927094e77",
+					"6851490715e8b86aae68e5c3",
+					"68932f68a943baf927094eaa",
+					"6896a885a943baf927094f66"
+				],
+				"titles": [
+					"Action",
+					"Adult",
+					"Adventure",
+					"Boys' Love",
+					"Comedy",
+					"Comic",
+					"Crime",
+					"Drama",
+					"Ecchi",
+					"Fantasy",
+					"Girls' Love",
+					"Historical",
+					"Horror",
+					"Isekai",
+					"Josei(W)",
+					"Magical Girls",
+					"Manga",
+					"Manhua",
+					"Manhwa",
+					"Mature",
+					"Mecha",
+					"Medical",
+					"Mystery",
+					"Philosophical",
+					"Psychological",
+					"Revenge",
+					"Romance",
+					"Sci-Fi",
+					"Shoujo(G)",
+					"Shounen Ai",
+					"Slice of Life",
+					"Smut",
+					"Sports",
+					"Superhero",
+					"Thriller",
+					"Tragedy",
+					"User Created",
+					"Wuxia",
+					"Yaoi",
+					"Yuri"
+				],
+				"default": [],
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			},
+			{
+				"type": "multi-select",
+				"key": "excludedThemes",
+				"title": "Excluded Themes",
+				"values": [
+					"6a0026ba63a8d384c0a4be13",
+					"6851490d15e8b86aae68e5d5",
+					"685148e715e8b86aae68e54b",
+					"68bf09ff8fdeab0b6a9bc2b7",
+					"685148d215e8b86aae68e4f8",
+					"685148df15e8b86aae68e534",
+					"685148d915e8b86aae68e519",
+					"685146c5f3ed681c80f257e4",
+					"685148d715e8b86aae68e505",
+					"685148d615e8b86aae68e501",
+					"685148d015e8b86aae68e4e8",
+					"685146c5f3ed681c80f257e8",
+					"68bfceaf4dbc442a26519889",
+					"685148f215e8b86aae68e584",
+					"685148d715e8b86aae68e506",
+					"685148d915e8b86aae68e518",
+					"685148d715e8b86aae68e509",
+					"68f5f5ce5f29d3c1863dec3a",
+					"6851490615e8b86aae68e5c2",
+					"685148e215e8b86aae68e541",
+					"685148db15e8b86aae68e52c",
+					"685146c5f3ed681c80f257e2",
+					"685148d015e8b86aae68e4e4",
+					"685148d715e8b86aae68e508",
+					"685148d315e8b86aae68e4fd",
+					"6851498815e8b86aae68e714",
+					"685148e215e8b86aae68e540",
+					"685146c5f3ed681c80f257e1",
+					"685148df15e8b86aae68e533",
+					"6851490415e8b86aae68e5b9",
+					"685148d015e8b86aae68e4e7",
+					"6a0025c263a8d384c0a4be07",
+					"685148d115e8b86aae68e4ed",
+					"685148db15e8b86aae68e528",
+					"685148cf15e8b86aae68e4dc",
+					"6851490c15e8b86aae68e5d1",
+					"6851493515e8b86aae68e645",
+					"685148f915e8b86aae68e597",
+					"685148e115e8b86aae68e53c",
+					"6851492115e8b86aae68e602",
+					"68514a1115e8b86aae68e83e",
+					"6851490c15e8b86aae68e5d3"
+				],
+				"titles": [
+					"3D",
+					"Aliens",
+					"Animals",
+					"Comics",
+					"Cooking",
+					"Crossdressing",
+					"Delinquents",
+					"Demons",
+					"Genderswap",
+					"Ghosts",
+					"Gyaru",
+					"Harem",
+					"Hentai",
+					"Incest",
+					"Loli",
+					"Mafia",
+					"Magic",
+					"Manhwa 18+",
+					"Martial Arts",
+					"Military",
+					"Monster Girls",
+					"Monsters",
+					"Music",
+					"Ninja",
+					"Office Workers",
+					"Police",
+					"Post-Apocalyptic",
+					"Reincarnation",
+					"Reverse Harem",
+					"Samurai",
+					"School Life",
+					"Seinen",
+					"Shota",
+					"Supernatural",
+					"Survival",
+					"Time Travel",
+					"Traditional Games",
+					"Vampires",
+					"Video Games",
+					"Villainess",
+					"Virtual Reality",
+					"Zombies"
+				],
+				"default": [],
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			},
+			{
+				"type": "multi-select",
+				"key": "excludedFormats",
+				"title": "Excluded Formats",
+				"values": [
+					"685148d115e8b86aae68e4ec",
+					"685148cf15e8b86aae68e4de",
+					"685148e915e8b86aae68e558",
+					"685148fe15e8b86aae68e5a7",
+					"6851490e15e8b86aae68e5da",
+					"6851498215e8b86aae68e704",
+					"685148d615e8b86aae68e502",
+					"685148d915e8b86aae68e517",
+					"6851493515e8b86aae68e64a",
+					"685148eb15e8b86aae68e56c",
+					"6851492e15e8b86aae68e633",
+					"685148d715e8b86aae68e50d"
+				],
+				"titles": [
+					"4-Koma",
+					"Adaptation",
+					"Anthology",
+					"Award Winning",
+					"Doujinshi",
+					"Fan Colored",
+					"Full Color",
+					"Long Strip",
+					"Official Colored",
+					"Oneshot",
+					"Self-Published",
+					"Web Comic"
+				],
+				"default": [],
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			},
+			{
+				"type": "multi-select",
+				"key": "excludedContent",
+				"title": "Excluded Content Warnings",
+				"values": [
+					"685148d115e8b86aae68e4f3",
+					"685146c5f3ed681c80f257e7"
+				],
+				"titles": [
+					"Gore",
+					"Sexual Violence"
+				],
+				"default": [],
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Chapters",
+		"footer": "Keep the best group per chapter by likes, views, then newest. Preserve parts and extras. Switching may change which uploads show as read.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "deduplicateChapters",
+				"title": "Deduplicate Chapters",
+				"default": false,
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "editable-list",
+				"key": "excludedScanlators",
+				"title": "Excluded Scanlators",
+				"placeholder": "Group name",
+				"lineLimit": 1,
+				"default": [],
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	}
+]
