@@ -2,10 +2,12 @@
 	"info": {
 		"id": "es.eternalmangas",
 		"name": "EternalMangas",
-		"version": 2,
+		"version": 3,
 		"url": "https://eternalmangas.org",
-		"contentRating": 1,
-		"languages": ["es"],
-		"minAppVersion": "0.7.1"
+		"contentRating": 2,
+		"languages": [
+			"es"
+		],
+		"minAppVersion": "0.8.3"
 	}
 }
