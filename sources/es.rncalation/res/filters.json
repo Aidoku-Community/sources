@@ -1,0 +1,52 @@
+[
+	{
+		"type": "select",
+		"id": "sort",
+		"title": "Ordenar por",
+		"options": ["Más reciente", "Actualizado", "Más visto", "Mejor valorado", "A-Z"],
+		"ids": ["latest", "updated", "views", "rating", "title"]
+	},
+	{
+		"type": "select",
+		"id": "type",
+		"title": "Tipo",
+		"options": ["Todos", "Manga", "Manhwa", "Manhua", "Doujinshi", "Otro"],
+		"ids": ["", "Manga", "Manhwa", "Manhua", "Doujinshi", "Other"]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Estado",
+		"options": ["Todos", "En emisión", "Completado", "En pausa", "Cancelado"],
+		"ids": ["", "Ongoing", "Completed", "Hiatus", "Cancelled"]
+	},
+	{
+		"type": "select",
+		"id": "genre",
+		"title": "Género",
+		"isGenre": true,
+		"options": [
+			"Todos",
+			"Acción",
+			"Accion",
+			"Adventure",
+			"Artes Marciales",
+			"Aventura",
+			"Ciencia ficción",
+			"Comedia",
+			"Cultivación",
+			"Drama",
+			"Fantasía",
+			"Fantasia",
+			"Harem",
+			"Isekai",
+			"Love",
+			"Manhua",
+			"Reencarnacion",
+			"Romance",
+			"Sistema",
+			"Supernatural",
+			"+15"
+		]
+	}
+]
