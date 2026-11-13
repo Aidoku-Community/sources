@@ -208,8 +208,10 @@ impl DeepLinkHandler for Rncalation {
 			return Ok(None);
 		};
 		// The reader url doesn't include the series, so read it from the page.
-		let manga_key = parse_reader_manga_key(&fetch_html(&chapter_url(&key))?)
-			.ok_or_else(|| error!("Serie no encontrada"))?;
+		let (response, html) = fetch(&chapter_url(&key))?;
+		check_age_gate(&response)?;
+		let manga_key =
+			parse_reader_manga_key(&html).ok_or_else(|| error!("Serie no encontrada"))?;
 		Ok(Some(DeepLinkResult::Chapter { manga_key, key }))
 	}
 }

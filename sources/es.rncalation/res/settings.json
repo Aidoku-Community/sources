@@ -8,7 +8,7 @@
 				"type": "switch",
 				"key": "isAdult",
 				"title": "Soy mayor de 18 años",
-				"default": false,
+				"default": true,
 				"refreshes": ["content"]
 			}
 		]

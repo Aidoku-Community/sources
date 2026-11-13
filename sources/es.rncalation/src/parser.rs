@@ -222,6 +222,7 @@ pub fn parse_manga_details(html: &Document, manga: &mut Manga) {
 	let mut status = None;
 	let mut authors = Vec::new();
 	let mut artists = Vec::new();
+	let mut genres = Vec::new();
 	if let Some(rows) = html.select(".flex.items-baseline.justify-between.gap-2") {
 		for row in rows {
 			let mut spans = row.select("span").into_iter().flatten();
@@ -235,6 +236,14 @@ pub fn parse_manga_details(html: &Document, manga: &mut Manga) {
 				"Estado" => status = Some(value),
 				"Autor" => authors.push(value),
 				"Arte" => artists.push(value),
+				// A list like "accion, sistema, fantasia", sometimes in lowercase.
+				"Géneros" => genres.extend(
+					value
+						.split(',')
+						.map(str::trim)
+						.filter(|genre| !genre.is_empty())
+						.map(capitalize),
+				),
 				_ => {}
 			}
 		}
@@ -242,7 +251,7 @@ pub fn parse_manga_details(html: &Document, manga: &mut Manga) {
 
 	// The badges under the title are the status, the demographic and the type.
 	let badges: Vec<String> = html
-		.select(".comic-page-wrap span.inline-flex.items-center.rounded")
+		.select("h1 ~ div.flex-wrap > span.inline-flex.items-center.rounded")
 		.map(|badges| badges.filter_map(|badge| badge.text()).collect())
 		.unwrap_or_default();
 
@@ -259,7 +268,7 @@ pub fn parse_manga_details(html: &Document, manga: &mut Manga) {
 		_ => MangaStatus::Unknown,
 	};
 
-	let tags: Vec<String> = badges
+	let mut tags: Vec<String> = badges
 		.into_iter()
 		.filter(|badge| {
 			!matches!(
@@ -268,6 +277,14 @@ pub fn parse_manga_details(html: &Document, manga: &mut Manga) {
 			)
 		})
 		.collect();
+	for genre in genres {
+		if !tags
+			.iter()
+			.any(|tag| tag.to_lowercase() == genre.to_lowercase())
+		{
+			tags.push(genre);
+		}
+	}
 
 	// Without an author, credit the group that translates it, as the site does.
 	// Several groups are listed in a dropdown, a single one is a plain link.
@@ -312,6 +329,14 @@ pub fn parse_manga_details(html: &Document, manga: &mut Manga) {
 
 	manga.tags = Some(tags).filter(|tags| !tags.is_empty());
 	manga.url = Some(manga_url(&manga.key));
+}
+
+fn capitalize(text: &str) -> String {
+	let mut chars = text.chars();
+	match chars.next() {
+		Some(first) => first.to_uppercase().chain(chars).collect(),
+		None => String::new(),
+	}
 }
 
 /// Groups without a logo have their initial as the avatar, inside the link.
