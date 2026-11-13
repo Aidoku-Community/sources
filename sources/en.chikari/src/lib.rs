@@ -125,7 +125,7 @@ impl Source for Chikari {
 fn apply_settings(filters: Vec<FilterValue>) -> Vec<FilterValue> {
 	let hidden = settings::hidden_genres();
 	let selected_types = settings::type_filters();
-	let selected_ratings = settings::rating_filters();
+	let selected_ratings = settings::content_rating_filters();
 	let selected_status = settings::status_filters();
 	if hidden.is_empty()
 		&& selected_types.is_empty()
@@ -152,7 +152,7 @@ fn apply_settings(filters: Vec<FilterValue>) -> Vec<FilterValue> {
 		}
 	}
 	push_persistent_selection(&mut filters, "types", selected_types);
-	push_persistent_selection(&mut filters, "ratings", selected_ratings);
+	push_persistent_selection(&mut filters, "contentRating", selected_ratings);
 	push_persistent_selection(&mut filters, "status", selected_status);
 	filters
 }
