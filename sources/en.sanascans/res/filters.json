@@ -1,0 +1,118 @@
+[
+	{
+		"type": "sort",
+		"options": [
+			"Latest Updates",
+			"Most Popular",
+			"Recently Added",
+			"Chapter Count",
+			"Title"
+		]
+	},
+	{
+		"type": "select",
+		"id": "seriesStatus",
+		"title": "Status",
+		"options": [
+			"All",
+			"Ongoing",
+			"Completed",
+			"Cancelled",
+			"Dropped",
+			"Mass Released",
+			"Coming Soon",
+			"Hiatus",
+			"One Shot"
+		],
+		"ids": [
+			"",
+			"ONGOING",
+			"COMPLETED",
+			"CANCELLED",
+			"DROPPED",
+			"MASS_RELEASED",
+			"COMING_SOON",
+			"HIATUS",
+			"ONE_SHOT"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "seriesType",
+		"title": "Type",
+		"options": [
+			"Manhwa",
+			"Manhua",
+			"Manga",
+			"Spanish",
+			"Russian",
+			"Novel"
+		],
+		"ids": [
+			"MANHWA",
+			"MANHUA",
+			"MANGA",
+			"SPANISH",
+			"RUSSIAN",
+			"NOVEL"
+		],
+		"canExclude": false
+	},
+	{
+		"type": "multi-select",
+		"id": "genreIds",
+		"title": "Genres",
+		"isGenre": true,
+		"canExclude": true,
+		"options": [
+			"Shoujo",
+			"Drama",
+			"Slice of Life",
+			"Fantasy",
+			"Romance",
+			"Isekai",
+			"Josei",
+			"School Life",
+			"Modern Setting"
+		],
+		"ids": [
+			"1",
+			"2",
+			"3",
+			"4",
+			"5",
+			"6",
+			"7",
+			"8",
+			"9"
+		]
+	},
+	{
+		"type": "text",
+		"id": "minChapters",
+		"title": "Min Chapters",
+		"placeholder": "0",
+		"hideFromHeader": true
+	},
+	{
+		"type": "text",
+		"id": "maxChapters",
+		"title": "Max Chapters",
+		"placeholder": "999+",
+		"hideFromHeader": true
+	},
+	{
+		"type": "text",
+		"id": "createdAfter",
+		"title": "Created After",
+		"placeholder": "YYYY-MM-DD",
+		"hideFromHeader": true
+	},
+	{
+		"type": "text",
+		"id": "createdBefore",
+		"title": "Created Before",
+		"placeholder": "YYYY-MM-DD",
+		"hideFromHeader": true
+	}
+]

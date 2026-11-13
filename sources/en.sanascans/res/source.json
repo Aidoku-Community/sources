@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.sanascans",
+		"name": "Sana Scans",
+		"version": 1,
+		"url": "https://sanascans.com",
+		"contentRating": 0,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	}
+}
