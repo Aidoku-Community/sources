@@ -2,8 +2,8 @@
 	"info": {
 		"id": "ja.spoilerplus",
 		"name": "SpoilerPlus",
-		"version": 1,
-		"url": "https://spoilerplus.tv",
+		"version": 2,
+		"url": "https://spoilerplus.sc",
 		"contentRating": 2,
 		"languages": ["ja"],
 		"minAppVersion": "0.7.1"
