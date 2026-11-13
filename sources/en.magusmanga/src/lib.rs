@@ -15,11 +15,15 @@ impl Impl for MagusManga {
 	fn params(&self) -> Params {
 		Params {
 			base_url: BASE_URL.into(),
-			api_url: Some(API_URL.into()),
-			fetch_full_chapter_list: true,
+			api_url: API_URL.into(),
 			..Default::default()
 		}
 	}
 }
 
-register_source!(Iken<MagusManga>, Home, DeepLinkHandler);
+register_source!(
+	Iken<MagusManga>,
+	Home,
+	DeepLinkHandler,
+	ImageRequestProvider
+);

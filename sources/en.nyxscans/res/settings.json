@@ -1,0 +1,24 @@
+[
+	{
+		"type": "group",
+		"items": [
+			{
+				"type": "switch",
+				"key": "showLocked",
+				"title": "Show Locked Chapters",
+				"default": false
+			},
+			{
+				"type": "switch",
+				"key": "labelNovels",
+				"title": "Label Novels",
+				"subtitle": "Add (Novel) after the titles of novels.",
+				"default": true,
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			}
+		]
+	}
+]

@@ -7,41 +7,43 @@ use aidoku::{
 };
 
 mod helpers;
+pub mod home;
 mod imp;
-pub mod models;
+mod markdown;
+mod models;
+mod settings;
 
 pub use imp::Impl;
 
 pub struct Params {
 	pub base_url: Cow<'static, str>,
-	pub api_url: Option<Cow<'static, str>>,
-	// if the post endpoint require slugs instead of ids
-	pub use_slug_series_keys: bool,
-	// the post endpoint doesn't contain all keys for the chapter objects
-	pub fetch_full_chapter_list: bool,
-	pub get_sort_value: fn(i32) -> Cow<'static, str>,
-	pub hide_home_lists: bool,
+	pub api_url: Cow<'static, str>,
+	pub home_slider_selector: Cow<'static, str>,
+	pub home_section_titles: &'static [&'static str],
+	pub sorts: &'static [&'static str],
+	pub page_size: i32,
+	pub banner_width: Option<i32>,
+	pub banner_height: Option<i32>,
+	pub sort_pages_by_filename: bool,
+	pub new_releases_title: &'static str,
+	pub novels_title: &'static str,
 }
 
 impl Default for Params {
 	fn default() -> Self {
 		Self {
 			base_url: "".into(),
-			api_url: None,
-			use_slug_series_keys: false,
-			fetch_full_chapter_list: false,
-			get_sort_value: |_| "".into(),
-			hide_home_lists: false,
+			api_url: "".into(),
+			new_releases_title: "New Releases",
+			novels_title: "Novels",
+			home_slider_selector: ".main-banner-slider .swiper-slide, .mainSlider .swiper-slide, .cinematic-slider-5 .swiper-slide".into(),
+			page_size: 18,
+			banner_width: None,
+			banner_height: None,
+			sort_pages_by_filename: false,
+			sorts: &["lastChapterAddedAt", "totalViews", "createdAt", "chaptersCount", "postTitle"],
+			home_section_titles: &["Popular Today", "Latest Releases", "Most Popular"],
 		}
-	}
-}
-
-impl Params {
-	#[inline]
-	pub fn get_api_url(&self) -> Cow<'static, str> {
-		self.api_url
-			.clone()
-			.unwrap_or_else(|| self.base_url.clone())
 	}
 }
 

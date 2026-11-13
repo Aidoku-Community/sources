@@ -164,7 +164,6 @@ dependencies = [
  "aidoku",
  "chrono",
  "serde",
- "serde_json",
 ]
 
 [[package]]

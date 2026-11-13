@@ -15,12 +15,17 @@ impl Impl for VortexScans {
 	fn params(&self) -> Params {
 		Params {
 			base_url: BASE_URL.into(),
-			api_url: Some(API_URL.into()),
-			fetch_full_chapter_list: true,
-			hide_home_lists: true,
+			api_url: API_URL.into(),
+			banner_width: Some(1920),
+			banner_height: Some(1080),
 			..Default::default()
 		}
 	}
 }
 
-register_source!(Iken<VortexScans>, Home, DeepLinkHandler);
+register_source!(
+	Iken<VortexScans>,
+	Home,
+	DeepLinkHandler,
+	ImageRequestProvider
+);
