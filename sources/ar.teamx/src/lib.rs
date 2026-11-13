@@ -3,104 +3,18 @@ use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Manga, MangaPageResult, MangaStatus,
 	Page, PageContent, Result, Source, Viewer,
 	alloc::{String, Vec, format, string::ToString, vec},
-	helpers::uri::encode_uri_component,
-	imports::{
-		html::Element,
-		net::{Request, TimeUnit, set_rate_limit},
-	},
+	helpers::uri::QueryParameters,
+	imports::net::{Request, TimeUnit, set_rate_limit},
 	prelude::*,
 };
+
+mod helpers;
+use helpers::{chapter_path, manga_path, parse_card, parse_chapter};
 
 const BASE_URL: &str = "https://olympustaff.com";
 const THUMBNAIL_SUFFIX: &str = "thumbnail_";
 
 struct TeamX;
-
-/// Turns any site URL into the manga key (`/series/<slug>`).
-fn manga_path(url: &str) -> Option<String> {
-	let path = url.strip_prefix(BASE_URL)?;
-	let mut segments = path.trim_start_matches('/').split('/');
-	if segments.next()? != "series" {
-		return None;
-	}
-	let slug = segments.next().filter(|slug| !slug.is_empty())?;
-	Some(format!("/series/{slug}"))
-}
-
-/// Turns a chapter URL into its manga key and chapter key.
-fn chapter_path(url: &str) -> Option<(String, String)> {
-	let path = url.strip_prefix(BASE_URL)?;
-	let mut segments = path.trim_start_matches('/').split('/');
-	if segments.next()? != "series" {
-		return None;
-	}
-	let slug = segments.next().filter(|slug| !slug.is_empty())?;
-	let chapter = segments.next().filter(|chapter| !chapter.is_empty())?;
-	Some((
-		format!("/series/{slug}"),
-		format!("/series/{slug}/{chapter}"),
-	))
-}
-
-fn parse_card(el: &Element) -> Option<Manga> {
-	let link = el.select_first("a")?;
-	let href = link.attr("abs:href")?;
-	let img = el.select_first("img");
-	let cover = img
-		.as_ref()
-		.and_then(|img| img.attr("abs:data-src").filter(|src| !src.is_empty()))
-		.or_else(|| img.and_then(|img| img.attr("abs:src")));
-	Some(Manga {
-		key: manga_path(&href)?,
-		title: link.attr("title")?,
-		cover,
-		url: Some(href),
-		..Default::default()
-	})
-}
-
-fn parse_chapter(el: &Element) -> Option<Chapter> {
-	if el.select_first("span.locked").is_some() {
-		return None;
-	}
-	let link = el.select_first("a")?;
-	let href = link.attr("abs:href")?;
-	let number = el.attr("data-number").and_then(|value| value.parse().ok());
-	let extra_title = el
-		.select_first("div.chapter-info div.chapter-title")
-		.and_then(|el| el.text())
-		.filter(|title| !title.trim().is_empty());
-
-	let mut title = match number {
-		Some(number) => format!("الفصل {number}"),
-		None => String::new(),
-	};
-	if let Some(extra_title) = extra_title {
-		let number = el.attr("data-number").unwrap_or_default();
-		let generic = [
-			number.clone(),
-			format!("الفصل {number}"),
-			format!("الفصل رقم {number}"),
-		];
-		if !generic.iter().any(|generic| generic == extra_title.trim()) {
-			title.push_str(" - ");
-			title.push_str(extra_title.trim());
-		}
-	}
-	title.push('\u{200F}');
-
-	Some(Chapter {
-		key: href.strip_prefix(BASE_URL)?.to_string(),
-		title: Some(title),
-		chapter_number: number,
-		date_uploaded: el
-			.attr("data-date")
-			.and_then(|value| value.parse::<i64>().ok())
-			.map(|seconds| seconds * 1000),
-		url: Some(href),
-		..Default::default()
-	})
-}
 
 impl Source for TeamX {
 	fn new() -> Self {
@@ -114,11 +28,10 @@ impl Source for TeamX {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let query = query.unwrap_or_default();
-		let query = query.trim();
-
-		if !query.is_empty() {
-			let url = format!("{BASE_URL}/search?keyword={}", encode_uri_component(query));
+		if let Some(query) = query.as_deref().filter(|query| !query.is_empty()) {
+			let mut params = QueryParameters::new();
+			params.push("keyword", Some(query));
+			let url = format!("{BASE_URL}/search?{params}");
 			let html = Request::get(url)?.html()?;
 			let entries = html
 				.select("div.tx-grid a.tx-card")
@@ -149,24 +62,28 @@ impl Source for TeamX {
 			});
 		}
 
-		let mut url = format!("{BASE_URL}/series");
+		let mut params = QueryParameters::new();
 		if page > 1 {
-			url.push_str(&format!("?page={page}"));
+			params.push("page", Some(page.to_string().as_str()));
 		}
 		for filter in filters {
 			match filter {
 				FilterValue::Select { id, value } if !value.is_empty() => {
-					url.push(if url.contains('?') { '&' } else { '?' });
-					url.push_str(&format!("{id}={}", encode_uri_component(&value)));
+					params.push(&id, Some(value.as_str()));
 				}
 				FilterValue::MultiSelect { id, included, .. } => {
 					for value in included {
-						url.push(if url.contains('?') { '&' } else { '?' });
-						url.push_str(&format!("{id}={}", encode_uri_component(&value)));
+						params.push(&id, Some(value.as_str()));
 					}
 				}
 				_ => {}
 			}
+		}
+
+		let mut url = format!("{BASE_URL}/series");
+		if !params.is_empty() {
+			url.push('?');
+			url.push_str(&params.to_string());
 		}
 
 		let html = Request::get(url)?.html()?;
