@@ -30,118 +30,6 @@ struct SearchContext {
 	content_rating_filter: Option<Vec<String>>,
 }
 
-fn resolve_multi_select(
-	all_options: &[&'static str],
-	included: Vec<String>,
-	excluded: Vec<String>,
-) -> Option<Vec<String>> {
-	let lower_excluded: Vec<String> = excluded.iter().map(|e| e.to_lowercase()).collect();
-	let base: Vec<String> = if included.is_empty() {
-		all_options.iter().map(|s| (*s).into()).collect()
-	} else {
-		included
-	};
-	let filtered: Vec<String> = base
-		.into_iter()
-		.filter(|s| !lower_excluded.contains(&s.to_lowercase()))
-		.collect();
-	Some(filtered)
-}
-
-fn parse_filters(filters: Vec<FilterValue>) -> SearchContext {
-	let mut qs = QueryParameters::new();
-	let mut has_sort = false;
-	let mut excluded_genres = settings::hidden_genres();
-	let mut status_filter: Option<Vec<String>> = None;
-	let mut content_rating_filter: Option<Vec<String>> = None;
-
-	for filter in filters {
-		match filter {
-			FilterValue::Sort { index, .. } => {
-				if let Some(s) = SORT_IDS.get(index as usize) {
-					qs.push("sort", Some(*s));
-					has_sort = true;
-				}
-			}
-			FilterValue::MultiSelect {
-				id,
-				included,
-				excluded,
-			} if id == "status" => {
-				status_filter = resolve_multi_select(STATUS_IDS, included, excluded);
-			}
-			FilterValue::MultiSelect {
-				id,
-				included,
-				excluded,
-			} if id == "contentRating" => {
-				content_rating_filter =
-					resolve_multi_select(CONTENT_RATING_IDS, included, excluded);
-			}
-			FilterValue::MultiSelect {
-				id,
-				included,
-				excluded,
-			} if id == "genres" => {
-				for genre in &included {
-					if let Some(pos) = excluded_genres.iter().position(|g| g == genre) {
-						excluded_genres.swap_remove(pos);
-					}
-				}
-				if !included.is_empty() {
-					qs.push("genres", Some(&included.join(",")));
-				}
-				for genre in excluded {
-					if !excluded_genres.contains(&genre) {
-						excluded_genres.push(genre);
-					}
-				}
-			}
-			_ => {}
-		}
-	}
-
-	if !has_sort {
-		qs.push("sort", Some("popular"));
-	}
-	if !excluded_genres.is_empty() {
-		qs.push("exclude", Some(&excluded_genres.join(",")));
-	}
-
-	SearchContext {
-		qs,
-		status_filter,
-		content_rating_filter,
-	}
-}
-
-fn build_search_url(
-	ctx: &SearchContext,
-	query: Option<&str>,
-	page: i32,
-	status: Option<&str>,
-) -> String {
-	let mut qs = ctx.qs.clone();
-	if let Some(q) = query {
-		qs.push("q", Some(q));
-	}
-	if let Some(s) = status {
-		qs.push("status", Some(s));
-	}
-	format!("{API_URL}/titles/search?{qs}&page={}", page.max(1))
-}
-
-fn merge_with_persistent(runtime: Option<Vec<String>>, persistent: Vec<String>) -> Vec<String> {
-	match runtime {
-		None => persistent,
-		Some(mut values) => {
-			values.sort();
-			values.dedup();
-			values
-		}
-	}
-}
-
 pub const BASE_URL: &str = "https://novelbuddy.me";
 pub const API_URL: &str = "https://api.novelbuddy.me";
 pub const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 \
@@ -159,98 +47,6 @@ const SORT_IDS: &[&str] = &[
 const STATUS_IDS: &[&str] = &["ongoing", "completed", "hiatus", "cancelled"];
 
 const SERVER_STATUS_IDS: &[&str] = &["ongoing", "completed"];
-
-fn is_server_status(value: &str) -> bool {
-	SERVER_STATUS_IDS
-		.iter()
-		.any(|supported| value.eq_ignore_ascii_case(supported))
-}
-
-fn rating_matches(rating: &str, content_rating: aidoku::ContentRating) -> bool {
-	matches!(
-		(rating, content_rating),
-		("safe", aidoku::ContentRating::Safe)
-			| ("suggestive", aidoku::ContentRating::Suggestive)
-			| ("nsfw", aidoku::ContentRating::NSFW)
-	)
-}
-
-fn filter_by_rating(entries: Vec<Manga>, ratings: &[String]) -> Vec<Manga> {
-	if ratings.is_empty() {
-		return entries;
-	}
-	entries
-		.into_iter()
-		.filter(|m| ratings.iter().any(|r| rating_matches(r, m.content_rating)))
-		.collect()
-}
-
-fn fetch_multi_status(
-	ctx: &SearchContext,
-	query: Option<&str>,
-	page: i32,
-	all_statuses: &[String],
-	all_ratings: &[String],
-	hide: bool,
-) -> Result<MangaPageResult> {
-	let mut all_entries: Vec<Manga> = Vec::new();
-	let mut any_has_next = false;
-	let mut first_error: Option<AidokuError> = None;
-	let mut success_count = 0usize;
-
-	for status in all_statuses {
-		let url = build_search_url(ctx, query, page, Some(status));
-		match request::<ListData>(&url) {
-			Ok(list_data) => {
-				let mut filtered: Vec<Manga> = list_data
-					.items
-					.into_iter()
-					.filter(|item| {
-						item.status
-							.as_deref()
-							.is_some_and(|s| s.eq_ignore_ascii_case(status))
-					})
-					.map(Manga::from)
-					.collect();
-				if list_data.pagination.has_next {
-					any_has_next = true;
-				}
-				all_entries.append(&mut filtered);
-				success_count += 1;
-			}
-			Err(e) => {
-				if first_error.is_none() {
-					first_error = Some(e);
-				}
-			}
-		}
-	}
-
-	if success_count == 0 {
-		if let Some(e) = first_error {
-			return Err(e);
-		}
-		bail!("all status requests failed");
-	}
-
-	if hide {
-		mtl::retain_manga(&mut all_entries);
-	}
-	let mut entries = filter_by_rating(all_entries, all_ratings);
-	let mut seen: Vec<String> = Vec::new();
-	entries.retain(|m| {
-		if seen.contains(&m.key) {
-			false
-		} else {
-			seen.push(m.key.clone());
-			true
-		}
-	});
-	Ok(MangaPageResult {
-		entries,
-		has_next_page: any_has_next,
-	})
-}
 
 struct NovelBuddy;
 
@@ -425,17 +221,6 @@ impl ListingProvider for NovelBuddy {
 	}
 }
 
-fn deep_link_slugs(path: &str) -> (&str, &str) {
-	let mut segments = path.split('/').filter(|s| !s.is_empty());
-	let series = segments.next().unwrap_or("");
-	let chapter = segments.next().unwrap_or("");
-	(series, chapter)
-}
-
-fn chapter_url_matches(url: &str, chapter_slug: &str) -> bool {
-	!chapter_slug.is_empty() && url.trim_end_matches('/').rsplit('/').next() == Some(chapter_slug)
-}
-
 impl DeepLinkHandler for NovelBuddy {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		let path = url
@@ -476,6 +261,221 @@ impl DeepLinkHandler for NovelBuddy {
 }
 
 register_source!(NovelBuddy, ListingProvider, DeepLinkHandler);
+
+fn resolve_multi_select(
+	all_options: &[&'static str],
+	included: Vec<String>,
+	excluded: Vec<String>,
+) -> Option<Vec<String>> {
+	let lower_excluded: Vec<String> = excluded.iter().map(|e| e.to_lowercase()).collect();
+	let base: Vec<String> = if included.is_empty() {
+		all_options.iter().map(|s| (*s).into()).collect()
+	} else {
+		included
+	};
+	let filtered: Vec<String> = base
+		.into_iter()
+		.filter(|s| !lower_excluded.contains(&s.to_lowercase()))
+		.collect();
+	Some(filtered)
+}
+
+fn parse_filters(filters: Vec<FilterValue>) -> SearchContext {
+	let mut qs = QueryParameters::new();
+	let mut has_sort = false;
+	let mut excluded_genres = settings::hidden_genres();
+	let mut status_filter: Option<Vec<String>> = None;
+	let mut content_rating_filter: Option<Vec<String>> = None;
+
+	for filter in filters {
+		match filter {
+			FilterValue::Sort { index, .. } => {
+				if let Some(s) = SORT_IDS.get(index as usize) {
+					qs.push("sort", Some(*s));
+					has_sort = true;
+				}
+			}
+			FilterValue::MultiSelect {
+				id,
+				included,
+				excluded,
+			} if id == "status" => {
+				status_filter = resolve_multi_select(STATUS_IDS, included, excluded);
+			}
+			FilterValue::MultiSelect {
+				id,
+				included,
+				excluded,
+			} if id == "contentRating" => {
+				content_rating_filter =
+					resolve_multi_select(CONTENT_RATING_IDS, included, excluded);
+			}
+			FilterValue::MultiSelect {
+				id,
+				included,
+				excluded,
+			} if id == "genres" => {
+				for genre in &included {
+					if let Some(pos) = excluded_genres.iter().position(|g| g == genre) {
+						excluded_genres.swap_remove(pos);
+					}
+				}
+				if !included.is_empty() {
+					qs.push("genres", Some(&included.join(",")));
+				}
+				for genre in excluded {
+					if !excluded_genres.contains(&genre) {
+						excluded_genres.push(genre);
+					}
+				}
+			}
+			_ => {}
+		}
+	}
+
+	if !has_sort {
+		qs.push("sort", Some("popular"));
+	}
+	if !excluded_genres.is_empty() {
+		qs.push("exclude", Some(&excluded_genres.join(",")));
+	}
+
+	SearchContext {
+		qs,
+		status_filter,
+		content_rating_filter,
+	}
+}
+
+fn build_search_url(
+	ctx: &SearchContext,
+	query: Option<&str>,
+	page: i32,
+	status: Option<&str>,
+) -> String {
+	let mut qs = ctx.qs.clone();
+	if let Some(q) = query {
+		qs.push("q", Some(q));
+	}
+	if let Some(s) = status {
+		qs.push("status", Some(s));
+	}
+	format!("{API_URL}/titles/search?{qs}&page={}", page.max(1))
+}
+
+fn merge_with_persistent(runtime: Option<Vec<String>>, persistent: Vec<String>) -> Vec<String> {
+	match runtime {
+		None => persistent,
+		Some(mut values) => {
+			values.sort();
+			values.dedup();
+			values
+		}
+	}
+}
+
+fn is_server_status(value: &str) -> bool {
+	SERVER_STATUS_IDS
+		.iter()
+		.any(|supported| value.eq_ignore_ascii_case(supported))
+}
+
+fn rating_matches(rating: &str, content_rating: aidoku::ContentRating) -> bool {
+	matches!(
+		(rating, content_rating),
+		("safe", aidoku::ContentRating::Safe)
+			| ("suggestive", aidoku::ContentRating::Suggestive)
+			| ("nsfw", aidoku::ContentRating::NSFW)
+	)
+}
+
+fn filter_by_rating(entries: Vec<Manga>, ratings: &[String]) -> Vec<Manga> {
+	if ratings.is_empty() {
+		return entries;
+	}
+	entries
+		.into_iter()
+		.filter(|m| ratings.iter().any(|r| rating_matches(r, m.content_rating)))
+		.collect()
+}
+
+fn fetch_multi_status(
+	ctx: &SearchContext,
+	query: Option<&str>,
+	page: i32,
+	all_statuses: &[String],
+	all_ratings: &[String],
+	hide: bool,
+) -> Result<MangaPageResult> {
+	let mut all_entries: Vec<Manga> = Vec::new();
+	let mut any_has_next = false;
+	let mut first_error: Option<AidokuError> = None;
+	let mut success_count = 0usize;
+
+	for status in all_statuses {
+		let url = build_search_url(ctx, query, page, Some(status));
+		match request::<ListData>(&url) {
+			Ok(list_data) => {
+				let mut filtered: Vec<Manga> = list_data
+					.items
+					.into_iter()
+					.filter(|item| {
+						item.status
+							.as_deref()
+							.is_some_and(|s| s.eq_ignore_ascii_case(status))
+					})
+					.map(Manga::from)
+					.collect();
+				if list_data.pagination.has_next {
+					any_has_next = true;
+				}
+				all_entries.append(&mut filtered);
+				success_count += 1;
+			}
+			Err(e) => {
+				if first_error.is_none() {
+					first_error = Some(e);
+				}
+			}
+		}
+	}
+
+	if success_count == 0 {
+		if let Some(e) = first_error {
+			return Err(e);
+		}
+		bail!("all status requests failed");
+	}
+
+	if hide {
+		mtl::retain_manga(&mut all_entries);
+	}
+	let mut entries = filter_by_rating(all_entries, all_ratings);
+	let mut seen: Vec<String> = Vec::new();
+	entries.retain(|m| {
+		if seen.contains(&m.key) {
+			false
+		} else {
+			seen.push(m.key.clone());
+			true
+		}
+	});
+	Ok(MangaPageResult {
+		entries,
+		has_next_page: any_has_next,
+	})
+}
+
+fn deep_link_slugs(path: &str) -> (&str, &str) {
+	let mut segments = path.split('/').filter(|s| !s.is_empty());
+	let series = segments.next().unwrap_or("");
+	let chapter = segments.next().unwrap_or("");
+	(series, chapter)
+}
+
+fn chapter_url_matches(url: &str, chapter_slug: &str) -> bool {
+	!chapter_slug.is_empty() && url.trim_end_matches('/').rsplit('/').next() == Some(chapter_slug)
+}
 
 #[cfg(test)]
 mod tests {

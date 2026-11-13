@@ -66,24 +66,6 @@ impl From<TitleListItem> for Manga {
 	}
 }
 
-fn content_rating(is_adult: bool, tags: &[String]) -> ContentRating {
-	if is_adult {
-		return ContentRating::NSFW;
-	}
-	if tags.iter().any(|tag| is_suggestive_signal(tag)) {
-		ContentRating::Suggestive
-	} else {
-		ContentRating::Safe
-	}
-}
-
-fn is_suggestive_signal(value: &str) -> bool {
-	const SUGGESTIVE_TAGS: &[&str] = &["adult", "bl", "ecchi", "smut"];
-	SUGGESTIVE_TAGS
-		.iter()
-		.any(|tag| value.trim().eq_ignore_ascii_case(tag))
-}
-
 impl From<TitleDetail> for Manga {
 	fn from(detail: TitleDetail) -> Self {
 		let url = detail.slug.as_deref().map(|s| format!("{BASE_URL}/{s}"));
@@ -136,6 +118,24 @@ impl From<ChapterListItem> for Chapter {
 			..Default::default()
 		}
 	}
+}
+
+fn content_rating(is_adult: bool, tags: &[String]) -> ContentRating {
+	if is_adult {
+		return ContentRating::NSFW;
+	}
+	if tags.iter().any(|tag| is_suggestive_signal(tag)) {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
+	}
+}
+
+fn is_suggestive_signal(value: &str) -> bool {
+	const SUGGESTIVE_TAGS: &[&str] = &["adult", "bl", "ecchi", "smut"];
+	SUGGESTIVE_TAGS
+		.iter()
+		.any(|tag| value.trim().eq_ignore_ascii_case(tag))
 }
 
 pub fn parse_status(value: &str) -> MangaStatus {
