@@ -122,6 +122,53 @@ impl Source for Chikari {
 	}
 }
 
+impl ListingProvider for Chikari {
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		let sort = SORTS
+			.iter()
+			.find(|s| **s == listing.id)
+			.ok_or_else(|| error!("Unknown listing: {}", listing.id))?;
+		let filters = apply_settings(Vec::new());
+		let offset = (page.max(1) as u32 - 1) * LIST_PAGE_SIZE;
+		let Some(url) = list_url(sort, LIST_PAGE_SIZE, offset, None, &filters) else {
+			return Ok(MangaPageResult {
+				entries: Vec::new(),
+				has_next_page: false,
+			});
+		};
+		let data: ListResponse = request(&url)?;
+		let mut result = manga_page_result(data, offset, LIST_PAGE_SIZE);
+		if settings::hide_mtl() {
+			mtl::retain_manga(&mut result.entries);
+		}
+		Ok(result)
+	}
+}
+
+impl DeepLinkHandler for Chikari {
+	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
+		let Some(path) = helpers::chikari_path(&url) else {
+			return Ok(None);
+		};
+		let parts: Vec<&str> = path.trim_matches('/').split('/').collect();
+		let (kind, slug, rest) = match parts.as_slice() {
+			[kind @ ("novels" | "series"), slug, rest @ ..] if valid_slug(slug) => {
+				(*kind, *slug, rest)
+			}
+			_ => return Ok(None),
+		};
+		let manga_key = deep_link_manga_key(ContentType::from_segment(kind), slug);
+		Ok(match rest {
+			[] => Some(DeepLinkResult::Manga { key: manga_key }),
+			[number] if valid_number(number) => chapter_deep_link(manga_key, number),
+			["chapters", number] if valid_number(number) => chapter_deep_link(manga_key, number),
+			_ => None,
+		})
+	}
+}
+
+register_source!(Chikari, ListingProvider, DeepLinkHandler);
+
 fn apply_settings(filters: Vec<FilterValue>) -> Vec<FilterValue> {
 	let hidden = settings::hidden_genres();
 	let selected_types = settings::type_filters();
@@ -200,29 +247,6 @@ fn series_image_pages(pages: Vec<String>) -> Vec<Page> {
 		.collect()
 }
 
-impl ListingProvider for Chikari {
-	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		let sort = SORTS
-			.iter()
-			.find(|s| **s == listing.id)
-			.ok_or_else(|| error!("Unknown listing: {}", listing.id))?;
-		let filters = apply_settings(Vec::new());
-		let offset = (page.max(1) as u32 - 1) * LIST_PAGE_SIZE;
-		let Some(url) = list_url(sort, LIST_PAGE_SIZE, offset, None, &filters) else {
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
-		};
-		let data: ListResponse = request(&url)?;
-		let mut result = manga_page_result(data, offset, LIST_PAGE_SIZE);
-		if settings::hide_mtl() {
-			mtl::retain_manga(&mut result.entries);
-		}
-		Ok(result)
-	}
-}
-
 fn chapter_deep_link(manga_key: String, number: &str) -> Option<DeepLinkResult> {
 	let number: f32 = number.parse().ok()?;
 	Some(DeepLinkResult::Chapter {
@@ -230,30 +254,6 @@ fn chapter_deep_link(manga_key: String, number: &str) -> Option<DeepLinkResult> 
 		key: helpers::chapter_key(number),
 	})
 }
-
-impl DeepLinkHandler for Chikari {
-	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let Some(path) = helpers::chikari_path(&url) else {
-			return Ok(None);
-		};
-		let parts: Vec<&str> = path.trim_matches('/').split('/').collect();
-		let (kind, slug, rest) = match parts.as_slice() {
-			[kind @ ("novels" | "series"), slug, rest @ ..] if valid_slug(slug) => {
-				(*kind, *slug, rest)
-			}
-			_ => return Ok(None),
-		};
-		let manga_key = deep_link_manga_key(ContentType::from_segment(kind), slug);
-		Ok(match rest {
-			[] => Some(DeepLinkResult::Manga { key: manga_key }),
-			[number] if valid_number(number) => chapter_deep_link(manga_key, number),
-			["chapters", number] if valid_number(number) => chapter_deep_link(manga_key, number),
-			_ => None,
-		})
-	}
-}
-
-register_source!(Chikari, ListingProvider, DeepLinkHandler);
 
 #[cfg(test)]
 mod tests {
