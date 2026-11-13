@@ -46,11 +46,11 @@
 	"listings": [
 		{
 			"id": "lastupdate",
-			"name": "Latest Chapter Updates"
+			"name": "Latest Updates"
 		},
 		{
 			"id": "created_at",
-			"name": "Recently Added Titles"
+			"name": "Recently Added"
 		}
 	]
 }
