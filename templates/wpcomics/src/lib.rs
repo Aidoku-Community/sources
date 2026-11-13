@@ -43,6 +43,7 @@ pub struct Params {
 	pub manga_details_description: &'static str,
 	pub manga_details_tags: &'static str,
 	pub manga_details_tags_splitter: &'static str,
+	pub manga_details_tags_transformer: fn(Vec<String>) -> Vec<String>,
 	pub manga_details_status: &'static str,
 	pub manga_details_status_transformer: fn(String) -> String,
 
@@ -180,6 +181,7 @@ impl Default for Params {
 			manga_details_description: "div.detail-content > p",
 			manga_details_tags: "li.kind.row > p.col-xs-8",
 			manga_details_tags_splitter: " - ",
+			manga_details_tags_transformer: |tags| tags,
 			manga_details_status: "li.status.row > p.col-xs-8",
 			manga_details_status_transformer: |title| title,
 			manga_details_chapters: "div.list-chapter > nav > ul > li",
