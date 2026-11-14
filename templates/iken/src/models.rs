@@ -14,20 +14,24 @@ pub struct SearchResponse {
 	pub posts: Vec<Post>,
 	pub total_count: i32,
 }
+
 #[derive(Deserialize)]
 pub struct PostResponse {
 	pub post: Post,
 }
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChaptersResponse {
 	pub post: ChapterList,
 	pub total_chapter_count: usize,
 }
+
 #[derive(Deserialize)]
 pub struct ChapterList {
 	pub chapters: Vec<IkenChapter>,
 }
+
 #[derive(Deserialize)]
 pub struct ChapterResponse {
 	pub chapter: IkenChapter,
@@ -52,18 +56,22 @@ pub struct Post {
 	#[serde(rename = "is18Plus")]
 	is_18_plus: Option<bool>,
 }
+
 #[derive(Deserialize)]
 pub struct Genre {
 	name: String,
 }
+
 #[derive(Deserialize)]
 pub struct Author {
 	name: String,
 }
+
 #[derive(Deserialize)]
 pub struct ChapterPost {
 	pub slug: String,
 }
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IkenChapter {
@@ -89,6 +97,7 @@ pub struct IkenChapter {
 	pub content: Option<String>,
 	pub images: Option<Vec<Image>>,
 }
+
 #[derive(Deserialize)]
 pub struct Image {
 	pub url: String,
@@ -142,17 +151,21 @@ impl Post {
 		Ok(self.id.to_string())
 	}
 
+	fn is_novel(&self) -> bool {
+		self.series_type.as_deref() == Some("NOVEL") || self.is_novel == Some(true)
+	}
+
 	pub fn to_featured(&self, base_url: &str, label_novels: bool) -> Result<Manga> {
 		let basic = self.to_manga(label_novels)?;
-		let mut tags: Vec<String> = self
-			.genres
-			.iter()
-			.flatten()
-			.map(|g| g.name.trim().into())
-			.filter(|name: &String| !name.is_empty())
-			.collect();
-		tags.sort_unstable();
-		tags.dedup();
+		let tags = helpers::sorted_tags(
+			self.genres
+				.iter()
+				.flatten()
+				.map(|g| g.name.trim())
+				.filter(|name| !name.is_empty())
+				.map(helpers::tag_name)
+				.collect(),
+		);
 		let content_rating = helpers::content_rating(&tags, self.is_18_plus == Some(true));
 		Ok(Manga {
 			authors: self.author.as_deref().and_then(names),
@@ -175,7 +188,7 @@ impl Post {
 				Some("HIATUS") => MangaStatus::Hiatus,
 				_ => MangaStatus::Unknown,
 			},
-			viewer: helpers::viewer(self.series_type.as_deref()),
+			viewer: helpers::viewer(self.is_novel()),
 			..basic
 		})
 	}
@@ -183,11 +196,7 @@ impl Post {
 	pub fn to_manga(&self, label_novels: bool) -> Result<Manga> {
 		Ok(Manga {
 			key: self.key()?,
-			title: helpers::display_title(
-				&self.post_title,
-				self.series_type.as_deref() == Some("NOVEL") || self.is_novel == Some(true),
-				label_novels,
-			),
+			title: helpers::display_title(&self.post_title, self.is_novel(), label_novels),
 			cover: self.featured_image.clone().filter(|s| !s.trim().is_empty()),
 			..Default::default()
 		})

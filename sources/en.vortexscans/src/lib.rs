@@ -16,8 +16,8 @@ impl Impl for VortexScans {
 		Params {
 			base_url: BASE_URL.into(),
 			api_url: API_URL.into(),
-			banner_width: Some(1920),
-			banner_height: Some(1080),
+			banner_width: Some(340),
+			banner_height: Some(124),
 			..Default::default()
 		}
 	}

@@ -36,8 +36,8 @@ pub fn parse_home(html: &Document, params: &Params) -> Result<HomeLayout> {
 			value: HomeComponentValue::ImageScroller {
 				links,
 				auto_scroll_interval: None,
-				width: Some(400),
-				height: Some(150),
+				width: Some(340),
+				height: Some(128),
 			},
 			..Default::default()
 		},

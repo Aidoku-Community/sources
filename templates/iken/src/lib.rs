@@ -13,6 +13,7 @@ mod markdown;
 mod models;
 mod settings;
 
+pub use helpers::sized_banner;
 pub use imp::Impl;
 
 pub struct Params {

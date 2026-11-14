@@ -27,7 +27,8 @@ impl TryFrom<Banner> for Manga {
 		Ok(Self {
 			key: format!("/series/{slug}"),
 			title: value.series_title.trim().into(),
-			cover: Some(value.desktop_image),
+			// The art is 2048px wide; the row shows it at 340
+			cover: Some(iken::sized_banner(&value.desktop_image, 680)),
 			..Default::default()
 		})
 	}
