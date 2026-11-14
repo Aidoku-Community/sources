@@ -2,114 +2,85 @@
 	{
 		"type": "sort",
 		"id": "sort",
-		"title": "Sort",
 		"canAscend": false,
 		"options": [
-			"Latest",
-			"Popular",
+			"Recently Updated",
+			"Most Bookmarked",
 			"Trending",
-			"Views",
-			"Rating",
+			"Most Viewed",
+			"Top Rated",
 			"Longest",
 			"Newest"
 		]
 	},
 	{
-		"type": "select",
-		"id": "status",
-		"title": "Status",
-		"options": [
-			"All",
-			"Ongoing",
-			"Completed",
-			"Hiatus",
-			"Dropped",
-			"Discontinued",
-			"Upcoming"
-		],
-		"ids": [
-			"",
-			"Ongoing",
-			"Completed",
-			"Hiatus",
-			"Dropped",
-			"Discontinued",
-			"Upcoming"
-		]
-	},
-	{
-		"type": "select",
+		"type": "multi-select",
 		"id": "type",
 		"title": "Type",
-		"options": ["All", "Manhwa", "Manhua", "Manga"],
-		"ids": ["", "MANHWA", "MANHUA", "MANGA"]
-	},
-	{
-		"type": "select",
-		"id": "origin",
-		"title": "Origin",
-		"options": ["All", "Korean", "Japanese", "Chinese", "Other"],
-		"ids": ["", "KOREAN", "JAPANESE", "CHINESE", "OTHER"]
+		"canExclude": false,
+		"options": [
+			"Manhwa",
+			"Manhua",
+			"Manga",
+			"Webtoon",
+			"Novel",
+			"Light Novel",
+			"Web Novel",
+			"Published Novel",
+			"Fanfiction",
+			"Original Fiction",
+			"One Shot"
+		]
 	},
 	{
 		"type": "multi-select",
-		"id": "genre",
-		"title": "Genre",
-		"isGenre": true,
+		"id": "status",
+		"title": "Status",
 		"canExclude": false,
 		"options": [
-			"Action",
-			"Adventure",
-			"Apocalypse",
-			"Comedy",
-			"Cultivation",
-			"Drama",
-			"Ecchi",
-			"Fantasy",
-			"Harem",
-			"Historical",
-			"Horror",
-			"Isekai",
-			"Magic",
-			"Martial Arts",
-			"Mature",
-			"Monster Girls",
-			"Monsters",
-			"Mystery",
-			"Reincarnation",
-			"Romance",
-			"School Life",
-			"Seinen",
-			"Shounen",
-			"Supernatural",
-			"System"
+			"Ongoing",
+			"Completed",
+			"Hiatus",
+			"Dropped",
+			"Discontinued",
+			"Upcoming"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "origin",
+		"title": "Origin",
+		"canExclude": false,
+		"options": [
+			"Korean",
+			"Japanese",
+			"Chinese",
+			"Other"
 		],
 		"ids": [
-			"action",
-			"adventure",
-			"apocalypse",
-			"comedy",
-			"cultivation",
-			"drama",
-			"ecchi",
-			"fantasy",
-			"harem",
-			"historical",
-			"horror",
-			"isekai",
-			"magic",
-			"martial-arts",
-			"mature",
-			"monster-girls",
-			"monsters",
-			"mystery",
-			"reincarnation",
-			"romance",
-			"school-life",
-			"seinen",
-			"shounen",
-			"supernatural",
-			"system"
+			"KOREAN",
+			"JAPANESE",
+			"CHINESE",
+			"OTHER"
 		]
+	},
+	{
+		"type": "text",
+		"id": "ch_min",
+		"title": "Chapters From",
+		"placeholder": "e.g. 20"
+	},
+	{
+		"type": "text",
+		"id": "ch_max",
+		"title": "Chapters To",
+		"placeholder": "e.g. 100"
+	},
+	{
+		"type": "check",
+		"id": "images",
+		"name": "Illustrated",
+		"hideFromHeader": true,
+		"canExclude": false
 	}
 ]
