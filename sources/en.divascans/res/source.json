@@ -1,0 +1,16 @@
+{
+	"info": {
+		"id": "en.divascans",
+		"name": "Diva Scans",
+		"version": 1,
+		"url": "https://divascans.org",
+		"contentRating": 2,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	},
+	"config": {
+		"supportsTagSearch": true
+	}
+}
