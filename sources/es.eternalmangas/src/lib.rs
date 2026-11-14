@@ -7,12 +7,15 @@ use aidoku::{
 	imports::net::Request,
 	prelude::*,
 };
+
 mod helpers;
 mod home;
 mod markdown;
 mod models;
 mod settings;
+
 const URL: &str = "https://eternalmangas.org";
+
 struct EternalMangas;
 
 impl Source for EternalMangas {

@@ -15,15 +15,13 @@ pub fn parse_home(html: &Document) -> Result<HomeLayout> {
 			let mut manga = helpers::manga_from_card(&card, label_novels)?;
 			manga.description = card
 				.select_first(".em-hero-copy p.d-none")
-				.and_then(|description| description.text())
-				.map(|description| description.trim().into());
+				.and_then(|description| description.text());
 			let mut tags: Vec<_> = card
 				.select(".em-hero-badges .em-badge")
 				.into_iter()
 				.flatten()
 				.filter_map(|tag| tag.text())
-				.map(|tag| tag.trim().into())
-				.filter(|tag: &aidoku::alloc::String| !tag.is_empty())
+				.filter(|tag| !tag.is_empty())
 				.collect();
 			tags.sort_unstable();
 			tags.dedup();
@@ -48,7 +46,6 @@ pub fn parse_home(html: &Document) -> Result<HomeLayout> {
 		else {
 			continue;
 		};
-		let title = title.trim();
 		let value = if title == "Últimas Actualizaciones" {
 			let entries: Vec<MangaWithChapter> = section
 				.select("a.em-update-card")
@@ -71,7 +68,7 @@ pub fn parse_home(html: &Document) -> Result<HomeLayout> {
 				entries,
 				listing: None,
 			}
-		} else if matches!(title, "Popular Hoy!" | "Tendencias" | "Novelas") {
+		} else if matches!(title.as_str(), "Popular Hoy!" | "Tendencias" | "Novelas") {
 			let entries: Vec<Link> = section
 				.select("a[href*='/series/']")
 				.into_iter()
@@ -104,7 +101,7 @@ pub fn parse_home(html: &Document) -> Result<HomeLayout> {
 			continue;
 		};
 		components.push(HomeComponent {
-			title: Some(title.into()),
+			title: Some(title),
 			value,
 			..Default::default()
 		});

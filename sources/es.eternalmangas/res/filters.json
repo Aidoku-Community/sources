@@ -61,6 +61,7 @@
 		"type": "select",
 		"id": "genre",
 		"title": "Género",
+		"isGenre": true,
 		"options": [
 			"Todos los géneros",
 			"+18",
@@ -322,7 +323,6 @@
 			"villano",
 			"yakuzas",
 			"yaoi"
-		],
-		"isGenre": true
+		]
 	}
 ]
