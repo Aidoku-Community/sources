@@ -21,6 +21,8 @@ impl Impl for ElfToon {
 register_source!(
 	VineTheme<ElfToon>,
 	Home,
+	ListingProvider,
+	DynamicFilters,
 	ImageRequestProvider,
 	DeepLinkHandler
 );

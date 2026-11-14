@@ -2,13 +2,15 @@
 	"info": {
 		"id": "en.elftoon",
 		"name": "Elf Toon",
-		"version": 3,
+		"version": 4,
 		"url": "https://elftoon.net",
 		"contentRating": 1,
-		"languages": ["en"],
-		"minAppVersion": "0.7.1"
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
 	},
 	"config": {
-		"breakingChangeVersion": 3
+		"supportsTagSearch": true
 	}
 }
