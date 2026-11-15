@@ -307,14 +307,13 @@ fn from_card(
 }
 
 pub(crate) fn relative_date(value: &str) -> Option<i64> {
-	let value = value.trim();
 	let digits: String = value.chars().take_while(char::is_ascii_digit).collect();
 	let amount: i64 = digits.parse().ok()?;
 	let scale = match value.get(digits.len()..)? {
 		"m" => 60,
 		"h" => 3600,
 		"d" => 86400,
-		"w" => 604800,
+		"mo" => 2_592_000,
 		_ => return None,
 	};
 	Some(current_date() - amount * scale)

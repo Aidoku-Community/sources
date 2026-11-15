@@ -131,7 +131,7 @@ pub fn credit_names(value: Option<String>) -> Option<Vec<String>> {
 	let mut names = Vec::new();
 	for name in value
 		.as_deref()?
-		.split([',', '&'])
+		.split([',', '&', '/'])
 		.map(str::trim)
 		.filter(|name| !name.is_empty())
 	{

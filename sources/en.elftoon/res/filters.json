@@ -65,17 +65,10 @@
 		]
 	},
 	{
-		"type": "text",
-		"id": "ch_min",
-		"title": "Chapters From",
-		"placeholder": "e.g. 20",
-		"hideFromHeader": true
-	},
-	{
-		"type": "text",
-		"id": "ch_max",
-		"title": "Chapters To",
-		"placeholder": "e.g. 100",
+		"type": "range",
+		"id": "chapters",
+		"title": "Chapters",
+		"min": 1,
 		"hideFromHeader": true
 	}
 ]

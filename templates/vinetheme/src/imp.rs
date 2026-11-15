@@ -125,7 +125,7 @@ pub trait Impl {
 				.ok_or(error!("Novel not found"))?;
 			series = fetch(&novel.slug)?;
 		}
-		let mut chapters = core::mem::take(&mut series.chapters);
+		let chapters = core::mem::take(&mut series.chapters);
 		let count = series.chapter_count;
 		if needs_details {
 			let key = core::mem::take(&mut manga.key);
@@ -143,11 +143,11 @@ pub trait Impl {
 					bail!("Duplicate chapter in response");
 				}
 			}
-			chapters.reverse();
 			let show_locked = settings::show_locked();
 			manga.chapters = Some(
 				chapters
 					.into_iter()
+					.rev()
 					.filter(|chapter| show_locked || !chapter.locked())
 					.map(|chapter| chapter.into_chapter(params, &manga.key))
 					.collect(),
@@ -242,16 +242,16 @@ pub trait Impl {
 		filters: &[FilterValue],
 	) -> Result<MangaPageResult> {
 		let mut qs = QueryParameters::new();
-		qs.push("limit", Some("24"));
-		qs.push("page", Some(&page.to_string()));
-		qs.push("contentMode", Some("all"));
+		qs.push_encoded("limit", Some("24"));
+		qs.push_encoded("page", Some(&page.to_string()));
+		qs.push_encoded("contentMode", Some("all"));
 		for pair in listing.split('&') {
 			if let Some((key, value)) = pair.split_once('=') {
 				qs.set(key, Some(&decode_uri(value)));
 			}
 		}
-		if let Some(query) = query {
-			qs.set("q", Some(query));
+		if query.is_some() {
+			qs.set("q", query);
 		}
 		for filter in filters {
 			match filter {
@@ -276,6 +276,13 @@ pub trait Impl {
 						qs.set(parameter, Some(&facet.slug));
 					} else {
 						return Ok(MangaPageResult::default());
+					}
+				}
+				FilterValue::Range { id, from, to } if id == "chapters" => {
+					for (parameter, bound) in [("ch_min", from), ("ch_max", to)] {
+						if let Some(bound) = bound {
+							qs.set(parameter, Some(&(*bound as i64).to_string()));
+						}
 					}
 				}
 				FilterValue::Check { id, value } if id == "images" => {
