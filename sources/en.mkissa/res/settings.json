@@ -1,0 +1,29 @@
+[
+	{
+		"type": "group",
+		"footer": "Resized images come from a slower server and can fail.",
+		"items": [
+			{
+				"type": "select",
+				"key": "imageQuality",
+				"title": "Image Quality",
+				"values": ["original", "800", "480"],
+				"titles": ["Original", "800px", "480px"],
+				"default": "original"
+			}
+		]
+	},
+	{
+		"type": "group",
+		"footer": "Show adult titles in Discover, listings and search.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "showAdult",
+				"title": "Show Adult Content",
+				"default": false,
+				"refreshes": ["content"]
+			}
+		]
+	}
+]
