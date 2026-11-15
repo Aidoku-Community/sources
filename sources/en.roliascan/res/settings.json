@@ -1,0 +1,27 @@
+[
+	{
+		"type": "group",
+		"title": "Content",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "excludedTypes",
+				"title": "Excluded Types",
+				"values": [
+					"Manga",
+					"Manhwa",
+					"Manhua",
+					"Webtoon",
+					"Novel"
+				],
+				"default": []
+			},
+			{
+				"type": "switch",
+				"key": "labelNovels",
+				"title": "Label Novels",
+				"default": true
+			}
+		]
+	}
+]

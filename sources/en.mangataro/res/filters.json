@@ -1,0 +1,12 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"options": [
+			"Latest Updates",
+			"Release Date",
+			"Title A-Z",
+			"Popular"
+		]
+	}
+]
