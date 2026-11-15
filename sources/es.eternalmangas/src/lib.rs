@@ -15,7 +15,7 @@ impl Impl for MagusManga {
 	fn params(&self) -> Params {
 		Params {
 			base_url: BASE_URL.into(),
-			api_url: Some(API_URL.into()),
+			api_url: API_URL.into(),
 			..Default::default()
 		}
 	}
