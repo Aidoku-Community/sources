@@ -18,4 +18,8 @@ impl Impl for MangaCorporation {
 	}
 }
 
-register_source!(PizzaReader<MangaCorporation>, DynamicFilters, DeepLinkHandler);
+register_source!(
+	PizzaReader<MangaCorporation>,
+	DynamicFilters,
+	DeepLinkHandler
+);

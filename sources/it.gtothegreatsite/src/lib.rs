@@ -18,4 +18,8 @@ impl Impl for GTOTheGreatSite {
 	}
 }
 
-register_source!(PizzaReader<GTOTheGreatSite>, DynamicFilters, DeepLinkHandler);
+register_source!(
+	PizzaReader<GTOTheGreatSite>,
+	DynamicFilters,
+	DeepLinkHandler
+);
