@@ -96,8 +96,8 @@ fn reader_pages() {
 
 #[aidoku_test]
 fn slugs() {
-	assert_eq!(&slug_from_url("/blue-lock/bolum-366"), "bolum-366");
-	assert_eq!(&slug_from_url("blue-lock"), "blue-lock");
+	assert_eq!(slug_from_url("/blue-lock/bolum-366"), "bolum-366");
+	assert_eq!(slug_from_url("blue-lock"), "blue-lock");
 }
 
 #[aidoku_test]

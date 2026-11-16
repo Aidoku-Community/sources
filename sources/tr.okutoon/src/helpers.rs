@@ -11,21 +11,6 @@ use aidoku::{
 };
 use serde_json::Value;
 
-/// Fetch a page of the server-rendered catalog.
-/// `path` is a `/tur` path (with optional genre segment) and `params` are
-/// already-encoded query pairs, joined as `name=value` with `&`.
-pub fn fetch_listing(path: &str, params: Vec<(&str, String)>) -> Result<MangaPageResult> {
-	let mut url = format!("{BASE_URL}{path}");
-	for (i, (name, value)) in params.iter().enumerate() {
-		url.push(if i == 0 { '?' } else { '&' });
-		url.push_str(name);
-		url.push('=');
-		url.push_str(value);
-	}
-	let document = request_document(&url)?;
-	Ok(parse_cards(&document))
-}
-
 pub fn request_document(url: &str) -> Result<Document> {
 	Request::get(url)?
 		.header("User-Agent", USER_AGENT)
@@ -39,12 +24,10 @@ pub fn parse_cards(document: &Document) -> MangaPageResult {
 	let mut entries = Vec::new();
 	if let Some(cards) = document.select("a.series-card") {
 		for card in cards {
-			let Some(key) = card
-				.attr("href")
-				.as_deref()
-				.map(slug_from_url)
-				.filter(|slug| !slug.is_empty())
-			else {
+			let Some(key) = card.attr("href").and_then(|href| {
+				let slug = slug_from_url(&href);
+				(!slug.is_empty()).then(|| slug.into())
+			}) else {
 				continue;
 			};
 			let Some(title) = card
@@ -69,14 +52,14 @@ pub fn parse_cards(document: &Document) -> MangaPageResult {
 	}
 }
 
-pub fn slug_from_url(url: &str) -> String {
-	url.rsplit('/').next().unwrap_or_default().to_string()
+pub fn slug_from_url(url: &str) -> &str {
+	url.rsplit('/').next().unwrap_or_default()
 }
 
 /// Parse series details from the JSON-LD block plus the type and status
 /// from the page header.
 pub fn parse_details(key: &str, document: &Document) -> Manga {
-	let mut title = String::new();
+	let mut title = None;
 	let mut cover = None;
 	let mut description = None;
 	let mut authors = None;
@@ -88,8 +71,8 @@ pub fn parse_details(key: &str, document: &Document) -> Manga {
 	{
 		// script contents are raw data; fall back to inner html where data
 		// isn't available (the test runner doesn't implement it)
-		let json = ld.data().or_else(|| ld.html()).unwrap_or_default();
-		if let Ok(value) = serde_json::from_str::<Value>(json.trim())
+		if let Some(json) = ld.data().or_else(|| ld.html())
+			&& let Ok(value) = serde_json::from_str::<Value>(json.trim())
 			&& let Some(series) = value
 				.get("@graph")
 				.and_then(Value::as_array)
@@ -98,7 +81,7 @@ pub fn parse_details(key: &str, document: &Document) -> Manga {
 						node.get("@type").and_then(Value::as_str) == Some("ComicSeries")
 					})
 				}) {
-			title = string_field(series, "name").unwrap_or_default();
+			title = string_field(series, "name");
 			cover = string_field(series, "image");
 			description = string_field(series, "description");
 			// `author` is either a single Person or an array of them
@@ -125,15 +108,14 @@ pub fn parse_details(key: &str, document: &Document) -> Manga {
 		}
 	}
 
-	if title.is_empty() {
-		title = document
-			.select_first("h1")
-			.and_then(|e| e.text())
-			.unwrap_or_default();
-		if title.is_empty() {
-			title = key.to_string();
-		}
-	}
+	let title = title
+		.or_else(|| {
+			document
+				.select_first("h1")
+				.and_then(|e| e.text())
+				.filter(|t| !t.is_empty())
+		})
+		.unwrap_or_else(|| key.into());
 	if cover.is_none() {
 		cover = document
 			.select_first("meta[property=\"og:image\"]")
@@ -144,8 +126,10 @@ pub fn parse_details(key: &str, document: &Document) -> Manga {
 	// "<type> · <status>"
 	let mut viewer = Viewer::Webtoon;
 	let mut status = MangaStatus::Unknown;
-	if let Some(kicker) = document.select_first(".series-detail-kicker") {
-		let text = kicker.text().unwrap_or_default();
+	if let Some(text) = document
+		.select_first(".series-detail-kicker")
+		.and_then(|el| el.text())
+	{
 		for part in text.split('·').map(str::trim) {
 			match fold_turkish(part).as_str() {
 				"manga" => viewer = Viewer::RightToLeft,
@@ -158,11 +142,9 @@ pub fn parse_details(key: &str, document: &Document) -> Manga {
 		}
 	}
 
-	let suggestive = tags.iter().flatten().any(|tag| {
-		let tag = tag.to_lowercase();
-		tag.contains("ecchi") || tag.contains("eroti")
-	});
-	let content_rating = if suggestive {
+	// genres come from the site's fixed list, where "Ecchi" is the only
+	// suggestive one
+	let content_rating = if tags.iter().flatten().any(|tag| tag == "Ecchi") {
 		ContentRating::Suggestive
 	} else {
 		ContentRating::Safe
@@ -202,13 +184,13 @@ pub fn parse_chapters(key: &str, document: &Document) -> Vec<Chapter> {
 		return chapters;
 	};
 	for item in items {
-		let Some(chapter_url) = item
+		let Some(href) = item
 			.select_first("a.chapter-item-link")
 			.and_then(|a| a.attr("href"))
 		else {
 			continue;
 		};
-		let chapter_key = slug_from_url(&chapter_url);
+		let chapter_key = slug_from_url(&href);
 		if chapter_key.is_empty() {
 			continue;
 		}
@@ -230,7 +212,7 @@ pub fn parse_chapters(key: &str, document: &Document) -> Vec<Chapter> {
 			.and_then(|date| parse_date_with_options(date, "d MMMM yyyy", "tr_TR", "UTC"));
 		chapters.push(Chapter {
 			url: Some(chapter_url),
-			key: chapter_key,
+			key: chapter_key.into(),
 			title,
 			chapter_number: number,
 			date_uploaded,

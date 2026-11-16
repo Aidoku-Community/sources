@@ -1,8 +1,22 @@
 [
 	{
+		"type": "sort",
+		"id": "sort",
+		"title": "Sıralama",
+		"canAscend": false,
+		"options": [
+			"En Yeni",
+			"Son Güncellenen",
+			"En Popüler",
+			"En Yüksek Puan",
+			"A-Z"
+		]
+	},
+	{
 		"type": "select",
 		"id": "genre",
 		"title": "Tür",
+		"isGenre": true,
 		"options": [
 			"Tümü",
 			"Shounen",
@@ -86,25 +100,6 @@
 			"zamanda-yolculuk",
 			"zindan",
 			"zombi"
-		]
-	},
-	{
-		"type": "select",
-		"id": "sort",
-		"title": "Sıralama",
-		"options": [
-			"En Yeni",
-			"Son Güncellenen",
-			"En Popüler",
-			"En Yüksek Puan",
-			"A-Z"
-		],
-		"ids": [
-			"newest",
-			"updated",
-			"popular",
-			"rating",
-			"az"
 		]
 	},
 	{

@@ -3,8 +3,8 @@
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider, Manga,
 	MangaPageResult, Page, Result, Source,
-	alloc::{String, Vec, format, string::ToString},
-	helpers::uri::encode_uri_component,
+	alloc::{String, Vec, format, string::ToString, vec},
+	helpers::uri::QueryParameters,
 	prelude::*,
 };
 
@@ -14,6 +14,9 @@ use helpers::*;
 const BASE_URL: &str = "https://okutoon.com";
 
 const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
+
+/// Site `sira` values, in the order of the sort filter options.
+const SORT_IDS: &[&str] = &["newest", "updated", "popular", "rating", "az"];
 
 const PAGE_ERROR: &str = "Bölüm sayfaları alınamadı.";
 const NETWORK_ERROR: &str = "Sayfa okutoon.com'dan alınamadı.";
@@ -51,37 +54,40 @@ impl Source for OkuToon {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let mut genre = "";
-		let mut sort = "newest";
-		let mut period = "";
+		let mut genre = None;
+		let mut sort = SORT_IDS[0];
+		let mut period = None;
 		for filter in &filters {
-			if let FilterValue::Select { id, value } = filter {
-				match id.as_str() {
-					"genre" => genre = value.as_str(),
-					"sort" => sort = value.as_str(),
-					"period" => period = value.as_str(),
-					_ => {}
+			match filter {
+				FilterValue::Sort { index, .. } => {
+					sort = SORT_IDS.get(*index as usize).copied().unwrap_or(sort);
 				}
+				FilterValue::Select { id, value } => match id.as_str() {
+					// the "Tümü" option has an empty id
+					"genre" => genre = Some(value.as_str()).filter(|g| !g.is_empty()),
+					"period" => period = Some(value.as_str()),
+					_ => {}
+				},
+				_ => {}
 			}
 		}
 
-		let path = if genre.is_empty() {
-			"/tur".to_string()
-		} else {
-			format!("/tur/{genre}")
-		};
-		let mut params = Vec::new();
-		if let Some(query) = query.filter(|q| !q.is_empty()) {
-			params.push(("q", encode_uri_component(query)));
+		let mut qs = QueryParameters::new();
+		if let Some(query) = query.as_deref() {
+			qs.push("q", Some(query));
 		}
-		params.push(("sira", sort.to_string()));
-		if sort == "popular" && !period.is_empty() {
-			params.push(("donem", period.to_string()));
+		qs.push("sira", Some(sort));
+		if sort == "popular" && period.is_some() {
+			qs.push("donem", period);
 		}
 		if page > 1 {
-			params.push(("sayfa", page.to_string()));
+			qs.push("sayfa", Some(&page.to_string()));
 		}
-		fetch_listing(&path, params)
+		let url = match genre {
+			Some(genre) => format!("{BASE_URL}/tur/{genre}?{qs}"),
+			None => format!("{BASE_URL}/tur?{qs}"),
+		};
+		Ok(parse_cards(&request_document(&url)?))
 	}
 
 	fn get_manga_update(
@@ -108,21 +114,23 @@ impl Source for OkuToon {
 
 impl ListingProvider for OkuToon {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		let sort = match listing.id.as_str() {
-			"popular" => "popular",
-			"updated" => "updated",
-			"rating" => "rating",
-			_ => "newest",
-		};
-		let mut params = Vec::new();
-		params.push(("sira", sort.to_string()));
-		if sort == "popular" {
-			params.push(("donem", "weekly".to_string()));
+		// listing ids match the sort ids; the popular listing is weekly
+		let index = SORT_IDS
+			.iter()
+			.position(|id| *id == listing.id)
+			.unwrap_or_default() as i32;
+		let mut filters = vec![FilterValue::Sort {
+			id: "sort".into(),
+			index,
+			ascending: false,
+		}];
+		if listing.id == "popular" {
+			filters.push(FilterValue::Select {
+				id: "period".into(),
+				value: "weekly".into(),
+			});
 		}
-		if page > 1 {
-			params.push(("sayfa", page.to_string()));
-		}
-		fetch_listing("/tur", params)
+		self.get_search_manga_list(None, page, filters)
 	}
 }
 
