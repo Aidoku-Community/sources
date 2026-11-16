@@ -64,6 +64,12 @@ pub struct PizzaGenreDto {
 }
 
 #[derive(Debug, Deserialize, Default)]
+pub struct PizzaTeamDto {
+	#[serde(default)]
+	pub name: String,
+}
+
+#[derive(Debug, Deserialize, Default)]
 pub struct PizzaChapterDto {
 	#[serde(default)]
 	pub volume: Option<i32>,
@@ -81,6 +87,8 @@ pub struct PizzaChapterDto {
 	pub subchapter: Option<i32>,
 	#[serde(default)]
 	pub url: String,
+	#[serde(default)]
+	pub teams: Vec<Option<PizzaTeamDto>>, // teams can be null for some reason
 }
 
 impl From<PizzaComicDto> for Manga {

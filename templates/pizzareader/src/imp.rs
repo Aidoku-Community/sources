@@ -184,6 +184,14 @@ pub trait Impl {
 							&chapter.published_on,
 							"yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'",
 						),
+						scanlators: Some(
+							chapter
+								.teams
+								.iter()
+								.flatten()
+								.map(|team| team.name.clone())
+								.collect(),
+						),
 						..Default::default()
 					})
 					.collect(),
