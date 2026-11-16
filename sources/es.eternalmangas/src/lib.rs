@@ -46,8 +46,8 @@ impl Source for EternalMangas {
 		}
 		let mut qs = QueryParameters::new();
 		qs.push("page", Some(&page.to_string()));
-		if let Some(query) = query {
-			qs.push("search", Some(&query));
+		if query.is_some() {
+			qs.push("search", query.as_deref());
 		}
 		for filter in filters {
 			if let FilterValue::Select { id, value } = filter
