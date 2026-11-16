@@ -1,67 +1,115 @@
-use aidoku::{Result, prelude::*};
+use aidoku::{
+	Result,
+	alloc::{String, Vec, borrow::Cow},
+	prelude::*,
+};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-pub fn extract<T: DeserializeOwned>(body: &str, required_key: &str) -> Result<T> {
-	for line in body.lines() {
-		let candidate = line.split_once(':').map_or(line, |(_, value)| value);
-		if let Ok(value) = serde_json::from_str::<Value>(candidate)
-			&& let Some(found) = find_object(value, required_key)
-			&& let Ok(result) = serde_json::from_value(found)
+pub fn decode(body: &str) -> Result<Cow<'_, str>> {
+	if !body.trim_start().starts_with('<') {
+		return Ok(Cow::Borrowed(body));
+	}
+	let mut flight = String::new();
+	for chunk in body.split("self.__next_f.push(").skip(1) {
+		let Some(Ok(value)) = serde_json::Deserializer::from_str(chunk)
+			.into_iter::<Value>()
+			.next()
+		else {
+			continue;
+		};
+		if value[0] == 1
+			&& let Some(text) = value[1].as_str()
 		{
-			return Ok(result);
+			flight.push_str(text);
 		}
 	}
-
-	if let Ok(value) = serde_json::from_str::<Value>(body)
-		&& let Some(found) = find_object(value, required_key)
-	{
-		return Ok(serde_json::from_value(found)?);
+	if flight.is_empty() {
+		bail!("Missing page data");
 	}
-
-	bail!("Unable to find {required_key} in RSC response")
+	Ok(Cow::Owned(flight))
 }
 
-fn find_object(value: Value, required_key: &str) -> Option<Value> {
-	match value {
-		Value::Object(mut object) => {
-			if object.contains_key(required_key) {
-				return Some(Value::Object(object));
+pub fn extract<T: DeserializeOwned>(body: &str, keys: &[&str]) -> Result<T> {
+	let value = objects(body, keys)
+		.into_iter()
+		.next()
+		.ok_or(error!("Missing {} in page data", keys.join("/")))?;
+	Ok(serde_json::from_value(value)?)
+}
+
+pub fn objects(body: &str, keys: &[&str]) -> Vec<Value> {
+	let mut output = Vec::new();
+	for (_, row) in rows(body) {
+		if let Row::Json(line) = row
+			&& let Ok(value) = serde_json::from_str(line)
+		{
+			collect(value, keys, &mut output);
+		}
+	}
+	output
+}
+
+enum Row<'a> {
+	Text(&'a str),
+	Json(&'a str),
+}
+
+fn rows(body: &str) -> impl Iterator<Item = (&str, Row<'_>)> {
+	let mut remaining = body;
+	core::iter::from_fn(move || {
+		loop {
+			let (id, row) = remaining.split_once(':')?;
+			if id.is_empty() || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
+				remaining = remaining.split_once('\n').map_or("", |(_, rest)| rest);
+				continue;
 			}
-			object
-				.values_mut()
-				.find_map(|value| find_object(core::mem::take(value), required_key))
+			if let Some(raw) = row.strip_prefix('T') {
+				let (length, text) = raw.split_once(',')?;
+				let length = usize::from_str_radix(length, 16).ok()?;
+				// Byte-length text rows may contain newlines or touch the next row.
+				let value = text.get(..length)?;
+				remaining = text.get(length..)?.trim_start_matches('\n');
+				return Some((id, Row::Text(value)));
+			}
+			let (line, rest) = row.split_once('\n').unwrap_or((row, ""));
+			remaining = rest;
+			return Some((id, Row::Json(line)));
 		}
-		Value::Array(values) => values
-			.into_iter()
-			.find_map(|value| find_object(value, required_key)),
-		Value::String(string) => serde_json::from_str::<Value>(&string)
-			.ok()
-			.and_then(|value| find_object(value, required_key)),
-		_ => None,
+	})
+}
+
+fn collect(value: Value, keys: &[&str], output: &mut Vec<Value>) {
+	match value {
+		Value::Object(object) if keys.iter().all(|key| object.contains_key(*key)) => {
+			output.push(Value::Object(object))
+		}
+		Value::Object(object) => {
+			for (_, value) in object {
+				collect(value, keys, output);
+			}
+		}
+		Value::Array(values) => {
+			for value in values {
+				collect(value, keys, output);
+			}
+		}
+		_ => {}
 	}
 }
 
-#[cfg(test)]
-mod tests {
-	use super::extract;
-	use aidoku::alloc::string::String;
-	use aidoku_test::aidoku_test;
-	use serde::Deserialize;
-
-	#[derive(Deserialize)]
-	struct Payload {
-		series: Series,
-	}
-
-	#[derive(Deserialize)]
-	struct Series {
-		title: String,
-	}
-
-	#[aidoku_test]
-	fn test_extraction() {
-		let payload: Payload = extract(r#"1:["$",{"series":{"title":"Test"}}]"#, "series").unwrap();
-		assert_eq!(payload.series.title, "Test");
+pub fn text<'a>(body: &'a str, value: &'a str) -> Result<Cow<'a, str>> {
+	let Some(id) = value
+		.strip_prefix('$')
+		.filter(|id| !id.is_empty() && id.bytes().all(|b| b.is_ascii_hexdigit()))
+	else {
+		return Ok(Cow::Borrowed(value));
+	};
+	let (_, row) = rows(body)
+		.find(|(key, _)| *key == id)
+		.ok_or(error!("Missing chapter text"))?;
+	match row {
+		Row::Text(text) => Ok(Cow::Borrowed(text)),
+		Row::Json(json) => Ok(Cow::Owned(serde_json::from_str(json)?)),
 	}
 }
