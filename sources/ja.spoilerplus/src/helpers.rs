@@ -6,6 +6,7 @@ use aidoku::{
 };
 
 pub const BASE_URL: &str = "https://spoilerplus.sc";
+pub const TILE_COLS: usize = 4;
 
 pub fn clean_title(title: String) -> String {
 	let suffixes = [" Raw Free", " Raw free", " raw free"];
@@ -85,5 +86,10 @@ pub fn decode_page_order(key: &str) -> Result<Vec<usize>> {
 				.map_err(|_| error!("Invalid tile position"))
 		})
 		.collect::<Result<Vec<_>>>()?;
+	// a key xored with a stale domain still decodes to numbers, just not this grid
+	let tiles = TILE_COLS * TILE_COLS;
+	if parts.len() != tiles || parts.iter().any(|&part| part >= tiles) {
+		bail!("Invalid tile order");
+	}
 	Ok(parts)
 }

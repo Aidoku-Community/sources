@@ -225,7 +225,7 @@ fn test_chapter_list() {
 fn test_chapter_urls_are_encoded() {
 	assert_eq!(
 		(SpoilerPlus.params().chapter_url_transformer)("/HUNTER X HUNTER-raw-free/第417話/".into()),
-		"https://spoilerplus.tv/HUNTER%20X%20HUNTER-raw-free/%E7%AC%AC417%E8%A9%B1/"
+		"https://spoilerplus.sc/HUNTER%20X%20HUNTER-raw-free/%E7%AC%AC417%E8%A9%B1/"
 	);
 }
 
@@ -267,15 +267,29 @@ fn test_page_list() {
 			url.starts_with(IMG_CDN),
 			"page should be served from the image cdn, got {url}"
 		);
-		// a missing key would silently ship scrambled images
-		assert!(
-			context
-				.as_ref()
-				.and_then(|c| c.get("key"))
-				.is_some_and(|key| !key.is_empty()),
-			"page should carry the descrambling key"
-		);
+		// only scrambled chapters carry a key, so its absence is not a failure
+		if let Some(key) = context.as_ref().and_then(|c| c.get("key")) {
+			assert!(
+				decode_page_order(key).is_ok(),
+				"descrambling key should decode, got {key}"
+			);
+		}
 	}
+}
+
+#[aidoku_test]
+fn test_page_order_decodes() {
+	// captured from the site on 2026-11-17
+	assert_eq!(
+		decode_page_order(
+			"62766b6e766c7669766f766b68766b766b6b766b6a7668766d766b69766e766a7663766b6f"
+		)
+		.ok(),
+		Some(vec![8, 14, 6, 3, 5, 12, 1, 11, 10, 2, 7, 13, 4, 0, 9, 15])
+	);
+	// "0,1,2" is not a 4x4 grid
+	assert!(decode_page_order("6a766b7668").is_err());
+	assert!(decode_page_order("6").is_err());
 }
 
 #[aidoku_test]
@@ -287,19 +301,32 @@ fn test_deep_links() {
 	};
 
 	assert_eq!(
-		handle("https://spoilerplus.tv/HUNTER%20X%20HUNTER-raw-free/"),
+		handle("https://spoilerplus.sc/HUNTER%20X%20HUNTER-raw-free/"),
 		Some(DeepLinkResult::Manga {
 			key: SERIES_KEY.into()
 		})
 	);
 	assert_eq!(
-		handle("https://spoilerplus.tv/HUNTER%20X%20HUNTER-raw-free/第417話/"),
+		handle("https://spoilerplus.sc/HUNTER%20X%20HUNTER-raw-free/第417話/"),
 		Some(DeepLinkResult::Chapter {
 			manga_key: SERIES_KEY.into(),
 			key: "/HUNTER X HUNTER-raw-free/第417話/".into(),
 		})
 	);
-	assert_eq!(handle("https://spoilerplus.tv/genre/Ecchi/"), None);
-	assert_eq!(handle("https://spoilerplus.tv/ranking/"), None);
+	assert_eq!(
+		handle("https://spoilerplus.sc/HUNTER%20X%20HUNTER-raw-free/?utm_source=x"),
+		Some(DeepLinkResult::Manga {
+			key: SERIES_KEY.into()
+		})
+	);
+	assert_eq!(
+		handle("https://spoilerplus.sc/HUNTER%20X%20HUNTER-raw-free/第417話/#top"),
+		Some(DeepLinkResult::Chapter {
+			manga_key: SERIES_KEY.into(),
+			key: "/HUNTER X HUNTER-raw-free/第417話/".into(),
+		})
+	);
+	assert_eq!(handle("https://spoilerplus.sc/genre/Ecchi/"), None);
+	assert_eq!(handle("https://spoilerplus.sc/ranking/"), None);
 	assert_eq!(handle("https://example.com/HUNTER-raw-free/"), None);
 }

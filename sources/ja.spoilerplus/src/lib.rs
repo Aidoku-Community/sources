@@ -208,7 +208,7 @@ impl Impl for SpoilerPlus {
 		};
 
 		let parts = decode_page_order(order_key)?;
-		let cols = 4;
+		let cols = TILE_COLS;
 
 		let image_width = response.image.width();
 		let image_height = response.image.height();
@@ -243,6 +243,8 @@ impl Impl for SpoilerPlus {
 		let Some(path) = url.strip_prefix(params.base_url.as_ref()) else {
 			return Ok(None);
 		};
+		// shared links often carry tracking queries such as ?utm_source=
+		let path = path.split(['?', '#']).next().unwrap_or_default();
 		// keys are stored decoded, shared links carry the encoded form
 		let key = decode_uri(path);
 
