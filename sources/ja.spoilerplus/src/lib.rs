@@ -44,9 +44,15 @@ impl Impl for SpoilerPlus {
 			manga_details_authors_transformer: |authors| {
 				authors.into_iter().filter(|a| a != "更新中").collect()
 			},
+			manga_details_description: "div.detail-content > p:not(:has(strong))",
 			// genre and tag rows are both li.kind, each value its own anchor
 			manga_details_tags: "ul.list-info > li.kind p.col-xs-8 > a",
 			manga_details_tags_splitter: "",
+			manga_details_tags_transformer: |mut tags| {
+				tags.sort_unstable();
+				tags.dedup();
+				tags
+			},
 			// the alt titles row shares the status row's classes; only the icon differs
 			manga_details_status: "ul.list-info > li.row.status:has(i.fa-rss) > p.col-xs-8",
 			status_mapping: |status| match status.trim() {
@@ -160,6 +166,7 @@ impl Impl for SpoilerPlus {
 			.get_json::<ChapterApiResponse>()?;
 
 		let ChapterApiResponse {
+			b: scrambled,
 			c: order_key,
 			e: paths,
 		} = response;
@@ -174,7 +181,9 @@ impl Impl for SpoilerPlus {
 			.map(|path| {
 				let img_url = format!("{IMG_CDN}{path}");
 				let mut context = PageContext::new();
-				context.insert("key".into(), order_key.clone());
+				if scrambled {
+					context.insert("key".into(), order_key.clone());
+				}
 				Page {
 					content: PageContent::url_context(img_url, context),
 					..Default::default()
@@ -198,54 +207,20 @@ impl Impl for SpoilerPlus {
 			return Ok(response.image);
 		};
 
-		// pages are scrambled into a square grid, the order handed out as hex bytes
-		// xored with the domain
-		const XOR_KEY: &str = "spoilerplus.tv";
-
-		let order_bytes = order_key
-			.as_bytes()
-			.chunks(2)
-			.map(|chunk| {
-				core::str::from_utf8(chunk)
-					.ok()
-					.and_then(|hex| u8::from_str_radix(hex, 16).ok())
-					.ok_or_else(|| error!("Invalid order key"))
-			})
-			.collect::<Result<Vec<u8>>>()?;
-
-		let key_bytes = XOR_KEY.as_bytes();
-		let decoded_bytes = order_bytes
-			.into_iter()
-			.map(|mut byte| {
-				for &k in key_bytes {
-					byte ^= k;
-				}
-				byte
-			})
-			.collect::<Vec<u8>>();
-
-		let parts: Vec<i32> = String::from_utf8(decoded_bytes)
-			.map_err(|_| error!("Invalid decoded result"))?
-			.split(",")
-			.filter_map(|s| s.parse().ok())
-			.collect();
-
-		let cols = parts.len().isqrt();
-		if cols == 0 || cols * cols != parts.len() {
-			return Err(error!("Page order is not a square grid"));
-		}
+		let parts = decode_page_order(order_key)?;
+		let cols = 4;
 
 		let image_width = response.image.width();
 		let image_height = response.image.height();
 
 		let mut canvas = Canvas::new(image_width, image_height);
 
-		let unit_width = image_width / cols as f32;
-		let unit_height = image_height / cols as f32;
+		let unit_width = (image_width as u32 / cols as u32) as f32;
+		let unit_height = (image_height as u32 / cols as u32) as f32;
 
 		for (i, pos) in parts.iter().enumerate() {
-			let sx = (*pos % cols as i32) as f32 * unit_width;
-			let sy = (*pos / cols as i32) as f32 * unit_height;
+			let sx = (*pos % cols) as f32 * unit_width;
+			let sy = (*pos / cols) as f32 * unit_height;
 
 			let dx = (i % cols) as f32 * unit_width;
 			let dy = (i / cols) as f32 * unit_height;

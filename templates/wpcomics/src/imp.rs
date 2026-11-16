@@ -190,22 +190,28 @@ pub trait Impl {
 				.map(text_with_newlines)
 				.collect::<Vec<_>>()
 				.join("\n")
+				.trim()
+				.into()
 		});
 
 		let tags = if !params.manga_details_tags.is_empty() {
 			if params.manga_details_tags_splitter.is_empty() {
 				details.select(params.manga_details_tags).map(|list| {
-					list.map(|elem| elem.text().unwrap_or_default())
-						.collect::<Vec<_>>()
+					(params.manga_details_tags_transformer)(
+						list.map(|elem| elem.text().unwrap_or_default())
+							.collect::<Vec<_>>(),
+					)
 				})
 			} else {
 				details.select(params.manga_details_tags).map(|l| {
-					l.text()
-						.unwrap_or_default()
-						.split(params.manga_details_tags_splitter)
-						.map(|s| s.trim().to_string())
-						.filter(|s| !s.is_empty())
-						.collect::<Vec<_>>()
+					(params.manga_details_tags_transformer)(
+						l.text()
+							.unwrap_or_default()
+							.split(params.manga_details_tags_splitter)
+							.map(|s| s.trim().to_string())
+							.filter(|s| !s.is_empty())
+							.collect::<Vec<_>>(),
+					)
 				})
 			}
 		} else {

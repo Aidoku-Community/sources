@@ -2,10 +2,12 @@
 	"info": {
 		"id": "en.magusmanga",
 		"name": "Magus Manga",
-		"version": 2,
+		"version": 3,
 		"url": "https://magustoon.org",
 		"contentRating": 0,
-		"languages": ["en"],
-		"minAppVersion": "0.7.1"
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
 	}
 }

@@ -1,0 +1,13 @@
+{
+	"info": {
+		"id": "en.hijalascans",
+		"name": "Hijala Scans",
+		"version": 1,
+		"url": "https://en-hijala.com",
+		"contentRating": 0,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.8.3"
+	}
+}

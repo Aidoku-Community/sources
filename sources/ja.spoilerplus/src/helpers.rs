@@ -1,11 +1,11 @@
 use aidoku::{
-	FilterValue,
-	alloc::string::String,
+	FilterValue, Result,
+	alloc::{String, Vec},
 	helpers::uri::{decode_uri, encode_uri},
-	prelude::format,
+	prelude::*,
 };
 
-pub const BASE_URL: &str = "https://spoilerplus.tv";
+pub const BASE_URL: &str = "https://spoilerplus.sc";
 
 pub fn clean_title(title: String) -> String {
 	let suffixes = [" Raw Free", " Raw free", " raw free"];
@@ -54,4 +54,36 @@ pub fn read_window_number(data: &str, name: &str, fractional: bool) -> Option<St
 		.unwrap_or(after_eq.len());
 	let number = after_eq[..end].trim();
 	(!number.is_empty()).then(|| number.into())
+}
+
+pub fn decode_page_order(key: &str) -> Result<Vec<usize>> {
+	if !key.len().is_multiple_of(2) {
+		bail!("Invalid order key");
+	}
+	let xor = BASE_URL
+		.trim_start_matches("https://")
+		.bytes()
+		.fold(0, |a, b| a ^ b);
+	let decoded = key
+		.as_bytes()
+		.as_chunks::<2>()
+		.0
+		.iter()
+		.map(|chunk| {
+			core::str::from_utf8(chunk)
+				.ok()
+				.and_then(|hex| u8::from_str_radix(hex, 16).ok())
+				.map(|byte| byte ^ xor)
+				.ok_or_else(|| error!("Invalid order key"))
+		})
+		.collect::<Result<Vec<u8>>>()?;
+	let parts = String::from_utf8(decoded)
+		.map_err(|_| error!("Invalid decoded order"))?
+		.split(',')
+		.map(|part| {
+			part.parse::<usize>()
+				.map_err(|_| error!("Invalid tile position"))
+		})
+		.collect::<Result<Vec<_>>>()?;
+	Ok(parts)
 }
