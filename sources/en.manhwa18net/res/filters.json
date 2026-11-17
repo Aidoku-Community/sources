@@ -4,16 +4,13 @@
 		"id": "sort",
 		"title": "Sort By",
 		"canAscend": false,
-		"options": ["Latest Updates", "Most Viewed", "Most Liked", "Newest"],
-		"default": {
-			"index": 0,
-			"ascending": false
-		}
+		"options": ["Latest Updates", "Most Viewed", "Most Liked", "Newest"]
 	},
 	{
 		"type": "multi-select",
 		"id": "status",
 		"title": "Status",
+		"canExclude": false,
 		"options": ["Ongoing", "On Hold", "Completed"],
 		"ids": ["Ongoing", "Onhold", "completed"]
 	}

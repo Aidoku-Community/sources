@@ -82,7 +82,8 @@ impl MangaDto {
 		let artists = names(self.artists.take());
 		let status = match self.status_id {
 			Some(0) => MangaStatus::Ongoing,
-			Some(1 | 2) => MangaStatus::Completed,
+			Some(1) => MangaStatus::Completed,
+			Some(2) => MangaStatus::Hiatus,
 			_ => MangaStatus::Unknown,
 		};
 		let viewer = match &tags {

@@ -8,6 +8,9 @@
 		"languages": ["en"],
 		"minAppVersion": "0.7.1"
 	},
+	"config": {
+		"hidesFiltersWhileSearching": true
+	},
 	"listings": [
 		{
 			"id": "popular",

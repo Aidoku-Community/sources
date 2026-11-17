@@ -1,4 +1,11 @@
-use aidoku::alloc::{String, format};
+use crate::models::{InertiaPage, Paginate, prop};
+use aidoku::{
+	MangaPageResult, Result,
+	alloc::{String, format},
+	imports::net::Request,
+	prelude::*,
+};
+use serde_json::Value;
 
 pub const BASE_URL: &str = "https://manhwa18.net";
 
@@ -94,4 +101,29 @@ pub fn parse_link(url: &str) -> Option<(&str, Option<&str>)> {
 	let mut parts = rest.split('/').filter(|part| !part.is_empty());
 	let manga = parts.next()?;
 	Some((manga, parts.next()))
+}
+
+/// Fetches a page of the site and returns the props of its embedded Inertia payload.
+pub fn fetch_props(url: &str) -> Result<Value> {
+	let html = Request::get(url)?.html()?;
+	let Some(data) = html
+		.select_first("#app")
+		.and_then(|app| app.attr("data-page"))
+		.filter(|data| !data.trim().is_empty())
+	else {
+		bail!("Couldn't find the page data, the site may be asking for a browser check");
+	};
+	Ok(serde_json::from_str::<InertiaPage>(&data)?.props)
+}
+
+pub fn fetch_list(url: &str) -> Result<MangaPageResult> {
+	let props = fetch_props(url)?;
+	// which prop holds the listing depends on the page that was requested
+	let listing = ["paginate", "popularManga", "mangas", "latestManhwaMain"]
+		.into_iter()
+		.find_map(|key| prop::<Paginate>(&props, key));
+	let Some(listing) = listing else {
+		bail!("No manga listing found in response");
+	};
+	Ok(listing.into_result())
 }

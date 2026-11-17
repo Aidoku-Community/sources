@@ -13,9 +13,8 @@ use aidoku::{
 	},
 	prelude::*,
 };
-use helpers::{BASE_URL, absolute_url, parse_link};
-use models::{ChapterDto, InertiaPage, MangaDto, Paginate, prop};
-use serde_json::Value;
+use helpers::{BASE_URL, absolute_url, fetch_list, fetch_props, parse_link};
+use models::{ChapterDto, MangaDto, prop};
 
 const REFERER: &str = "https://manhwa18.net/";
 
@@ -60,12 +59,15 @@ impl Source for Manhwa18Net {
 				params.push("q", Some(query));
 				"tim-kiem"
 			}
-			None => "manga-list",
+			None => {
+				// the filters aren't supported by the search page
+				params.push("sort", Some(sort));
+				for status in &statuses {
+					params.push(status, Some("1"));
+				}
+				"manga-list"
+			}
 		};
-		params.push("sort", Some(sort));
-		for status in &statuses {
-			params.push(status, Some("1"));
-		}
 		params.push("page", Some(&page.to_string()));
 
 		fetch_list(&format!("{BASE_URL}/{path}?{params}"))
@@ -164,31 +166,6 @@ impl DeepLinkHandler for Manhwa18Net {
 			},
 		}))
 	}
-}
-
-/// Fetches a page of the site and returns the props of its embedded Inertia payload.
-fn fetch_props(url: &str) -> Result<Value> {
-	let html = Request::get(url)?.html()?;
-	let Some(data) = html
-		.select_first("#app")
-		.and_then(|app| app.attr("data-page"))
-		.filter(|data| !data.trim().is_empty())
-	else {
-		bail!("Couldn't find the page data, the site may be asking for a browser check");
-	};
-	Ok(serde_json::from_str::<InertiaPage>(&data)?.props)
-}
-
-fn fetch_list(url: &str) -> Result<MangaPageResult> {
-	let props = fetch_props(url)?;
-	// which prop holds the listing depends on the page that was requested
-	let listing = ["paginate", "popularManga", "mangas", "latestManhwaMain"]
-		.into_iter()
-		.find_map(|key| prop::<Paginate>(&props, key));
-	let Some(listing) = listing else {
-		bail!("No manga listing found in response");
-	};
-	Ok(listing.into_result())
 }
 
 register_source!(
