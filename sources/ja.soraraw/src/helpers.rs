@@ -1,6 +1,6 @@
 use crate::{
-	BASE_URL, HEADER_BYTES, IMAGE_API_URL, SCRAMBLE_GRID, SCRAMBLE_SECRET, STACKED_PAGE_LIMIT,
-	THUMBNAIL_URL, USER_AGENT, models::NextData,
+	BASE_URL, HEADER_BYTES, IMAGE_API_URL, PATH_SECRET, PAYLOAD_KEY, SCRAMBLE_GRID,
+	SCRAMBLE_SECRET, STACKED_PAGE_LIMIT, THUMBNAIL_URL, USER_AGENT, models::NextData,
 };
 use aes::{
 	Aes256,
@@ -202,7 +202,6 @@ pub fn viewer<'a>(genre_slugs: impl Iterator<Item = &'a str>) -> Viewer {
 			return Viewer::Webtoon;
 		}
 	}
-	// everything else on a japanese raw site reads as manga
 	Viewer::RightToLeft
 }
 
@@ -254,14 +253,10 @@ pub fn decode_base64(input: &str) -> Option<Vec<u8>> {
 }
 
 // the image endpoint hands out its page list xored with a fixed key
-pub fn deobfuscate(payload: &str, key: &[u8]) -> Option<String> {
-	if key.is_empty() {
-		return None;
-	}
-
+pub fn deobfuscate(payload: &str) -> Option<String> {
 	let mut bytes = decode_base64(payload)?;
-	for (index, byte) in bytes.iter_mut().enumerate() {
-		*byte ^= key[index % key.len()];
+	for (byte, key) in bytes.iter_mut().zip(PAYLOAD_KEY.iter().cycle()) {
+		*byte ^= key;
 	}
 
 	let json = String::from_utf8(bytes).ok()?;
@@ -275,25 +270,18 @@ pub fn deobfuscate(payload: &str, key: &[u8]) -> Option<String> {
 // page paths are xored with a fixed secret and encrypted with aes-256-ctr, keyed on the uuid the
 // chapter page carries. building the path out of the ids instead only holds for part of the site:
 // the file extension varies per chapter, and guessing it leaves whole series answering 404
-pub fn decrypt_path(payload: &str, uuid: &str, secret: &[u8]) -> Option<String> {
-	if secret.is_empty() {
-		return None;
-	}
-	let key = decode_hex(uuid)?;
-	if key.len() != 32 {
-		return None;
-	}
+pub fn decrypt_path(payload: &str, uuid: &str) -> Option<String> {
+	let cipher = Aes256::new_from_slice(&decode_hex(uuid)?).ok()?;
 
 	let mut bytes = decode_base64(payload)?;
 	// the value opens with the counter the stream starts at, so anything shorter holds no path
 	if bytes.len() <= BLOCK_SIZE {
 		return None;
 	}
-	for (index, byte) in bytes.iter_mut().enumerate() {
-		*byte ^= secret[index % secret.len()];
+	for (byte, secret) in bytes.iter_mut().zip(PATH_SECRET.iter().cycle()) {
+		*byte ^= secret;
 	}
 
-	let cipher = Aes256::new_from_slice(&key).ok()?;
 	let mut counter = [0u8; BLOCK_SIZE];
 	counter.copy_from_slice(&bytes[..BLOCK_SIZE]);
 

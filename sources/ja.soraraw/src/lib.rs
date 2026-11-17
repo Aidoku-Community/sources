@@ -222,7 +222,7 @@ impl Source for Soraraw {
 				details.updated_at.as_deref(),
 			))?
 			.json_owned::<ImagePayload>()?;
-			let json = deobfuscate(&payload.d, PAYLOAD_KEY)
+			let json = deobfuscate(&payload.d)
 				.ok_or_else(|| error!("could not decode the page list of chapter {chapter_id}"))?;
 			serde_json::from_str::<Vec<PageImage>>(&json)
 				.map_err(|error| error!("unexpected page list for chapter {chapter_id}: {error}"))?
@@ -230,10 +230,8 @@ impl Source for Soraraw {
 
 		let mut urls = Vec::with_capacity(images.len());
 		for image in images {
-			let (Some(order), Some(path)) = (
-				image.order.as_f32(),
-				decrypt_path(&image.b, &uuid, PATH_SECRET),
-			) else {
+			let (Some(order), Some(path)) = (image.order.as_f32(), decrypt_path(&image.b, &uuid))
+			else {
 				bail!("could not read a page of chapter {chapter_id}");
 			};
 			urls.push((order, format!("{host}/{path}")));
@@ -317,9 +315,19 @@ impl Soraraw {
 		})
 	}
 
+	// on ios copy_image decodes a downloaded image again on every call, and get_image reads
+	// whichever context is current, so the copy is finished before the next canvas opens
+	fn decoded(image: &ImageRef) -> ImageRef {
+		let (width, height) = (image.width(), image.height());
+		let mut canvas = Canvas::new(width, height);
+		canvas.draw_image(image, Rect::new(0.0, 0.0, width, height));
+		canvas.get_image()
+	}
+
 	fn unscramble(image: &ImageRef, seed: &str) -> Option<ImageRef> {
 		let (width, height) = (image.width(), image.height());
 		let tiles = scramble_plan(width as u32, height as u32, seed)?;
+		let image = &Self::decoded(image);
 
 		let mut canvas = Canvas::new(width, height);
 		for turns in 0..4 {
@@ -349,13 +357,7 @@ impl Soraraw {
 		let (tiles, moves) = canva::plan(width as u32, height as u32, chapter, token);
 		let placements = canva::placements(width as u32, &tiles, &moves);
 
-		// on ios copy_image decodes a downloaded image again on every call, and get_image reads
-		// whichever context is current, so each canvas is finished before the next one opens
-		let image = &{
-			let mut canvas = Canvas::new(width, height);
-			canvas.draw_image(image, Rect::new(0.0, 0.0, width, height));
-			canvas.get_image()
-		};
+		let image = &Self::decoded(image);
 		let mirrored = placements
 			.iter()
 			.any(|placement| placement.mirror)
