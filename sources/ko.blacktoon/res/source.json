@@ -2,10 +2,17 @@
 	"info": {
 		"id": "ko.blacktoon",
 		"name": "블랙툰",
-		"altNames": ["Blacktoon"],
+		"altNames": [
+			"Blacktoon"
+		],
 		"version": 1,
-		"languages": ["ko"],
-		"urls": ["https://blacktoon427.com", "https://blacktoon.me"],
+		"languages": [
+			"ko"
+		],
+		"urls": [
+			"https://blacktoon428.com",
+			"https://blacktoon.me"
+		],
 		"contentRating": 2,
 		"minAppVersion": "0.8.3"
 	},

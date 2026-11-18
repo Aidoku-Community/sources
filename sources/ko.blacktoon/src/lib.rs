@@ -191,10 +191,7 @@ impl Source for BlackToon {
 		let total = filtered.len();
 		let start = ((page - 1).max(0) as usize) * PAGE_SIZE;
 		if start >= total {
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
+			return Ok(MangaPageResult::default());
 		}
 
 		let end = (start + PAGE_SIZE).min(total);
@@ -222,14 +219,12 @@ impl Source for BlackToon {
 			let url = format!("{base_url}/webtoon/{}.html", manga.key);
 			let html = helpers::request(&url)?.html()?;
 
-			if let Some(title_elem) = html
+			if let Some(title) = html
 				.select_first(".col-12.col-sm-5.col-md-5 h3, h3 b, h3")
 				.and_then(|h3| h3.text())
+				.filter(|t| !t.is_empty())
 			{
-				let trimmed = title_elem.trim();
-				if !trimmed.is_empty() {
-					manga.title = trimmed.into();
-				}
+				manga.title = title;
 			}
 
 			if let Some(p_nodes) = html.select(".col-12.col-sm-5.col-md-5 p") {
@@ -359,8 +354,10 @@ impl Source for BlackToon {
 			let url = format!("{}/data/toonlist/{}.js", hosts.toon_list, manga.key);
 			drop(hosts);
 			let content = helpers::request(&url)?.string()?;
-			let json_str = helpers::extract_js_array(&content).unwrap_or("[]");
-			let items: Vec<ChapterItem> = serde_json::from_str(json_str).unwrap_or_default();
+			let Some(json_str) = helpers::extract_js_array(&content) else {
+				bail!("회차 목록 데이터를 불러올 수 없습니다.");
+			};
+			let items: Vec<ChapterItem> = serde_json::from_str(json_str)?;
 
 			let chapters: Vec<Chapter> = items
 				.into_iter()
@@ -427,7 +424,7 @@ impl BaseUrlProvider for BlackToon {
 
 impl ImageRequestProvider for BlackToon {
 	fn get_image_request(&self, url: String, _context: Option<PageContext>) -> Result<Request> {
-		helpers::request(&url)
+		helpers::request_with_referer(&url, helpers::DEFAULT_BASE_URL)
 	}
 }
 

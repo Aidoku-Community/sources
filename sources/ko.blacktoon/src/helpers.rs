@@ -1,6 +1,7 @@
 use crate::models::{Hosts, SeriesItem};
 use aidoku::{
 	alloc::{String, Vec, format},
+	bail,
 	imports::{
 		defaults::{DefaultValue, defaults_get, defaults_set},
 		error::Result,
@@ -9,15 +10,22 @@ use aidoku::{
 	},
 };
 
-pub const DEFAULT_BASE_URL: &str = "https://blacktoon427.com";
+pub const DEFAULT_BASE_URL: &str = "https://blacktoon428.com";
 pub const ENTRY_URL: &str = "https://blacktoon.me";
 pub const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
 
+/// Returns the user's custom base URL from settings if non-empty,
+/// otherwise dynamically resolves the latest domain via ENTRY_URL redirect,
+/// falling back to DEFAULT_BASE_URL when unreachable (e.g. HTTP 451).
 pub fn get_base_url() -> String {
-	defaults_get::<String>("baseUrl")
-		.map(|s| String::from(s.trim().trim_end_matches('/')))
-		.filter(|s| !s.is_empty())
-		.unwrap_or_else(|| String::from(DEFAULT_BASE_URL))
+	if let Some(url) = defaults_get::<String>("baseUrl") {
+		let clean = url.trim().trim_end_matches('/');
+		if !clean.is_empty() {
+			return clean.into();
+		}
+	}
+
+	resolve_final_redirect(ENTRY_URL).unwrap_or_else(|| String::from(DEFAULT_BASE_URL))
 }
 
 pub fn set_base_url(url: &str) {
@@ -25,19 +33,23 @@ pub fn set_base_url(url: &str) {
 	defaults_set("baseUrl", DefaultValue::String(String::from(clean)));
 }
 
-pub fn request(url: &str) -> Result<Request> {
-	let base_url = get_base_url();
+pub fn request_with_referer(url: &str, referer: &str) -> Result<Request> {
 	Ok(Request::get(url)?
 		.header("User-Agent", USER_AGENT)
-		.header("Referer", &base_url))
+		.header("Referer", referer))
+}
+
+pub fn request(url: &str) -> Result<Request> {
+	let base_url = get_base_url();
+	request_with_referer(url, &base_url)
 }
 
 pub fn fetch_hosts(base_url: &str) -> Hosts {
-	let home = request(base_url)
+	let home = request_with_referer(base_url, base_url)
 		.and_then(|r| r.string())
 		.unwrap_or_default();
 	let config_url = format!("{}/data/config.js", base_url.trim_end_matches('/'));
-	let config = request(&config_url)
+	let config = request_with_referer(&config_url, base_url)
 		.and_then(|r| r.string())
 		.unwrap_or_default();
 
@@ -65,8 +77,10 @@ pub fn fetch_hosts(base_url: &str) -> Hosts {
 
 pub fn fetch_series_list(url: &str, is_completed: bool) -> Result<Vec<SeriesItem>> {
 	let js = request(url)?.string()?;
-	let json_str = extract_js_array(&js).unwrap_or("[]");
-	let mut items: Vec<SeriesItem> = serde_json::from_str(json_str).unwrap_or_default();
+	let Some(json_str) = extract_js_array(&js) else {
+		bail!("웹툰 목록 데이터를 불러올 수 없습니다.");
+	};
+	let mut items: Vec<SeriesItem> = serde_json::from_str(json_str)?;
 	for item in &mut items {
 		item.is_completed = is_completed;
 	}

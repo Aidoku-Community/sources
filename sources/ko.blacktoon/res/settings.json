@@ -8,13 +8,14 @@
 				"key": "baseUrl",
 				"type": "text",
 				"title": "URL",
-				"default": "https://blacktoon427.com",
-				"placeholder": "https://blacktoon427.com",
+				"placeholder": "https://blacktoon428.com",
 				"keyboardType": 3,
 				"returnKeyType": 9,
 				"autocorrectionDisabled": true,
 				"autocapitalizationType": 0,
-				"refreshes": ["content"]
+				"refreshes": [
+					"content"
+				]
 			},
 			{
 				"type": "button",
@@ -23,7 +24,9 @@
 				"notification": "fetchLatestUrl",
 				"confirmTitle": "링크 업데이트",
 				"confirmMessage": "blacktoon.me에서 자동으로 URL를 업데이트합니다",
-				"refreshes": ["content"]
+				"refreshes": [
+					"content"
+				]
 			}
 		]
 	}
