@@ -79,7 +79,7 @@ fn resolve_parser_key_assignment(script: &str, target: &str) -> Option<String> {
 	None
 }
 
-// The reader pins an untouched JSON.parse under a generated window key, written whole or built from literals
+// The page pins a pristine JSON.parse under a window key, written whole or built from literals
 fn pinned_parser_key(html: &str) -> Option<String> {
 	let mut offset = 0;
 	while let Some(relative) = html[offset..].find("defineProperty") {
@@ -126,8 +126,7 @@ fn pinned_parser_key(html: &str) -> Option<String> {
 	None
 }
 
-// Captures the decoded `chapterPages`, then clicks through to the chapter so the site's router
-// fetches it. `open` sends the same page on to another chapter.
+// The site decodes `chapterPages` in its own script, so the page is captured as it parses them
 fn capture_script(chapter_path: &str, chapter: &str, pinned_key: Option<&str>) -> String {
 	let chapter_path = serde_json::to_string(chapter_path).unwrap_or_else(|_| String::from("\"\""));
 	let chapter = serde_json::to_string(chapter).unwrap_or_else(|_| String::from("\"\""));
@@ -187,9 +186,10 @@ fn capture_script(chapter_path: &str, chapter: &str, pinned_key: Option<&str>) -
 	JSON.parse = captureParse;
 	{pin}
 
-	// The page takes a pristine JSON.parse from a new iframe; with no frame window it keeps ours
+	// The page takes a pristine JSON.parse from a new iframe as it boots; with no frame window it
+	// keeps ours. Later frames, such as the site's human check, keep theirs.
 	const hideFrame = (element) => {{
-		if (element && String(element.tagName).toUpperCase() === 'IFRAME') {{
+		if (document.readyState === 'loading' && element && String(element.tagName).toUpperCase() === 'IFRAME') {{
 			Object.defineProperty(element, 'contentWindow', {{ get: () => null, configurable: false }});
 		}}
 		return element;
@@ -200,6 +200,18 @@ fn capture_script(chapter_path: &str, chapter: &str, pinned_key: Option<&str>) -
 			return hideFrame(create.apply(this, args));
 		}};
 	}}
+
+	// SvelteKit's router listens for clicks on the document element once the first page has
+	// rendered, about a second before that page's own links appear
+	let routerReady = false;
+	const addListener = EventTarget.prototype.addEventListener;
+	EventTarget.prototype.addEventListener = function (type, ...rest) {{
+		if (type === 'click' && this === document.documentElement) {{
+			routerReady = true;
+			EventTarget.prototype.addEventListener = addListener;
+		}}
+		return addListener.call(this, type, ...rest);
+	}};
 
 	function triggerChapterNav(path) {{
 		const a = document.createElement('a');
@@ -212,7 +224,7 @@ fn capture_script(chapter_path: &str, chapter: &str, pinned_key: Option<&str>) -
 		let attempts = 0;
 		const check = () => {{
 			if (state.done) return;
-			if (document.querySelector('[data-href]')) {{
+			if (routerReady || document.querySelector('[data-href]')) {{
 				triggerChapterNav(path);
 			}} else if (attempts < 300) {{
 				attempts++;
@@ -229,18 +241,18 @@ fn capture_script(chapter_path: &str, chapter: &str, pinned_key: Option<&str>) -
 		state.data = '';
 		state.done = false;
 		route(path);
-		return 'opened';
+		return 'opened'; // eval fails on undefined
 	}};
 	route({chapter_path});
 }})()"
 	)
 }
 
-// Polls once a second, skipping evals that fail while the page is busy
+// Polls once a second; an eval that fails while the page is busy is skipped
 fn wait_for_pages(web_view: &WebView, seconds: usize) -> Result<Option<String>> {
 	let mut challenged = 0;
 	for _ in 0..seconds {
-		if let Ok(value) = web_view.eval(&format!(
+		match web_view.eval(&format!(
 			"(() => {{
 				const state = window['{RESULT_TOKEN}'];
 				if (state && state.done) return state.data;
@@ -249,15 +261,17 @@ fn wait_for_pages(web_view: &WebView, seconds: usize) -> Result<Option<String>> 
 				return challenge ? '{CHALLENGE_TOKEN}' : '{WAIT_TOKEN}';
 			}})()"
 		)) {
-			// The site's own check never clears in a hidden view
-			if value == CHALLENGE_TOKEN {
+			// The check can flash while the page loads, so only five polls in a row count
+			Ok(value) if value == CHALLENGE_TOKEN => {
 				challenged += 1;
 				if challenged >= 5 {
-					bail!("Open the series in the web view, solve the site's check, then retry");
+					bail!(
+						"Pass the site's check under Pass Human Check in MKissa's settings, then retry"
+					);
 				}
-			} else if value != WAIT_TOKEN && !value.is_empty() {
-				return Ok(Some(value));
 			}
+			Ok(value) if value != WAIT_TOKEN && !value.is_empty() => return Ok(Some(value)),
+			_ => challenged = 0,
 		}
 		sleep(1);
 	}
@@ -321,21 +335,24 @@ fn load_chapter(manga_id: &str, chapter_path: &str, chapter: &str) -> Result<Web
 		.header("Accept", "text/html,application/xhtml+xml,*/*;q=0.8")
 		.send()?;
 	let status = response.status_code();
-	if status == 403 || status == 503 {
-		bail!("Solve the Cloudflare check, then retry");
-	} else if status >= 400 {
+	if status >= 400 {
+		if response.get_header("cf-mitigated").as_deref() == Some("challenge") {
+			bail!("The reader returned HTTP {status}. Complete the Cloudflare check and retry");
+		}
 		bail!("The reader returned HTTP {status}");
 	}
 	let html = response.get_string()?;
 	let parser_key = pinned_parser_key(&html);
 
-	// Navigating client-side from the cleared page avoids a second Cloudflare check
+	// The chapter route only answers a navigation from inside the site
 	let web_view = WebView::new();
 	let mut user_script =
 		WebViewUserScript::new(capture_script(chapter_path, chapter, parser_key.as_deref()));
 	user_script.at_document_end = false;
-	user_script.for_main_frame_only = false;
+	// The human check runs Turnstile in a frame of its own, which the capture would break
+	user_script.for_main_frame_only = true;
 	web_view.add_user_script(user_script)?;
-	web_view.load_html_blocking(&html, Some(&manga_url))?;
+	// The blocking load never returns if the navigation fails; the poll has a deadline
+	web_view.load_html(&html, Some(&manga_url))?;
 	Ok(web_view)
 }

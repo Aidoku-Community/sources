@@ -25,5 +25,21 @@
 				"refreshes": ["content"]
 			}
 		]
+	},
+	{
+		"type": "group",
+		"title": "Human Check",
+		"footer": "Open a chapter here and complete the human check if prompted. Once a page is visible, close this window and retry the chapter in Aidoku. Reset Session appears when the site saves cookies. Use it to clear that session.",
+		"items": [
+			{
+				"type": "login",
+				"method": "web",
+				"key": "verify",
+				"title": "Pass Human Check",
+				"logoutTitle": "Reset Session",
+				"url": "https://mkissa.to/",
+				"clearCookiesOnLogOut": true
+			}
+		]
 	}
 ]

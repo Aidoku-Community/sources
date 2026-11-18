@@ -5,7 +5,7 @@ use aidoku::{
 	Source,
 	alloc::{String, Vec, vec},
 	imports::{
-		net::Request,
+		net::{Request, TimeUnit, set_rate_limit},
 		std::{current_date, send_partial_result},
 	},
 	prelude::*,
@@ -40,6 +40,8 @@ struct MKissa {
 
 impl Source for MKissa {
 	fn new() -> Self {
+		// The API answers bursts with "Too many requests"
+		set_rate_limit(3, 1, TimeUnit::Seconds);
 		Self {
 			reader: RefCell::new(reader::Reader::default()),
 		}
@@ -68,7 +70,8 @@ impl Source for MKissa {
 			});
 		}
 
-		let mut search = Map::new();
+		// The app leaves out the default sort, and the API then sorts by latest update
+		let mut search = Map::from_iter([("sortBy".into(), SORTS[0].into())]);
 		let mut country = String::from("ALL");
 		let mut genres: Vec<String> = Vec::new();
 		let mut excluded_genres: Vec<String> = Vec::new();
@@ -98,7 +101,7 @@ impl Source for MKissa {
 						let (start, end) = value
 							.parse()
 							.ok()
-							.and_then(|days_ago| day_range(days_ago, current_date()))
+							.map(|days_ago| day_range(days_ago, current_date()))
 							.ok_or(error!("Unknown update day"))?;
 						search.insert("dateRangeStart".into(), start.into());
 						search.insert("dateRangeEnd".into(), end.into());

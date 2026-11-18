@@ -17,7 +17,7 @@ use aidoku::{
 use serde_json::{Value, json};
 
 // The home rows that also open as listings, keyed by listing id
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Feed {
 	Latest,
 	Year,
@@ -219,31 +219,38 @@ pub fn get_home() -> Result<HomeLayout> {
 	let mut responses = Request::send_all(requests).into_iter();
 	let mut next =
 		|| -> Result<Response> { Ok(responses.next().ok_or(error!("Missing home response"))??) };
-	let popular = next().and_then(parse::<PopularData>).map(|data| {
+	// A row that fails drops out; its error is reported only when nothing loads
+	let mut last_error = None;
+	let mut loaded =
+		|result: Result<Vec<MangaCard>>| result.map_err(|error| last_error = Some(error)).ok();
+	let popular = loaded(next().and_then(parse::<PopularData>).map(|data| {
 		data.query_popular
 			.recommendations
 			.into_iter()
 			.filter_map(|recommendation| recommendation.any_card)
 			.collect()
-	});
-	let random = next()
-		.and_then(parse::<RandomData>)
-		.map(|data| data.query_random_recommendation.unwrap_or_default());
-	let mut loaded = Vec::new();
+	}));
+	let random = loaded(
+		next()
+			.and_then(parse::<RandomData>)
+			.map(|data| data.query_random_recommendation.unwrap_or_default()),
+	);
+	let mut rows = Vec::new();
 	for feed in feeds {
-		match next().and_then(|response| feed.page(response, 1)) {
-			Ok((cards, _)) => loaded.push((feed, cards)),
-			Err(error) => println!("Home row {} failed: {error:?}", feed.id()),
+		if let Some(cards) =
+			loaded(next().and_then(|response| feed.page(response, 1).map(|(cards, _)| cards)))
+		{
+			rows.push((feed, cards));
 		}
 	}
 	let layout = layout(HomeData {
-		popular: popular.ok(),
-		random: random.ok(),
-		feeds: loaded,
+		popular,
+		random,
+		feeds: rows,
 		now,
 	});
 	if layout.components.is_empty() {
-		bail!("No home content found");
+		return Err(last_error.unwrap_or(error!("No home content found")));
 	}
 	Ok(layout)
 }
@@ -328,7 +335,6 @@ fn feed_component(feed: Feed, cards: Vec<MangaCard>, now: i64) -> Option<HomeCom
 	})
 }
 
-// Cards without a key or title are left out
 fn links(cards: Vec<MangaCard>) -> Vec<Link> {
 	cards
 		.into_iter()

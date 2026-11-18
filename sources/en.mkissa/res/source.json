@@ -4,13 +4,8 @@
 		"name": "MKissa",
 		"version": 1,
 		"url": "https://mkissa.to",
-		"urls": [
-			"https://mkissa.to"
-		],
 		"contentRating": 1,
-		"languages": [
-			"en"
-		],
+		"languages": ["en"],
 		"minAppVersion": "0.8.4"
 	},
 	"config": {
