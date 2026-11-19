@@ -1,0 +1,32 @@
+{
+	"info": {
+		"id": "en.mkissa",
+		"name": "MKissa",
+		"version": 1,
+		"url": "https://mkissa.to",
+		"contentRating": 1,
+		"languages": ["en"],
+		"minAppVersion": "0.8.4"
+	},
+	"config": {
+		"supportsTagSearch": true
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "Latest Updates"
+		},
+		{
+			"id": "trending",
+			"name": "Trending"
+		},
+		{
+			"id": "most_saved",
+			"name": "Most Saved"
+		},
+		{
+			"id": "most_boosted",
+			"name": "Most Boosted"
+		}
+	]
+}

@@ -1,0 +1,45 @@
+[
+	{
+		"type": "group",
+		"footer": "Resized images come from a slower server and can fail.",
+		"items": [
+			{
+				"type": "select",
+				"key": "imageQuality",
+				"title": "Image Quality",
+				"values": ["original", "800", "480"],
+				"titles": ["Original", "800px", "480px"],
+				"default": "original"
+			}
+		]
+	},
+	{
+		"type": "group",
+		"footer": "Show adult titles in Discover, listings and search.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "showAdult",
+				"title": "Show Adult Content",
+				"default": false,
+				"refreshes": ["content"]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Human Check",
+		"footer": "Open a chapter here and complete the human check if prompted. Once a page is visible, close this window and retry the chapter in Aidoku. Reset Session appears when the site saves cookies. Use it to clear that session.",
+		"items": [
+			{
+				"type": "login",
+				"method": "web",
+				"key": "verify",
+				"title": "Pass Human Check",
+				"logoutTitle": "Reset Session",
+				"url": "https://mkissa.to/",
+				"clearCookiesOnLogOut": true
+			}
+		]
+	}
+]

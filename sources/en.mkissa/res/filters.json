@@ -1,0 +1,182 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"canAscend": false,
+		"options": [
+			"Top",
+			"Update",
+			"Release year",
+			"Name Asc",
+			"Name Desc",
+			"Popular"
+		]
+	},
+	{
+		"type": "select",
+		"id": "country",
+		"title": "Origin",
+		"options": [
+			"All",
+			"Japan",
+			"China",
+			"Korea"
+		],
+		"ids": [
+			"ALL",
+			"JP",
+			"CN",
+			"KR"
+		]
+	},
+	{
+		"type": "select",
+		"id": "day",
+		"title": "Update Day",
+		"hideFromHeader": true,
+		"options": [
+			"Any",
+			"Today",
+			"Yesterday",
+			"2 days ago",
+			"3 days ago",
+			"4 days ago",
+			"5 days ago",
+			"6 days ago"
+		],
+		"ids": [
+			"any",
+			"0",
+			"1",
+			"2",
+			"3",
+			"4",
+			"5",
+			"6"
+		]
+	},
+	{
+		"type": "select",
+		"id": "season",
+		"title": "Season",
+		"hideFromHeader": true,
+		"options": [
+			"Any",
+			"Winter",
+			"Spring",
+			"Summer",
+			"Fall"
+		]
+	},
+	{
+		"type": "text",
+		"id": "year",
+		"title": "Year",
+		"hideFromHeader": true
+	},
+	{
+		"type": "select",
+		"id": "chapters",
+		"title": "Chapters",
+		"hideFromHeader": true,
+		"options": [
+			"Any",
+			"1-10",
+			"11-50",
+			"51-150",
+			"151-500",
+			"501-900",
+			"901-1200",
+			"1201-2000",
+			"2001+"
+		],
+		"ids": [
+			"any",
+			"1-10",
+			"11-50",
+			"51-150",
+			"151-500",
+			"501-900",
+			"901-1200",
+			"1201-2000",
+			"2001"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "genres",
+		"title": "Genres",
+		"isGenre": true,
+		"canExclude": true,
+		"options": [
+			"4 Koma",
+			"Action",
+			"Adventure",
+			"Cars",
+			"Comedy",
+			"Dementia",
+			"Demons",
+			"Doujinshi",
+			"Drama",
+			"Ecchi",
+			"Fantasy",
+			"Game",
+			"Gender Bender",
+			"Harem",
+			"Historical",
+			"Horror",
+			"Josei",
+			"Kids",
+			"Loli",
+			"Magic",
+			"Martial Arts",
+			"Mecha",
+			"Military",
+			"Music",
+			"Mystery",
+			"Parody",
+			"Police",
+			"Psychological",
+			"Romance",
+			"Samurai",
+			"School",
+			"Sci-Fi",
+			"Seinen",
+			"Shoujo",
+			"Shoujo Ai",
+			"Shounen",
+			"Shounen Ai",
+			"Slice of Life",
+			"Space",
+			"Sports",
+			"Super Power",
+			"Supernatural",
+			"Thriller",
+			"Vampire",
+			"Yaoi",
+			"Yuri",
+			"Suspense",
+			"Tragedy",
+			"Webtoons",
+			"Youkai",
+			"Adult",
+			"Cooking",
+			"Post Apocalyptic",
+			"Gyaru",
+			"Crossdressing",
+			"Monster Girls",
+			"Shota",
+			"Reincarnation",
+			"Zombies",
+			"Mature",
+			"One Shot",
+			"Reverse Harem",
+			"Smut",
+			"Manhwa",
+			"Manhua",
+			"Isekai",
+			"Medical",
+			"Unknown"
+		]
+	}
+]
