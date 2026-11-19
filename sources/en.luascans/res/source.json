@@ -1,0 +1,14 @@
+{
+	"info": {
+		"id": "en.luascans",
+		"name": "Lua Scans",
+		"version": 1,
+		"url": "https://luacomic.org",
+		"contentRating": 0,
+		"minAppVersion": "0.7.1",
+		"languages": ["en"]
+	},
+	"config": {
+		"supportsTagSearch": true
+	}
+}
