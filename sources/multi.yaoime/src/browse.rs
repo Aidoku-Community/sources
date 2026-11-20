@@ -51,7 +51,6 @@ impl BrowseParams {
 					self.unhide(&value);
 					self.tags.push(value);
 				}
-				// A type or rating chosen for one search overrides its setting.
 				"type" => {
 					self.settings.hidden_types.clear();
 					self.selects.push(("type", value));

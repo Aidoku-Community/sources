@@ -93,7 +93,7 @@
 	{
 		"type": "group",
 		"title": "Chapters",
-		"footer": "Official chapters only: A title's chapters without broken copies, notices, or batches that repeat chapters it has already. Where an official translation exists, its copies replace the others, batches included. Extras stay.\n\nDeduplicate chapters & clean order: Each chapter once, by its number alone (Ch.1, Ch.2 ...), in order, with nothing else on its row.",
+		"footer": "Official chapters only: hides broken copies, notices and batches that repeat chapters, and prefers an official translation where there is one.\n\nDeduplicate chapters & clean order: one row per chapter number, in order, and drops extras and split parts.",
 		"items": [
 			{
 				"type": "switch",

@@ -4,12 +4,12 @@ use crate::{
 };
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaStatus, MangaWithChapter, Result, Viewer,
-	alloc::{String, Vec, format, string::ToString},
+	alloc::{String, Vec, collections::BTreeSet, format, string::ToString},
 	helpers::string::PlainText,
 	imports::{
 		html::{Document, Element, Html},
 		net::{Request, Response},
-		std::{current_date, parse_date},
+		std::{current_date, parse_date_with_options},
 	},
 	prelude::*,
 };
@@ -283,7 +283,6 @@ pub fn reader(key: &str) -> Result<ReaderChapter> {
 		.send()?;
 	let status = response.status_code();
 	if !(200..300).contains(&status) {
-		// The reader explains a refusal, such as an unknown chapter.
 		match response.get_json_owned::<ErrorResponse>() {
 			Ok(body) => bail!("{}", body.error),
 			Err(_) => bail!("yaoi.me returned status {status}"),
@@ -293,37 +292,43 @@ pub fn reader(key: &str) -> Result<ReaderChapter> {
 }
 
 pub fn parse_chapter_list(root: &Element) -> Vec<MangaWithChapter> {
-	let mut entries: Vec<MangaWithChapter> = Vec::new();
-	for row in root.select("div.grid > div").into_iter().flatten() {
-		let Some(manga) = parse_manga_list(&row).into_iter().next() else {
-			continue;
-		};
-		let Some(link) = row.select_first("a[href^='/chapter/']") else {
-			continue;
-		};
-		let Some(Link::Chapter(key)) = link.attr("abs:href").as_deref().and_then(parse_link) else {
-			continue;
-		};
-		if entries.iter().any(|entry| entry.manga.key == manga.key) {
-			continue;
-		}
-		let (chapter_number, title) = link
-			.text()
-			.map_or((None, None), |label| split_label(&label));
-		entries.push(MangaWithChapter {
-			chapter: Chapter {
-				url: Some(format!("{BASE_URL}/chapter/{key}")),
-				key,
-				title,
-				chapter_number,
-				date_uploaded: row
-					.select_first("time[datetime]")
-					.and_then(|time| time.attr("datetime"))
-					.and_then(|date| parse_date(date, "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")),
-				..Default::default()
-			},
-			manga,
-		});
-	}
-	entries
+	let mut seen = BTreeSet::new();
+	root.select("div.grid > div")
+		.into_iter()
+		.flatten()
+		.filter_map(|row| {
+			let manga = parse_manga_list(&row).into_iter().next()?;
+			let link = row.select_first("a[href^='/chapter/']")?;
+			let Some(Link::Chapter(key)) = link.attr("abs:href").as_deref().and_then(parse_link)
+			else {
+				return None;
+			};
+			if !seen.insert(manga.key.clone()) {
+				return None;
+			}
+			let (chapter_number, title) = link
+				.text()
+				.map_or((None, None), |label| split_label(&label));
+			Some(MangaWithChapter {
+				chapter: Chapter {
+					key,
+					title,
+					chapter_number,
+					date_uploaded: row
+						.select_first("time[datetime]")
+						.and_then(|time| time.attr("datetime"))
+						.and_then(|date| {
+							parse_date_with_options(
+								date,
+								"yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+								"en_US_POSIX",
+								"UTC",
+							)
+						}),
+					..Default::default()
+				},
+				manga,
+			})
+		})
+		.collect()
 }
