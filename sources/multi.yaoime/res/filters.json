@@ -1,0 +1,106 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"title": "Sort by",
+		"options": [
+			"Update time",
+			"Newest added",
+			"Popularity",
+			"Rating",
+			"Chapters",
+			"Title"
+		]
+	},
+	{
+		"type": "select",
+		"id": "type",
+		"title": "Type",
+		"options": [
+			"All",
+			"Doujinshi",
+			"Manga",
+			"Other",
+			"Manhwa",
+			"Manhua",
+			"OEL",
+			"Novel"
+		],
+		"ids": [
+			"",
+			"doujinshi",
+			"manga",
+			"other",
+			"manhwa",
+			"manhua",
+			"oel",
+			"novel"
+		]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"All",
+			"Completed",
+			"Releasing",
+			"Unknown",
+			"Hiatus",
+			"Cancelled",
+			"Upcoming"
+		],
+		"ids": [
+			"",
+			"completed",
+			"releasing",
+			"unknown",
+			"hiatus",
+			"cancelled",
+			"upcoming"
+		]
+	},
+	{
+		"type": "select",
+		"id": "content",
+		"title": "Content rating",
+		"options": [
+			"All",
+			"Pornographic",
+			"Safe",
+			"Erotica",
+			"Suggestive"
+		],
+		"ids": [
+			"",
+			"pornographic",
+			"safe",
+			"erotica",
+			"suggestive"
+		]
+	},
+	{
+		"type": "select",
+		"id": "demographic",
+		"title": "Demographic",
+		"options": [
+			"All",
+			"Shoujo",
+			"Seinen",
+			"Josei",
+			"Shounen"
+		]
+	},
+	{
+		"type": "check",
+		"id": "anime",
+		"title": "Has an anime",
+		"hideFromHeader": true
+	},
+	{
+		"type": "check",
+		"id": "licensed",
+		"title": "Officially licensed",
+		"hideFromHeader": true
+	}
+]
