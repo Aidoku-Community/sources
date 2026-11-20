@@ -101,7 +101,7 @@ pub fn parse_featured(document: &Document, excluded_types: &[String]) -> Vec<Man
 				.flatten()
 				.filter_map(|el| el.text())
 				.collect::<Vec<_>>();
-			tags.sort();
+			tags.sort_unstable();
 			tags.dedup();
 			Some(Manga {
 				key,

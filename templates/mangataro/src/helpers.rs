@@ -124,7 +124,7 @@ pub fn tags(document: &Document) -> Vec<String> {
 		.flatten()
 		.filter_map(|el| el.text())
 		.collect::<Vec<_>>();
-	tags.sort();
+	tags.sort_unstable();
 	tags.dedup();
 	tags
 }
