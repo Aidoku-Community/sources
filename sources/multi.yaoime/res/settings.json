@@ -1,0 +1,166 @@
+[
+	{
+		"type": "group",
+		"title": "Content",
+		"footer": "Applies to the home page, listings and search. Titles without a known type or rating always show. The Type and Content rating filters override these for one search.",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "excludedTypes",
+				"title": "Excluded Types",
+				"values": [
+					"doujinshi",
+					"manga",
+					"other",
+					"manhwa",
+					"manhua",
+					"oel",
+					"novel"
+				],
+				"titles": [
+					"Doujinshi",
+					"Manga",
+					"Other",
+					"Manhwa",
+					"Manhua",
+					"OEL",
+					"Novel"
+				],
+				"default": [],
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			},
+			{
+				"type": "multi-select",
+				"key": "contentRatings",
+				"title": "Content Ratings",
+				"values": [
+					"safe",
+					"suggestive",
+					"erotica",
+					"pornographic"
+				],
+				"titles": [
+					"Safe",
+					"Suggestive",
+					"Erotica",
+					"Pornographic"
+				],
+				"default": [
+					"safe",
+					"suggestive",
+					"erotica",
+					"pornographic"
+				],
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Titles",
+		"footer": "Which of a title's names to show. Where a title has none in that language, the next nearest is used.",
+		"items": [
+			{
+				"type": "select",
+				"key": "titlePreference",
+				"title": "Title Preference",
+				"values": [
+					"site",
+					"en",
+					"romaji",
+					"native"
+				],
+				"titles": [
+					"As listed",
+					"English",
+					"Romanized",
+					"Original script"
+				],
+				"default": "site",
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Chapters",
+		"footer": "Official chapters only: hides broken copies, notices and batches that repeat chapters, and prefers an official translation where there is one.\n\nDeduplicate chapters & clean order: one row per chapter number, in order, and drops extras and split parts.",
+		"items": [
+			{
+				"type": "switch",
+				"key": "officialOnly",
+				"title": "Official chapters only",
+				"default": false,
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "switch",
+				"key": "cleanChapters",
+				"title": "Deduplicate chapters & clean order",
+				"default": false,
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Home",
+		"footer": "Turn off the sections you don't read.",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "homeSections",
+				"title": "Sections",
+				"values": [
+					"popular",
+					"bookmarked",
+					"latest",
+					"trending",
+					"top-rated",
+					"rising",
+					"talked",
+					"hidden-gems",
+					"binge"
+				],
+				"titles": [
+					"Popular Updates",
+					"Most Bookmarked",
+					"Latest Releases",
+					"Trending Now",
+					"Top Rated",
+					"Rising",
+					"Most Talked About",
+					"Hidden Gems",
+					"Binge-Worthy"
+				],
+				"default": [
+					"popular",
+					"bookmarked",
+					"latest",
+					"trending",
+					"top-rated",
+					"rising",
+					"talked",
+					"hidden-gems",
+					"binge"
+				],
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	}
+]
