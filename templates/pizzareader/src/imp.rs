@@ -15,8 +15,9 @@ pub trait Impl {
 
 	fn to_manga_status(&self, status: &str) -> aidoku::MangaStatus {
 		match status {
-			"En cours" | "On going" => aidoku::MangaStatus::Ongoing,
-			"Terminé" | "Completed" => aidoku::MangaStatus::Completed,
+			"En cours" | "On going" | "In corso" => aidoku::MangaStatus::Ongoing,
+			"Terminé" | "Completed" | "Concluso" => aidoku::MangaStatus::Completed,
+			"In pausa" => aidoku::MangaStatus::Hiatus,
 			_ => aidoku::MangaStatus::Unknown,
 		}
 	}
@@ -116,9 +117,11 @@ pub trait Impl {
 						});
 					}
 					3 => {
-						response
-							.comics
-							.sort_by(|a, b| b.rating.total_cmp(&a.rating));
+						response.comics.sort_by(|a, b| {
+							b.rating
+								.unwrap_or(f32::NEG_INFINITY)
+								.total_cmp(&a.rating.unwrap_or(f32::NEG_INFINITY))
+						});
 					}
 					4 => {
 						response.comics.sort_by_key(|b| core::cmp::Reverse(b.views));
@@ -180,6 +183,14 @@ pub trait Impl {
 						date_uploaded: parse_date(
 							&chapter.published_on,
 							"yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'",
+						),
+						scanlators: Some(
+							chapter
+								.teams
+								.iter()
+								.flatten()
+								.map(|team| team.name.clone())
+								.collect(),
 						),
 						..Default::default()
 					})

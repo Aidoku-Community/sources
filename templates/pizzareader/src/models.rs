@@ -36,7 +36,7 @@ pub struct PizzaComicDto {
 	#[serde(default)]
 	pub chapters: Option<Vec<PizzaChapterDto>>,
 	#[serde(default)]
-	pub description: String,
+	pub description: Option<String>,
 	#[serde(default)]
 	pub genres: Vec<PizzaGenreDto>,
 	#[serde(default)]
@@ -44,7 +44,7 @@ pub struct PizzaComicDto {
 	#[serde(default)]
 	pub status: Option<String>,
 	#[serde(default)]
-	pub rating: f32,
+	pub rating: Option<f32>,
 	#[serde(default)]
 	pub views: i32,
 	#[serde(default)]
@@ -59,6 +59,12 @@ pub struct PizzaComicDto {
 
 #[derive(Debug, Deserialize, Default)]
 pub struct PizzaGenreDto {
+	#[serde(default)]
+	pub name: String,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct PizzaTeamDto {
 	#[serde(default)]
 	pub name: String,
 }
@@ -81,6 +87,8 @@ pub struct PizzaChapterDto {
 	pub subchapter: Option<i32>,
 	#[serde(default)]
 	pub url: String,
+	#[serde(default)]
+	pub teams: Vec<Option<PizzaTeamDto>>, // teams can be null for some reason
 }
 
 impl From<PizzaComicDto> for Manga {
@@ -99,7 +107,7 @@ impl From<PizzaComicDto> for Manga {
 		Manga {
 			key: slug,
 			title,
-			description: Some(description),
+			description,
 			url: Some(url),
 			cover: Some(thumbnail),
 			authors: Some(vec![author]),

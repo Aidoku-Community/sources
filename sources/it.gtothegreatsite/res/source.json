@@ -1,0 +1,14 @@
+{
+	"info": {
+		"id": "it.gtothegreatsite",
+		"name": "GTO The Great Site",
+		"version": 1,
+		"url": "https://reader.gtothegreatsite.net",
+		"contentRating": 0,
+		"languages": ["it"],
+		"minAppVersion": "0.7.1"
+	},
+	"config": {
+		"supportsTagSearch": true
+	}
+}
