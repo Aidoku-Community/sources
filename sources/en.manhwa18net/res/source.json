@@ -1,0 +1,32 @@
+{
+	"info": {
+		"id": "en.manhwa18net",
+		"name": "Manhwa18.net",
+		"version": 1,
+		"url": "https://manhwa18.net",
+		"contentRating": 2,
+		"languages": ["en"],
+		"minAppVersion": "0.7.1"
+	},
+	"config": {
+		"hidesFiltersWhileSearching": true
+	},
+	"listings": [
+		{
+			"id": "popular",
+			"name": "Most Viewed"
+		},
+		{
+			"id": "latest",
+			"name": "Latest Updates"
+		},
+		{
+			"id": "liked",
+			"name": "Most Liked"
+		},
+		{
+			"id": "new",
+			"name": "Newest"
+		}
+	]
+}
