@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.chikari",
 		"name": "Chikari",
-		"version": 3,
+		"version": 4,
 		"url": "https://chikari.moe",
 		"contentRating": 1,
 		"languages": ["en"],
@@ -11,19 +11,27 @@
 	"listings": [
 		{
 			"id": "popular",
-			"name": "Popular"
-		},
-		{
-			"id": "trending",
-			"name": "Trending"
+			"name": "Popularity"
 		},
 		{
 			"id": "top_rated",
 			"name": "Top Rated"
 		},
 		{
+			"id": "bingeable",
+			"name": "Complete & Bingeable"
+		},
+		{
+			"id": "gems",
+			"name": "Hidden Gems"
+		},
+		{
+			"id": "trending",
+			"name": "Trending"
+		},
+		{
 			"id": "updated",
-			"name": "Latest Updates"
+			"name": "Recently Updated"
 		},
 		{
 			"id": "added",
@@ -32,10 +40,6 @@
 		{
 			"id": "most_bookmarked",
 			"name": "Most Bookmarked"
-		},
-		{
-			"id": "bingeable",
-			"name": "Complete & Bingeable"
 		},
 		{
 			"id": "random",
