@@ -179,7 +179,8 @@ pub fn apply_image_quality(url: &str, quality: &str) -> String {
 	{
 		Some(rest) => {
 			let path = rest.split('#').next().unwrap_or(rest);
-			format!("{CDN_URL}/{path}?w={quality}")
+			let separator = if path.contains('?') { '&' } else { '?' };
+			format!("{CDN_URL}/{path}{separator}w={quality}")
 		}
 		None => url.into(),
 	}
