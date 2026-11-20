@@ -2,7 +2,7 @@
 	"info": {
 		"id": "en.roliascan",
 		"name": "Rolia Scan",
-		"version": 1,
+		"version": 2,
 		"url": "https://roliascan.com",
 		"contentRating": 1,
 		"languages": [
