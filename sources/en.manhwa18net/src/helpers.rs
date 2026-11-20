@@ -54,46 +54,6 @@ pub fn parse_chapter_name(name: &str) -> (Option<f32>, Option<String>) {
 	(number, (!title.is_empty()).then(|| title.into()))
 }
 
-/// Parses a Laravel timestamp like `2024-05-01T10:20:30.000000Z` or
-/// `2024-05-01 10:20:30` into a unix timestamp. Values are assumed to be UTC.
-pub fn parse_timestamp(value: &str) -> Option<i64> {
-	let value = value.trim();
-	let bytes = value.as_bytes();
-	// anything after the seconds (fractions, `Z`) is ignored
-	let shape = b"dddd-dd-dd?dd:dd:dd";
-	if bytes.len() < shape.len() {
-		return None;
-	}
-	for (byte, expected) in bytes.iter().zip(shape) {
-		let valid = match expected {
-			b'd' => byte.is_ascii_digit(),
-			b'?' => matches!(byte, b'T' | b' '),
-			expected => byte == expected,
-		};
-		if !valid {
-			return None;
-		}
-	}
-
-	let field = |range: core::ops::Range<usize>| value.get(range)?.parse::<i64>().ok();
-	let (year, month, day) = (field(0..4)?, field(5..7)?, field(8..10)?);
-	let (hour, minute, second) = (field(11..13)?, field(14..16)?, field(17..19)?);
-	if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
-		return None;
-	}
-
-	// days since 1970-01-01 for a proleptic gregorian date
-	let year = if month <= 2 { year - 1 } else { year };
-	let era = year.div_euclid(400);
-	let year_of_era = year - era * 400;
-	let month_index = (month + 9) % 12;
-	let day_of_year = (153 * month_index + 2) / 5 + day - 1;
-	let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-	let days = era * 146_097 + day_of_era - 719_468;
-
-	Some(days * 86_400 + hour * 3_600 + minute * 60 + second)
-}
-
 /// Extracts the manga slug and optional chapter slug from a site url.
 pub fn parse_link(url: &str) -> Option<(&str, Option<&str>)> {
 	let path = url.split(['?', '#']).next()?;

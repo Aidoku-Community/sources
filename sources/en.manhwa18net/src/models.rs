@@ -1,8 +1,11 @@
-use crate::helpers::{BASE_URL, absolute_url, parse_chapter_name, parse_timestamp};
+use crate::helpers::{BASE_URL, absolute_url, parse_chapter_name};
 use aidoku::{
 	Chapter, ContentRating, Manga, MangaPageResult, MangaStatus, Viewer,
 	alloc::{String, Vec, format},
-	imports::html::{Element, Html},
+	imports::{
+		html::{Element, Html},
+		std::parse_date,
+	},
 };
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -126,7 +129,11 @@ impl ChapterDto {
 			key: self.slug,
 			title,
 			chapter_number,
-			date_uploaded: self.created_at.as_deref().and_then(parse_timestamp),
+			// timestamps look like `2024-05-01T10:20:30.000000Z`, keep only the part up to the seconds
+			date_uploaded: self
+				.created_at
+				.as_deref()
+				.and_then(|date| parse_date(date.get(..19)?, "yyyy-MM-dd'T'HH:mm:ss")),
 			..Default::default()
 		}
 	}

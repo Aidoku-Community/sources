@@ -86,7 +86,7 @@ impl Source for Manhwa18Net {
 				bail!("Manga details not found");
 			};
 			// the key identifies the entry in the user's library, so it must not change
-			let key = manga.key.clone();
+			let key = core::mem::take(&mut manga.key);
 			manga.copy_from(details.into_details());
 			manga.key = key;
 		}
