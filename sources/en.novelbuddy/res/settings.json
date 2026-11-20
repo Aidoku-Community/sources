@@ -1,8 +1,48 @@
 [
 	{
 		"type": "group",
-		"title": "Content Filters",
+		"title": "Content",
 		"items": [
+			{
+				"type": "multi-select",
+				"key": "status",
+				"title": "Status",
+				"titles": [
+					"Ongoing",
+					"Completed",
+					"Hiatus",
+					"Cancelled"
+				],
+				"values": [
+					"ongoing",
+					"completed",
+					"hiatus",
+					"cancelled"
+				],
+				"default": [],
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "multi-select",
+				"key": "contentRating",
+				"title": "Content Rating",
+				"titles": [
+					"Safe",
+					"Suggestive",
+					"NSFW"
+				],
+				"values": [
+					"safe",
+					"suggestive",
+					"nsfw"
+				],
+				"default": [],
+				"refreshes": [
+					"content"
+				]
+			},
 			{
 				"type": "multi-select",
 				"key": "hiddenGenres",
@@ -39,6 +79,7 @@
 					"Shoujo Ai",
 					"Shounen",
 					"Shounen Ai",
+					"Slice of Lif",
 					"Slice Of Life",
 					"Smut",
 					"Sports",
@@ -85,6 +126,7 @@
 					"shoujo-ai",
 					"shounen",
 					"shounen-ai",
+					"slice-of-lif",
 					"slice-of-life",
 					"smut",
 					"sports",
@@ -103,51 +145,30 @@
 				"refreshes": [
 					"content"
 				]
-			},
-			{
-				"type": "button",
-				"key": "resetGenreFilter",
-				"title": "Reset Hidden Genres",
-				"confirmTitle": "Reset Hidden Genres",
-				"confirmText": "Are you sure you want to remove all hidden genres?",
-				"destructive": true,
-				"notification": "resetGenreFilter",
-				"refreshes": [
-					"content"
-				]
 			}
 		],
-		"footer": "Novels tagged with the selected genres are excluded from search results."
+		"footer": "Applied to search and listings unless the matching filter overrides it. Genres selected under Hidden Genres are left out. Empty means all."
 	},
 	{
 		"type": "group",
 		"title": "Experimental",
 		"items": [
 			{
-				"type": "select",
-				"key": "mtl",
-				"title": "MTL",
-				"values": [
-					"all",
-					"only",
-					"hidden"
-				],
-				"titles": [
-					"All",
-					"MTL Only",
-					"No MTL"
-				],
-				"default": "all",
-				"refreshes": [
-					"content"
-				]
-			},
-			{
 				"type": "switch",
 				"key": "hideWatermark",
 				"title": "Hide Watermark",
 				"subtitle": "Remove the source-credit line the site injects into chapters",
 				"default": false
+			},
+			{
+				"type": "switch",
+				"key": "hideMtl",
+				"title": "Hide MTL",
+				"subtitle": "Hide titles and chapters with MTL in the name",
+				"default": false,
+				"refreshes": [
+					"content"
+				]
 			}
 		]
 	}
