@@ -1,0 +1,205 @@
+[
+	{
+		"type": "group",
+		"title": "Catalogue",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "contentRatings",
+				"title": "Content Rating",
+				"values": [
+					"safe",
+					"suggestive",
+					"erotica",
+					"pornographic"
+				],
+				"titles": [
+					"Safe",
+					"Suggestive",
+					"Erotica",
+					"Pornographic"
+				],
+				"default": [
+					"safe",
+					"suggestive"
+				],
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "multi-select",
+				"key": "contentTypes",
+				"title": "Types",
+				"values": [
+					"manga",
+					"manhwa",
+					"manhua"
+				],
+				"titles": [
+					"Manga",
+					"Manhwa",
+					"Manhua"
+				],
+				"default": [
+					"manga",
+					"manhwa",
+					"manhua"
+				],
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "multi-select",
+				"key": "hiddenGenres",
+				"title": "Excluded Genres",
+				"values": [
+					"Action",
+					"Adventure",
+					"Boys' Love",
+					"Comedy",
+					"Crime",
+					"Drama",
+					"Ecchi",
+					"Fantasy",
+					"Gender Bender",
+					"Girls' Love",
+					"Gore",
+					"Historical",
+					"Horror",
+					"Isekai",
+					"Josei",
+					"Magical Girls",
+					"Mature",
+					"Mecha",
+					"Medical",
+					"Mystery",
+					"Philosophical",
+					"Psychological",
+					"Romance",
+					"Sci-Fi",
+					"Seinen",
+					"Sexual Violence",
+					"Shoujo",
+					"Shoujo Ai",
+					"Shounen",
+					"Shounen Ai",
+					"Slice of Life",
+					"Sports",
+					"Superhero",
+					"Thriller",
+					"Tragedy",
+					"Wuxia",
+					"Yaoi",
+					"Yuri"
+				],
+				"default": [],
+				"refreshes": [
+					"content"
+				]
+			}
+		],
+		"footer": "Selecting a higher rating while skipping a lower one shows exact matches from Browse."
+	},
+	{
+		"type": "group",
+		"title": "Discover",
+		"footer": "If your content ratings skip one, like Pornographic without Erotica, Readers Favourites, Your Taste, Recently Popular, Finished and Just Added are hidden, because only the other sections can match your ratings exactly.",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "homeSections",
+				"title": "Sections",
+				"values": [
+					"popular",
+					"yours",
+					"taste",
+					"new",
+					"trending",
+					"latest",
+					"manhwa",
+					"manga",
+					"manhua",
+					"finished",
+					"added"
+				],
+				"titles": [
+					"Popular This Week",
+					"Your Taste",
+					"Readers Favourites",
+					"New This Year",
+					"Recently Popular",
+					"Latest Updates",
+					"Manhwa",
+					"Manga",
+					"Manhua",
+					"Finished",
+					"Just Added"
+				],
+				"default": [
+					"popular",
+					"yours",
+					"taste",
+					"new",
+					"trending",
+					"latest",
+					"manhwa",
+					"manga",
+					"manhua",
+					"finished",
+					"added"
+				],
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Chapters",
+		"footer": "One per Chapter keeps one upload of each chapter, taken from your Preferred Groups in list order, otherwise the most liked one without a warning. Group names aren't case sensitive.",
+		"items": [
+			{
+				"type": "select",
+				"key": "chapterList",
+				"title": "Chapter List",
+				"values": [
+					"group",
+					"chapter"
+				],
+				"titles": [
+					"One per Group",
+					"One per Chapter"
+				],
+				"default": "group",
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "editable-list",
+				"key": "excludedScanlators",
+				"title": "Hidden Groups",
+				"placeholder": "Group name",
+				"lineLimit": 1,
+				"default": [],
+				"refreshes": [
+					"content"
+				]
+			},
+			{
+				"type": "editable-list",
+				"key": "preferredScanlators",
+				"title": "Preferred Groups",
+				"placeholder": "Group name",
+				"lineLimit": 1,
+				"default": [],
+				"refreshes": [
+					"content"
+				]
+			}
+		]
+	}
+]
