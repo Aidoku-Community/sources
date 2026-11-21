@@ -1,0 +1,29 @@
+{
+	"info": {
+		"id": "en.vymanga",
+		"name": "VyManga",
+		"version": 1,
+		"urls": [
+			"https://mangavyvy.com",
+			"https://mangavyvy.net"
+		],
+		"contentRating": 2,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{
+			"id": "updated_at",
+			"name": "Latest Update"
+		},
+		{
+			"id": "created_at",
+			"name": "New Release"
+		}
+	],
+	"config": {
+		"allowsBaseUrlSelect": true
+	}
+}
