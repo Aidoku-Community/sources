@@ -249,14 +249,14 @@ pub fn parse_tags(html: &Document) -> Vec<String> {
 
 	if let Some(elements) = html.select("span.flex-wrap.gap-1 a[href*='/genre/']") {
 		for element in elements {
-			if let Some(tag) = element.text().as_deref().and_then(clean_tag)
-				&& !tags.contains(&tag)
-			{
+			if let Some(tag) = element.text().as_deref().and_then(clean_tag) {
 				tags.push(tag);
 			}
 		}
 	}
 
+	tags.sort_unstable();
+	tags.dedup();
 	tags
 }
 

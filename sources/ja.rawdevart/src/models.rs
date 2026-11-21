@@ -101,8 +101,6 @@ impl ChapterEntry {
 			.chapter_date_published
 			.and_then(|date| parse_date_with_options(date, DATE_FORMAT, "en_US_POSIX", "UTC"));
 
-		// `language` is left unset: on a japanese only source it would only expose chapters to
-		// the app's chapter language filter
 		Some(Chapter {
 			url: Some(chapter_url(manga_key, &key)),
 			key,
