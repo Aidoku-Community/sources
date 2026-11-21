@@ -80,13 +80,12 @@ pub fn is_plain_chapter_title(title: &str) -> bool {
 
 // the filter value is read rather than the label next to it ("進行中" / "完了"), which wording
 // changes would break
-pub fn parse_status_value(href: &str) -> Option<&'static str> {
+pub fn parse_status_value(href: &str) -> MangaStatus {
 	// ex: /manga-list?sort=-updated_at&page=1&filter%5Bstatus%5D=2
-	let start = href.rfind('=')? + 1;
-	match href[start..].trim() {
-		"1" => Some("completed"),
-		"2" => Some("ongoing"),
-		_ => None,
+	match href.rsplit('=').next().map(str::trim) {
+		Some("1") => MangaStatus::Completed,
+		Some("2") => MangaStatus::Ongoing,
+		_ => MangaStatus::Unknown,
 	}
 }
 
@@ -186,13 +185,7 @@ pub fn strip_base_url(url: &str) -> Option<&str> {
 		.or_else(|| url.strip_prefix("http://"))
 		.unwrap_or(url);
 	let path = path.strip_prefix("www.").unwrap_or(path);
-	path.strip_prefix("mangaraw.best")
-}
-
-pub fn push_unique(values: &mut Vec<String>, value: String) {
-	if !values.contains(&value) {
-		values.push(value);
-	}
+	path.strip_prefix(BASE_URL.trim_start_matches("https://"))
 }
 
 // shared by search, filtering and listings
@@ -257,11 +250,13 @@ pub fn parse_tags(html: &Document) -> Vec<String> {
 	if let Some(elements) = html.select("span.flex-wrap.gap-1 a[href*='/genre/']") {
 		for element in elements {
 			if let Some(tag) = element.text().as_deref().and_then(clean_tag) {
-				push_unique(&mut tags, tag);
+				tags.push(tag);
 			}
 		}
 	}
 
+	tags.sort_unstable();
+	tags.dedup();
 	tags
 }
 
@@ -271,10 +266,12 @@ pub fn parse_status(html: &Document) -> MangaStatus {
 	};
 
 	// The filter value is stable; the label next to it is only a fallback.
-	match element.attr("href").as_deref().and_then(parse_status_value) {
-		Some("completed") => return MangaStatus::Completed,
-		Some("ongoing") => return MangaStatus::Ongoing,
-		_ => {}
+	let status = element
+		.attr("href")
+		.map(|href| parse_status_value(&href))
+		.unwrap_or_default();
+	if status != MangaStatus::Unknown {
+		return status;
 	}
 
 	match element.text().unwrap_or_default().trim() {
@@ -284,8 +281,13 @@ pub fn parse_status(html: &Document) -> MangaStatus {
 	}
 }
 
-pub fn parse_chapters(html: &Document) -> Vec<Chapter> {
-	html.select("#chapterList ul a")
+pub fn parse_chapters(html: &Document) -> Result<Vec<Chapter>> {
+	// a series can have no chapters yet, but a page without the list means the layout changed
+	if html.select_first("#chapterList").is_none() {
+		bail!("no chapter list on the series page");
+	}
+	Ok(html
+		.select("#chapterList ul a")
 		.map(|elements| {
 			elements
 				.filter_map(|element| {
@@ -319,7 +321,7 @@ pub fn parse_chapters(html: &Document) -> Vec<Chapter> {
 				})
 				.collect::<Vec<Chapter>>()
 		})
-		.unwrap_or_default()
+		.unwrap_or_default())
 }
 
 #[cfg(test)]
@@ -369,13 +371,13 @@ mod test {
 	fn test_parse_status_value() {
 		assert_eq!(
 			parse_status_value("/manga-list?sort=-updated_at&page=1&filter%5Bstatus%5D=1"),
-			Some("completed")
+			MangaStatus::Completed
 		);
 		assert_eq!(
 			parse_status_value("/manga-list?sort=-updated_at&page=1&filter%5Bstatus%5D=2"),
-			Some("ongoing")
+			MangaStatus::Ongoing
 		);
-		assert_eq!(parse_status_value("/manga-list"), None);
+		assert_eq!(parse_status_value("/manga-list"), MangaStatus::Unknown);
 	}
 
 	#[aidoku_test]
@@ -440,17 +442,5 @@ mod test {
 			Some("/raw/tu-long-nobai")
 		);
 		assert_eq!(strip_base_url("https://example.com/raw/x"), None);
-	}
-
-	#[aidoku_test]
-	fn test_push_unique() {
-		let mut values = Vec::new();
-		push_unique(&mut values, String::from("a"));
-		push_unique(&mut values, String::from("b"));
-		push_unique(&mut values, String::from("a"));
-
-		assert_eq!(values.len(), 2);
-		assert_eq!(values[0], "a");
-		assert_eq!(values[1], "b");
 	}
 }

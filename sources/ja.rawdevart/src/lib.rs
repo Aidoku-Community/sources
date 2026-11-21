@@ -204,6 +204,13 @@ impl Source for Rawdevart {
 					.collect::<Vec<Page>>()
 			})
 			.unwrap_or_default();
+		if pages.is_empty() {
+			bail!(
+				"no pages found for chapter {} of manga {}",
+				chapter.key,
+				manga.key
+			);
+		}
 
 		Ok(pages)
 	}
@@ -237,7 +244,7 @@ impl ListingProvider for Rawdevart {
 }
 
 impl DynamicFilters for Rawdevart {
-	// the genre list is fetched instead of hardcoded, so new genres are picked up automatically
+	// fetched instead of hardcoded so new genres are picked up automatically
 	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
 		let response =
 			Request::get(format!("{BASE_URL}/spa/genre/all"))?.json_owned::<MangaListResponse>()?;
@@ -427,9 +434,7 @@ mod test {
 		assert!(chapter.chapter_number.is_some());
 		// language stays unset so the app's chapter language filter can't hide these
 		assert_eq!(chapter.language, None);
-		// date_uploaded isn't checked here: the test runner doesn't implement the quoting,
-		// fractional seconds or ISO 8601 zones that DATE_FORMAT relies on, so it only ever
-		// parses on device
+		// date_uploaded only parses on device: the test runner can't read DATE_FORMAT
 	}
 
 	// most chapters are numbered like "34.2", so the keys built from them have to survive
@@ -440,7 +445,6 @@ mod test {
 			key: String::from("16523"),
 			..Default::default()
 		};
-		// called the same way the app does when opening a manga page
 		let manga = Rawdevart
 			.get_manga_update(manga, true, true)
 			.expect("chapters");

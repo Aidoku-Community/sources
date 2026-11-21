@@ -54,13 +54,9 @@ impl From<MangaEntry> for Manga {
 // the whole deserialization, leaving the entry with no chapters at all
 #[derive(Deserialize)]
 pub struct MangaDetailsResponse {
-	#[serde(default)]
 	pub detail: Option<MangaEntryDetail>,
-	#[serde(default)]
 	pub tags: Option<Vec<Tag>>,
-	#[serde(default)]
 	pub authors: Option<Vec<Author>>,
-	#[serde(default)]
 	pub chapters: Option<Vec<ChapterEntry>>,
 }
 
@@ -105,8 +101,6 @@ impl ChapterEntry {
 			.chapter_date_published
 			.and_then(|date| parse_date_with_options(date, DATE_FORMAT, "en_US_POSIX", "UTC"));
 
-		// `language` is deliberately left unset: the source is japanese only, so tagging chapters
-		// would only expose them to the app's chapter language filter for no benefit
 		Some(Chapter {
 			url: Some(chapter_url(manga_key, &key)),
 			key,
@@ -121,7 +115,6 @@ impl ChapterEntry {
 // `/spa/manga/{manga_id}/{chapter_number}`
 #[derive(Deserialize)]
 pub struct ChapterPagesResponse {
-	#[serde(default)]
 	pub chapter_detail: Option<ChapterDetail>,
 }
 
@@ -129,8 +122,7 @@ pub struct ChapterPagesResponse {
 pub struct ChapterDetail {
 	// markup holding one lazily loaded `img` per page
 	pub chapter_content: Option<String>,
-	// base url the page images are relative to, with `servers` holding its mirrors
+	// base url the page images are relative to, with `slaves` holding its mirrors
 	pub server: Option<String>,
-	#[serde(default)]
 	pub slaves: Option<Vec<String>>,
 }

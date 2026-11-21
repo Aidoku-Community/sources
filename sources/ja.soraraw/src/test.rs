@@ -282,9 +282,7 @@ fn test_manga_details() {
 			.iter()
 			.any(|chapter| chapter.chapter_number.is_some_and(|it| it.fract() != 0.0))
 	);
-	// date_uploaded isn't checked here: the test runner doesn't implement the quoting,
-	// fractional seconds or ISO 8601 zones that DATE_FORMAT relies on, so it only ever
-	// parses on device
+	// date_uploaded only parses on device: the test runner can't read DATE_FORMAT
 }
 
 // two of its genre rows come back with every field but the id null, which used to fail the whole
@@ -673,7 +671,7 @@ fn test_malformed_chapter_key() {
 fn test_deobfuscate() {
 	// "[{\"id\":1,\"order\":1}]" xored with the key and encoded, padding left off
 	let payload = "dB1XKg97VUQNA05dAhAxSWNeCHw";
-	let json = deobfuscate(payload, PAYLOAD_KEY).expect("decoded payload");
+	let json = deobfuscate(payload).expect("decoded payload");
 	assert_eq!(json, r#"[{"id":1,"order":1}]"#);
 
 	// the endpoint gives the order as a number, but strings appear in the same shape of
@@ -682,7 +680,7 @@ fn test_deobfuscate() {
 		serde_json::from_str::<Vec<PageImage>>(r#"[{"order":"12","b":"AA"}]"#).expect("text");
 	assert_eq!(images[0].order.as_f32(), Some(12.0));
 
-	assert_eq!(deobfuscate("*", PAYLOAD_KEY), None);
+	assert_eq!(deobfuscate("*"), None);
 	assert_eq!(decode_base64("QUJD"), Some(Vec::from(*b"ABC")));
 	assert_eq!(decode_base64("QUJD="), Some(Vec::from(*b"ABC")));
 	assert_eq!(decode_base64("*"), None);
@@ -697,16 +695,12 @@ fn test_decrypt_path() {
 	let path = decrypt_path(
 		"UQajtZjw1-nFt7IgA1ot0f9ahvQL5noTTVZv-2P0EASrNeOXH94Kyw",
 		uuid,
-		PATH_SECRET,
 	);
 	assert_eq!(path.as_deref(), Some("c722455/001_25706548.jpg"));
 
 	// a uuid that isn't a 32 byte key, and a value too short to hold a counter and a path
-	assert_eq!(
-		decrypt_path("UQajtZjw1-nFt7IgA1ot0f9a", "00ff", PATH_SECRET),
-		None
-	);
-	assert_eq!(decrypt_path("QUJD", uuid, PATH_SECRET), None);
+	assert_eq!(decrypt_path("UQajtZjw1-nFt7IgA1ot0f9a", "00ff"), None);
+	assert_eq!(decrypt_path("QUJD", uuid), None);
 }
 
 // the image endpoint is edge cached for a year, so a payload fetched while a chapter was still

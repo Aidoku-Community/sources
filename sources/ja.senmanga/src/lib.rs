@@ -18,7 +18,6 @@ mod test;
 use models::*;
 
 const BASE_URL: &str = "https://raw.senmanga.com";
-const API_URL: &str = "https://raw.senmanga.com/api";
 
 // same order as the sort options in res/filters.json; any other value 500s
 const SORT_VALUES: [&str; 4] = ["popular", "title", "updated", "rating"];
@@ -28,6 +27,16 @@ const DATE_FORMAT: &str = "yyyy-MM-dd'T'HH:mm:ssXXX";
 
 const NSFW_TAGS: [&str; 6] = ["Adult", "Smut", "Lolicon", "Shotacon", "Yaoi", "Yuri"];
 const SUGGESTIVE_TAGS: [&str; 2] = ["Ecchi", "Mature"];
+
+fn parse_status(status: &str) -> MangaStatus {
+	match status {
+		"Ongoing" => MangaStatus::Ongoing,
+		"Completed" => MangaStatus::Completed,
+		"Cancelled" => MangaStatus::Cancelled,
+		"Hiatus" => MangaStatus::Hiatus,
+		_ => MangaStatus::Unknown,
+	}
+}
 
 struct SenManga;
 
@@ -64,7 +73,7 @@ impl Source for SenManga {
 			}
 		}
 
-		let url = format!("{API_URL}/directory?{params}");
+		let url = format!("{BASE_URL}/api/directory?{params}");
 		let DirectoryResponse {
 			current_page,
 			total_pages,
@@ -87,13 +96,7 @@ impl Source for SenManga {
 					key: slug,
 					title,
 					cover,
-					status: match status.as_deref() {
-						Some("Ongoing") => MangaStatus::Ongoing,
-						Some("Completed") => MangaStatus::Completed,
-						Some("Cancelled") => MangaStatus::Cancelled,
-						Some("Hiatus") => MangaStatus::Hiatus,
-						_ => MangaStatus::Unknown,
-					},
+					status: status.as_deref().map(parse_status).unwrap_or_default(),
 					..Default::default()
 				}
 			})
@@ -117,7 +120,7 @@ impl Source for SenManga {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let url = format!("{API_URL}/manga/{}", manga.key);
+		let url = format!("{BASE_URL}/api/manga/{}", manga.key);
 		let MangaDetails {
 			title,
 			cover,
@@ -156,13 +159,7 @@ impl Source for SenManga {
 			};
 			// this endpoint answers with a null status, the listing entry carries one
 			if let Some(status) = status {
-				manga.status = match status.as_str() {
-					"Ongoing" => MangaStatus::Ongoing,
-					"Completed" => MangaStatus::Completed,
-					"Cancelled" => MangaStatus::Cancelled,
-					"Hiatus" => MangaStatus::Hiatus,
-					_ => MangaStatus::Unknown,
-				};
+				manga.status = parse_status(&status);
 			}
 			manga.url = Some(format!("{BASE_URL}/manga/{}/", manga.key));
 			manga.title = title;
@@ -214,7 +211,7 @@ impl Source for SenManga {
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let url = format!("{API_URL}/read/{}/{}", manga.key, chapter.key);
+		let url = format!("{BASE_URL}/api/read/{}/{}", manga.key, chapter.key);
 		let ReadResponse { pages } = Request::get(&url)?.send()?.get_json::<ReadResponse>()?;
 
 		if pages.is_empty() {
@@ -275,7 +272,7 @@ impl MigrationHandler for SenManga {
 			.rsplit_once('/')
 			.map_or(chapter_key, |(_, number)| number);
 
-		let url = format!("{API_URL}/manga/{manga_key}");
+		let url = format!("{BASE_URL}/api/manga/{manga_key}");
 		let MangaDetails { chapter_list, .. } =
 			Request::get(&url)?.send()?.get_json::<MangaDetails>()?;
 
