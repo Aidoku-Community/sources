@@ -90,14 +90,10 @@ pub struct MangaEntry {
 impl MangaEntry {
 	pub fn into_full_manga(self) -> Manga {
 		Manga {
-			url: Some(manga_url(&self.slug)),
-			key: self.slug,
-			title: self.name,
-			cover: cover(self.thumbnail, self.image.as_deref()),
 			authors: authors(self.author.as_deref()),
 			status: status(self.kind.as_deref()),
 			content_rating: content_rating(self.is_adult.as_deref()),
-			..Default::default()
+			..self.into()
 		}
 	}
 }

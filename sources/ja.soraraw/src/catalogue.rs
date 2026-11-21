@@ -27,15 +27,12 @@ impl Catalogue {
 		let mut entries = Vec::new();
 		for page in 1..=CATALOGUE_PAGE_LIMIT {
 			let response = request(format!("{BASE_URL}/mangas_{page}.json"))?.send()?;
-			// final page returns 404 to indicate end
-			if response.status_code() != 200 {
-				if page == 1 {
-					bail!(
-						"the catalogue is unreachable: page 1 answered {}",
-						response.status_code()
-					);
-				}
-				break;
+			// final page returns 404 to indicate end. any other failure would cache a truncated
+			// catalogue for an hour
+			match response.status_code() {
+				200 => {}
+				404 if page > 1 => break,
+				code => bail!("the catalogue is unreachable: page {page} answered {code}"),
 			}
 			let catalogue = response.get_json_owned::<CataloguePage>()?;
 			entries.extend(catalogue.list);

@@ -120,7 +120,6 @@ impl Source for MangaRawBest {
 				_ => UpdateStrategy::Always,
 			};
 
-			// Every series is a Japanese raw scan, so pages read right to left.
 			manga.viewer = Viewer::RightToLeft;
 
 			if needs_chapters {
@@ -129,7 +128,7 @@ impl Source for MangaRawBest {
 		}
 
 		if needs_chapters {
-			manga.chapters = Some(parse_chapters(&html));
+			manga.chapters = Some(parse_chapters(&html)?);
 		}
 
 		Ok(manga)
@@ -207,7 +206,6 @@ impl DeepLinkHandler for MangaRawBest {
 			return Ok(None);
 		};
 
-		// Drop any query string or fragment a shared link may carry.
 		let path = path
 			.split(['?', '#'])
 			.next()
@@ -281,7 +279,6 @@ mod test {
 			.get_search_manga_list(None, 1, Vec::new())
 			.expect("failed to fetch manga list");
 
-		println!("entries: {}", result.entries.len());
 		assert_valid_entries(&result.entries);
 		assert!(result.has_next_page, "browse should be paginated");
 	}
@@ -301,7 +298,6 @@ mod test {
 				)
 				.unwrap_or_else(|_| panic!("failed to fetch listing {id}"));
 
-			println!("{id}: {} entries", result.entries.len());
 			assert_valid_entries(&result.entries);
 		}
 	}
@@ -313,7 +309,6 @@ mod test {
 			.get_search_manga_list(Some(String::from("土竜")), 1, Vec::new())
 			.expect("failed to search");
 
-		println!("entries: {}", result.entries.len());
 		assert_valid_entries(&result.entries);
 		assert!(
 			result.entries.iter().any(|manga| manga.key == SERIES_KEY),
@@ -362,7 +357,6 @@ mod test {
 			)
 			.expect("failed to fetch filtered list");
 
-		println!("entries: {}", filtered.entries.len());
 		assert_valid_entries(&filtered.entries);
 
 		// The genre filter has to actually narrow the catalogue down, otherwise
@@ -391,11 +385,6 @@ mod test {
 			)
 			.expect("failed to fetch details");
 
-		println!("title: {}", manga.title);
-		println!("cover: {:?}", manga.cover);
-		println!("status: {:?}", manga.status);
-		println!("rating: {:?}", manga.content_rating);
-
 		assert_eq!(manga.title, "土竜の唄");
 		assert_eq!(manga.status, MangaStatus::Ongoing);
 		assert_eq!(manga.update_strategy, UpdateStrategy::Always);
@@ -408,12 +397,7 @@ mod test {
 		);
 
 		let chapters = manga.chapters.expect("no chapters returned");
-		println!("chapters: {}", chapters.len());
 		let first = chapters.first().expect("empty chapter list");
-		println!(
-			"first: {:?} key={} number={:?} date={:?}",
-			first.title, first.key, first.chapter_number, first.date_uploaded
-		);
 
 		assert!(chapters.len() > 100, "suspiciously short chapter list");
 		for chapter in &chapters {
@@ -441,6 +425,32 @@ mod test {
 	}
 
 	#[aidoku_test]
+	fn test_completed_status() {
+		let source = MangaRawBest::new();
+		let completed = source
+			.get_search_manga_list(
+				None,
+				1,
+				vec![FilterValue::MultiSelect {
+					id: String::from("status"),
+					included: vec![String::from("1")],
+					excluded: Vec::new(),
+				}],
+			)
+			.expect("failed to fetch completed list")
+			.entries
+			.into_iter()
+			.next()
+			.expect("no completed series");
+
+		let manga = source
+			.get_manga_update(completed, true, false)
+			.expect("failed to fetch details");
+		assert_eq!(manga.status, MangaStatus::Completed);
+		assert_eq!(manga.update_strategy, UpdateStrategy::Never);
+	}
+
+	#[aidoku_test]
 	fn test_manga_tags_and_rating() {
 		let source = MangaRawBest::new();
 		let manga = source
@@ -455,9 +465,6 @@ mod test {
 			.expect("failed to fetch details");
 
 		let tags = manga.tags.expect("expected genres on this series");
-		println!("tags ({}): {:?}", tags.len(), tags);
-		println!("rating: {:?}", manga.content_rating);
-
 		assert!(tags.iter().any(|tag| tag == "Action"));
 		assert!(tags.iter().any(|tag| tag == "Ecchi"));
 		// The " raw" suffix the site appends to its Japanese genres is stripped.
@@ -496,11 +503,6 @@ mod test {
 				},
 			)
 			.expect("failed to fetch pages");
-
-		println!("pages: {}", pages.len());
-		for page in pages.iter().take(3) {
-			println!("  {:?}", page.content);
-		}
 
 		assert!(!pages.is_empty());
 		for page in &pages {
