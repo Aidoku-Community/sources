@@ -32,15 +32,15 @@ pub fn search_url(
 	mut qs: QueryParameters,
 	page: i32,
 	included: &[String],
-	excluded: Vec<String>,
+	excluded: &[String],
 ) -> String {
 	qs.push_encoded("page", Some(&page.to_string()));
 	for genre in included {
 		qs.push("genre[]", Some(genre));
 	}
-	for genre in settings::excluded_genres().into_iter().chain(excluded) {
-		if !included.contains(&genre) {
-			qs.push("exclude_genre[]", Some(&genre));
+	for genre in settings::excluded_genres().iter().chain(excluded) {
+		if !included.contains(genre) {
+			qs.push("exclude_genre[]", Some(genre));
 		}
 	}
 	format!("{}/search?{qs}", settings::base_url())
@@ -49,7 +49,7 @@ pub fn search_url(
 pub fn sorted_url(sort: &str, page: i32) -> String {
 	let mut qs = QueryParameters::new();
 	qs.push_encoded("sort", Some(sort));
-	search_url(qs, page, &[], Vec::new())
+	search_url(qs, page, &[], &[])
 }
 
 pub fn parse_html(response: &Response) -> Result<Document> {
@@ -80,11 +80,6 @@ pub fn parse_page(html: &Document) -> MangaPageResult {
 							cover: card
 								.select_first("img")
 								.and_then(|img| img.attr("data-src")),
-							status: if card.select_first(".comic-completed").is_some() {
-								MangaStatus::Completed
-							} else {
-								MangaStatus::Ongoing
-							},
 							content_rating: if card.select_first(".cover-adult").is_some() {
 								ContentRating::NSFW
 							} else {
@@ -175,7 +170,6 @@ pub fn parse_manga(key: String, info: &Element) -> Result<Manga> {
 		tags.iter()
 			.any(|tag| names.iter().any(|name| tag.eq_ignore_ascii_case(name)))
 	};
-	// The site blurs the covers it counts as adult.
 	manga.content_rating = if info.select_first(".img-manga .cover-adult").is_some()
 		|| tagged(&["Erotica", "Pornographic", "R-18", "Smut"])
 	{

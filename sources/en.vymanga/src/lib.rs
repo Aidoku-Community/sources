@@ -68,7 +68,7 @@ impl Source for VyManga {
 				_ => {}
 			}
 		}
-		let url = search_url(qs, page, &included_genres, excluded_genres);
+		let url = search_url(qs, page, &included_genres, &excluded_genres);
 		Ok(parse_page(&get_html(&url)?))
 	}
 

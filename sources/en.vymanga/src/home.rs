@@ -53,8 +53,7 @@ impl Home for VyManga {
 		// The final layout removes failed-section placeholders.
 		let mut components = Vec::new();
 		if let Some(html) = pages.next().flatten() {
-			// A genre id is "<name>-<number>-<slug>", and a slide only prints names. Some names
-			// carry the site's stray line breaks and double spaces, which a slide's text drops.
+			// A genre id is "<name>-<number>-<slug>"; some names carry line breaks a slide's text drops.
 			let excluded = settings::excluded_genres();
 			let hidden = |manga: &Manga| {
 				manga.tags.iter().flatten().any(|tag| {
