@@ -3,12 +3,15 @@
 		"id": "en.novelbuddy",
 		"name": "NovelBuddy",
 		"version": 10,
-		"url": "https://novelbuddy.me",
+		"urls": ["https://novelbuddy.me", "https://www.novelbuddy.me"],
 		"contentRating": 1,
 		"languages": [
 			"en"
 		],
 		"minAppVersion": "0.8.3"
+	},
+	"config": {
+		"breakingChangeVersion": 2
 	},
 	"listings": [
 		{
