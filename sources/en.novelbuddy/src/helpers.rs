@@ -18,7 +18,6 @@ use crate::{API_URL, BASE_URL, USER_AGENT};
 const CANONICAL_ID_LEN: usize = 8;
 
 const ALLOWED_HOSTS: &[&str] = &["novelbuddy.me", "www.novelbuddy.me"];
-const ALLOWED_SCHEMES: &[&str] = &["http", "https"];
 
 pub fn request<T: DeserializeOwned>(url: &str) -> Result<T> {
 	let response = Request::get(url)?
@@ -228,10 +227,7 @@ pub fn absolute_url(path_or_url: &str) -> String {
 
 pub fn series_path(url: &str) -> Option<&str> {
 	let without_fragment = url.split(['?', '#']).next()?;
-	let (scheme, authority_and_path) = without_fragment.split_once("://")?;
-	if !ALLOWED_SCHEMES.contains(&scheme.to_ascii_lowercase().as_str()) {
-		return None;
-	}
+	let (_, authority_and_path) = without_fragment.split_once("://")?;
 	let (authority, path) = authority_and_path
 		.split_once('/')
 		.unwrap_or((authority_and_path, ""));
@@ -426,13 +422,15 @@ pub fn build_search_url(
 	status: Option<&str>,
 ) -> String {
 	let mut qs = ctx.qs.clone();
-	if let Some(q) = query {
-		qs.push("q", Some(q));
+	if query.is_some() {
+		qs.push("q", query);
 	}
-	if let Some(s) = status {
-		qs.push("status", Some(s));
+	if status.is_some() {
+		qs.push("status", status);
 	}
-	format!("{API_URL}/titles/search?{qs}&page={}", page.max(1))
+	let page = page.max(1).to_string();
+	qs.push("page", Some(&page));
+	format!("{API_URL}/titles/search?{qs}")
 }
 
 /// The saved status and content rating act as defaults: they fill a search that

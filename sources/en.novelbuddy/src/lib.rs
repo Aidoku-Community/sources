@@ -43,8 +43,8 @@ impl Source for NovelBuddy {
 		let ctx = parse_filters(apply_settings(filters));
 		let hide = settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl);
 
-		let all_ratings = ctx.content_rating_filter.clone().unwrap_or_default();
-		let all_statuses = ctx.status_filter.clone().unwrap_or_default();
+		let all_ratings = ctx.content_rating_filter.as_deref().unwrap_or_default();
+		let all_statuses = ctx.status_filter.as_deref().unwrap_or_default();
 
 		let match_nothing = ctx
 			.content_rating_filter
@@ -55,10 +55,7 @@ impl Source for NovelBuddy {
 				.as_ref()
 				.is_some_and(|statuses| statuses.is_empty());
 		if match_nothing {
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
+			return Ok(MangaPageResult::default());
 		}
 
 		if all_statuses.iter().any(|s| !is_server_status(s)) {
@@ -67,13 +64,13 @@ impl Source for NovelBuddy {
 			let mut entries: Vec<Manga> = data
 				.items
 				.into_iter()
-				.filter(|item| keeps_status(item, &all_statuses))
+				.filter(|item| keeps_status(item, all_statuses))
 				.map(Manga::from)
 				.collect();
 			if hide {
 				mtl::retain_manga(&mut entries);
 			}
-			entries = filter_by_rating(entries, &all_ratings);
+			entries = filter_by_rating(entries, all_ratings);
 			return Ok(MangaPageResult {
 				entries,
 				has_next_page: data.pagination.has_next,
@@ -85,8 +82,8 @@ impl Source for NovelBuddy {
 				&ctx,
 				query.as_deref(),
 				page,
-				&all_statuses,
-				&all_ratings,
+				all_statuses,
+				all_ratings,
 				hide,
 			);
 		}
@@ -98,7 +95,7 @@ impl Source for NovelBuddy {
 		if hide {
 			mtl::retain_manga(&mut entries);
 		}
-		entries = filter_by_rating(entries, &all_ratings);
+		entries = filter_by_rating(entries, all_ratings);
 		Ok(MangaPageResult {
 			entries,
 			has_next_page: data.pagination.has_next,
