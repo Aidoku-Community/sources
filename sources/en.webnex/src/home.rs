@@ -1,8 +1,8 @@
 use crate::{
 	BASE_URL, Webnex,
 	helpers::{
-		browse_page, browse_request, browse_table, card, current_year, link_filters, parse_key,
-		parse_relative_date, parse_response, text,
+		browse_page, browse_request, card, current_year, get_html, link_filters, parse_key,
+		parse_relative_date, text,
 	},
 	rsc::{chunks, expand},
 	settings::{self, CONTENT_RATINGS, CONTENT_TYPES, Catalogue},
@@ -10,7 +10,7 @@ use crate::{
 use aidoku::{
 	Chapter, Home, HomeComponent, HomeComponentValue, HomeLayout, Link, Listing, MangaWithChapter,
 	Result,
-	alloc::{String, Vec, string::ToString, vec},
+	alloc::{String, Vec, string::ToString},
 	imports::{
 		html::{Document, Html},
 		net::Request,
@@ -83,25 +83,6 @@ pub fn layout(doc: &Document, now: i64, shown: Option<&[String]>) -> HomeLayout 
 				..Default::default()
 			});
 		let value = match id {
-			"popular" => {
-				let entries: Vec<_> = elements
-					.iter()
-					.filter_map(|el| {
-						let mut manga = card(el)?;
-						manga.tags = text(el, ".card-kind, .card-meta span:first-child")
-							.filter(|s| matches!(s.as_str(), "Manga" | "Manhwa" | "Manhua"))
-							.map(|s| vec![s]);
-						Some(manga)
-					})
-					.collect();
-				if entries.is_empty() {
-					continue;
-				}
-				HomeComponentValue::BigScroller {
-					entries,
-					auto_scroll_interval: Some(5.0),
-				}
-			}
 			"latest" => {
 				let entries: Vec<_> = elements
 					.iter()
@@ -200,49 +181,36 @@ fn browse_rows(shown: Option<&[String]>, prefs: &Catalogue) -> Result<HomeLayout
 	.collect();
 	let mut pending = Vec::new();
 	for row in rows {
-		let view = (row.0 == "popular").then_some("list");
-		if let Some(request) = browse_request(None, 1, link_filters(&row.2)?, prefs.clone(), view)?
-		{
+		if let Some(request) = browse_request(None, 1, link_filters(&row.2)?, prefs.clone())? {
 			pending.push((row, request));
 		}
 	}
 	let (rows, requests): (Vec<_>, Vec<_>) = pending.into_iter().unzip();
 	let mut components = Vec::new();
 	let mut failure = None;
-	for ((id, title, link), response) in rows.into_iter().zip(Request::send_all(requests)) {
-		let entries = match response.map_err(Into::into).and_then(|response| {
-			if id == "popular" {
-				browse_table(&response)
-			} else {
-				browse_page(&response).map(|page| page.entries)
-			}
-		}) {
-			Ok(entries) if !entries.is_empty() => entries,
+	for ((_, title, link), response) in rows.into_iter().zip(Request::send_all(requests)) {
+		let entries = match response
+			.map_err(Into::into)
+			.and_then(|response| browse_page(&response))
+		{
+			Ok(page) if !page.entries.is_empty() => page.entries,
 			Ok(_) => continue,
 			Err(error) => {
 				failure = Some(error);
 				continue;
 			}
 		};
-		let value = if id == "popular" {
-			HomeComponentValue::BigScroller {
-				entries,
-				auto_scroll_interval: Some(5.0),
-			}
-		} else {
-			HomeComponentValue::Scroller {
+		components.push(HomeComponent {
+			title: Some(title.clone()),
+			subtitle: None,
+			value: HomeComponentValue::Scroller {
 				entries: entries.into_iter().map(Link::from).collect(),
 				listing: Some(Listing {
 					id: link,
-					name: title.clone(),
+					name: title,
 					..Default::default()
 				}),
-			}
-		};
-		components.push(HomeComponent {
-			title: Some(title),
-			subtitle: None,
-			value,
+			},
 		});
 	}
 	match failure {
@@ -269,41 +237,10 @@ impl Home for Webnex {
 		{
 			return browse_rows(shown.as_deref(), &prefs);
 		}
-		let mut requests = vec![Request::get(BASE_URL)?.header("Cookie", &prefs.cookie(max))];
-		if shown
-			.as_ref()
-			.is_none_or(|shown| shown.iter().any(|id| id == "popular"))
-		{
-			requests.extend(browse_request(
-				None,
-				1,
-				link_filters("/browse?sort=popular")?,
-				prefs,
-				Some("list"),
-			)?);
-		}
-		let mut responses = Request::send_all(requests).into_iter();
-		let doc = parse_response(
-			&responses
-				.next()
-				.ok_or_else(|| error!("Webnex did not answer"))??,
-		)?;
-		let mut home = layout(&doc, current_date(), shown.as_deref());
+		let doc = get_html(BASE_URL, Some(&prefs.cookie(max)))?;
+		let home = layout(&doc, current_date(), shown.as_deref());
 		if home.components.is_empty() && doc.select_first(".home-section").is_none() {
 			bail!("Webnex did not return the home page");
-		}
-		// Shelf cards omit genres; browse's popular table is the same weekly chart with them.
-		if let Some(Ok(mut table)) = responses
-			.next()
-			.map(|response| response.map_err(Into::into).and_then(|r| browse_table(&r)))
-			&& let Some(HomeComponentValue::BigScroller { entries, .. }) =
-				home.components.first_mut().map(|c| &mut c.value)
-		{
-			for manga in entries {
-				if let Some(index) = table.iter().position(|row| row.key == manga.key) {
-					manga.tags = table.swap_remove(index).tags;
-				}
-			}
 		}
 		Ok(home)
 	}
