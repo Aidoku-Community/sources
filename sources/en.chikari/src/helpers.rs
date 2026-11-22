@@ -29,8 +29,6 @@ pub(crate) const CONTENT_RATINGS: &[&str] = &["safe", "suggestive", "erotica", "
 
 pub(crate) const STATUS: &[&str] = &["releasing", "completed", "hiatus", "cancelled"];
 
-const ALLOWED_HOSTS: &[&str] = &["chikari.moe"];
-
 impl ContentType {
 	pub fn api_base(self) -> &'static str {
 		match self {
@@ -475,21 +473,10 @@ pub fn parse_iso_date(value: &str) -> Option<i64> {
 pub fn chikari_path(url: &str) -> Option<&str> {
 	let without_fragment = url.split(['?', '#']).next()?;
 	let (_, authority_and_path) = without_fragment.split_once("://")?;
-	let (authority, path) = authority_and_path
+	let (_, path) = authority_and_path
 		.split_once('/')
 		.unwrap_or((authority_and_path, ""));
-	if authority.contains('\\') {
-		return None;
-	}
-	let host = authority
-		.rsplit('@')
-		.next()
-		.unwrap_or(authority)
-		.split(':')
-		.next()
-		.unwrap_or(authority);
-	let host = host.to_ascii_lowercase();
-	ALLOWED_HOSTS.contains(&host.as_str()).then_some(path)
+	Some(path)
 }
 
 pub fn valid_slug(value: &str) -> bool {
