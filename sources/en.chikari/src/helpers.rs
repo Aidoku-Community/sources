@@ -29,8 +29,7 @@ pub(crate) const CONTENT_RATINGS: &[&str] = &["safe", "suggestive", "erotica", "
 
 pub(crate) const STATUS: &[&str] = &["releasing", "completed", "hiatus", "cancelled"];
 
-const ALLOWED_HOSTS: &[&str] = &["chikari.moe", "www.chikari.moe"];
-const ALLOWED_SCHEMES: &[&str] = &["http", "https"];
+const ALLOWED_HOSTS: &[&str] = &["chikari.moe"];
 
 impl ContentType {
 	pub fn api_base(self) -> &'static str {
@@ -364,7 +363,7 @@ pub fn content_rating(is_nsfw: bool) -> ContentRating {
 	if is_nsfw {
 		ContentRating::NSFW
 	} else {
-		ContentRating::Safe
+		ContentRating::Unknown
 	}
 }
 
@@ -475,10 +474,7 @@ pub fn parse_iso_date(value: &str) -> Option<i64> {
 
 pub fn chikari_path(url: &str) -> Option<&str> {
 	let without_fragment = url.split(['?', '#']).next()?;
-	let (scheme, authority_and_path) = without_fragment.split_once("://")?;
-	if !ALLOWED_SCHEMES.contains(&scheme.to_ascii_lowercase().as_str()) {
-		return None;
-	}
+	let (_, authority_and_path) = without_fragment.split_once("://")?;
 	let (authority, path) = authority_and_path
 		.split_once('/')
 		.unwrap_or((authority_and_path, ""));

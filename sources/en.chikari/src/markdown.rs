@@ -197,9 +197,8 @@ fn convert_quoted(element: &Element, output: &mut String) {
 
 // Elements with a markdown form are converted below, listed against the WHATWG
 // index at https://html.spec.whatwg.org/multipage/indices.html#elements-3 .
-// A structural container keeps its line breaks, an inline wrapper keeps its
-// text, and any other tag is dropped with its content, because an unknown tag
-// is as likely to hold scrap as prose.
+// A structural container keeps its line breaks, and any other tag keeps its
+// text, so a chapter loses nothing it marked up.
 fn convert_element(element: &Element, output: &mut String) {
 	let tag = element.tag_name().unwrap_or_default();
 	match tag.as_str() {
@@ -231,11 +230,7 @@ fn convert_element(element: &Element, output: &mut String) {
 		"div" | "section" | "article" | "header" | "footer" | "main" | "aside" | "figure"
 		| "hgroup" | "details" | "dl" | "address" | "nav" | "dialog" | "search" | "body"
 		| "html" | "form" | "fieldset" | "center" => convert_block_container(element, output),
-		"span" | "u" | "ins" | "small" | "mark" | "abbr" | "cite" | "time" | "kbd" | "samp"
-		| "var" | "sub" | "sup" | "bdi" | "bdo" | "ruby" | "rt" | "rp" | "wbr" => {
-			convert_children(element, output)
-		}
-		_ => {}
+		_ => convert_children(element, output),
 	}
 }
 
