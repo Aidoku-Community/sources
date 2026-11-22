@@ -112,7 +112,12 @@ pub fn library_url(params: &LibraryParams, page: i32) -> String {
 /// and reloads with JavaScript. The cookie is saved by then, so retrying once
 /// gets the real page.
 pub fn fetch(url: &str) -> Result<(Response, Document)> {
-	let response = request(url, None)?.send()?;
+	fetch_with_age(url, is_adult())
+}
+
+/// Fetches a page, sending the age cookie only if `adult` is set.
+fn fetch_with_age(url: &str, adult: bool) -> Result<(Response, Document)> {
+	let response = request(url, None, adult)?.send()?;
 	let html = response.get_html()?;
 	if html.select_first("#mv-verifying").is_none() {
 		return Ok((response, html));
@@ -123,7 +128,7 @@ pub fn fetch(url: &str) -> Result<(Response, Document)> {
 		.get_header("Set-Cookie")
 		.and_then(|header| header.split(';').next().map(String::from))
 		.filter(|cookie| cookie.starts_with("mv_ck="));
-	let response = request(url, cookie.as_deref())?.send()?;
+	let response = request(url, cookie.as_deref(), adult)?.send()?;
 	let html = response.get_html()?;
 	if html.select_first("#mv-verifying").is_some() {
 		bail!("No se pudo pasar la verificación del sitio");
@@ -132,10 +137,10 @@ pub fn fetch(url: &str) -> Result<(Response, Document)> {
 }
 
 /// A request with our cookies. The app adds the cookies it has stored to them.
-fn request(url: &str, cookie: Option<&str>) -> Result<Request> {
+fn request(url: &str, cookie: Option<&str>, adult: bool) -> Result<Request> {
 	let mut cookies = Vec::new();
-	// The cookie the site sets when you confirm your age, only with the setting on.
-	if is_adult() {
+	// The cookie the site sets when you confirm your age.
+	if adult {
 		cookies.push("age_verified=1");
 	}
 	cookies.extend(cookie);
@@ -159,4 +164,9 @@ pub fn check_age_gate(response: &Response) -> Result<()> {
 
 pub fn fetch_html(url: &str) -> Result<Document> {
 	fetch(url).map(|(_, html)| html)
+}
+
+/// Fetches a page as if the age wasn't confirmed, whatever the setting.
+pub fn fetch_html_as_minor(url: &str) -> Result<Document> {
+	fetch_with_age(url, false).map(|(_, html)| html)
 }

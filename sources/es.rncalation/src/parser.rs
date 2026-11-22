@@ -18,6 +18,14 @@ pub fn has_next_page(html: &Document) -> bool {
 		.is_some_and(|tag| tag == "a")
 }
 
+/// Without the age confirmed, series rated Adulto have a blurred cover, so
+/// they're hidden like the site hides them.
+fn is_age_gated(element: &Element) -> bool {
+	element
+		.select("img[src*='-blur.']")
+		.is_some_and(|images| !images.is_empty())
+}
+
 /// Series cards of `/library`.
 pub fn parse_library(html: &Document) -> MangaPageResult {
 	MangaPageResult {
@@ -33,6 +41,9 @@ pub fn parse_manga_cards(html: &Document, selector: &str) -> Vec<Manga> {
 }
 
 fn parse_manga_card(card: &Element) -> Option<Manga> {
+	if is_age_gated(card) {
+		return None;
+	}
 	// The site also has novels, which can't be read here.
 	let kind = card
 		.select_first("span.absolute.top-2.left-2")
@@ -59,7 +70,7 @@ pub fn parse_hero(html: &Document) -> Vec<Manga> {
 					let kind = slide
 						.select_first(".hero-badge")
 						.and_then(|badge| badge.text());
-					if kind.is_some_and(|kind| kind.contains("Novel")) {
+					if kind.is_some_and(|kind| kind.contains("Novel")) || is_age_gated(&slide) {
 						return None;
 					}
 					let key =
@@ -119,6 +130,9 @@ pub fn parse_ranking(html: &Document) -> Vec<Manga> {
 		.map(|links| {
 			links
 				.filter_map(|link| {
+					if is_age_gated(&link) {
+						return None;
+					}
 					let key = manga_key(&link.attr("abs:href")?)?;
 					Some(Manga {
 						title: link.select_first(".mp-title")?.text()?,
@@ -139,6 +153,9 @@ pub fn parse_recent_chapters(html: &Document) -> Vec<(Manga, Chapter)> {
 	html.select("#ru-list article")
 		.map(|rows| {
 			rows.filter_map(|row| {
+				if is_age_gated(&row) {
+					return None;
+				}
 				let link = row.select_first("a[title][href]")?;
 				let key = manga_key(&link.attr("abs:href")?)?;
 				let manga = Manga {
@@ -203,14 +220,22 @@ pub fn parse_manga_details(html: &Document, manga: &mut Manga) {
 		manga.title = title;
 	}
 	// The first image is the banner and the series cards below it have their
-	// own covers, so the cover is the one named after the series.
+	// own covers, so the cover is the one named after the series. Behind the
+	// age check it's a blurred copy without a name, next to the real one.
 	if let Some(cover) = html
 		.select(".comic-page-wrap img.object-cover[alt]")
 		.and_then(|mut images| {
 			images.find(|img| img.attr("alt").is_some_and(|alt| alt == manga.title))
 		})
 		.and_then(|img| img.attr("abs:src"))
-	{
+		.or_else(|| {
+			html.select_first(format!(
+				".comic-page-wrap img[src^='/uploads/covers/{}/'][src*='-blur.']",
+				manga.key
+			))
+			.and_then(|img| img.attr("abs:src"))
+			.map(|src| src.replacen("-blur.", ".", 1))
+		}) {
 		manga.cover = Some(cover);
 	}
 	manga.description = html

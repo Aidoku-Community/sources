@@ -2,7 +2,7 @@
 	{
 		"type": "group",
 		"title": "Contenido",
-		"footer": "Muestra los capítulos de las series clasificadas como Adulto. Es lo mismo que confirmar tu edad en el sitio web.",
+		"footer": "Muestra las series clasificadas como Adulto y sus capítulos. Es lo mismo que confirmar tu edad en el sitio web.",
 		"items": [
 			{
 				"type": "switch",

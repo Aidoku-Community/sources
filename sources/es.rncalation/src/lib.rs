@@ -16,13 +16,16 @@ mod parser;
 mod settings;
 use helpers::{
 	BASE_URL, LibraryParams, chapter_key, chapter_url, check_age_gate, fetch, fetch_html,
-	latest_listing, library_url, manga_key, manga_url, popular_listing,
+	fetch_html_as_minor, latest_listing, library_url, manga_key, manga_url, popular_listing,
 };
 use parser::{
 	parse_chapters, parse_hero, parse_home_section, parse_library, parse_manga_cards,
 	parse_manga_details, parse_page_urls, parse_ranking, parse_reader_manga_key,
 	parse_recent_chapters,
 };
+
+/// The `sort` values of `/library`, in the order of the sort filter.
+const SORTS: &[&str] = &["latest", "updated", "views", "rating", "title"];
 
 /// Rows per page of the home page lists, small enough for small screens.
 const HOME_PAGE_SIZE: i32 = 3;
@@ -44,14 +47,19 @@ impl Source for Rncalation {
 		let mut params = LibraryParams::sorted("latest");
 		params.query = query.as_deref().map(str::trim).filter(|q| !q.is_empty());
 		for filter in &filters {
-			if let FilterValue::Select { id, value } = filter {
-				match id.as_str() {
-					"sort" => params.sort = value,
+			match filter {
+				FilterValue::Sort { index, .. } => {
+					if let Some(sort) = SORTS.get(*index as usize) {
+						params.sort = *sort;
+					}
+				}
+				FilterValue::Select { id, value } => match id.as_str() {
 					"type" => params.kind = value,
 					"status" => params.status = value,
 					"genre" => params.genre = value,
 					_ => {}
-				}
+				},
+				_ => {}
 			}
 		}
 		Ok(parse_library(&fetch_html(&library_url(&params, page))?))
@@ -64,7 +72,9 @@ impl Source for Rncalation {
 		needs_chapters: bool,
 	) -> Result<Manga> {
 		if needs_details {
-			parse_manga_details(&fetch_html(&manga_url(&manga.key))?, &mut manga);
+			// Without the age cookie, series rated Adulto show the age check,
+			// which is how they're told apart.
+			parse_manga_details(&fetch_html_as_minor(&manga_url(&manga.key))?, &mut manga);
 			if needs_chapters {
 				send_partial_result(&manga);
 			}

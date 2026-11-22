@@ -1,10 +1,10 @@
 [
 	{
-		"type": "select",
+		"type": "sort",
 		"id": "sort",
 		"title": "Ordenar por",
-		"options": ["Más reciente", "Actualizado", "Más visto", "Mejor valorado", "A-Z"],
-		"ids": ["latest", "updated", "views", "rating", "title"]
+		"canAscend": false,
+		"options": ["Más reciente", "Actualizado", "Más visto", "Mejor valorado", "A-Z"]
 	},
 	{
 		"type": "select",
