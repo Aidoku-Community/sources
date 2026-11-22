@@ -4,6 +4,7 @@
 
 use aidoku::{
 	alloc::{String, Vec},
+	helpers::string::PlainText,
 	imports::html::{Element, Html, Kind},
 };
 use core::fmt::Write as _;
@@ -19,7 +20,8 @@ const VOID_TAGS: &[&str] = &[
 fn join_lines(text: &str) -> String {
 	text.lines()
 		.filter(|line| !line.is_empty())
-		.collect::<Vec<&str>>()
+		.map(|line| line.escape_markdown())
+		.collect::<Vec<String>>()
 		.join("  \n")
 }
 

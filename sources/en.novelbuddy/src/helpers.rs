@@ -17,8 +17,6 @@ use crate::{API_URL, BASE_URL, USER_AGENT};
 // parses `/titles/shadow-slave` as the id `shadow`.
 const CANONICAL_ID_LEN: usize = 8;
 
-const ALLOWED_HOSTS: &[&str] = &["novelbuddy.me", "www.novelbuddy.me"];
-
 pub fn request<T: DeserializeOwned>(url: &str) -> Result<T> {
 	let response = Request::get(url)?
 		.header("User-Agent", USER_AGENT)
@@ -228,21 +226,10 @@ pub fn absolute_url(path_or_url: &str) -> String {
 pub fn series_path(url: &str) -> Option<&str> {
 	let without_fragment = url.split(['?', '#']).next()?;
 	let (_, authority_and_path) = without_fragment.split_once("://")?;
-	let (authority, path) = authority_and_path
+	let (_, path) = authority_and_path
 		.split_once('/')
 		.unwrap_or((authority_and_path, ""));
-	if authority.contains('\\') {
-		return None;
-	}
-	let host = authority
-		.rsplit('@')
-		.next()
-		.unwrap_or(authority)
-		.split(':')
-		.next()
-		.unwrap_or(authority);
-	let host = host.to_ascii_lowercase();
-	ALLOWED_HOSTS.contains(&host.as_str()).then_some(path)
+	Some(path)
 }
 
 pub fn parse_iso_date(value: &str) -> Option<i64> {
