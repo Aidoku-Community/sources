@@ -11,6 +11,91 @@ use core::fmt::Write as _;
 
 use crate::{BASE_URL, settings, watermark};
 
+// Names the parser is allowed to read as markup. Any other `<` opens prose: the
+// parser would take `<Maddened Enlightenment>` for a tag with an attribute and
+// the words would be gone before conversion starts, so they are escaped first.
+const MARKUP_TAGS: &[&str] = &[
+	"a",
+	"abbr",
+	"address",
+	"article",
+	"aside",
+	"b",
+	"blockquote",
+	"body",
+	"br",
+	"caption",
+	"center",
+	"cite",
+	"code",
+	"col",
+	"colgroup",
+	"dd",
+	"del",
+	"details",
+	"dialog",
+	"div",
+	"dl",
+	"dt",
+	"em",
+	"fieldset",
+	"figcaption",
+	"figure",
+	"font",
+	"footer",
+	"form",
+	"h1",
+	"h2",
+	"h3",
+	"h4",
+	"h5",
+	"h6",
+	"header",
+	"hgroup",
+	"hr",
+	"html",
+	"i",
+	"img",
+	"ins",
+	"kbd",
+	"li",
+	"main",
+	"mark",
+	"menu",
+	"nav",
+	"ol",
+	"p",
+	"pre",
+	"q",
+	"rp",
+	"rt",
+	"ruby",
+	"s",
+	"samp",
+	"search",
+	"section",
+	"small",
+	"span",
+	"strike",
+	"strong",
+	"sub",
+	"summary",
+	"sup",
+	"table",
+	"tbody",
+	"td",
+	"tfoot",
+	"th",
+	"thead",
+	"time",
+	"tr",
+	"tt",
+	"u",
+	"ul",
+	"var",
+	"wbr",
+];
+
 // Tags that close themselves, so they never keep a block open.
 const VOID_TAGS: &[&str] = &[
 	"br", "img", "hr", "input", "meta", "link", "source", "track", "wbr", "col", "area", "embed",
@@ -344,8 +429,69 @@ fn convert_blockquote(element: &Element, output: &mut String) {
 	output.push_str("\n\n");
 }
 
+// Quote-aware so a `>` inside an attribute cannot end the tag early.
+fn markup_tag_end(input: &str, start: usize) -> Option<usize> {
+	let bytes = input.as_bytes();
+	let mut index = start + 1;
+	if bytes.get(index) == Some(&b'/') {
+		index += 1;
+	}
+	let name_start = index;
+	while let Some(&byte) = bytes.get(index) {
+		if byte.is_ascii_alphanumeric() || byte == b'-' {
+			index += 1;
+		} else {
+			break;
+		}
+	}
+	if index == name_start {
+		return None;
+	}
+	let name = input[name_start..index].to_ascii_lowercase();
+	if !MARKUP_TAGS.contains(&name.as_str()) {
+		return None;
+	}
+	let mut quote = 0u8;
+	while let Some(&byte) = bytes.get(index) {
+		if quote != 0 {
+			if byte == quote {
+				quote = 0;
+			}
+		} else if byte == b'"' || byte == b'\'' {
+			quote = byte;
+		} else if byte == b'>' {
+			return Some(index + 1);
+		}
+		index += 1;
+	}
+	None
+}
+
+// Escape a bare `<` so the parser keeps it as text instead of reading it as a tag.
+fn protect_literal_angle_brackets(input: &str) -> String {
+	let mut output = String::with_capacity(input.len());
+	let mut index = 0;
+	while index < input.len() {
+		if input.as_bytes()[index] == b'<' {
+			if let Some(end) = markup_tag_end(input, index) {
+				output.push_str(&input[index..end]);
+				index = end;
+			} else {
+				output.push_str("&lt;");
+				index += 1;
+			}
+		} else {
+			let ch = input[index..].chars().next().unwrap_or('\u{FFFD}');
+			output.push(ch);
+			index += ch.len_utf8();
+		}
+	}
+	output
+}
+
 fn html_to_markdown(input: &str) -> String {
-	let wrapped = ["<div id=\"md-root\">", input, "</div>"].concat();
+	let protected = protect_literal_angle_brackets(input);
+	let wrapped = ["<div id=\"md-root\">", &protected, "</div>"].concat();
 	let Ok(doc) = Html::parse_fragment_with_url(wrapped, BASE_URL) else {
 		return String::default();
 	};
