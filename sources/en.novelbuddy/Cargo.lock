@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "aidoku"
 version = "0.3.0"
-source = "git+https://github.com/Aidoku/aidoku-rs.git#ae6485e3c14ecd1fd5497d170eae884c68d04a87"
+source = "git+https://github.com/Aidoku/aidoku-rs.git#a386ee40ab79896549bb9514657ea957e6625be5"
 dependencies = [
  "euclid",
  "hashbrown",
@@ -22,7 +22,7 @@ dependencies = [
 [[package]]
 name = "aidoku-test"
 version = "1.0.0"
-source = "git+https://github.com/Aidoku/aidoku-rs.git#ae6485e3c14ecd1fd5497d170eae884c68d04a87"
+source = "git+https://github.com/Aidoku/aidoku-rs.git#a386ee40ab79896549bb9514657ea957e6625be5"
 dependencies = [
  "quote",
  "syn 2.0.119",
@@ -168,7 +168,7 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "novelbuddy"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aidoku",
  "aidoku-test",

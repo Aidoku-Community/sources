@@ -1,9 +1,8 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider, Manga,
-	MangaPageResult, NotificationHandler, Page, PageContent, Result, Source,
-	alloc::{String, Vec, string::ToString, vec},
-	helpers::uri::QueryParameters,
+	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Listing,
+	ListingProvider, Manga, MangaPageResult, MultiSelectFilter, Page, PageContent, Result, Source,
+	alloc::{String, Vec, borrow::Cow, string::ToString, vec},
 	imports::std::send_partial_result,
 	prelude::*,
 };
@@ -11,55 +10,22 @@ use aidoku::{
 mod helpers;
 mod markdown;
 mod models;
+mod mtl;
 mod settings;
 mod watermark;
 
-use helpers::{fetch_chapter_list, request, resolve_slug};
-use markdown::html_to_markdown;
-use models::{ChapterDetailData, ListData, TitleDetailData, TitleListItem, TrendingData};
+use helpers::{
+	apply_settings, build_search_url, chapter_url_matches, deep_link_slugs, fetch_chapter_list,
+	fetch_multi_status, filter_by_rating, is_server_status, keeps_status, listing_entries,
+	parse_filters, request, resolve_slug, series_path,
+};
+use markdown::to_markdown;
+use models::{ChapterDetailData, ListData, TitleDetailData, TrendingData};
 
 pub const BASE_URL: &str = "https://novelbuddy.me";
 pub const API_URL: &str = "https://api.novelbuddy.me";
 pub const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 \
 	 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1";
-
-const SORT_IDS: &[&str] = &[
-	"popular",
-	"latest",
-	"newest",
-	"rating",
-	"views",
-	"bookmarks",
-	"best_match",
-	"views_today",
-	"views_7days",
-	"views_30days",
-	"chapters",
-	"alphabetical",
-];
-
-fn mtl_mode(filters: &[FilterValue]) -> &'static str {
-	for filter in filters {
-		if let FilterValue::Select { id, value } = filter
-			&& id == "mtl"
-		{
-			return match value.as_str() {
-				"only" => "only",
-				"hidden" => "hidden",
-				_ => "all",
-			};
-		}
-	}
-	settings::mtl_mode()
-}
-
-fn mtl_visible(item: &TitleListItem, mode: &'static str) -> bool {
-	match mode {
-		"only" => item.is_mtl,
-		"hidden" => !item.is_mtl,
-		_ => true,
-	}
-}
 
 struct NovelBuddy;
 
@@ -74,76 +40,64 @@ impl Source for NovelBuddy {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let mut qs = QueryParameters::new();
-		let mut has_sort = false;
-		let mut excluded_genres = settings::hidden_genres();
-		let mtl = mtl_mode(&filters);
+		let ctx = parse_filters(apply_settings(filters));
+		let hide = settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl);
 
-		for filter in filters {
-			match filter {
-				FilterValue::Sort { index, .. } => {
-					if let Some(s) = SORT_IDS.get(index as usize) {
-						qs.push("sort", Some(*s));
-						has_sort = true;
-					}
-				}
-				FilterValue::Select { id, value } if id == "status" && value != "all" => {
-					qs.push("status", Some(&value));
-				}
-				FilterValue::MultiSelect {
-					id,
-					included,
-					excluded,
-				} if id == "genres" => {
-					let included: Vec<String> = included
-						.into_iter()
-						.filter(|genre| {
-							// if a hidden genre is manually included in filters, skip hiding it
-							if let Some(pos) = excluded_genres.iter().position(|g| g == genre) {
-								excluded_genres.swap_remove(pos);
-								false
-							} else {
-								true
-							}
-						})
-						.collect();
-					if !included.is_empty() {
-						qs.push("genres", Some(&included.join(",")));
-					}
-					for genre in excluded {
-						if !excluded_genres.contains(&genre) {
-							excluded_genres.push(genre);
-						}
-					}
-				}
-				_ => {}
-			}
+		let all_ratings = ctx.content_rating_filter.as_deref().unwrap_or_default();
+		let all_statuses = ctx.status_filter.as_deref().unwrap_or_default();
+
+		let match_nothing = ctx
+			.content_rating_filter
+			.as_ref()
+			.is_some_and(|ratings| ratings.is_empty())
+			|| ctx
+				.status_filter
+				.as_ref()
+				.is_some_and(|statuses| statuses.is_empty());
+		if match_nothing {
+			return Ok(MangaPageResult::default());
 		}
 
-		if !has_sort {
-			qs.push("sort", Some("popular"));
-		}
-		if !excluded_genres.is_empty() {
-			qs.push("exclude", Some(&excluded_genres.join(",")));
-		}
-		qs.push("page", Some(&page.to_string()));
-
-		if let Some(q) = query.as_deref() {
-			qs.push("q", Some(q));
-		}
-		if mtl == "only" {
-			qs.push("is_mtl", Some("true"));
-		}
-
-		let url = format!("{API_URL}/titles/search?{qs}");
-		let data: ListData = request(&url)?;
-		Ok(MangaPageResult {
-			entries: data
+		if all_statuses.iter().any(|s| !is_server_status(s)) {
+			let url = build_search_url(&ctx, query.as_deref(), page, None);
+			let data: ListData = request(&url)?;
+			let mut entries: Vec<Manga> = data
 				.items
 				.into_iter()
-				.filter(|item| mtl_visible(item, mtl))
+				.filter(|item| keeps_status(item, all_statuses))
 				.map(Manga::from)
-				.collect(),
+				.collect();
+			if hide {
+				mtl::retain_manga(&mut entries);
+			}
+			entries = filter_by_rating(entries, all_ratings);
+			return Ok(MangaPageResult {
+				entries,
+				has_next_page: data.pagination.has_next,
+			});
+		}
+
+		if all_statuses.len() > 1 {
+			return fetch_multi_status(
+				&ctx,
+				query.as_deref(),
+				page,
+				all_statuses,
+				all_ratings,
+				hide,
+			);
+		}
+
+		let status = all_statuses.first().map(|s| s.as_str());
+		let url = build_search_url(&ctx, query.as_deref(), page, status);
+		let data: ListData = request(&url)?;
+		let mut entries: Vec<Manga> = data.items.into_iter().map(Manga::from).collect();
+		if hide {
+			mtl::retain_manga(&mut entries);
+		}
+		entries = filter_by_rating(entries, all_ratings);
+		Ok(MangaPageResult {
+			entries,
 			has_next_page: data.pagination.has_next,
 		})
 	}
@@ -163,7 +117,11 @@ impl Source for NovelBuddy {
 			}
 		}
 		if needs_chapters {
-			manga.chapters = Some(fetch_chapter_list(&manga.key)?);
+			let mut chapters = fetch_chapter_list(&manga.key)?;
+			if settings::hide_mtl() {
+				mtl::retain_chapters(&mut chapters);
+			}
+			manga.chapters = Some(chapters);
 		}
 		Ok(manga)
 	}
@@ -175,7 +133,7 @@ impl Source for NovelBuddy {
 			.chapter
 			.content
 			.as_deref()
-			.map(html_to_markdown)
+			.map(to_markdown)
 			.unwrap_or_default();
 		let text = if body.is_empty() {
 			"(empty chapter)".to_string()
@@ -191,7 +149,10 @@ impl Source for NovelBuddy {
 
 impl ListingProvider for NovelBuddy {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
-		let mtl = mtl_mode(&[]);
+		// Listings carry no filters, so the saved selections are what applies.
+		let ctx = parse_filters(apply_settings(Vec::new()));
+		let statuses = ctx.status_filter.unwrap_or_default();
+		let ratings = ctx.content_rating_filter.unwrap_or_default();
 		match listing.id.as_str() {
 			"trending-week" | "trending-today" => {
 				let window = if listing.id == "trending-week" {
@@ -202,26 +163,28 @@ impl ListingProvider for NovelBuddy {
 				let url = format!("{API_URL}/trending/titles?window={window}");
 				let data: TrendingData = request(&url)?;
 				Ok(MangaPageResult {
-					entries: data
-						.items
-						.into_iter()
-						.filter(|item| mtl_visible(item, mtl))
-						.map(Manga::from)
-						.collect(),
+					entries: listing_entries(data.items, &statuses, &ratings),
 					has_next_page: false,
 				})
 			}
 			"latest" => {
-				let mtl_param = if mtl == "only" { "&is_mtl=true" } else { "" };
-				let url = format!("{API_URL}/titles/search?sort=latest&page={page}{mtl_param}");
+				// The API knows only ongoing and completed, and refuses the rest,
+				// so a single one of those goes in the query and keeps the feed
+				// populated instead of emptying it.
+				let status = match statuses.as_slice() {
+					[only] if is_server_status(only) => Some(only.as_str()),
+					_ => None,
+				};
+				let status_param = status
+					.map(|status| format!("&status={status}"))
+					.unwrap_or_default();
+				let url = format!(
+					"{API_URL}/titles/search?sort=latest&page={}{status_param}",
+					page.max(1)
+				);
 				let data: ListData = request(&url)?;
 				Ok(MangaPageResult {
-					entries: data
-						.items
-						.into_iter()
-						.filter(|item| mtl_visible(item, mtl))
-						.map(Manga::from)
-						.collect(),
+					entries: listing_entries(data.items, &statuses, &ratings),
 					has_next_page: data.pagination.has_next,
 				})
 			}
@@ -234,33 +197,25 @@ impl ListingProvider for NovelBuddy {
 
 impl DeepLinkHandler for NovelBuddy {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let path = url
-			.split(['?', '#'])
-			.next()
-			.unwrap_or(&url)
-			.rsplit("novelbuddy.me")
-			.next()
-			.unwrap_or("")
-			.trim_start_matches('/');
+		let Some(path) = series_path(&url) else {
+			return Ok(None);
+		};
+		let path = path.trim_start_matches('/').trim_end_matches('/');
 		if path.is_empty() {
 			return Ok(None);
 		}
-		let mut parts = path.splitn(2, '/');
-		let series_slug = match parts.next() {
-			Some(s) if !s.is_empty() => s,
-			_ => return Ok(None),
-		};
-		let chapter_slug = parts.next();
+		let (series_slug, chapter_slug) = deep_link_slugs(path);
+		if series_slug.is_empty() {
+			return Ok(None);
+		}
 
 		let manga_key = resolve_slug(series_slug)?;
 
-		if let Some(ch_slug) = chapter_slug
-			&& !ch_slug.is_empty()
-		{
+		if !chapter_slug.is_empty() {
 			let chapters = fetch_chapter_list(&manga_key)?;
 			let chapter_key = chapters.into_iter().find_map(|c| {
 				let url = c.url.as_deref().unwrap_or("");
-				if url.ends_with(ch_slug) {
+				if chapter_url_matches(url, chapter_slug) {
 					Some(c.key)
 				} else {
 					None
@@ -274,51 +229,35 @@ impl DeepLinkHandler for NovelBuddy {
 	}
 }
 
-impl NotificationHandler for NovelBuddy {
-	fn handle_notification(&self, notification: String) {
-		if notification == "resetGenreFilter" {
-			settings::reset_hidden_genres();
-		}
+impl DynamicFilters for NovelBuddy {
+	fn get_dynamic_filters(&self) -> Result<Vec<Filter>> {
+		let genres = helpers::genres()?;
+		let (options, ids): (Vec<Cow<'static, str>>, Vec<Cow<'static, str>>) = genres
+			.into_iter()
+			.map(|genre| (genre.name.into(), genre.slug.into()))
+			.unzip();
+		Ok(vec![
+			MultiSelectFilter {
+				id: "genres".into(),
+				title: Some("Genres".into()),
+				is_genre: true,
+				can_exclude: true,
+				uses_tag_style: true,
+				options,
+				ids: Some(ids),
+				..Default::default()
+			}
+			.into(),
+		])
 	}
 }
 
-register_source!(
-	NovelBuddy,
-	ListingProvider,
-	DeepLinkHandler,
-	NotificationHandler
-);
+register_source!(NovelBuddy, ListingProvider, DeepLinkHandler, DynamicFilters);
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use aidoku_test::aidoku_test;
-
-	#[aidoku_test]
-	fn mtl_mode_resolves_filter_then_setting() {
-		assert_eq!(mtl_mode(&[]), "all");
-		let filters = [FilterValue::Select {
-			id: "mtl".into(),
-			value: "hidden".into(),
-		}];
-		assert_eq!(mtl_mode(&filters), "hidden");
-		let filters = [FilterValue::Select {
-			id: "status".into(),
-			value: "completed".into(),
-		}];
-		assert_eq!(mtl_mode(&filters), "all");
-		let mtl_item = TitleListItem {
-			id: "x".into(),
-			name: "X".into(),
-			slug: None,
-			cover: None,
-			is_mtl: true,
-		};
-		assert!(mtl_visible(&mtl_item, "all"));
-		assert!(mtl_visible(&mtl_item, "only"));
-		assert!(!mtl_visible(&mtl_item, "hidden"));
-	}
-
 	#[aidoku_test]
 	fn search_returns_results() {
 		let source = NovelBuddy;
@@ -354,6 +293,8 @@ mod tests {
 			"expected >100 chapters, got {}",
 			chapters.len()
 		);
+		// The ISO-8601 format string must keep matching the API's timestamps;
+		// a silent mismatch would leave every chapter without an upload date.
 		assert!(
 			chapters.iter().any(|c| c.date_uploaded.is_some()),
 			"expected at least one parsed upload date"
@@ -367,7 +308,8 @@ mod tests {
 			key: "VYPGVZ8z".into(),
 			..Default::default()
 		};
-		// Resolved from the live list: chapters get removed or re-published.
+		// Resolve a chapter key from the live list rather than hardcoding
+		// one: the site occasionally removes or re-publishes chapters.
 		let chapters = fetch_chapter_list(&manga.key).expect("chapter list failed");
 		let key = chapters
 			.last()
