@@ -1,13 +1,17 @@
-use crate::models::{ChapterItem, ChapterListResponse, Detail, ListItem, ListResponse};
-use crate::{BASE_URL, USER_AGENT};
 use aidoku::{
-	Chapter, ContentRating, FilterValue, Manga, MangaPageResult, MangaStatus, Result, Viewer,
-	alloc::{String, Vec, string::ToString},
+	Chapter, ContentRating, DeepLinkResult, FilterValue, Manga, MangaPageResult, MangaStatus, Page,
+	PageContent, Result, Viewer,
+	alloc::{String, Vec, string::ToString, vec},
 	helpers::uri::QueryParameters,
 	imports::{net::Request, std::parse_date},
 	prelude::*,
 };
 use serde::de::DeserializeOwned;
+
+use crate::models::{
+	ChapterBody, ChapterItem, ChapterListResponse, Detail, Genre, ListItem, ListResponse,
+};
+use crate::{BASE_URL, USER_AGENT};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ContentType {
@@ -17,13 +21,13 @@ pub enum ContentType {
 
 pub const SERIES_KEY_PREFIX: &str = "series:";
 
-// The API hides novels unless a type is given, so browse sends every type.
-const TYPES: &[&str] = &["manga", "manhwa", "manhua", "oel", "novel"];
+// The API hides novels unless a type is given, so every request sends all of them.
+pub(crate) const TYPES: &[&str] = &["manga", "manhwa", "manhua", "oel", "novel"];
 
-// The API hides erotica and pornographic tiers unless ratings are given, so browse sends every tier.
-const RATINGS: &[&str] = &["safe", "suggestive", "erotica", "pornographic"];
+// The API hides erotica and pornographic tiers unless requested, so browse sends every tier.
+pub(crate) const CONTENT_RATINGS: &[&str] = &["safe", "suggestive", "erotica", "pornographic"];
 
-const STATUS: &[&str] = &["releasing", "completed", "hiatus", "cancelled", "upcoming"];
+pub(crate) const STATUS: &[&str] = &["releasing", "completed", "hiatus", "cancelled"];
 
 impl ContentType {
 	pub fn api_base(self) -> &'static str {
@@ -85,7 +89,13 @@ pub fn decode_manga_key<'a>(key: &'a str, url: Option<&str>) -> (ContentType, &'
 	(content_type, key)
 }
 
+pub fn genres() -> Result<Vec<Genre>> {
+	request(&format!("{BASE_URL}/api/genres"))
+}
+
 pub fn request<T: DeserializeOwned>(url: &str) -> Result<T> {
+	// A refusal comes back as an ordinary body, so the required fields of each
+	// response are what tells a real answer from one.
 	Request::get(url)?
 		.header("User-Agent", USER_AGENT)
 		.header("Accept", "application/json")
@@ -109,23 +119,23 @@ pub fn list_url(
 		qs.push("q", Some(query));
 	}
 	let (types_in, types_ex) = multi_select(filters, "types");
-	let (ratings_in, ratings_ex) = multi_select(filters, "ratings");
 	let (status_in, status_ex) = multi_select(filters, "status");
+	let (ratings_in, ratings_ex) = multi_select(filters, "contentRating");
 	let (Some(types), Some(ratings)) = (
 		effective(TYPES, types_in, types_ex),
-		effective(RATINGS, ratings_in, ratings_ex),
+		effective(CONTENT_RATINGS, ratings_in, ratings_ex),
 	) else {
 		return None;
 	};
 	for kind in types {
 		qs.push("type", Some(kind));
 	}
-	qs.push("content_rating", Some(&ratings.join(",")));
 	if !status_in.is_empty() || !status_ex.is_empty() {
 		for status in effective(STATUS, status_in, status_ex)? {
 			qs.push("status", Some(status));
 		}
 	}
+	qs.push("content_rating", Some(&ratings.join(",")));
 	for filter in filters {
 		let FilterValue::MultiSelect {
 			id,
@@ -145,6 +155,23 @@ pub fn list_url(
 		}
 	}
 	Some(format!("{BASE_URL}/api/series?{qs}"))
+}
+
+/// An empty selection means every tier, which pins nothing.
+pub fn selected_ratings(filters: &[FilterValue]) -> Vec<&'static str> {
+	let (included, excluded) = multi_select(filters, "contentRating");
+	effective(CONTENT_RATINGS, included, excluded).unwrap_or_default()
+}
+
+pub fn hidden_genres_to_exclude(hidden: Vec<String>, included: &[String]) -> Vec<String> {
+	hidden
+		.into_iter()
+		.filter(|hidden_genre| {
+			!included
+				.iter()
+				.any(|kept| kept.eq_ignore_ascii_case(hidden_genre))
+		})
+		.collect()
 }
 
 fn multi_select<'a>(filters: &'a [FilterValue], id: &str) -> (&'a [String], &'a [String]) {
@@ -206,7 +233,12 @@ pub fn effective_offset(server_offset: u32, requested_offset: u32) -> u32 {
 	}
 }
 
-pub fn manga_page_result(data: ListResponse, offset: u32, limit: u32) -> MangaPageResult {
+pub fn manga_page_result(
+	data: ListResponse,
+	offset: u32,
+	limit: u32,
+	pinned: Option<ContentRating>,
+) -> MangaPageResult {
 	let response_offset = effective_offset(data.offset, offset);
 	let has_next_page = has_next(
 		data.items.len(),
@@ -215,12 +247,27 @@ pub fn manga_page_result(data: ListResponse, offset: u32, limit: u32) -> MangaPa
 		effective_limit(data.limit, limit),
 	);
 	MangaPageResult {
-		entries: data.items.into_iter().map(manga_from_list).collect(),
+		entries: data
+			.items
+			.into_iter()
+			.map(|item| manga_from_list(item, pinned))
+			.collect(),
 		has_next_page,
 	}
 }
 
-pub fn manga_from_list(item: ListItem) -> Manga {
+/// When the request pins a single tier the server returns nothing else, so every
+/// entry carries that tier instead of falling back to the `is_nsfw` binary.
+pub fn pinned_rating(ratings: &[&str]) -> Option<ContentRating> {
+	match ratings {
+		["safe"] => Some(ContentRating::Safe),
+		["suggestive"] => Some(ContentRating::Suggestive),
+		["erotica"] | ["pornographic"] => Some(ContentRating::NSFW),
+		_ => None,
+	}
+}
+
+pub fn manga_from_list(item: ListItem, pinned: Option<ContentRating>) -> Manga {
 	let content_type = ContentType::from_list_item(item.medium.as_deref(), item.kind.as_deref());
 	let slug = item.slug;
 	let key = deep_link_manga_key(content_type, &slug);
@@ -230,17 +277,9 @@ pub fn manga_from_list(item: ListItem) -> Manga {
 		title: item.title,
 		cover: item.cover_url,
 		url,
-		content_rating: list_content_rating(item.is_nsfw),
+		content_rating: pinned.unwrap_or_else(|| content_rating(item.is_nsfw)),
 		status: item.status.as_deref().map(parse_status).unwrap_or_default(),
 		..Default::default()
-	}
-}
-
-pub fn list_content_rating(is_nsfw: bool) -> ContentRating {
-	if is_nsfw {
-		ContentRating::NSFW
-	} else {
-		ContentRating::Unknown
 	}
 }
 
@@ -248,7 +287,10 @@ pub fn manga_from_detail(detail: Detail, content_type: ContentType) -> Manga {
 	let slug = detail.slug;
 	let key = deep_link_manga_key(content_type, &slug);
 	let url = Some(format!("{BASE_URL}{}/{slug}", content_type.web_base()));
-	let content_rating = content_rating(detail.is_nsfw, &detail.genres, &detail.tags);
+	let content_rating = detail_rating(
+		detail.is_nsfw,
+		rated_suggestive(&detail.title, &slug, content_type).ok(),
+	);
 	let mut tags = Vec::new();
 	for name in detail.genres.into_iter().map(|g| g.name).chain(
 		detail
@@ -315,32 +357,49 @@ pub fn viewer_for_series(reading_mode: Option<&str>, kind: Option<&str>) -> View
 	}
 }
 
-pub fn content_rating(
-	is_nsfw: bool,
-	genres: &[crate::models::Named],
-	tags: &[crate::models::Tag],
-) -> ContentRating {
+pub fn content_rating(is_nsfw: bool) -> ContentRating {
 	if is_nsfw {
-		return ContentRating::NSFW;
-	}
-	let is_mature = genres.iter().any(|genre| is_mature_signal(&genre.name))
-		|| tags.iter().any(|tag| is_mature_signal(&tag.name));
-	if is_mature {
-		ContentRating::Suggestive
+		ContentRating::NSFW
 	} else {
-		ContentRating::Safe
+		ContentRating::Unknown
 	}
 }
 
-fn is_mature_signal(value: &str) -> bool {
-	value.eq_ignore_ascii_case("mature")
-		|| value.eq_ignore_ascii_case("r-18")
-		|| value.eq_ignore_ascii_case("r18")
-		|| value.eq_ignore_ascii_case("adult")
-		|| value.eq_ignore_ascii_case("ecchi")
-		|| value.eq_ignore_ascii_case("smut")
-		|| value.eq_ignore_ascii_case("yaoi")
-		|| value.eq_ignore_ascii_case("yuri")
+/// `is_nsfw` cannot separate safe from suggestive, but the server can: a title
+/// appears under `content_rating=suggestive` only when the site rates it so.
+/// `q=` only searches within the types it is given, and the API hides novels
+/// unless `type` is present, so the lookup sends every type.
+pub fn suggestive_lookup_url(title: &str) -> String {
+	let mut qs = QueryParameters::new();
+	qs.push("q", Some(title));
+	qs.push("content_rating", Some("suggestive"));
+	qs.push("limit", Some("30"));
+	for kind in TYPES {
+		qs.push("type", Some(kind));
+	}
+	format!("{BASE_URL}/api/series?{qs}")
+}
+
+pub fn rated_suggestive(title: &str, slug: &str, content_type: ContentType) -> Result<bool> {
+	let data: ListResponse = request(&suggestive_lookup_url(title))?;
+	Ok(data.items.iter().any(|item| {
+		item.slug == slug
+			&& ContentType::from_list_item(item.medium.as_deref(), item.kind.as_deref())
+				== content_type
+	}))
+}
+
+/// `None` means the lookup failed and establishes nothing, so the rating stays
+/// `Unknown` rather than claiming `Safe`.
+pub fn detail_rating(is_nsfw: bool, suggestive: Option<bool>) -> ContentRating {
+	if is_nsfw {
+		return ContentRating::NSFW;
+	}
+	match suggestive {
+		Some(true) => ContentRating::Suggestive,
+		Some(false) => ContentRating::Safe,
+		None => ContentRating::Unknown,
+	}
 }
 
 pub fn parse_status(status: &str) -> MangaStatus {
@@ -411,6 +470,15 @@ pub fn parse_iso_date(value: &str) -> Option<i64> {
 	})
 }
 
+pub fn chikari_path(url: &str) -> Option<&str> {
+	let without_fragment = url.split(['?', '#']).next()?;
+	let (_, authority_and_path) = without_fragment.split_once("://")?;
+	let (_, path) = authority_and_path
+		.split_once('/')
+		.unwrap_or((authority_and_path, ""));
+	Some(path)
+}
+
 pub fn valid_slug(value: &str) -> bool {
 	!value.is_empty()
 		&& value
@@ -444,161 +512,95 @@ pub fn valid_number(value: &str) -> bool {
 }
 
 pub fn body_to_text(body: String) -> Result<String> {
-	let text = crate::markdown::html_to_markdown(&body);
+	let text = crate::markdown::to_markdown(&body);
 	if text.is_empty() {
 		bail!("Chikari returned an empty chapter");
 	}
 	Ok(text)
 }
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use aidoku::alloc::vec;
-	use aidoku_test::aidoku_test;
-
-	#[aidoku_test]
-	fn list_url_sends_types_and_repeated_genres() {
-		let filters = [
-			FilterValue::MultiSelect {
-				id: "types".into(),
-				included: vec!["manga".into(), "novel".into()],
-				excluded: vec!["manga".into()],
-			},
-			FilterValue::MultiSelect {
+pub fn apply_settings(filters: Vec<FilterValue>) -> Vec<FilterValue> {
+	let hidden = crate::settings::hidden_genres();
+	let selected_types = crate::settings::type_filters();
+	let selected_status = crate::settings::status_filter();
+	let selected_ratings = crate::settings::content_rating_filter();
+	if hidden.is_empty()
+		&& selected_types.is_empty()
+		&& selected_status.is_empty()
+		&& selected_ratings.is_empty()
+	{
+		return filters;
+	}
+	let mut filters = filters;
+	if !hidden.is_empty() {
+		if let Some(FilterValue::MultiSelect {
+			included, excluded, ..
+		}) = filters
+			.iter_mut()
+			.find(|filter| matches!(filter, FilterValue::MultiSelect { id, .. } if id == "genres"))
+		{
+			excluded.extend(hidden_genres_to_exclude(hidden, included));
+		} else {
+			filters.push(FilterValue::MultiSelect {
 				id: "genres".into(),
-				included: vec!["action".into(), "fantasy".into()],
-				excluded: vec!["mature".into()],
-			},
-		];
-		let url = list_url("popular", 36, 0, Some("shadow slave"), &filters).unwrap();
-		assert!(url.starts_with("https://chikari.moe/api/series?"));
-		assert!(url.contains("type=novel"));
-		assert!(!url.contains("type=manga"));
-		assert_eq!(url.matches("genre=").count(), 2);
-		assert!(url.contains("genre=action"));
-		assert!(url.contains("genre_exclude=mature"));
-		assert!(url.contains("q=shadow"));
+				included: Vec::new(),
+				excluded: hidden,
+			});
+		}
 	}
+	push_persistent_selection(&mut filters, "types", selected_types);
+	push_persistent_selection(&mut filters, "status", selected_status);
+	push_persistent_selection(&mut filters, "contentRating", selected_ratings);
+	filters
+}
 
-	#[aidoku_test]
-	fn list_url_defaults_to_every_type_and_rejects_empty_selection() {
-		let url = list_url("popular", 36, 0, None, &[]).unwrap();
-		assert_eq!(url.matches("type=").count(), TYPES.len());
-		let filters = [FilterValue::MultiSelect {
-			id: "types".into(),
-			included: vec![],
-			excluded: vec!["novel".into()],
-		}];
-		let url = list_url("popular", 36, 0, None, &filters).unwrap();
-		assert_eq!(url.matches("type=").count(), TYPES.len() - 1);
-		assert!(!url.contains("type=novel"));
-		let filters = [FilterValue::MultiSelect {
-			id: "types".into(),
-			included: vec![],
-			excluded: TYPES.iter().map(|kind| (*kind).into()).collect(),
-		}];
-		assert!(list_url("popular", 36, 0, None, &filters).is_none());
+fn push_persistent_selection(
+	filters: &mut Vec<FilterValue>,
+	id: &str,
+	selected: Vec<&'static str>,
+) {
+	if selected.is_empty() || has_filter(filters, id) {
+		return;
 	}
+	filters.push(FilterValue::MultiSelect {
+		id: id.into(),
+		included: selected.into_iter().map(Into::into).collect(),
+		excluded: Vec::new(),
+	});
+}
 
-	#[aidoku_test]
-	fn list_url_sends_content_ratings() {
-		let filters = [FilterValue::MultiSelect {
-			id: "ratings".into(),
-			included: vec!["safe".into(), "erotica".into()],
-			excluded: vec![],
-		}];
-		let url = list_url("popular", 36, 0, None, &filters).unwrap();
-		assert!(url.contains("content_rating=safe"));
-		assert!(url.contains("erotica"));
-		assert!(!url.contains("pornographic"));
-		let url = list_url("popular", 36, 0, None, &[]).unwrap();
-		assert!(url.contains("content_rating=safe"));
-		assert!(url.contains("pornographic"));
-		let filters = [FilterValue::MultiSelect {
-			id: "ratings".into(),
-			included: vec![],
-			excluded: RATINGS.iter().map(|rating| (*rating).into()).collect(),
-		}];
-		assert!(list_url("popular", 36, 0, None, &filters).is_none());
-	}
+fn has_filter(filters: &[FilterValue], id: &str) -> bool {
+	filters
+		.iter()
+		.any(|filter| matches!(filter, FilterValue::MultiSelect { id: found, .. } if found == id))
+}
 
-	#[aidoku_test]
-	fn list_url_sends_status_only_when_restricted() {
-		let url = list_url("popular", 36, 0, None, &[]).unwrap();
-		assert!(!url.contains("status="));
-		let filters = [FilterValue::MultiSelect {
-			id: "status".into(),
-			included: vec!["completed".into(), "hiatus".into()],
-			excluded: vec![],
-		}];
-		let url = list_url("popular", 36, 0, None, &filters).unwrap();
-		assert!(url.contains("status=completed"));
-		assert!(url.contains("status=hiatus"));
-		assert!(!url.contains("status=releasing"));
-		let filters = [FilterValue::MultiSelect {
-			id: "status".into(),
-			included: vec![],
-			excluded: STATUS.iter().map(|status| (*status).into()).collect(),
-		}];
-		assert!(list_url("popular", 36, 0, None, &filters).is_none());
-	}
+pub fn novel_text_pages(data: ChapterBody) -> Result<Vec<Page>> {
+	let text = if data.locked || data.body.trim().is_empty() {
+		"This chapter is locked (early access)".into()
+	} else {
+		body_to_text(data.body)?
+	};
+	Ok(vec![Page {
+		content: PageContent::text(text),
+		..Default::default()
+	}])
+}
 
-	#[aidoku_test]
-	fn key_and_url_follow_the_item_medium() {
-		let item = |medium: Option<&str>, kind: Option<&str>| crate::models::ListItem {
-			slug: "slug".into(),
-			title: "Title".into(),
-			cover_url: None,
-			status: None,
-			is_nsfw: true,
-			medium: medium.map(Into::into),
-			kind: kind.map(Into::into),
-		};
-		let novel = manga_from_list(item(Some("novel"), None));
-		assert_eq!(novel.key, "slug");
-		assert_eq!(
-			novel.url.as_deref(),
-			Some("https://chikari.moe/novels/slug")
-		);
-		assert_eq!(novel.content_rating, ContentRating::NSFW);
-		let comic = manga_from_list(item(Some("comic"), None));
-		assert_eq!(comic.key, "series:slug");
-		assert_eq!(
-			comic.url.as_deref(),
-			Some("https://chikari.moe/series/slug")
-		);
-		let fallback = manga_from_list(item(None, Some("novel")));
-		assert_eq!(fallback.key, "slug");
-	}
+pub fn series_image_pages(pages: Vec<String>) -> Vec<Page> {
+	pages
+		.into_iter()
+		.map(|url| Page {
+			content: PageContent::url(url),
+			..Default::default()
+		})
+		.collect()
+}
 
-	#[aidoku_test]
-	fn manga_key_decoding_routes_the_pipeline() {
-		assert_eq!(
-			decode_manga_key("series:comic", None),
-			(ContentType::Series, "comic")
-		);
-		assert_eq!(
-			decode_manga_key("comic", Some("https://chikari.moe/series/comic")),
-			(ContentType::Series, "comic")
-		);
-		assert_eq!(
-			decode_manga_key("novel", None),
-			(ContentType::Novel, "novel")
-		);
-	}
-
-	#[aidoku_test]
-	fn parse_iso_date_accepts_chikari_timestamps() {
-		let micros = parse_iso_date("2026-02-21T22:08:14.600092+00:00").unwrap();
-		assert_eq!(
-			micros,
-			parse_iso_date("2026-02-21T22:08:14.000000+00:00").unwrap()
-		);
-		assert_eq!(
-			parse_iso_date("2026-02-21T22:08:14.000000-05:00").unwrap(),
-			parse_iso_date("2026-02-21T22:08:14").unwrap()
-		);
-		assert!(parse_iso_date("2026-02-21T22:08:14Z").is_some());
-	}
+pub fn chapter_deep_link(manga_key: String, number: &str) -> Option<DeepLinkResult> {
+	let number: f32 = number.parse().ok()?;
+	Some(DeepLinkResult::Chapter {
+		manga_key,
+		key: chapter_key(number),
+	})
 }

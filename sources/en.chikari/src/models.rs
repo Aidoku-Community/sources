@@ -3,7 +3,6 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct ListResponse {
-	#[serde(default)]
 	pub items: Vec<ListItem>,
 	#[serde(default)]
 	pub total: u32,
@@ -69,7 +68,6 @@ pub struct Tag {
 
 #[derive(Deserialize)]
 pub struct ChapterListResponse {
-	#[serde(default)]
 	pub items: Vec<ChapterItem>,
 	#[serde(default)]
 	pub total: u32,
@@ -89,8 +87,13 @@ pub struct ChapterItem {
 }
 
 #[derive(Deserialize)]
+pub struct Genre {
+	pub slug: String,
+	pub name: String,
+}
+
+#[derive(Deserialize)]
 pub struct ChapterBody {
-	#[serde(default)]
 	pub body: String,
 	#[serde(default)]
 	pub locked: bool,
@@ -98,6 +101,5 @@ pub struct ChapterBody {
 
 #[derive(Deserialize)]
 pub struct SeriesChapterBody {
-	#[serde(default)]
 	pub pages: Vec<String>,
 }

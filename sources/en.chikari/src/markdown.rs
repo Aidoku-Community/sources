@@ -1,20 +1,28 @@
+//! Kept byte-identical with `sources/en.novelbuddy/src/markdown.rs`, and with
+//! the `watermark.rs` and `mtl.rs` beside it: the two sources are separate
+//! crates, so a change here belongs in both copies.
+
 use aidoku::{
-	alloc::{String, Vec, string::ToString},
+	alloc::{String, Vec},
 	helpers::string::PlainText,
 	imports::html::{Element, Html, Kind},
 };
 use core::fmt::Write as _;
 
-use crate::{settings, watermark};
+use crate::{BASE_URL, settings, watermark};
 
-// Anything not listed here is escaped, so literal "<NotATag>" prose survives.
+// Names the parser is allowed to read as markup. Any other `<` opens prose: the
+// parser would take `<Maddened Enlightenment>` for a tag with an attribute and
+// the words would be gone before conversion starts, so they are escaped first.
 const MARKUP_TAGS: &[&str] = &[
 	"a",
 	"abbr",
+	"address",
 	"article",
 	"aside",
 	"b",
 	"blockquote",
+	"body",
 	"br",
 	"caption",
 	"center",
@@ -25,14 +33,17 @@ const MARKUP_TAGS: &[&str] = &[
 	"dd",
 	"del",
 	"details",
+	"dialog",
 	"div",
 	"dl",
 	"dt",
 	"em",
+	"fieldset",
 	"figcaption",
 	"figure",
 	"font",
 	"footer",
+	"form",
 	"h1",
 	"h2",
 	"h3",
@@ -42,6 +53,7 @@ const MARKUP_TAGS: &[&str] = &[
 	"header",
 	"hgroup",
 	"hr",
+	"html",
 	"i",
 	"img",
 	"ins",
@@ -50,6 +62,7 @@ const MARKUP_TAGS: &[&str] = &[
 	"main",
 	"mark",
 	"menu",
+	"nav",
 	"ol",
 	"p",
 	"pre",
@@ -59,6 +72,7 @@ const MARKUP_TAGS: &[&str] = &[
 	"ruby",
 	"s",
 	"samp",
+	"search",
 	"section",
 	"small",
 	"span",
@@ -82,6 +96,20 @@ const MARKUP_TAGS: &[&str] = &[
 	"wbr",
 ];
 
+// Tags that close themselves, so they never keep a block open.
+const VOID_TAGS: &[&str] = &[
+	"br", "img", "hr", "input", "meta", "link", "source", "track", "wbr", "col", "area", "embed",
+	"param", "base",
+];
+
+fn join_lines(text: &str) -> String {
+	text.lines()
+		.filter(|line| !line.is_empty())
+		.map(|line| line.escape_markdown())
+		.collect::<Vec<String>>()
+		.join("  \n")
+}
+
 fn longest_backtick_run(text: &str) -> usize {
 	let mut longest = 0;
 	let mut current = 0;
@@ -102,19 +130,18 @@ fn append_raw_text(element: &Element, output: &mut String) {
 	}
 }
 
-// Element-kind nodes pair with the next children entry.
-fn convert_children_to_markdown(element: &Element, output: &mut String) {
+fn convert_children(element: &Element, output: &mut String) {
 	let mut elements = element.children();
 	for node in element.child_nodes() {
 		match node.kind() {
 			Kind::TextNode => {
 				if let Some(text) = node.text() {
-					output.push_str(&text.escape_markdown());
+					output.push_str(&join_lines(&text));
 				}
 			}
 			Kind::Element => {
 				if let Some(child) = elements.next() {
-					convert_element_to_markdown(&child, output);
+					convert_element(&child, output);
 				}
 			}
 			_ => {}
@@ -132,6 +159,11 @@ fn break_before_block(output: &mut String) {
 }
 
 fn convert_heading(element: &Element, output: &mut String) {
+	let mut inner = String::default();
+	convert_children(element, &mut inner);
+	if inner.trim().is_empty() {
+		return;
+	}
 	break_before_block(output);
 	let tag = element.tag_name().unwrap_or_default();
 	let level = tag.as_bytes()[1] - b'0';
@@ -139,36 +171,45 @@ fn convert_heading(element: &Element, output: &mut String) {
 		output.push('#');
 	}
 	output.push(' ');
-	convert_children_to_markdown(element, output);
+	output.push_str(inner.trim());
 	output.push_str("\n\n");
+}
+
+fn anchored(inner: &str, open: &str, close: &str) -> String {
+	let start = inner.len() - inner.trim_start().len();
+	let end = inner.trim_end().len();
+	if start >= end {
+		return inner.into();
+	}
+	let mut out = String::from(&inner[..start]);
+	out.push_str(open);
+	out.push_str(&inner[start..end]);
+	out.push_str(close);
+	out.push_str(&inner[end..]);
+	out
 }
 
 fn convert_emphasis(element: &Element, output: &mut String) {
 	let mut inner = String::default();
-	convert_children_to_markdown(element, &mut inner);
-	let trimmed = inner.trim();
-	if trimmed.is_empty() {
-		return;
-	}
-	// CommonMark has no strikethrough or underline: emit the content unmarked.
+	convert_children(element, &mut inner);
 	let marker = match element.tag_name().as_deref() {
 		Some("strong" | "b") => "**",
-		Some("em" | "i") => "*",
-		_ => "",
+		Some("s" | "del" | "strike") => "~~",
+		_ => "*",
 	};
-	output.push_str(marker);
-	output.push_str(trimmed);
-	output.push_str(marker);
+	output.push_str(&anchored(&inner, marker, marker));
 }
 
 fn convert_inline_code(element: &Element, output: &mut String) {
 	let mut raw = String::default();
 	append_raw_text(element, &mut raw);
+	if raw.is_empty() {
+		return;
+	}
 	let ticks = longest_backtick_run(&raw) + 1;
 	for _ in 0..ticks {
 		output.push('`');
 	}
-	// CommonMark strips one padding space: pad content touching the fence.
 	if raw.starts_with('`') || raw.ends_with('`') {
 		output.push(' ');
 		output.push_str(&raw);
@@ -182,9 +223,12 @@ fn convert_inline_code(element: &Element, output: &mut String) {
 }
 
 fn convert_fenced_code(element: &Element, output: &mut String) {
-	break_before_block(output);
 	let mut raw = String::default();
 	append_raw_text(element, &mut raw);
+	if raw.trim().is_empty() {
+		return;
+	}
+	break_before_block(output);
 	let fence = "`".repeat(3.max(longest_backtick_run(&raw) + 1));
 	output.push_str(&fence);
 	output.push('\n');
@@ -197,46 +241,69 @@ fn convert_fenced_code(element: &Element, output: &mut String) {
 }
 
 fn convert_image(element: &Element, output: &mut String) {
+	let Some(src) = element
+		.attr("abs:src")
+		.filter(|src| src.starts_with("http"))
+	else {
+		return;
+	};
 	break_before_block(output);
-	if let Some(src) = element.attr("src") {
-		let alt = element.attr("alt").unwrap_or_default();
-		let _ = writeln!(output, "![{alt}]({src})");
-		output.push('\n');
-	}
+	let alt = element.attr("alt").unwrap_or_default();
+	let _ = writeln!(output, "![{alt}]({src})");
+	output.push('\n');
 }
 
 fn convert_link(element: &Element, output: &mut String) {
-	if let Some(href) = element.attr("href") {
+	if let Some(href) = element.attr("abs:href") {
 		output.push('[');
-		convert_children_to_markdown(element, output);
+		convert_children(element, output);
 		let _ = write!(output, "]({href})");
 	} else {
-		convert_children_to_markdown(element, output);
+		convert_children(element, output);
 	}
 }
 
 fn convert_block_container(element: &Element, output: &mut String) {
+	let mut inner = String::default();
+	convert_children(element, &mut inner);
+	if inner.trim().is_empty() {
+		return;
+	}
 	break_before_block(output);
-	convert_children_to_markdown(element, output);
-	if !output.ends_with("\n\n") && !output.ends_with('\n') {
+	output.push_str(&inner);
+	if !output.ends_with('\n') {
 		output.push('\n');
 	}
 }
 
-fn convert_element_to_markdown(element: &Element, output: &mut String) {
+fn convert_quoted(element: &Element, output: &mut String) {
+	let mut inner = String::default();
+	convert_children(element, &mut inner);
+	output.push_str(&anchored(&inner, "\u{201C}", "\u{201D}"));
+}
+
+// Elements with a markdown form are converted below, listed against the WHATWG
+// index at https://html.spec.whatwg.org/multipage/indices.html#elements-3 .
+// A structural container keeps its line breaks, and any other tag keeps its
+// text, so a chapter loses nothing it marked up.
+fn convert_element(element: &Element, output: &mut String) {
 	let tag = element.tag_name().unwrap_or_default();
 	match tag.as_str() {
 		"p" | "figcaption" | "dt" | "dd" | "summary" => {
+			let mut inner = String::default();
+			convert_children(element, &mut inner);
+			if inner.trim().is_empty() {
+				return;
+			}
 			break_before_block(output);
-			convert_children_to_markdown(element, output);
+			output.push_str(&inner);
 			output.push_str("\n\n");
 		}
 		"br" => output.push_str("  \n"),
 		"h1" | "h2" | "h3" | "h4" | "h5" | "h6" => convert_heading(element, output),
-		"strong" | "b" | "em" | "i" | "u" | "s" | "strike" | "del" => {
-			convert_emphasis(element, output)
-		}
+		"strong" | "b" | "em" | "i" | "s" | "del" | "strike" => convert_emphasis(element, output),
 		"code" => convert_inline_code(element, output),
+		"q" => convert_quoted(element, output),
 		"pre" => convert_fenced_code(element, output),
 		"img" => convert_image(element, output),
 		"a" => convert_link(element, output),
@@ -244,37 +311,114 @@ fn convert_element_to_markdown(element: &Element, output: &mut String) {
 			break_before_block(output);
 			output.push_str("---\n\n")
 		}
-		"ul" | "ol" | "menu" => convert_list_to_markdown(element, &tag, output),
-		"blockquote" => convert_blockquote_to_markdown(element, output),
+		"ul" | "ol" | "menu" => convert_list(element, &tag, output),
+		"table" => convert_table(element, output),
+		"blockquote" => convert_blockquote(element, output),
 		"div" | "section" | "article" | "header" | "footer" | "main" | "aside" | "figure"
-		| "hgroup" | "details" | "dl" => convert_block_container(element, output),
-		"span" | "li" => convert_children_to_markdown(element, output),
-		_ => convert_children_to_markdown(element, output),
+		| "hgroup" | "details" | "dl" | "address" | "nav" | "dialog" | "search" | "body"
+		| "html" | "form" | "fieldset" | "center" => convert_block_container(element, output),
+		_ => convert_children(element, output),
 	}
 }
 
-fn convert_list_to_markdown(element: &Element, tag: &str, output: &mut String) {
-	break_before_block(output);
-	let items: Vec<_> = element
-		.children()
-		.filter(|child| child.tag_name().as_deref() == Some("li"))
-		.collect();
-	for (index, item) in items.iter().enumerate() {
-		if tag == "ol" {
-			let _ = write!(output, "{}. ", index + 1);
-		} else {
-			output.push_str("- ");
+fn convert_list(element: &Element, tag: &str, output: &mut String) {
+	let ordered = tag == "ol";
+	let mut bodies: Vec<String> = Vec::new();
+	for item in element.children() {
+		if item.tag_name().as_deref() != Some("li") {
+			continue;
 		}
-		convert_children_to_markdown(item, output);
+		let mut body = String::default();
+		convert_children(&item, &mut body);
+		if !body.trim().is_empty() {
+			bodies.push(body);
+		}
+	}
+	if bodies.is_empty() {
+		return;
+	}
+	break_before_block(output);
+	for (index, body) in bodies.iter().enumerate() {
+		let mut marker = String::default();
+		if ordered {
+			let _ = write!(marker, "{}. ", index + 1);
+		} else {
+			marker.push_str("- ");
+		}
+		let indent = " ".repeat(marker.len());
+		output.push_str(&marker);
+		for (line_index, line) in body.trim().lines().enumerate() {
+			if line_index > 0 {
+				output.push('\n');
+			}
+			if line.is_empty() {
+				continue;
+			}
+			if line_index > 0 {
+				output.push_str(&indent);
+			}
+			output.push_str(line);
+		}
 		output.push('\n');
 	}
 	output.push('\n');
 }
 
-fn convert_blockquote_to_markdown(element: &Element, output: &mut String) {
+fn convert_table(element: &Element, output: &mut String) {
+	let mut rows: Vec<Vec<String>> = Vec::new();
+	table_rows(element, &mut rows);
+	rows.retain(|row| row.iter().any(|cell| !cell.trim().is_empty()));
+	let width = rows.iter().map(|row| row.len()).max().unwrap_or(0);
+	if width == 0 {
+		return;
+	}
 	break_before_block(output);
+	for (index, row) in rows.iter().enumerate() {
+		output.push('|');
+		for column in 0..width {
+			output.push(' ');
+			output.push_str(row.get(column).map_or("", String::as_str));
+			output.push_str(" |");
+		}
+		output.push('\n');
+		if index == 0 {
+			output.push('|');
+			for _ in 0..width {
+				output.push_str(" --- |");
+			}
+			output.push('\n');
+		}
+	}
+	output.push('\n');
+}
+
+fn table_rows(element: &Element, rows: &mut Vec<Vec<String>>) {
+	for child in element.children() {
+		match child.tag_name().as_deref() {
+			Some("thead" | "tbody" | "tfoot") => table_rows(&child, rows),
+			Some("tr") => {
+				let mut row: Vec<String> = Vec::new();
+				for cell in child.children() {
+					if matches!(cell.tag_name().as_deref(), Some("td" | "th")) {
+						let mut text = String::default();
+						convert_children(&cell, &mut text);
+						row.push(text.replace('\n', " ").replace('|', "\\|").trim().into());
+					}
+				}
+				rows.push(row);
+			}
+			_ => {}
+		}
+	}
+}
+
+fn convert_blockquote(element: &Element, output: &mut String) {
 	let mut quoted = String::default();
-	convert_children_to_markdown(element, &mut quoted);
+	convert_children(element, &mut quoted);
+	if quoted.trim().is_empty() {
+		return;
+	}
+	break_before_block(output);
 	for (index, line) in quoted.trim_end().lines().enumerate() {
 		if index > 0 {
 			output.push('\n');
@@ -285,7 +429,7 @@ fn convert_blockquote_to_markdown(element: &Element, output: &mut String) {
 	output.push_str("\n\n");
 }
 
-// Quote-aware so a '>' inside an attribute cannot end the tag early.
+// Quote-aware so a `>` inside an attribute cannot end the tag early.
 fn markup_tag_end(input: &str, start: usize) -> Option<usize> {
 	let bytes = input.as_bytes();
 	let mut index = start + 1;
@@ -323,9 +467,9 @@ fn markup_tag_end(input: &str, start: usize) -> Option<usize> {
 	None
 }
 
-// Escape bare '<': the parser would eat literal prose like "<Maddened Enlightenment>".
+// Escape a bare `<` so the parser keeps it as text instead of reading it as a tag.
 fn protect_literal_angle_brackets(input: &str) -> String {
-	let mut output = String::default();
+	let mut output = String::with_capacity(input.len());
 	let mut index = 0;
 	while index < input.len() {
 		if input.as_bytes()[index] == b'<' {
@@ -345,119 +489,104 @@ fn protect_literal_angle_brackets(input: &str) -> String {
 	output
 }
 
-// Real block markup must not be wrapped in <p>: the parser nests the blocks and doubles the blank lines.
-fn starts_with_block_markup(segment: &str) -> bool {
-	let Some(tag) = segment.trim_start().strip_prefix('<').map(|rest| {
-		let end = rest
-			.find(|character: char| !(character.is_ascii_alphanumeric() || character == '-'))
-			.unwrap_or(rest.len());
-		rest[..end].to_ascii_lowercase()
-	}) else {
-		return false;
-	};
-	matches!(
-		tag.as_str(),
-		"blockquote"
-			| "details"
-			| "div" | "dl"
-			| "dt" | "dd"
-			| "figcaption"
-			| "figure"
-			| "h1" | "h2"
-			| "h3" | "h4"
-			| "h5" | "h6"
-			| "hgroup"
-			| "hr" | "menu"
-			| "ol" | "p"
-			| "pre" | "summary"
-			| "ul"
-	)
-}
-
-fn push_block_html(paragraphs: &mut String, block: &str) {
-	let protected = protect_literal_angle_brackets(block);
-	if starts_with_block_markup(&protected) {
-		paragraphs.push_str(&protected);
-	} else {
-		paragraphs.push_str("<p>");
-		paragraphs.push_str(&protected);
-		paragraphs.push_str("</p>");
-	}
-}
-
-fn assemble_paragraphs(input: &str) -> String {
-	let mut paragraphs = String::default();
-	let mut current = String::default();
-	for line in input.lines() {
-		if line.trim().is_empty() {
-			if !current.is_empty() {
-				push_block_html(&mut paragraphs, &current);
-				current.clear();
-			}
-		} else {
-			if !current.is_empty() {
-				current.push('\n');
-			}
-			current.push_str(line);
-		}
-	}
-	if !current.is_empty() {
-		push_block_html(&mut paragraphs, &current);
-	}
-	// concat!, not format!: chapter text may contain braces.
-	["<div id=\"chikari-root\">", &paragraphs, "</div>"].concat()
-}
-
-pub fn html_to_markdown(html: &str) -> String {
-	let Ok(doc) = Html::parse_fragment(assemble_paragraphs(html)) else {
+fn html_to_markdown(input: &str) -> String {
+	let protected = protect_literal_angle_brackets(input);
+	let wrapped = ["<div id=\"md-root\">", &protected, "</div>"].concat();
+	let Ok(doc) = Html::parse_fragment_with_url(wrapped, BASE_URL) else {
 		return String::default();
 	};
 
 	let mut output = String::default();
-	if let Some(root) = doc.select_first("#chikari-root") {
-		convert_children_to_markdown(&root, &mut output);
+	if let Some(root) = doc.select_first("#md-root") {
+		convert_children(&root, &mut output);
 	}
-	if settings::hide_watermark() {
-		watermark::strip(output.trim())
-	} else {
-		output.trim().to_string()
-	}
+	output
 }
 
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use aidoku_test::aidoku_test;
-
-	#[aidoku_test]
-	fn converts_inline_markup_and_escapes_prose() {
-		let out = html_to_markdown("The <i>wen was</i> a coin");
-		assert_eq!(out, "The *wen was* a coin");
-		let out = html_to_markdown("Use *literal* and <strong>bold</strong>.");
-		assert_eq!(out, "Use \\*literal\\* and **bold**\\.");
-		let out = html_to_markdown("<p><strong> bold </strong></p>");
-		assert_eq!(out, "**bold**");
+fn blocks(text: &str) -> Vec<String> {
+	let mut blocks: Vec<String> = Vec::new();
+	let mut block = String::default();
+	for line in text.lines() {
+		if line.trim().is_empty() {
+			if !block.is_empty() {
+				blocks.push(core::mem::take(&mut block));
+			}
+		} else {
+			block.push_str(if block.is_empty() { "" } else { "\n" });
+			block.push_str(line);
+		}
 	}
-
-	#[aidoku_test]
-	fn keeps_paragraphs_and_lists() {
-		let out = html_to_markdown("First <strong>bold</strong>.\n\nSecond <em>italic</em>.");
-		assert_eq!(out, "First **bold**\\.\n\nSecond *italic*\\.");
-		let out = html_to_markdown(
-			"<menu><li>One</li><li>Two</li></menu>\n\n<dl><dt>Term</dt><dd>Definition</dd></dl>\n\n<figure><figcaption>Caption</figcaption></figure>",
-		);
-		assert_eq!(out, "- One\n- Two\n\nTerm\n\nDefinition\n\nCaption");
-		assert_eq!(html_to_markdown("first\r\n\r\nsecond"), "first\n\nsecond");
+	if !block.is_empty() {
+		blocks.push(block);
 	}
+	blocks
+}
 
-	#[aidoku_test]
-	fn escapes_unknown_tags_and_literal_brackets() {
-		let out = html_to_markdown("A <marquee>strange <em>x</em></marquee> tag");
-		assert_eq!(out, "A \\<marquee\\>strange *x*\\<\\/marquee\\> tag");
-		let out = html_to_markdown("<Maddened Enlightenment> could replenish 30 Intelligence");
-		assert_eq!(
-			out,
-			"\\<Maddened Enlightenment\\> could replenish 30 Intelligence"
-		);
+fn leaves_open(block: &str) -> bool {
+	let mut depth = 0i32;
+	let mut rest = block;
+	while let Some(index) = rest.find('<') {
+		let after = &rest[index + 1..];
+		let end = after.find('>').unwrap_or(after.len());
+		let body = &after[..end];
+		if let Some(rest_of_tag) = body.strip_prefix('/') {
+			if rest_of_tag
+				.chars()
+				.next()
+				.is_some_and(|c| c.is_ascii_alphabetic())
+			{
+				depth = (depth - 1).max(0);
+			}
+		} else if !body.ends_with('/')
+			&& body.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+		{
+			let length = body.chars().take_while(|c| c.is_alphanumeric()).count();
+			let name = &body[..length];
+			if !VOID_TAGS.contains(&name) {
+				depth += 1;
+			}
+		}
+		rest = after;
 	}
+	depth > 0
+}
+
+pub fn to_markdown(input: &str) -> String {
+	let mut pieces: Vec<String> = Vec::new();
+	let mut pending = String::default();
+	for block in blocks(input) {
+		if !pending.is_empty() {
+			pending.push('\n');
+		}
+		pending.push_str(&block);
+		if leaves_open(&pending) {
+			continue;
+		}
+		pieces.push(if pending.contains('<') {
+			html_to_markdown(&pending).trim().into()
+		} else {
+			core::mem::take(&mut pending)
+		});
+		pending.clear();
+	}
+	if !pending.is_empty() {
+		pieces.push(if pending.contains('<') {
+			html_to_markdown(&pending).trim().into()
+		} else {
+			pending
+		});
+	}
+	pieces.retain(|piece| !piece.is_empty());
+	let text = pieces.join("\n\n");
+	let text = if settings::hide_watermark() {
+		blocks(&text)
+			.iter()
+			.map(|block| watermark::strip(block))
+			.filter(|block| !block.is_empty())
+			.collect::<Vec<String>>()
+			.join("\n\n")
+	} else {
+		text
+	};
+	text.trim().into()
 }
