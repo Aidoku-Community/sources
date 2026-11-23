@@ -66,10 +66,7 @@ impl Source for Chikari {
 		let hide = settings::hide_mtl() && !query.as_deref().is_some_and(mtl::mentions_mtl);
 		let offset = (page.max(1) as u32 - 1) * limit;
 		let Some(url) = list_url(sort, limit, offset, query.as_deref(), &filters) else {
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
+			return Ok(MangaPageResult::default());
 		};
 		let data: ListResponse = request(&url)?;
 		let mut result = manga_page_result(
@@ -142,10 +139,7 @@ impl ListingProvider for Chikari {
 		let filters = apply_settings(Vec::new());
 		let offset = (page.max(1) as u32 - 1) * LIST_PAGE_SIZE;
 		let Some(url) = list_url(sort, LIST_PAGE_SIZE, offset, None, &filters) else {
-			return Ok(MangaPageResult {
-				entries: Vec::new(),
-				has_next_page: false,
-			});
+			return Ok(MangaPageResult::default());
 		};
 		let data: ListResponse = request(&url)?;
 		let mut result = manga_page_result(
