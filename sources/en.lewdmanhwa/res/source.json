@@ -1,0 +1,22 @@
+{
+	"info": {
+		"id": "en.lewdmanhwa",
+		"name": "LewdManhwa",
+		"version": 1,
+		"url": "https://lewdmanhwa.com",
+		"contentRating": 2,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "Latest Updates"
+		}
+	],
+	"config": {
+		"supportsTagSearch": true
+	}
+}
