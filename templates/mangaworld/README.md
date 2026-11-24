@@ -2,7 +2,7 @@
 
 ## Updating Genres
 
-On the source archive page (e.g. `https://www.mangaworld.cx/archive`), open the genre dropdown and paste into the console:
+On the source archive page (e.g. `https://www.mangaworld.me/archive`), open the genre dropdown and paste into the console:
 
 ```js
 (() => {

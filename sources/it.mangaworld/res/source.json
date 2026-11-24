@@ -2,12 +2,18 @@
 	"info": {
 		"id": "it.mangaworld",
 		"name": "MangaWorld",
-		"version": 6,
-		"url": "https://www.mangaworld.mx",
+		"version": 10,
+		"url": "https://www.mangaworld.me",
 		"contentRating": 1,
 		"languages": ["it"],
 		"minAppVersion": "0.7.1"
 	},
+	"listings": [
+		{ "id": "latest", "name": "Ultimi aggiornamenti" },
+		{ "id": "new", "name": "Nuovi manga" },
+		{ "id": "popular", "name": "Più letti" },
+		{ "id": "rated", "name": "Più votati" }
+	],
 	"config": {
 		"breakingChangeVersion": 5
 	}
