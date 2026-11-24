@@ -1,0 +1,22 @@
+{
+	"info": {
+		"id": "en.toonz",
+		"name": "Toonz",
+		"version": 1,
+		"url": "https://toonz.to",
+		"contentRating": 1,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{
+			"id": "latest",
+			"name": "Latest Updates"
+		}
+	],
+	"config": {
+		"supportsTagSearch": true
+	}
+}

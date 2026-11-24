@@ -1,0 +1,78 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"canAscend": false,
+		"options": [
+			"Latest",
+			"Popular",
+			"Top Rated",
+			"A-Z"
+		]
+	},
+	{
+		"type": "text",
+		"id": "author",
+		"title": "Author"
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"Any",
+			"Ongoing",
+			"Completed",
+			"Hiatus",
+			"Cancelled",
+			"Upcoming"
+		],
+		"ids": [
+			"",
+			"ongoing",
+			"completed",
+			"hiatus",
+			"cancelled",
+			"upcoming"
+		]
+	},
+	{
+		"type": "select",
+		"id": "rating",
+		"title": "Content Rating",
+		"options": [
+			"Any",
+			"Safe",
+			"Suggestive",
+			"Erotica",
+			"Explicit"
+		],
+		"ids": [
+			"",
+			"safe",
+			"suggestive",
+			"erotica",
+			"pornographic"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "type",
+		"title": "Types",
+		"canExclude": false,
+		"options": [
+			"Manhwa",
+			"Manga",
+			"Manhua",
+			"Webtoon",
+			"Comic"
+		],
+		"ids": [
+			"manhwa",
+			"manga",
+			"manhua",
+			"webtoon",
+			"comic"
+		]
+	}
+]

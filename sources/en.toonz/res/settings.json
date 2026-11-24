@@ -1,0 +1,68 @@
+[
+	{
+		"type": "group",
+		"title": "Content Rating",
+		"footer": "Shows titles at and below the selected rating. The Content Rating filter overrides this for one search.",
+		"items": [
+			{
+				"type": "select",
+				"key": "contentRating",
+				"title": "Content Rating",
+				"values": [
+					"safe",
+					"suggestive",
+					"erotica",
+					"pornographic"
+				],
+				"titles": [
+					"Safe",
+					"Suggestive",
+					"Erotica",
+					"Explicit"
+				],
+				"default": "suggestive",
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			}
+		]
+	},
+	{
+		"type": "group",
+		"title": "Content",
+		"footer": "Only the selected types are shown. The Types filter overrides this for one search.",
+		"items": [
+			{
+				"type": "multi-select",
+				"key": "types",
+				"title": "Types",
+				"values": [
+					"manhwa",
+					"manga",
+					"manhua",
+					"webtoon",
+					"comic"
+				],
+				"titles": [
+					"Manhwa",
+					"Manga",
+					"Manhua",
+					"Webtoon",
+					"Comic"
+				],
+				"default": [
+					"manhwa",
+					"manga",
+					"manhua",
+					"webtoon",
+					"comic"
+				],
+				"refreshes": [
+					"content",
+					"listings"
+				]
+			}
+		]
+	}
+]

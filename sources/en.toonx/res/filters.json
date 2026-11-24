@@ -1,0 +1,39 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"canAscend": false,
+		"options": [
+			"Latest",
+			"Popular",
+			"Top Rated",
+			"A-Z"
+		]
+	},
+	{
+		"type": "text",
+		"id": "author",
+		"title": "Author"
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"Any",
+			"Ongoing",
+			"Completed",
+			"Hiatus",
+			"Cancelled",
+			"Upcoming"
+		],
+		"ids": [
+			"",
+			"ongoing",
+			"completed",
+			"hiatus",
+			"cancelled",
+			"upcoming"
+		]
+	}
+]
