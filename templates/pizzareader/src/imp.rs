@@ -14,10 +14,10 @@ pub trait Impl {
 	fn params(&self) -> Params;
 
 	fn to_manga_status(&self, status: &str) -> aidoku::MangaStatus {
-		match status {
-			"En cours" | "On going" | "In corso" => aidoku::MangaStatus::Ongoing,
-			"Terminé" | "Completed" | "Concluso" => aidoku::MangaStatus::Completed,
-			"In pausa" => aidoku::MangaStatus::Hiatus,
+		match status.to_lowercase().as_str() {
+			"en cours" | "on going" | "in corso" => aidoku::MangaStatus::Ongoing,
+			"terminé" | "completed" | "concluso" => aidoku::MangaStatus::Completed,
+			"in pausa" => aidoku::MangaStatus::Hiatus,
 			_ => aidoku::MangaStatus::Unknown,
 		}
 	}
@@ -44,7 +44,7 @@ pub trait Impl {
 		let content_rating = self.to_manga_content_rating(comic.adult);
 		let genres = self.to_manga_genres(&comic.genres);
 
-		let mut manga: Manga = comic.into();
+		let mut manga: Manga = comic.into_minimal_manga();
 		manga.url = Some(format!("{}{}", base_url, manga.url.unwrap_or_default()));
 		manga.status = status;
 		manga.content_rating = content_rating;
@@ -187,9 +187,9 @@ pub trait Impl {
 						scanlators: Some(
 							chapter
 								.teams
-								.iter()
+								.into_iter()
 								.flatten()
-								.map(|team| team.name.clone())
+								.map(|team| team.name)
 								.collect(),
 						),
 						..Default::default()

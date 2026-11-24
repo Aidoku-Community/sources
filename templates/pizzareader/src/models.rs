@@ -91,6 +91,26 @@ pub struct PizzaChapterDto {
 	pub teams: Vec<Option<PizzaTeamDto>>, // teams can be null for some reason
 }
 
+impl PizzaComicDto {
+	pub fn into_minimal_manga(self) -> Manga {
+		let PizzaComicDto {
+			slug,
+			title,
+			thumbnail,
+			url,
+			..
+		} = self;
+
+		Manga {
+			key: slug,
+			title,
+			url: Some(url),
+			cover: Some(thumbnail),
+			..Default::default()
+		}
+	}
+}
+
 impl From<PizzaComicDto> for Manga {
 	fn from(comic: PizzaComicDto) -> Self {
 		let PizzaComicDto {
