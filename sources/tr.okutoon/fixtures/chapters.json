@@ -1,0 +1,53 @@
+{
+	"data": [
+		{
+			"id": 52585,
+			"slug": "bolum-247-5",
+			"number": 247,
+			"display_number": "247.5",
+			"sort_number": 247.5,
+			"title": "Bölüm 247.5",
+			"created_at": "2026-05-25 02:24:17",
+			"progress": 0,
+			"completed": false,
+			"is_ai_translated": false,
+			"url": "https://okutoon.net/the-remarried-empress/bolum-247-5"
+		},
+		{
+			"id": 52584,
+			"slug": "bolum-247",
+			"number": 247,
+			"display_number": "247",
+			"sort_number": 247,
+			"title": "Bölüm 247",
+			"created_at": "2026-05-25 02:23:14",
+			"progress": 0,
+			"completed": false,
+			"is_ai_translated": false,
+			"url": "https://okutoon.net/the-remarried-empress/bolum-247"
+		},
+		{
+			"id": 48472,
+			"slug": "bolum-246",
+			"number": 246,
+			"display_number": "246",
+			"sort_number": 246,
+			"title": "Bölüm 246",
+			"created_at": "2026-05-10 16:35:20",
+			"progress": 0,
+			"completed": false,
+			"is_ai_translated": false,
+			"url": "https://okutoon.net/the-remarried-empress/bolum-246"
+		}
+	],
+	"meta": {
+		"offset": 50,
+		"start_offset": 0,
+		"limit": 50,
+		"total": 252,
+		"has_previous": false,
+		"has_more": true,
+		"sort": "desc",
+		"anchor": null
+	}
+}

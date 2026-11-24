@@ -2,24 +2,28 @@
 
 use aidoku::{
 	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Listing, ListingProvider, Manga,
-	MangaPageResult, Page, Result, Source,
+	MangaPageResult, Page, PageContent, Result, Source,
 	alloc::{String, Vec, format, string::ToString, vec},
 	helpers::uri::QueryParameters,
+	imports::net::Request,
 	prelude::*,
 };
+use serde::de::DeserializeOwned;
 
-mod helpers;
-use helpers::*;
+mod models;
+use models::*;
 
-const BASE_URL: &str = "https://okutoon.com";
+const BASE_URL: &str = "https://okutoon.net";
+const API_URL: &str = "https://okutoon.net/api/v1";
 
-const USER_AGENT: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
-
-/// Site `sira` values, in the order of the sort filter options.
+/// Site `sort` values, in the order of the sort filter options.
 const SORT_IDS: &[&str] = &["newest", "updated", "popular", "rating", "az"];
 
+/// The chapter endpoint returns at most 50 chapters per request.
+const CHAPTER_PAGE_SIZE: i32 = 50;
+
 const PAGE_ERROR: &str = "Bölüm sayfaları alınamadı.";
-const NETWORK_ERROR: &str = "Sayfa okutoon.com'dan alınamadı.";
+const NETWORK_ERROR: &str = "Sayfa okutoon.net'ten alınamadı.";
 
 /// Top-level site paths that aren't series slugs.
 const NON_SERIES_PATHS: &[&str] = &[
@@ -40,6 +44,12 @@ const NON_SERIES_PATHS: &[&str] = &[
 	"gizlilik",
 	"api",
 ];
+
+fn get_json<T: DeserializeOwned>(url: &str) -> Result<T> {
+	Request::get(url)?
+		.json_owned::<T>()
+		.map_err(|_| error!("{NETWORK_ERROR}"))
+}
 
 struct OkuToon;
 
@@ -73,21 +83,18 @@ impl Source for OkuToon {
 		}
 
 		let mut qs = QueryParameters::new();
-		if let Some(query) = query.as_deref() {
-			qs.push("q", Some(query));
-		}
-		qs.push("sira", Some(sort));
+		qs.push("sort", Some(sort));
 		if sort == "popular" && period.is_some() {
-			qs.push("donem", period);
+			qs.push("period", period);
 		}
-		if page > 1 {
-			qs.push("sayfa", Some(&page.to_string()));
+		if query.is_some() {
+			qs.push("q", query.as_deref());
 		}
-		let url = match genre {
-			Some(genre) => format!("{BASE_URL}/tur/{genre}?{qs}"),
-			None => format!("{BASE_URL}/tur?{qs}"),
-		};
-		Ok(parse_cards(&request_document(&url)?))
+		if genre.is_some() {
+			qs.push("categories", genre);
+		}
+		qs.push("page", Some(&page.to_string()));
+		Ok(get_json::<SeriesList>(&format!("{API_URL}/series?{qs}"))?.into())
 	}
 
 	fn get_manga_update(
@@ -96,19 +103,46 @@ impl Source for OkuToon {
 		needs_details: bool,
 		needs_chapters: bool,
 	) -> Result<Manga> {
-		let document = request_document(&format!("{BASE_URL}/{}", manga.key))?;
 		if needs_details {
-			manga.copy_from(parse_details(&manga.key, &document));
+			let series: Response<Series> = get_json(&format!("{API_URL}/series/{}", manga.key))?;
+			manga.copy_from(series.data.into());
 		}
 		if needs_chapters {
-			manga.chapters = Some(parse_chapters(&manga.key, &document));
+			let mut chapters = Vec::new();
+			let mut offset = 0;
+			loop {
+				let list: ChapterList = get_json(&format!(
+					"{API_URL}/series/{}/chapters?offset={offset}&limit={CHAPTER_PAGE_SIZE}",
+					manga.key
+				))?;
+				chapters.extend(list.data.into_iter().map(Chapter::from));
+				if !list.meta.has_more {
+					break;
+				}
+				offset = list.meta.offset;
+			}
+			manga.chapters = Some(chapters);
 		}
 		Ok(manga)
 	}
 
 	fn get_page_list(&self, manga: Manga, chapter: Chapter) -> Result<Vec<Page>> {
-		let document = request_document(&format!("{BASE_URL}/{}/{}", manga.key, chapter.key))?;
-		parse_pages(&document)
+		let reader: Response<ChapterPages> = get_json(&format!(
+			"{API_URL}/series/{}/chapters/{}",
+			manga.key, chapter.key
+		))?;
+		if reader.data.pages.is_empty() {
+			bail!("{PAGE_ERROR}");
+		}
+		Ok(reader
+			.data
+			.pages
+			.into_iter()
+			.map(|page| Page {
+				content: PageContent::Url(page.image_url, None),
+				..Default::default()
+			})
+			.collect())
 	}
 }
 
