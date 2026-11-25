@@ -44,7 +44,7 @@ pub trait Impl {
 		let content_rating = self.to_manga_content_rating(comic.adult);
 		let genres = self.to_manga_genres(&comic.genres);
 
-		let mut manga: Manga = comic.into_minimal_manga();
+		let mut manga: Manga = comic.into();
 		manga.url = Some(format!("{}{}", base_url, manga.url.unwrap_or_default()));
 		manga.status = status;
 		manga.content_rating = content_rating;
@@ -52,10 +52,10 @@ pub trait Impl {
 		manga
 	}
 
-	fn to_mangas(&self, comics: Vec<PizzaComicDto>, base_url: &str) -> Vec<Manga> {
+	fn to_mangas(&self, comics: Vec<PizzaComicDto>) -> Vec<Manga> {
 		comics
 			.into_iter()
-			.map(|comic| self.to_manga(comic, base_url))
+			.map(|comic| comic.into_minimal_manga())
 			.collect::<Vec<_>>()
 	}
 
@@ -143,7 +143,7 @@ pub trait Impl {
 		}
 
 		Ok(MangaPageResult {
-			entries: self.to_mangas(response.comics, &params.base_url),
+			entries: self.to_mangas(response.comics),
 			has_next_page: false,
 		})
 	}

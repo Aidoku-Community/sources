@@ -9,6 +9,7 @@
 		"minAppVersion": "0.7.1"
 	},
 	"config": {
-		"supportsTagSearch": true
+		"supportsTagSearch": true,
+		"breakingChangeVersion": 2
 	}
 }
