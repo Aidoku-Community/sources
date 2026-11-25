@@ -2,12 +2,10 @@
 	"info": {
 		"id": "multi.xcomic",
 		"name": "XCOMIC",
-		"version": 5,
+		"version": 6,
 		"urls": [
 			"https://xcomic.me",
-			"https://xcomic.net",
-			"https://comik.to",
-			"https://yona.to"
+			"https://comik.to"
 		],
 		"contentRating": 2,
 		"languages": [
