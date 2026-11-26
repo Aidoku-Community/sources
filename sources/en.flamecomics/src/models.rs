@@ -1,6 +1,6 @@
 use crate::{
 	BASE_URL, CDN_URL,
-	helpers::{key, markdown},
+	helpers::{key, markdown, novel_title},
 };
 use aidoku::{
 	AidokuError, Chapter, ContentRating, Link, LinkValue, Manga, MangaStatus, MangaWithChapter,
@@ -59,10 +59,16 @@ pub struct Unlock {
 }
 
 impl Entry {
-	fn cover_url(&self) -> Option<String> {
-		let (folder, id) = match self.novel_id {
-			Some(id) => ("novels", id),
-			None => ("series", self.series_id?),
+	pub fn is_novel(&self) -> bool {
+		matches!(self.r#type.as_deref(), Some("Novel" | "Web Novel"))
+			|| (self.series_id.is_none() && self.novel_id.is_some())
+	}
+
+	fn cover_url(&self, novel: bool) -> Option<String> {
+		let (folder, id) = if novel {
+			("novels", self.novel_id?)
+		} else {
+			("series", self.series_id?)
 		};
 		Some(format!(
 			"{CDN_URL}/uploads/images/{folder}/{id}/{}?{}",
@@ -81,8 +87,8 @@ impl Entry {
 		})
 	}
 
-	pub fn into_details(self) -> Result<Manga> {
-		let key = key(self.novel_id, self.series_id)?;
+	pub fn into_details(self, novel: bool) -> Result<Manga> {
+		let key = key(novel, self.novel_id, self.series_id)?;
 		let status = match self.status.as_deref().map(str::to_lowercase).as_deref() {
 			Some("ongoing") => MangaStatus::Ongoing,
 			Some("completed") => MangaStatus::Completed,
@@ -100,6 +106,7 @@ impl Entry {
 			ContentRating::Safe
 		};
 		let viewer = match self.r#type.as_deref() {
+			_ if novel => Viewer::Unknown,
 			Some("Manga") => Viewer::RightToLeft,
 			Some("Novel" | "Web Novel") => Viewer::Unknown,
 			_ => Viewer::Webtoon,
@@ -114,7 +121,7 @@ impl Entry {
 			(!list.is_empty()).then_some(list)
 		};
 		Ok(Manga {
-			cover: self.cover_url(),
+			cover: self.cover_url(novel),
 			url: Some(format!("{BASE_URL}{key}")),
 			description: self
 				.description
@@ -125,7 +132,7 @@ impl Entry {
 			artists: names(self.artist),
 			tags: (!self.tags.is_empty()).then_some(self.tags),
 			key,
-			title: self.title,
+			title: novel_title(self.title, novel),
 			status,
 			content_rating,
 			viewer,
@@ -139,10 +146,11 @@ impl TryFrom<Entry> for Manga {
 	type Error = AidokuError;
 
 	fn try_from(entry: Entry) -> Result<Self> {
+		let novel = entry.is_novel();
 		Ok(Manga {
-			key: key(entry.novel_id, entry.series_id)?,
-			cover: entry.cover_url(),
-			title: entry.title,
+			key: key(novel, entry.novel_id, entry.series_id)?,
+			cover: entry.cover_url(novel),
+			title: novel_title(entry.title, novel),
 			..Default::default()
 		})
 	}
@@ -218,9 +226,9 @@ pub struct Slide {
 
 impl Slide {
 	pub fn into_link(self) -> Option<Link> {
-		let key = key(self.novel_id, self.series_id).ok()?;
+		let key = key(false, self.novel_id, self.series_id).ok()?;
 		Some(Link {
-			title: self.title,
+			title: novel_title(self.title, key.starts_with("/novel/")),
 			image_url: Some(format!("{CDN_URL}/uploads/images/carousel/{}", self.image)),
 			value: Some(LinkValue::Manga(Manga {
 				key,

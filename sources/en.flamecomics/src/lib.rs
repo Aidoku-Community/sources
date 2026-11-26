@@ -68,7 +68,7 @@ impl Source for FlameComics {
 				let rank = i64::from(entry.popularity_rank.unwrap_or(u32::MAX));
 				if params.descending { rank } else { -rank }
 			});
-			(rank, entry.title.to_lowercase())
+			(rank, entry.title.to_lowercase(), entry.is_novel())
 		});
 		if params.descending && !params.popular {
 			series.reverse();
@@ -103,7 +103,7 @@ impl Source for FlameComics {
 			);
 		}
 		if needs_details {
-			manga.copy_from(series.into_details()?);
+			manga.copy_from(series.into_details(manga.key.starts_with("/novel/"))?);
 		}
 		Ok(manga)
 	}
