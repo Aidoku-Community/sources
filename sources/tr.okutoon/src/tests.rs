@@ -26,6 +26,66 @@ fn catalog_page() {
 }
 
 #[aidoku_test]
+fn listing_keeps_content_rating() {
+	let series: Series = parse(r#"{"slug":"x","title":"X","categories":[{"name":"Ecchi"}]}"#);
+	assert_eq!(
+		series.into_basic_manga().content_rating,
+		ContentRating::Suggestive
+	);
+}
+
+#[aidoku_test]
+fn search_urls() {
+	let sort = |index| FilterValue::Sort {
+		id: "sort".into(),
+		index,
+		ascending: false,
+	};
+	// popular defaults to the "Bugün" period shown in the filter
+	assert_eq!(
+		search_url(None, 1, &[sort(2)]),
+		"https://okutoon.net/api/v1/series?sort=popular&period=daily&page=1"
+	);
+	assert_eq!(
+		search_url(
+			None,
+			2,
+			&[
+				sort(2),
+				FilterValue::Select {
+					id: "period".into(),
+					value: "monthly".into(),
+				},
+			]
+		),
+		"https://okutoon.net/api/v1/series?sort=popular&period=monthly&page=2"
+	);
+	// other sorts ignore the period; empty queries and "Tümü" are dropped
+	assert_eq!(
+		search_url(
+			Some(""),
+			1,
+			&[FilterValue::Select {
+				id: "genre".into(),
+				value: "".into(),
+			}]
+		),
+		"https://okutoon.net/api/v1/series?sort=newest&page=1"
+	);
+	assert_eq!(
+		search_url(
+			Some("blue lock"),
+			1,
+			&[FilterValue::Select {
+				id: "genre".into(),
+				value: "aksiyon".into(),
+			}]
+		),
+		"https://okutoon.net/api/v1/series?sort=newest&q=blue%20lock&categories=aksiyon&page=1"
+	);
+}
+
+#[aidoku_test]
 fn last_catalog_page() {
 	let list: SeriesList =
 		parse(r#"{"data":[],"meta":{"page":96,"limit":24,"total":2300,"total_pages":96}}"#);
@@ -95,6 +155,8 @@ fn chapter_real_title_is_kept() {
 	let item: ChapterItem = parse(r#"{"slug":"bolum-1","display_number":"1","title":"Başlangıç"}"#);
 	let chapter: Chapter = item.into();
 	assert_eq!(chapter.title.as_deref(), Some("Başlangıç"));
+	// without sort_number the number comes from display_number
+	assert_eq!(chapter.chapter_number, Some(1.0));
 }
 
 #[aidoku_test]
@@ -139,6 +201,7 @@ fn deep_links() {
 		"https://okutoon.net/yorumlar/176143",
 		"https://okutoon.net/@kratos",
 		"https://okutoon.net/forum/genel-sohbet",
+		"https://okutoon.net.example.com/blue-lock",
 	] {
 		assert!(
 			matches!(source.handle_deep_link(url.to_string()), Ok(None)),

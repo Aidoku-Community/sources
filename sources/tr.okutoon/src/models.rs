@@ -91,10 +91,20 @@ impl From<SeriesList> for MangaPageResult {
 	}
 }
 
+/// "Ecchi" is the only suggestive genre on the site.
+fn content_rating(categories: &[Category]) -> ContentRating {
+	if categories.iter().any(|c| c.name == "Ecchi") {
+		ContentRating::Suggestive
+	} else {
+		ContentRating::Safe
+	}
+}
+
 impl Series {
 	/// Listing entry; the remaining details are fetched by `get_manga_update`.
 	pub fn into_basic_manga(self) -> Manga {
 		Manga {
+			content_rating: content_rating(&self.categories),
 			key: self.slug,
 			title: self.title,
 			cover: self.cover_url,
@@ -116,12 +126,7 @@ impl From<Series> for Manga {
 			Some("cancelled" | "dropped") => MangaStatus::Cancelled,
 			_ => MangaStatus::Unknown,
 		};
-		// "Ecchi" is the only suggestive genre on the site
-		let content_rating = if series.categories.iter().any(|c| c.name == "Ecchi") {
-			ContentRating::Suggestive
-		} else {
-			ContentRating::Safe
-		};
+		let content_rating = content_rating(&series.categories);
 		let authors = series
 			.author
 			.map(|a| a.split(", ").map(ToString::to_string).collect());
@@ -148,6 +153,9 @@ impl From<ChapterItem> for Chapter {
 		let title = item
 			.title
 			.filter(|t| t.strip_prefix("Bölüm ") != item.display_number.as_deref());
+		let chapter_number = item
+			.sort_number
+			.or_else(|| item.display_number.as_deref()?.parse().ok());
 		let date_uploaded = item.created_at.and_then(|date| {
 			parse_date_with_options(
 				date,
@@ -159,7 +167,7 @@ impl From<ChapterItem> for Chapter {
 		Chapter {
 			key: item.slug,
 			title,
-			chapter_number: item.sort_number,
+			chapter_number,
 			date_uploaded,
 			url: item.url,
 			..Default::default()

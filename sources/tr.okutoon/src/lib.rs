@@ -23,7 +23,9 @@ const SORT_IDS: &[&str] = &["newest", "updated", "popular", "rating", "az"];
 const CHAPTER_PAGE_SIZE: i32 = 50;
 
 const PAGE_ERROR: &str = "Bölüm sayfaları alınamadı.";
-const NETWORK_ERROR: &str = "Sayfa okutoon.net'ten alınamadı.";
+const NETWORK_ERROR: &str = "okutoon.net'e bağlanılamadı.";
+const NOT_FOUND_ERROR: &str = "İçerik okutoon.net'te bulunamadı.";
+const PARSE_ERROR: &str = "okutoon.net'ten gelen veri okunamadı.";
 
 /// Top-level site paths that aren't series slugs.
 const NON_SERIES_PATHS: &[&str] = &[
@@ -46,9 +48,53 @@ const NON_SERIES_PATHS: &[&str] = &[
 ];
 
 fn get_json<T: DeserializeOwned>(url: &str) -> Result<T> {
-	Request::get(url)?
-		.json_owned::<T>()
-		.map_err(|_| error!("{NETWORK_ERROR}"))
+	let response = Request::get(url)?
+		.send()
+		.map_err(|_| error!("{NETWORK_ERROR}"))?;
+	match response.status_code() {
+		200..=299 => {}
+		404 => bail!("{NOT_FOUND_ERROR}"),
+		code => bail!("okutoon.net {code} hatası döndürdü."),
+	}
+	response
+		.get_json_owned::<T>()
+		.map_err(|_| error!("{PARSE_ERROR}"))
+}
+
+/// Builds the `/series` url for a search or listing request.
+fn search_url(query: Option<&str>, page: i32, filters: &[FilterValue]) -> String {
+	let mut genre = None;
+	let mut sort = SORT_IDS[0];
+	// the api falls back to all_time, but the filter shows "Bugün" first
+	let mut period = "daily";
+	for filter in filters {
+		match filter {
+			FilterValue::Sort { index, .. } => {
+				sort = SORT_IDS.get(*index as usize).copied().unwrap_or(sort);
+			}
+			FilterValue::Select { id, value } => match id.as_str() {
+				// the "Tümü" option has an empty id
+				"genre" => genre = Some(value.as_str()).filter(|g| !g.is_empty()),
+				"period" => period = value.as_str(),
+				_ => {}
+			},
+			_ => {}
+		}
+	}
+
+	let mut qs = QueryParameters::new();
+	qs.push("sort", Some(sort));
+	if sort == "popular" {
+		qs.push("period", Some(period));
+	}
+	if let Some(query) = query.filter(|q| !q.is_empty()) {
+		qs.push("q", Some(query));
+	}
+	if genre.is_some() {
+		qs.push("categories", genre);
+	}
+	qs.push("page", Some(&page.to_string()));
+	format!("{API_URL}/series?{qs}")
 }
 
 struct OkuToon;
@@ -64,38 +110,8 @@ impl Source for OkuToon {
 		page: i32,
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
-		let mut genre = None;
-		let mut sort = SORT_IDS[0];
-		// the api falls back to all_time, but the filter shows "Bugün" first
-		let mut period = "daily";
-		for filter in &filters {
-			match filter {
-				FilterValue::Sort { index, .. } => {
-					sort = SORT_IDS.get(*index as usize).copied().unwrap_or(sort);
-				}
-				FilterValue::Select { id, value } => match id.as_str() {
-					// the "Tümü" option has an empty id
-					"genre" => genre = Some(value.as_str()).filter(|g| !g.is_empty()),
-					"period" => period = value.as_str(),
-					_ => {}
-				},
-				_ => {}
-			}
-		}
-
-		let mut qs = QueryParameters::new();
-		qs.push("sort", Some(sort));
-		if sort == "popular" {
-			qs.push("period", Some(period));
-		}
-		if query.is_some() {
-			qs.push("q", query.as_deref());
-		}
-		if genre.is_some() {
-			qs.push("categories", genre);
-		}
-		qs.push("page", Some(&page.to_string()));
-		Ok(get_json::<SeriesList>(&format!("{API_URL}/series?{qs}"))?.into())
+		let url = search_url(query.as_deref(), page, &filters);
+		Ok(get_json::<SeriesList>(&url)?.into())
 	}
 
 	fn get_manga_update(
@@ -116,8 +132,11 @@ impl Source for OkuToon {
 					"{API_URL}/series/{}/chapters?offset={offset}&limit={CHAPTER_PAGE_SIZE}",
 					manga.key
 				))?;
+				// stop on an empty page or a stuck offset so a bad response can't loop forever
+				let done =
+					!list.meta.has_more || list.data.is_empty() || list.meta.offset <= offset;
 				chapters.extend(list.data.into_iter().map(Chapter::from));
-				if !list.meta.has_more {
+				if done {
 					break;
 				}
 				offset = list.meta.offset;
@@ -171,9 +190,12 @@ impl ListingProvider for OkuToon {
 
 impl DeepLinkHandler for OkuToon {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
-		let path = url
-			.strip_prefix(BASE_URL)
-			.unwrap_or_default()
+		let rest = url.strip_prefix(BASE_URL).unwrap_or_default();
+		// reject look-alike hosts such as `okutoon.net.example.com`
+		if !(rest.is_empty() || rest.starts_with(['/', '?', '#'])) {
+			return Ok(None);
+		}
+		let path = rest
 			.split(['?', '#'])
 			.next()
 			.unwrap_or_default()
