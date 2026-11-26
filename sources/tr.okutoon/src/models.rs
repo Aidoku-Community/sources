@@ -82,7 +82,23 @@ impl From<SeriesList> for MangaPageResult {
 	fn from(list: SeriesList) -> Self {
 		MangaPageResult {
 			has_next_page: list.meta.page < list.meta.total_pages,
-			entries: list.data.into_iter().map(Into::into).collect(),
+			entries: list
+				.data
+				.into_iter()
+				.map(Series::into_basic_manga)
+				.collect(),
+		}
+	}
+}
+
+impl Series {
+	/// Listing entry; the remaining details are fetched by `get_manga_update`.
+	pub fn into_basic_manga(self) -> Manga {
+		Manga {
+			key: self.slug,
+			title: self.title,
+			cover: self.cover_url,
+			..Default::default()
 		}
 	}
 }

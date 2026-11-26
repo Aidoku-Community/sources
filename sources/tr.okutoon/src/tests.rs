@@ -21,6 +21,8 @@ fn catalog_page() {
 			.as_deref()
 			.is_some_and(|c| c.starts_with("https://cdn.okutoon.net/"))
 	);
+	// listings only carry the basics
+	assert!(first.description.is_none() && first.tags.is_none());
 }
 
 #[aidoku_test]

@@ -66,7 +66,8 @@ impl Source for OkuToon {
 	) -> Result<MangaPageResult> {
 		let mut genre = None;
 		let mut sort = SORT_IDS[0];
-		let mut period = None;
+		// the api falls back to all_time, but the filter shows "Bugün" first
+		let mut period = "daily";
 		for filter in &filters {
 			match filter {
 				FilterValue::Sort { index, .. } => {
@@ -75,7 +76,7 @@ impl Source for OkuToon {
 				FilterValue::Select { id, value } => match id.as_str() {
 					// the "Tümü" option has an empty id
 					"genre" => genre = Some(value.as_str()).filter(|g| !g.is_empty()),
-					"period" => period = Some(value.as_str()),
+					"period" => period = value.as_str(),
 					_ => {}
 				},
 				_ => {}
@@ -84,8 +85,8 @@ impl Source for OkuToon {
 
 		let mut qs = QueryParameters::new();
 		qs.push("sort", Some(sort));
-		if sort == "popular" && period.is_some() {
-			qs.push("period", period);
+		if sort == "popular" {
+			qs.push("period", Some(period));
 		}
 		if query.is_some() {
 			qs.push("q", query.as_deref());
