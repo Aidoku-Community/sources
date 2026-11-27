@@ -1,0 +1,15 @@
+{
+	"info": {
+		"id": "fr.bluesolo",
+		"name": "Blue Solo",
+		"version": 2,
+		"url": "https://bluesolo.org",
+		"contentRating": 0,
+		"languages": ["fr"],
+		"minAppVersion": "0.7.1"
+	},
+	"config": {
+		"supportsTagSearch": true,
+		"breakingChangeVersion": 2
+	}
+}

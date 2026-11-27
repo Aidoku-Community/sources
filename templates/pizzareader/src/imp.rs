@@ -14,9 +14,10 @@ pub trait Impl {
 	fn params(&self) -> Params;
 
 	fn to_manga_status(&self, status: &str) -> aidoku::MangaStatus {
-		match status {
-			"En cours" | "On going" => aidoku::MangaStatus::Ongoing,
-			"Terminé" | "Completed" => aidoku::MangaStatus::Completed,
+		match status.to_lowercase().as_str() {
+			"en cours" | "on going" | "in corso" => aidoku::MangaStatus::Ongoing,
+			"terminé" | "completed" | "concluso" => aidoku::MangaStatus::Completed,
+			"in pausa" => aidoku::MangaStatus::Hiatus,
 			_ => aidoku::MangaStatus::Unknown,
 		}
 	}
@@ -51,10 +52,10 @@ pub trait Impl {
 		manga
 	}
 
-	fn to_mangas(&self, comics: Vec<PizzaComicDto>, base_url: &str) -> Vec<Manga> {
+	fn to_mangas(&self, comics: Vec<PizzaComicDto>) -> Vec<Manga> {
 		comics
 			.into_iter()
-			.map(|comic| self.to_manga(comic, base_url))
+			.map(|comic| comic.into_minimal_manga())
 			.collect::<Vec<_>>()
 	}
 
@@ -116,9 +117,11 @@ pub trait Impl {
 						});
 					}
 					3 => {
-						response
-							.comics
-							.sort_by(|a, b| b.rating.total_cmp(&a.rating));
+						response.comics.sort_by(|a, b| {
+							b.rating
+								.unwrap_or(f32::NEG_INFINITY)
+								.total_cmp(&a.rating.unwrap_or(f32::NEG_INFINITY))
+						});
 					}
 					4 => {
 						response.comics.sort_by_key(|b| core::cmp::Reverse(b.views));
@@ -140,7 +143,7 @@ pub trait Impl {
 		}
 
 		Ok(MangaPageResult {
-			entries: self.to_mangas(response.comics, &params.base_url),
+			entries: self.to_mangas(response.comics),
 			has_next_page: false,
 		})
 	}
@@ -180,6 +183,14 @@ pub trait Impl {
 						date_uploaded: parse_date(
 							&chapter.published_on,
 							"yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'",
+						),
+						scanlators: Some(
+							chapter
+								.teams
+								.into_iter()
+								.flatten()
+								.map(|team| team.name)
+								.collect(),
 						),
 						..Default::default()
 					})

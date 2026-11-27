@@ -1,0 +1,14 @@
+{
+	"info": {
+		"id": "fr.mangacorporation",
+		"name": "Manga-Corporation",
+		"version": 1,
+		"url": "https://manga-corporation.com",
+		"contentRating": 0,
+		"languages": ["fr"],
+		"minAppVersion": "0.7.1"
+	},
+	"config": {
+		"supportsTagSearch": true
+	}
+}

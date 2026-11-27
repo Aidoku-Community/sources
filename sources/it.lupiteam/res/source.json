@@ -1,0 +1,14 @@
+{
+	"info": {
+		"id": "it.lupiteam",
+		"name": "LupiTeam",
+		"version": 1,
+		"url": "https://lupiteam.net",
+		"contentRating": 0,
+		"languages": ["it"],
+		"minAppVersion": "0.7.1"
+	},
+	"config": {
+		"supportsTagSearch": true
+	}
+}
