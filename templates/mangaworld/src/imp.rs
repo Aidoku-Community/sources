@@ -1,8 +1,8 @@
 use super::Params;
 use aidoku::{
 	Chapter, ContentRating, DeepLinkResult, FilterValue, HomeComponent, HomeComponentValue,
-	HomeLayout, Link, Listing, Manga, MangaPageResult, MangaStatus, MangaWithChapter, Page,
-	PageContent, PageContext, Result, Viewer,
+	HomeLayout, Link, Listing, Manga, MangaPageResult, MangaStatus, Page, PageContent, PageContext,
+	Result, Viewer,
 	alloc::{String, Vec, string::ToString, vec},
 	helpers::{string::StripPrefixOrSelf, uri::QueryParameters},
 	imports::{
@@ -25,8 +25,6 @@ pub trait Impl {
 		filters: Vec<FilterValue>,
 	) -> Result<MangaPageResult> {
 		let mut qs = QueryParameters::new();
-		let mut min_chapters = None;
-		let mut max_chapters = None;
 		qs.push("page", Some(&page.to_string()));
 		if query.is_some() {
 			qs.push("keyword", query.as_deref());
@@ -49,18 +47,6 @@ pub trait Impl {
 						qs.push(&id, Some(value));
 					}
 				}
-				FilterValue::Text { id, value } if id == "min_chapters" || id == "max_chapters" => {
-					if !value.trim().is_empty() {
-						let count = value.trim().parse::<usize>().map_err(|_| {
-							error!("Inserisci un numero di capitoli intero e positivo")
-						})?;
-						if id == "min_chapters" {
-							min_chapters = Some(count);
-						} else {
-							max_chapters = Some(count);
-						}
-					}
-				}
 				FilterValue::Text { id, value } => {
 					if !value.trim().is_empty() {
 						qs.set(&id, Some(&value));
@@ -78,30 +64,8 @@ pub trait Impl {
 			}
 		}
 
-		if matches!((min_chapters, max_chapters), (Some(min), Some(max)) if min > max) {
-			return Err(error!("Il minimo non può superare il massimo"));
-		}
 		let url = format!("{}/archive?{qs}", params.base_url);
-		let mut result = self.parse_manga_page(params, url)?;
-		if min_chapters.is_none() && max_chapters.is_none() {
-			return Ok(result);
-		}
-		let mut filtered = Vec::new();
-		for manga in result.entries {
-			let details = self.get_manga_update(params, manga, false, true)?;
-			let count = details
-				.chapters
-				.as_ref()
-				.ok_or(error!("Impossibile determinare il numero dei capitoli"))?
-				.len();
-			if min_chapters.is_none_or(|min| count >= min)
-				&& max_chapters.is_none_or(|max| count <= max)
-			{
-				filtered.push(details);
-			}
-		}
-		result.entries = filtered;
-		Ok(result)
+		self.parse_manga_page(params, url)
 	}
 
 	fn get_manga_list(
@@ -115,7 +79,7 @@ pub trait Impl {
 			"new" => format!("/archive?sort=newest&page={page}"),
 			"popular" => format!("/archive?sort=most_read&page={page}"),
 			"rated" => format!("/archive?sort=top_rated&page={page}"),
-			_ => return Err(error!("Unknown listing")),
+			_ => bail!("Unknown listing"),
 		};
 		self.parse_manga_page(params, format!("{}{path}", params.base_url))
 	}
@@ -140,61 +104,11 @@ pub trait Impl {
 			};
 			if result.entries.is_empty() {
 				if id == "latest" {
-					return Err(error!("No latest updates found"));
+					bail!("No latest updates found");
 				}
 				continue;
 			}
-			let value = if id == "latest" {
-				// Keep the site's order, and limit extra detail requests to the first 12 titles.
-				let mut entries = Vec::new();
-				for manga in result.entries.iter().take(12) {
-					if let Ok(mut details) =
-						self.get_manga_update(params, manga.clone(), false, true)
-						&& let Some(chapters) = details.chapters.take()
-						&& let Some(mut chapter) = chapters
-							.iter()
-							.max_by(|a, b| {
-								a.date_uploaded.cmp(&b.date_uploaded).then_with(|| {
-									a.chapter_number
-										.partial_cmp(&b.chapter_number)
-										.unwrap_or(core::cmp::Ordering::Equal)
-								})
-							})
-							.cloned()
-					{
-						// This label is only used in the home preview, never in the saved chapter list.
-						let count = chapters.len();
-						chapter.title = Some(if chapter.chapter_number.is_some() {
-							format!("{count} capitoli totali")
-						} else {
-							format!(
-								"{} · {count} capitoli totali",
-								chapter.title.as_deref().unwrap_or("Ultimo capitolo")
-							)
-						});
-						entries.push(MangaWithChapter {
-							manga: details,
-							chapter,
-						});
-					}
-				}
-				if entries.is_empty() {
-					HomeComponentValue::Scroller {
-						entries: result
-							.entries
-							.into_iter()
-							.map(Into::into)
-							.collect::<Vec<Link>>(),
-						listing: Some(listing),
-					}
-				} else {
-					HomeComponentValue::MangaChapterList {
-						page_size: Some(5),
-						entries,
-						listing: Some(listing),
-					}
-				}
-			} else if id == "popular" || id == "rated" {
+			let value = if id == "popular" || id == "rated" {
 				HomeComponentValue::MangaList {
 					ranking: true,
 					page_size: Some(5),

@@ -132,18 +132,6 @@
 		"placeholder": "Es. 2025"
 	},
 	{
-		"type": "text",
-		"id": "min_chapters",
-		"title": "Minimo capitoli",
-		"placeholder": "Es. 100"
-	},
-	{
-		"type": "text",
-		"id": "max_chapters",
-		"title": "Massimo capitoli",
-		"placeholder": "Es. 500"
-	},
-	{
 		"type": "sort",
 		"id": "sort",
 		"title": "Ordina per",
