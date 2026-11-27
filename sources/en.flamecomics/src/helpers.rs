@@ -30,11 +30,24 @@ pub fn next_data<T: DeserializeOwned>(path: &str) -> Result<T> {
 }
 
 /// Novel and series ids overlap, so a key keeps the site's path.
-pub fn key(novel_id: Option<u32>, series_id: Option<u32>) -> Result<String> {
-	match (novel_id, series_id) {
-		(Some(id), _) => Ok(format!("/novel/{id}")),
-		(None, Some(id)) => Ok(format!("/series/{id}")),
-		(None, None) => bail!("A Flame Comics entry has no id"),
+pub fn key(novel: bool, novel_id: Option<u32>, series_id: Option<u32>) -> Result<String> {
+	match if novel {
+		novel_id.map(|id| ("novel", id))
+	} else {
+		series_id
+			.map(|id| ("series", id))
+			.or_else(|| novel_id.map(|id| ("novel", id)))
+	} {
+		Some((kind, id)) => Ok(format!("/{kind}/{id}")),
+		None => bail!("A Flame Comics entry has no id"),
+	}
+}
+
+pub fn novel_title(title: String, novel: bool) -> String {
+	if novel && crate::settings::label_novels() && !title.ends_with("(Novel)") {
+		format!("{title} (Novel)")
+	} else {
+		title
 	}
 }
 
