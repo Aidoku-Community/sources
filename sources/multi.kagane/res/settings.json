@@ -40,5 +40,18 @@
 				"refreshes": ["content", "listings"]
 			}
 		]
+	},
+	{
+		"type": "group",
+		"title": "Reader",
+		"items": [
+			{
+				"type": "switch",
+				"key": "dataSaver",
+				"title": "Data Saver",
+				"subtitle": "Use smaller, more compressed images",
+				"default": false
+			}
+		]
 	}
 ]

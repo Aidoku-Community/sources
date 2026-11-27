@@ -1,8 +1,8 @@
 #![no_std]
 
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue, Home,
-	HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, ImageRequestProvider,
+	BaseUrlProvider, Chapter, DeepLinkHandler, DeepLinkResult, DynamicFilters, Filter, FilterValue,
+	Home, HomeComponent, HomeComponentValue, HomeLayout, HomePartialResult, ImageRequestProvider,
 	Listing, ListingKind, ListingProvider, Manga, MangaPageResult, MultiSelectFilter, Page,
 	PageContent, PageContext, Result, Source,
 	alloc::{format, string::String, vec, vec::Vec},
@@ -222,20 +222,21 @@ impl Source for Kagane {
 			.json_owned()?;
 
 		// Step 2: exchange the integrity token for an access token + page manifest
-		let challenge: ChallengeResponse = Request::post(format!(
-			"{}/books/{}?is_datasaver=false",
-			api_base(),
-			chapter.key
-		))?
-		.header("Content-Type", "application/json")
-		.header("Origin", &base_url())
-		.header("Referer", &format!("{}/", base_url()))
-		.header("x-integrity-token", &integrity.token)
-		.body(String::from("{}"))
-		.json_owned()?;
+		let challenge: ChallengeResponse =
+			Request::post(format!("{}/books/{}?intent=Read", api_base(), chapter.key))?
+				.header("Origin", &base_url())
+				.header("Referer", &format!("{}/", base_url()))
+				.header("x-integrity-token", &integrity.token)
+				.body(String::new())
+				.json_owned()?;
 
 		let cache_url = challenge.cache_url;
 		let token = challenge.access_token;
+		let quality = if data_saver() {
+			"datasaver"
+		} else {
+			"original"
+		};
 
 		let mut pages: Vec<(i32, Page)> = match challenge.manifest {
 			Some(manifest) => manifest
@@ -244,7 +245,7 @@ impl Source for Kagane {
 				.map(|p| {
 					let ext = p.ext.unwrap_or_else(|| String::from("jxl"));
 					let url = format!(
-						"{cache_url}/api/v2/books/page/{}/{}.{ext}?token={token}",
+						"{cache_url}/api/v2/books/page/{quality}/{}/{}.{ext}?token={token}",
 						chapter.key, p.page_id
 					);
 					(
@@ -393,17 +394,32 @@ impl DynamicFilters for Kagane {
 impl DeepLinkHandler for Kagane {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		// A link can come from any of the mirrors.
-		if let Some((_, rest)) = url.split_once("/series/") {
-			let slug = rest.split('/').next().unwrap_or(rest);
-			let slug = slug.split('?').next().unwrap_or(slug);
-			let slug = slug.split('#').next().unwrap_or(slug);
-			if !slug.is_empty() {
-				return Ok(Some(DeepLinkResult::Manga {
-					key: String::from(slug),
-				}));
-			}
+		let path = url.split(['?', '#']).next().unwrap_or(&url);
+		let Some((_, rest)) = path.split_once("/series/") else {
+			return Ok(None);
+		};
+		let mut segments = rest.split('/').filter(|s| !s.is_empty());
+		let Some(series_seg) = segments.next() else {
+			return Ok(None);
+		};
+		let manga_key = if series_seg.len() > 36
+			&& series_seg.as_bytes().get(series_seg.len() - 37) == Some(&b'-')
+		{
+			&series_seg[series_seg.len() - 36..]
+		} else {
+			series_seg
+		};
+		if segments.next() == Some("reader")
+			&& let Some(chapter_key) = segments.next()
+		{
+			return Ok(Some(DeepLinkResult::Chapter {
+				manga_key: String::from(manga_key),
+				key: String::from(chapter_key),
+			}));
 		}
-		Ok(None)
+		Ok(Some(DeepLinkResult::Manga {
+			key: String::from(manga_key),
+		}))
 	}
 }
 
@@ -415,11 +431,18 @@ impl ImageRequestProvider for Kagane {
 	}
 }
 
+impl BaseUrlProvider for Kagane {
+	fn get_base_url(&self) -> Result<String> {
+		Ok(base_url())
+	}
+}
+
 register_source!(
 	Kagane,
 	ListingProvider,
 	Home,
 	DynamicFilters,
 	DeepLinkHandler,
-	ImageRequestProvider
+	ImageRequestProvider,
+	BaseUrlProvider
 );
