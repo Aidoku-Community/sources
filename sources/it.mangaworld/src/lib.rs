@@ -2,7 +2,7 @@
 use aidoku::{Source, prelude::*};
 use mangaworld_template::{Impl, MangaWorldTemplate, Params};
 
-const BASE_URL: &str = "https://www.mangaworld.mx";
+const BASE_URL: &str = "https://www.mangaworld.me";
 
 struct MangaWorld;
 
@@ -18,4 +18,12 @@ impl Impl for MangaWorld {
 	}
 }
 
-register_source!(MangaWorldTemplate<MangaWorld>, DeepLinkHandler);
+register_source!(
+	MangaWorldTemplate<MangaWorld>,
+	DeepLinkHandler,
+	ListingProvider,
+	Home
+);
+
+#[cfg(test)]
+mod tests;

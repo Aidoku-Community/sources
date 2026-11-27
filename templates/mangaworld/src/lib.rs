@@ -1,7 +1,7 @@
 #![no_std]
 use aidoku::{
-	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, ImageRequestProvider, Manga,
-	MangaPageResult, Page, PageContext, Result, Source,
+	Chapter, DeepLinkHandler, DeepLinkResult, FilterValue, Home, HomeLayout, ImageRequestProvider,
+	Listing, ListingProvider, Manga, MangaPageResult, Page, PageContext, Result, Source,
 	alloc::{String, Vec, borrow::Cow},
 	imports::net::Request,
 };
@@ -61,5 +61,17 @@ impl<T: Impl> ImageRequestProvider for MangaWorldTemplate<T> {
 impl<T: Impl> DeepLinkHandler for MangaWorldTemplate<T> {
 	fn handle_deep_link(&self, url: String) -> Result<Option<DeepLinkResult>> {
 		self.inner.handle_deep_link(&self.params, url)
+	}
+}
+
+impl<T: Impl> ListingProvider for MangaWorldTemplate<T> {
+	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
+		self.inner.get_manga_list(&self.params, listing, page)
+	}
+}
+
+impl<T: Impl> Home for MangaWorldTemplate<T> {
+	fn get_home(&self) -> Result<HomeLayout> {
+		self.inner.get_home(&self.params)
 	}
 }

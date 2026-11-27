@@ -126,6 +126,12 @@
 		"placeholder": "Artista"
 	},
 	{
+		"type": "text",
+		"id": "year",
+		"title": "Anno di uscita",
+		"placeholder": "Es. 2025"
+	},
+	{
 		"type": "sort",
 		"id": "sort",
 		"title": "Ordina per",
@@ -133,10 +139,12 @@
 		"options": [
 			"Più letti",
 			"Meno letti",
-			"Più recenti",
-			"Meno recenti",
+			"Nuovi manga",
+			"Manga meno recenti",
 			"A-Z",
-			"Z-A"
+			"Z-A",
+			"Più votati",
+			"Rilevanza"
 		],
 		"default": {
 			"index": 4
