@@ -1,0 +1,85 @@
+{
+	"data": [
+		{
+			"id": 2405,
+			"title": "The Genius Midfielder with the Killer Pass",
+			"alt_title": "Dahi Orta Saha Oyuncusunun Pasları · The Genius Midfielder’s Passes are Special · A Prodigy Midfielder's Pass Is Special · Cheonjae Midfielder-ui Pass-neun Teukbyeolhada",
+			"slug": "the-genius-midfielder-with-the-killer-pass",
+			"author": "Yeokjaks, Choigom",
+			"type": "webtoon",
+			"status": "ongoing",
+			"description_text": "On yedi yaşındaki Song Yujun için hayat futboldan ibarettir, ancak aniden ortaya çıkan renk körlüğü onu yeşil sahalara ve hayallerine erken yaşta veda etmek zorunda bırakır. Aradan geçen on beş yılın ardından geçirdiği ölümcül bir trafik kazası sırasında son nefesini verirken tek bir dilek tutar ve sahaya bir kez daha adım atmayı ister. The Genius Midfielder with the Killer Pass, gözlerini yeniden on yedi yaşındaki genç bedeninde açan bir sporcunun zamanda yolculukla başlayan ikinci şansını konu alıyor.The Genius Midfielder’s Passes are Special olarak da bilinen seride Yujun, sahaya geri döndüğünde etrafında dans eden gizemli ve rengarenk ışık şeritleriyle karşılaşır. Karşılaştığı bu büyülü ışıkları rehber edinerek ölümcül paslara imza atan genç yetenek, her zaman hayalini kurduğu dahi orta saha oyuncusu olmak için mücadele edecektir.",
+			"cover_url": "https://cdn.okutoon.net/covers/the-genius-midfielder-with-the-killer-pass-draft-53c4ccb374e2.webp",
+			"chapter_count": 79,
+			"categories": [
+				{
+					"id": null,
+					"name": "Aksiyon",
+					"slug": "aksiyon"
+				},
+				{
+					"id": null,
+					"name": "Fantezi",
+					"slug": "fantezi"
+				},
+				{
+					"id": null,
+					"name": "Shounen",
+					"slug": "shounen"
+				},
+				{
+					"id": null,
+					"name": "Spor",
+					"slug": "spor"
+				},
+				{
+					"id": null,
+					"name": "Zamanda Yolculuk",
+					"slug": "zamanda-yolculuk"
+				}
+			],
+			"url": "https://okutoon.net/the-genius-midfielder-with-the-killer-pass"
+		},
+		{
+			"id": 2402,
+			"title": "I Only Want Your Child",
+			"alt_title": null,
+			"slug": "i-only-want-your-child",
+			"author": "maro J, MaybeeY, Bluepic",
+			"type": "webtoon",
+			"status": "ongoing",
+			"description_text": "Juliana, on yıl boyunca gizlice sevdiği rakip ailenin varisi Karion ile politik bir evlilik yapar. Ancak bu evlilikte sevgisine karşılık yalnızca soğuk ve acımasız bir muamele görür. Yaşadığı zor günlerde tek tesellisi olan oğlu Denian'ın trajik ölümüyle yıkılan Juliana, çaresizlik içinde hayatına son vermeyi dener. Fakat gizemli bir şekilde kendini yeniden evliliğinin hemen öncesinde bulur. I Only Want Your Child, acı dolu bir döngüde sıkışıp kalan bir annenin mücadelesini konu alıyor.Karion'dan kaçıp kaderini değiştirmeye çalıştığı her denemede yeniden geçmişe dönen Juliana, hiçbir hayatında biricik oğlunun anısını aklından çıkaramaz. On ikinci geri dönüşünde ise beklenmedik bir adım atar. Karion ile tekrar evlenecektir fakat bu kez kalbinde aşka yer yoktur, tek arzusu yeniden çocuğuna kavuşmaktır.",
+			"cover_url": "https://cdn.okutoon.net/covers/cover_1795435669_62d5c11c.webp",
+			"chapter_count": 10,
+			"categories": [
+				{
+					"id": null,
+					"name": "Dram",
+					"slug": "dram"
+				},
+				{
+					"id": null,
+					"name": "Fantezi",
+					"slug": "fantezi"
+				},
+				{
+					"id": null,
+					"name": "Josei",
+					"slug": "josei"
+				},
+				{
+					"id": null,
+					"name": "Romantizm",
+					"slug": "romantizm"
+				}
+			],
+			"url": "https://okutoon.net/i-only-want-your-child"
+		}
+	],
+	"meta": {
+		"page": 1,
+		"limit": 24,
+		"total": 2300,
+		"total_pages": 96
+	}
+}

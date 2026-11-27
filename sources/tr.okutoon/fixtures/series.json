@@ -1,0 +1,47 @@
+{
+	"data": {
+		"id": 91,
+		"title": "The Remarried Empress",
+		"alt_title": "Yeniden Evlenen İmparatoriçe · Remarried Empress · Jaehon Hwanghu · The Remarried Empress: Spin-off",
+		"slug": "the-remarried-empress",
+		"author": "Alphatart, Sumpul",
+		"type": "webtoon",
+		"status": "completed",
+		"description_text": "Navier Ellie Trovi, Doğu İmparatorluğu'nun kusursuza yakın imparatoriçesidir. Soğukkanlı, zarif ve siyasette son derece yetkindir. Saray dengelerini ustalıkla korurken imparatoriçelik görevini de kusursuz biçimde taşır. Ancak yıllardır sürdürdüğü düzen, eşi İmparator Sovieshu'nun saraya Rashta'yı getirmesi ve ardından boşanma istemesiyle yıkılır. Herkes Navier'in sessizce geri çekilmesini beklerken o, kaderini başkalarının kararına bırakmaz ve kendi şartlarını ortaya koyar.The Remarried Empress, ihanet ve saray entrikalarını yalnızca romantik bir dram olarak değil, güç, itibar ve özsaygı ekseninde işleyen bir hikâye olarak öne çıkarır. Serinin en güçlü yanı, Navier'in yaşadığı kırılmayı acizliğe değil kararlılığa dönüştürmesidir. Politik mücadeleler, ilişkilerdeki gerilim ve yeniden kurulan bir hayatın heyecanı iç içe ilerler. Güçlü kadın karakterler, asil saray atmosferi ve duygusal tatmini yüksek bir intikam değil, saygınlık hikâyesi arıyorsanız bu seri tam olarak bunu vaat eder.",
+		"cover_url": "https://cdn.okutoon.net/covers/cover_1795142852_ebd30a32.webp",
+		"chapter_count": 252,
+		"categories": [
+			{
+				"id": 49,
+				"name": "Günlük Hayat",
+				"slug": "gunluk-hayat"
+			},
+			{
+				"id": 16,
+				"name": "Josei",
+				"slug": "josei"
+			},
+			{
+				"id": 44,
+				"name": "Romantizm",
+				"slug": "romantizm"
+			},
+			{
+				"id": 2,
+				"name": "Shoujo",
+				"slug": "shoujo"
+			},
+			{
+				"id": 1,
+				"name": "Shounen",
+				"slug": "shounen"
+			},
+			{
+				"id": 13,
+				"name": "Tarihi",
+				"slug": "tarihi"
+			}
+		],
+		"url": "https://okutoon.net/the-remarried-empress"
+	}
+}

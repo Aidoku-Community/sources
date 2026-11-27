@@ -1,0 +1,40 @@
+{
+	"data": {
+		"chapter": {
+			"id": 158904,
+			"slug": "bolum-15",
+			"number": 15,
+			"display_number": "15",
+			"sort_number": 15,
+			"title": "Bölüm 15",
+			"created_at": "2026-11-16 02:41:18",
+			"progress": 0,
+			"completed": false,
+			"is_ai_translated": false,
+			"url": "https://okutoon.net/let-s-get-divorced-your-majesty/bolum-15"
+		},
+		"pages": [
+			{
+				"id": 3887491,
+				"page_number": 1,
+				"image_url": "https://cdn.okutoon.net/chapters/2320/158904/let-s-get-divorced-your-majesty_bolum-15_001-bddb8439.webp",
+				"image_width": 800,
+				"image_height": 3035
+			},
+			{
+				"id": 3887492,
+				"page_number": 2,
+				"image_url": "https://cdn.okutoon.net/chapters/2320/158904/let-s-get-divorced-your-majesty_bolum-15_002-6af93cdc.webp",
+				"image_width": 800,
+				"image_height": 3600
+			},
+			{
+				"id": 3887493,
+				"page_number": 3,
+				"image_url": "https://cdn.okutoon.net/chapters/2320/158904/let-s-get-divorced-your-majesty_bolum-15_003-d21b889f.webp",
+				"image_width": 800,
+				"image_height": 2692
+			}
+		]
+	}
+}
