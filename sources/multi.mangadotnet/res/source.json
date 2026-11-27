@@ -1,8 +1,8 @@
 {
 	"info": {
 		"id": "multi.mangadotnet",
-		"name": "Mangadotnet",
-		"version": 10,
+		"name": "MangaDot",
+		"version": 11,
 		"url": "https://mangadot.net",
 		"contentRating": 1,
 		"languages": [
