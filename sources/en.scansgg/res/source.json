@@ -1,0 +1,10 @@
+{
+	"info": {
+		"id": "en.scansgg",
+		"name": "Scans.GG",
+		"version": 1,
+		"url": "https://scans.gg",
+		"contentRating": 0,
+		"languages": ["en"]
+	}
+}
