@@ -18,9 +18,13 @@ use crate::models::{
 	GroupResults, SearchResponse, SourceList, StaffResults, TagEntry, UploadSource,
 };
 
+const MIRRORS: [&str; 2] = ["https://kagane.moe", "https://kagane.org"];
+
 /// The mirror picked in the app; the first url in source.json until one is.
 pub fn base_url() -> String {
-	defaults_get::<String>("url").unwrap_or_else(|| String::from("https://kagane.cx"))
+	defaults_get::<String>("url")
+		.filter(|url| MIRRORS.contains(&url.as_str()))
+		.unwrap_or_else(|| String::from(MIRRORS[0]))
 }
 
 pub fn api_base() -> String {
@@ -62,6 +66,10 @@ fn hide_disturbing() -> bool {
 
 pub fn show_source() -> bool {
 	defaults_get::<bool>("showSourceInTitle").unwrap_or_default()
+}
+
+pub fn data_saver() -> bool {
+	defaults_get::<bool>("dataSaver").unwrap_or_default()
 }
 
 pub fn find_source<'a>(sources: &'a [UploadSource], id: Option<&str>) -> Option<&'a UploadSource> {
