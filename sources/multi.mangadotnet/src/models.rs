@@ -25,7 +25,7 @@ pub struct UserProfileData {
 
 #[derive(Deserialize)]
 pub struct BookmarkPageData {
-	pub total: i32,
+	pub ids: Option<Vec<i32>>,
 	pub entries: Vec<BookmarkPageDataEntry>,
 }
 

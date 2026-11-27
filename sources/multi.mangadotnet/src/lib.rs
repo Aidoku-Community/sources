@@ -23,12 +23,14 @@ const BASE_URL: &str = "https://mangadot.net";
 
 struct Mangadotnet {
 	cursor: RefCell<Option<String>>,
+	bookmarks: RefCell<Vec<i32>>,
 }
 
 impl Source for Mangadotnet {
 	fn new() -> Self {
 		Self {
 			cursor: RefCell::new(None),
+			bookmarks: RefCell::new(Vec::new()),
 		}
 	}
 
@@ -317,9 +319,38 @@ impl ListingProvider for Mangadotnet {
 	fn get_manga_list(&self, listing: Listing, page: i32) -> Result<MangaPageResult> {
 		match listing.id.as_str() {
 			BOOKMARKS_LISTING_ID => {
-				let bookmark_page_data: BookmarkPageData = get_json_data(&format!(
-					"{BASE_URL}/api/lists/manage?sort=updated&order=desc&per_page=50&page={page}"
-				))?;
+				let bookmark_page_data: BookmarkPageData;
+
+				if page == 1 {
+					bookmark_page_data = get_json_data(&format!(
+						"{BASE_URL}/api/lists/manage?sort=updated&order=desc&per_page=50"
+					))?;
+
+					self.bookmarks.borrow_mut().clear();
+
+					if let Some(ids) = bookmark_page_data.ids {
+						self.bookmarks.borrow_mut().extend(ids);
+					}
+				} else {
+					let bookmarks = self.bookmarks.borrow();
+					let max_length = bookmarks.len();
+					let from: usize = (50 * (page - 1)) as usize;
+					let to: usize = (from + 50).clamp(from, max_length);
+					let ids = bookmarks.get(from..to);
+
+					if let Some(ids) = ids {
+						let ids_str = ids
+							.iter()
+							.map(|i| i.to_string())
+							.collect::<Vec<String>>()
+							.join(",");
+
+						bookmark_page_data =
+							get_json_data(&format!("{BASE_URL}/api/lists/manage?ids={ids_str}"))?;
+					} else {
+						bail!("Unable to get bookmark listings")
+					}
+				}
 
 				Ok(MangaPageResult {
 					entries: bookmark_page_data
@@ -327,7 +358,7 @@ impl ListingProvider for Mangadotnet {
 						.into_iter()
 						.map(Into::into)
 						.collect(),
-					has_next_page: page * 50 < bookmark_page_data.total,
+					has_next_page: page * 50 < self.bookmarks.borrow().len() as i32,
 				})
 			}
 
