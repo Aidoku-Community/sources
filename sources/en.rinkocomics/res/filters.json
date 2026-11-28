@@ -1,0 +1,45 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"canAscend": false,
+		"options": [
+			"A–Z",
+			"Latest update",
+			"Most viewed",
+			"Newest series"
+		]
+	},
+	{
+		"type": "select",
+		"id": "type",
+		"title": "Type",
+		"options": [
+			"Comics",
+			"Novels"
+		],
+		"ids": [
+			"comic",
+			"novel"
+		]
+	},
+	{
+		"type": "select",
+		"id": "status",
+		"title": "Status",
+		"options": [
+			"Any",
+			"Ongoing",
+			"Completed",
+			"Season end",
+			"Dropped"
+		],
+		"ids": [
+			"",
+			"ongoing",
+			"completed",
+			"season_end",
+			"dropped"
+		]
+	}
+]
