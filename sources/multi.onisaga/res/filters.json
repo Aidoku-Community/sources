@@ -1,0 +1,123 @@
+[
+	{
+		"type": "sort",
+		"id": "sort",
+		"canAscend": false,
+		"options": [
+			"Relevance",
+			"Latest update",
+			"New on site",
+			"Title A–Z",
+			"First published"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "origin",
+		"title": "Type",
+		"canExclude": false,
+		"options": [
+			"Manga",
+			"Manhwa",
+			"Manhua",
+			"Comic",
+			"OEL",
+			"Other Asian",
+			"Other"
+		],
+		"ids": [
+			"manga",
+			"manhwa",
+			"manhua",
+			"comic",
+			"oel",
+			"other_asian",
+			"other"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "status",
+		"title": "Publication status",
+		"canExclude": false,
+		"options": [
+			"Ongoing",
+			"Completed",
+			"Hiatus",
+			"Cancelled",
+			"Announced"
+		],
+		"ids": [
+			"releasing",
+			"completed",
+			"hiatus",
+			"cancelled",
+			"announced"
+		]
+	},
+	{
+		"type": "text",
+		"id": "theme",
+		"title": "Themes",
+		"placeholder": "e.g. Magic, -Military"
+	},
+	{
+		"type": "text",
+		"id": "tag",
+		"title": "Tags",
+		"placeholder": "e.g. Demons, -Murder"
+	},
+	{
+		"type": "multi-select",
+		"id": "form",
+		"title": "Publication format",
+		"canExclude": false,
+		"options": [
+			"Serial",
+			"One-shot",
+			"Anthology",
+			"Doujinshi",
+			"Art book"
+		],
+		"ids": [
+			"serial",
+			"oneshot",
+			"anthology",
+			"doujinshi",
+			"artbook"
+		]
+	},
+	{
+		"type": "multi-select",
+		"id": "demographic",
+		"title": "Demographic",
+		"canExclude": false,
+		"options": [
+			"Shounen",
+			"Shoujo",
+			"Seinen",
+			"Josei",
+			"Kodomo"
+		],
+		"ids": [
+			"shounen",
+			"shoujo",
+			"seinen",
+			"josei",
+			"kodomo"
+		]
+	},
+	{
+		"type": "range",
+		"id": "year",
+		"title": "Publication year",
+		"min": 1900
+	},
+	{
+		"type": "check",
+		"id": "readable",
+		"title": "Availability",
+		"name": "Readable Chapters",
+		"hideFromHeader": true
+	}
+]
