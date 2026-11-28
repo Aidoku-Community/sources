@@ -1,0 +1,27 @@
+{
+	"info": {
+		"id": "en.templescan",
+		"name": "Temple Scan",
+		"version": 1,
+		"url": "https://templetoons.com",
+		"contentRating": 2,
+		"languages": [
+			"en"
+		],
+		"minAppVersion": "0.7.1"
+	},
+	"listings": [
+		{
+			"id": "views",
+			"name": "Trending"
+		},
+		{
+			"id": "updated",
+			"name": "Latest Updates"
+		},
+		{
+			"id": "created",
+			"name": "New Series"
+		}
+	]
+}
